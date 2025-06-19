@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Chat with Website Content</h1>
+
+        <div class="url-input-area">
+            <h2>Step 1: Enter Website URL</h2>
+            <form id="url-form">
+                <input type="url" id="url" name="url" placeholder="Enter website URL" required>
+                <button type="submit">Fetch Content</button>
+            </form>
+            <div id="url-status"></div>
+        </div>
+
+        <div class="chat-area" style="display:none;">
+            <h2>Step 2: Chat about the website</h2>
+            <div id="chat-history">
+                <!-- Chat messages will appear here -->
+            </div>
+            <form id="chat-form">
+                <input type="text" id="message" name="message" placeholder="Ask a question or request a summary..." required>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const urlForm = document.getElementById('url-form');
+        const chatForm = document.getElementById('chat-form');
+        const urlStatus = document.getElementById('url-status');
+        const chatArea = document.querySelector('.chat-area');
+        const chatHistory = document.getElementById('chat-history');
+        const messageInput = document.getElementById('message');
+
+        urlForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const url = document.getElementById('url').value;
+            urlStatus.textContent = 'Fetching content... please wait.';
+            urlStatus.className = 'status-processing'; // For potential styling
+
+            try {
+                const response = await fetch('/process_url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    urlStatus.textContent = `${result.message} Extracted ${result.text_length} characters. You can now chat below.`;
+                    urlStatus.className = 'status-success';
+                    chatArea.style.display = 'block';
+                    chatHistory.innerHTML = '';
+                    const welcomeMsg = document.createElement('div');
+                    welcomeMsg.classList.add('message', 'ai-message');
+                    welcomeMsg.textContent = "AI: I have processed the content from the URL. How can I help you?";
+                    chatHistory.appendChild(welcomeMsg);
+                } else if (result.status === 'warning') {
+                    urlStatus.textContent = `Warning: ${result.message}. You can try chatting, but the context might be limited.`;
+                    urlStatus.className = 'status-warning';
+                    chatArea.style.display = 'block';
+                    chatHistory.innerHTML = '';
+                    const warningMsg = document.createElement('div');
+                    warningMsg.classList.add('message', 'ai-message');
+                    warningMsg.textContent = "AI: I've processed the URL, but found very little or no text. My abilities might be limited for this page. How can I try to help?";
+                    chatHistory.appendChild(warningMsg);
+                } else {
+                    urlStatus.textContent = `Error: ${result.message || 'Failed to process URL.'}`;
+                    urlStatus.className = 'status-error';
+                    chatArea.style.display = 'none';
+                }
+            } catch (error) {
+                urlStatus.textContent = `Network error: ${error.message}`;
+                urlStatus.className = 'status-error';
+                chatArea.style.display = 'none';
+            }
+        });
+
+        chatForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const messageInput = document.getElementById('message');
+            const userMessage = messageInput.value.trim(); // Trim whitespace
+
+            if (!userMessage) return; // Don't send empty messages
+
+            messageInput.value = ''; // Clear input field
+
+            // Display user message immediately
+            const userMsgDiv = document.createElement('div');
+            userMsgDiv.classList.add('message', 'user-message'); // Ensure these classes are defined in your CSS
+            userMsgDiv.textContent = `You: ${userMessage}`;
+            chatHistory.appendChild(userMsgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            // Optional: Show a temporary "AI is thinking..." message
+            const thinkingMsgDiv = document.createElement('div');
+            thinkingMsgDiv.classList.add('message', 'ai-message', 'thinking'); // 'thinking' class for potential styling
+            thinkingMsgDiv.textContent = 'AI: Thinking...';
+            chatHistory.appendChild(thinkingMsgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: userMessage }),
+                });
+
+                const result = await response.json();
+
+                // Remove "AI is thinking..." message
+                chatHistory.removeChild(thinkingMsgDiv);
+
+                const aiMsgDiv = document.createElement('div');
+                aiMsgDiv.classList.add('message', 'ai-message');
+                // The backend now sends {'response': 'AI reply here'}
+                aiMsgDiv.textContent = `AI: ${result.response}`;
+                chatHistory.appendChild(aiMsgDiv);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            } catch (error) {
+                // Remove "AI is thinking..." message if it's still there
+                if (chatHistory.contains(thinkingMsgDiv)) {
+                    chatHistory.removeChild(thinkingMsgDiv);
+                }
+
+                const errorMsgDiv = document.createElement('div');
+                errorMsgDiv.classList.add('message', 'ai-message', 'error-message'); // 'error-message' for styling
+                errorMsgDiv.textContent = `AI: Error communicating with the backend: ${error.message}`;
+                chatHistory.appendChild(errorMsgDiv);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        });
+    </script>
+</body>
+</html>
