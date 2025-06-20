@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-TF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Analyzer Pro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Web Analyzer Pro</h1>
+    </header>
+
+    <main>
+        <section id="url-input-area">
+            <h2>Analyze or Monitor a Web Page</h2>
+            <p>Enter the URL of the web page you want to process:</p>
+            <input type="url" id="urlInput" name="urlInput" placeholder="https://example.com" required size="50">
+            <button id="analyzeNowBtn">Analyze Now</button>
+            <button id="setupMonitoringBtn">Setup Monitoring</button>
+        </section>
+
+        <section id="output-config-area" style="display:none;"> <!-- Initially hidden -->
+            <h3>Output Configuration</h3>
+            <div>
+                <h4>Output Format:</h4>
+                <input type="radio" id="formatPdf" name="outputFormat" value="pdf" checked>
+                <label for="formatPdf">PDF</label><br>
+                <input type="radio" id="formatTxt" name="outputFormat" value="txt">
+                <label for="formatTxt">Text Plain (.txt)</label><br>
+                <input type="radio" id="formatHtml" name="outputFormat" value="html">
+                <label for="formatHtml">HTML (.html)</label><br>
+                <input type="radio" id="formatJson" name="outputFormat" value="json">
+                <label for="formatJson">JSON (for structured data)</label><br>
+            </div>
+            <div>
+                <h4>Customization:</h4>
+                <input type="checkbox" id="includeImages" name="includeImages" value="true">
+                <label for="includeImages">Include Images</label><br>
+                <input type="checkbox" id="keepFormatting" name="keepFormatting" value="true">
+                <label for="keepFormatting">Maintain Original Formatting (if possible)</label><br>
+            </div>
+            <button id="saveOutputConfigBtn">Save Configuration</button>
+        </section>
+
+        <section id="monitoring-config-area" style="display:none;"> <!-- Initially hidden -->
+            <h3>Monitoring Configuration</h3>
+            <div>
+                <h4>Check Frequency:</h4>
+                <select id="checkFrequency" name="checkFrequency">
+                    <option value="hourly">Every Hour</option>
+                    <option value="daily">Every Day</option>
+                    <option value="weekly">Every Week</option>
+                    <option value="custom">Custom</option>
+                </select>
+                <div id="customFrequencyDiv" style="display:none;"> <!-- Initially hidden, shown if 'custom' is selected -->
+                    <label for="customInterval">Interval:</label>
+                    <input type="number" id="customIntervalValue" name="customIntervalValue" min="1">
+                    <select id="customIntervalUnit" name="customIntervalUnit">
+                        <option value="minutes">Minutes</option>
+                        <option value="hours">Hours</option>
+                        <option value="days">Days</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <h4>Alert Mechanisms:</h4>
+                <input type="checkbox" id="inAppNotification" name="inAppNotification" value="true" checked>
+                <label for="inAppNotification">In-app Notification</label><br>
+                <input type="checkbox" id="emailAlert" name="emailAlert" value="true">
+                <label for="emailAlert">Email Alert</label><br>
+                <div id="emailInputDiv" style="display:none;"> <!-- Initially hidden, shown if 'emailAlert' is checked -->
+                    <label for="alertEmail">Email Address:</label>
+                    <input type="email" id="alertEmail" name="alertEmail" placeholder="you@example.com">
+                </div>
+            </div>
+            <button id="saveMonitoringConfigBtn">Save Configuration & Start Monitoring</button>
+        </section>
+
+        <section id="analysis-display-area" style="display:none;"> <!-- Initially hidden, shown after analysis -->
+            <h3>Analysis Results</h3>
+            <div id="analysis-summary">
+                <h4>Summary:</h4>
+                <p><strong>Page Title:</strong> <span id="resultPageTitle">-</span></p>
+                <p><strong>Word Count:</strong> <span id="resultWordCount">-</span></p>
+                <p><strong>Number of Links:</strong> <span id="resultLinkCount">-</span></p>
+                <p><strong>Number of Images:</strong> <span id="resultImageCount">-</span></p>
+                <!-- More summary items can be added here -->
+            </div>
+            <div id="analysis-output">
+                <h4>Generated Output:</h4>
+                <p>Your document has been generated: <a href="#" id="downloadLink" target="_blank" style="display:none;">Download Now</a></p>
+                <p id="outputPreviewText" style="display:none;">Preview of text output will appear here...</p>
+            </div>
+        </section>
+
+        <section id="monitoring-dashboard-area" style="display:none;"> <!-- Initially hidden, shown when monitoring is active -->
+            <h3>Monitoring Dashboard</h3>
+            <table id="monitoringTable">
+                <thead>
+                    <tr>
+                        <th>URL</th>
+                        <th>Last Checked</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Monitored items will be dynamically added here by JavaScript -->
+                    <!-- Example row:
+                    <tr>
+                        <td>https://example.com</td>
+                        <td>2023-10-27 10:00 AM</td>
+                        <td>Changes detected</td>
+                        <td><button class="viewChangesBtn">View Changes</button> <button class="stopMonitoringBtn">Stop</button></td>
+                    </tr>
+                    <tr>
+                        <td>https://another-example.com</td>
+                        <td>2023-10-27 10:05 AM</td>
+                        <td>No changes</td>
+                        <td><button class="viewChangesBtn" disabled>View Changes</button> <button class="stopMonitoringBtn">Stop</button></td>
+                    </tr>
+                    -->
+                </tbody>
+            </table>
+            <div id="changes-display-area" style="display:none;"> <!-- Initially hidden, shown when 'View Changes' is clicked -->
+                <h4>Detected Changes for <span id="changedPageUrl"></span></h4>
+                <p><em>(Detailed change information, e.g., side-by-side comparison, highlighted text, or list of changed elements, would be displayed here. This part requires significant backend and frontend logic beyond static HTML.)</em></p>
+                <pre id="changeDetailsPreview"></pre> <!-- Simple preview for now -->
+                <button id="closeChangesViewBtn">Close Changes View</button>
+            </div>
+        </section>
+
+        <!-- Other sections will be added here later -->
+        <!-- <section id="output-config-area" style="display:none;"> ... </section> -->
+        <!-- <section id="monitoring-config-area" style="display:none;"> ... </section> -->
+        <!-- <section id="analysis-display-area"> ... </section> -->
+        <!-- <section id="monitoring-dashboard-area"> ... </section> -->
+    </main>
+
+    <footer>
+        <p>&copy; 2023 Web Analyzer Pro</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
