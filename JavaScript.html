@@ -1,0 +1,290 @@
+<script>
+  let branchCount = 0;
+
+  // --- Navegación ---
+  function showSection(id) {
+    document.querySelectorAll('.step-section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function showWelcome() { showSection('welcome-section'); }
+  function showLogin() { showSection('login-section'); }
+  function showWizard() {
+    showSection('wizard-section');
+    if (branchCount === 0) addBranch();
+  }
+
+  function nextStep(current) {
+    if (!validateStep(current)) return;
+
+    if (current === 1) {
+      // Validar RFC en servidor antes de seguir
+      const rfc = document.getElementById('reg-rfc').value;
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(exists) {
+          showLoader(false);
+          if (exists) {
+            alert('Este RFC ya está registrado. Si desea actualizar datos, use la opción "Continuar Registro".');
+          } else {
+            transitionToStep(2);
+          }
+        })
+        .validarRFCExistente(rfc);
+    } else if (current === 3) {
+      mostrarResumen();
+      transitionToStep(4);
+    } else {
+      transitionToStep(current + 1);
+    }
+  }
+
+  function prevStep(current) {
+    transitionToStep(current - 1);
+  }
+
+  function transitionToStep(n) {
+    document.querySelectorAll('.step-content').forEach(s => s.style.display = 'none');
+    document.getElementById('step-' + n).style.display = 'block';
+
+    // Actualizar barra de progreso
+    document.querySelectorAll('.progress-step').forEach((s, idx) => {
+      s.classList.remove('active', 'completed');
+      if (idx + 1 < n) s.classList.add('completed');
+      if (idx + 1 === n) s.classList.add('active');
+    });
+  }
+
+  // --- Manejo de Sucursales ---
+  function addBranch() {
+    branchCount++;
+    const container = document.getElementById('sucursales-container');
+    const branchHtml = `
+      <div class="branch-card" id="branch-${branchCount}">
+        <span class="remove-branch" onclick="removeBranch(${branchCount})">&times;</span>
+        <h3>Sucursal #${branchCount}</h3>
+        <div class="form-group">
+          <label>Nombre de la Sucursal:</label>
+          <input type="text" class="branch-nombre" required>
+        </div>
+        <div class="form-group">
+          <label>Dirección completa:</label>
+          <input type="text" class="branch-direccion" required>
+        </div>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+          <div style="flex:1">
+            <label>Latitud:</label>
+            <input type="text" class="branch-lat" placeholder="Ej: 19.4326">
+          </div>
+          <div style="flex:1">
+            <label>Longitud:</label>
+            <input type="text" class="branch-lng" placeholder="Ej: -99.1332">
+          </div>
+          <div style="align-self: flex-end;">
+            <button type="button" class="btn btn-outline" onclick="window.open('https://www.google.com/maps', '_blank')">Abrir Maps</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Horario de atención:</label>
+          <input type="text" class="branch-horario" placeholder="Ej: Lunes a Viernes 9:00 - 18:00" required>
+        </div>
+        <div class="form-group">
+          <label>Teléfono local:</label>
+          <input type="tel" class="branch-telefono" required>
+        </div>
+        <div class="form-group">
+          <label>Nombre del Responsable:</label>
+          <input type="text" class="branch-responsable" required>
+        </div>
+        <div class="form-group">
+          <label>Cargo del Responsable:</label>
+          <input type="text" class="branch-cargo" required>
+        </div>
+      </div>
+    `;
+    container.insertAdjacentHTML('beforeend', branchHtml);
+  }
+
+  function removeBranch(id) {
+    if (document.querySelectorAll('.branch-card').length > 1) {
+      document.getElementById('branch-' + id).remove();
+    } else {
+      alert("Debe registrar al menos una sucursal.");
+    }
+  }
+
+  // --- Validaciones ---
+  function validateStep(n) {
+    const stepDiv = document.getElementById('step-' + n);
+    const inputs = stepDiv.querySelectorAll('input[required], select[required]');
+    for (let input of inputs) {
+      if (!input.value.trim()) {
+        alert("Por favor complete todos los campos obligatorios.");
+        input.focus();
+        return false;
+      }
+    }
+
+    if (n === 1) {
+      const rfc = document.getElementById('reg-rfc').value;
+      const rfcRegex = /^[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/;
+      if (!rfcRegex.test(rfc.toUpperCase())) {
+        alert("El formato del RFC no es válido.");
+        return false;
+      }
+    }
+
+    if (n === 3) {
+      const checks = document.querySelectorAll('.compromiso:checked');
+      if (checks.length < 5) {
+        alert("Debe aceptar todos los compromisos para continuar.");
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // --- Resumen y Envío ---
+  function mostrarResumen() {
+    const rfc = document.getElementById('reg-rfc').value;
+    const nombre = document.querySelector('input[name="representante"]').value;
+    const sucursales = document.querySelectorAll('.branch-card').length;
+
+    document.getElementById('resumen-registro').innerHTML = `
+      <p><strong>RFC:</strong> ${rfc}</p>
+      <p><strong>Representante:</strong> ${nombre}</p>
+      <p><strong>Sucursales a registrar:</strong> ${sucursales}</p>
+      <p style="color: var(--secondary-color);">* Al hacer clic en Finalizar, su información será guardada y se generará su folio.</p>
+    `;
+  }
+
+  function submitRegistro() {
+    showLoader(true);
+
+    const data = {
+      empresa: {
+        rfc: document.getElementById('reg-rfc').value.toUpperCase(),
+        representante: document.querySelector('input[name="representante"]').value,
+        telefono: document.querySelector('input[name="telefono"]').value,
+        correo: document.querySelector('input[name="correo"]').value
+      },
+      sucursales: [],
+      compromisos: []
+    };
+
+    document.querySelectorAll('.branch-card').forEach(card => {
+      data.sucursales.push({
+        nombre: card.querySelector('.branch-nombre').value,
+        direccion: card.querySelector('.branch-direccion').value,
+        latitud: card.querySelector('.branch-lat').value,
+        longitud: card.querySelector('.branch-lng').value,
+        horario: card.querySelector('.branch-horario').value,
+        telefono: card.querySelector('.branch-telefono').value,
+        responsable: card.querySelector('.branch-responsable').value,
+        cargo: card.querySelector('.branch-cargo').value
+      });
+    });
+
+    document.querySelectorAll('.compromiso:checked').forEach(c => {
+      data.compromisos.push(c.nextElementSibling.innerText);
+    });
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showLoader(false);
+        if (res.success) {
+          document.getElementById('success-folio').innerText = res.folio;
+          document.getElementById('success-qr').src = res.qrUrl;
+          transitionToStep(5);
+        } else {
+          alert("Error: " + res.error);
+        }
+      })
+      .procesarRegistro(data);
+  }
+
+  // --- Manejo de Acceso Posterior ---
+  let currentUser = null;
+
+  function accederPorRFC() {
+    const rfc = document.getElementById('login-rfc').value.toUpperCase();
+    if (!rfc) return alert("Ingrese un RFC");
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(user) {
+        showLoader(false);
+        if (user) {
+          currentUser = user;
+          document.getElementById('dash-empresa').innerText = user.representante;
+          document.getElementById('dash-folio').innerText = user.folio;
+          document.getElementById('dash-estatus').innerText = user.estatus;
+
+          const colors = {
+            'Pendiente': '#f0ad4e',
+            'En Revisión': '#5bc0de',
+            'Aprobado': '#5cb85c',
+            'Rechazado': '#d9534f'
+          };
+          document.getElementById('dash-estatus').style.backgroundColor = colors[user.estatus] || '#ccc';
+          document.getElementById('dash-estatus').style.color = 'white';
+
+          showSection('user-dashboard');
+        } else {
+          alert("RFC no encontrado en nuestra base de datos.");
+        }
+      })
+      .buscarPorRFC(rfc);
+  }
+
+  function enviarPlan() {
+    const detalle = document.getElementById('plan-detalle').value;
+    const fileInput = document.getElementById('plan-archivo');
+
+    if (!detalle) return alert("Por favor describa su plan de trabajo.");
+
+    showLoader(true);
+
+    if (fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = {
+          rfc: currentUser.rfc,
+          folio: currentUser.folio,
+          planDetalle: detalle,
+          fileName: file.name,
+          fileData: e.target.result
+        };
+        google.script.run
+          .withSuccessHandler(finalizarEnvioPlan)
+          .guardarPlanTrabajo(data);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      google.script.run
+        .withSuccessHandler(finalizarEnvioPlan)
+        .guardarPlanTrabajo({
+          rfc: currentUser.rfc,
+          folio: currentUser.folio,
+          planDetalle: detalle
+        });
+    }
+  }
+
+  function finalizarEnvioPlan(res) {
+    showLoader(false);
+    if (res.success) {
+      alert("Plan de trabajo enviado correctamente.");
+      location.reload();
+    } else {
+      alert("Error: " + res.error);
+    }
+  }
+
+  // --- Utils ---
+  function showLoader(show) {
+    document.getElementById('loader').style.display = show ? 'flex' : 'none';
+  }
+</script>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div id="loader">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="header">
+      <h1>Mujeres Seguras</h1>
+      <p>Certificación de Espacios Seguros para Mujeres</p>
+    </div>
+
+    <div class="container" id="main-content">
+      <!-- Módulo de Inicio -->
+      <div id="welcome-section" class="step-section active">
+        <h2 style="text-align:center; color: var(--primary-color);">Bienvenido al Sistema de Certificación</h2>
+        <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 30px;">
+          <button class="btn btn-primary" onclick="showWizard()">Nuevo Registro</button>
+          <button class="btn btn-outline" onclick="showLogin()">Continuar Registro / Subir Plan de Trabajo</button>
+        </div>
+      </div>
+
+      <!-- Login por RFC -->
+      <div id="login-section" class="step-section">
+        <h2>Acceso para Empresas Registradas</h2>
+        <div class="form-group">
+          <label>Ingrese su RFC:</label>
+          <input type="text" id="login-rfc" placeholder="RFC de 12 o 13 caracteres" maxlength="13">
+        </div>
+        <div class="button-group">
+          <button class="btn btn-outline" onclick="showWelcome()">Volver</button>
+          <button class="btn btn-primary" onclick="accederPorRFC()">Acceder</button>
+        </div>
+      </div>
+
+      <!-- Wizard de Registro -->
+      <div id="wizard-section" class="step-section">
+        <div class="progress-container">
+          <div class="progress-step active" id="p-step-1">1</div>
+          <div class="progress-step" id="p-step-2">2</div>
+          <div class="progress-step" id="p-step-3">3</div>
+          <div class="progress-step" id="p-step-4">4</div>
+          <div class="progress-step" id="p-step-5">5</div>
+        </div>
+
+        <form id="registroForm">
+          <!-- PASO 1: DATOS FISCALES -->
+          <div id="step-1" class="step-content active">
+            <h2>Paso 1: Datos Fiscales de la Empresa</h2>
+            <div class="form-group">
+              <label>RFC:</label>
+              <input type="text" name="rfc" id="reg-rfc" required placeholder="12 o 13 caracteres">
+            </div>
+            <div class="form-group">
+              <label>Nombre del Representante Legal:</label>
+              <input type="text" name="representante" required>
+            </div>
+            <div class="form-group">
+              <label>Teléfono de contacto:</label>
+              <input type="tel" name="telefono" required>
+            </div>
+            <div class="form-group">
+              <label>Correo electrónico:</label>
+              <input type="email" name="correo" required>
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="showWelcome()">Cancelar</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(1)">Continuar a Sucursales</button>
+            </div>
+          </div>
+
+          <!-- PASO 2: SUCURSALES -->
+          <div id="step-2" class="step-content" style="display:none;">
+            <h2>Paso 2: Registro de Sucursales</h2>
+            <div id="sucursales-container">
+              <!-- Las sucursales se agregarán aquí dinámicamente -->
+            </div>
+            <button type="button" class="btn btn-outline" onclick="addBranch()" style="margin-bottom: 20px;">+ Agregar otra sucursal</button>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(2)">Atrás</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(2)">Continuar a Compromisos</button>
+            </div>
+          </div>
+
+          <!-- PASO 3: COMPROMISOS -->
+          <div id="step-3" class="step-content" style="display:none;">
+            <h2>Paso 3: Compromisos Generales</h2>
+            <p>Al registrarse, la empresa se compromete a:</p>
+            <div class="checkbox-group">
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-1" class="compromiso">
+                <label for="comp-1">Permitir acceso temporal a mujeres en situación de riesgo</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-2" class="compromiso">
+                <label for="comp-2">Habilitar espacio privado para su resguardo</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-3" class="compromiso">
+                <label for="comp-3">Autorizar uso del teléfono para llamadas de emergencia</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-4" class="compromiso">
+                <label for="comp-4">Permitir uso de internet para contactar autoridades</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-5" class="compromiso">
+                <label for="comp-5">Colocar visiblemente el distintivo "Mujeres Seguras"</label>
+              </div>
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(3)">Atrás</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(3)">Revisar y Confirmar</button>
+            </div>
+          </div>
+
+          <!-- PASO 4: CONFIRMACIÓN -->
+          <div id="step-4" class="step-content" style="display:none;">
+            <h2>Paso 4: Confirmación del Registro</h2>
+            <div id="resumen-registro" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <!-- Se llena con JS -->
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(4)">Atrás</button>
+              <button type="button" class="btn btn-secondary" onclick="submitRegistro()">Finalizar Registro</button>
+            </div>
+          </div>
+
+          <!-- PASO 5: ÉXITO -->
+          <div id="step-5" class="step-content" style="display:none;">
+            <div class="success-card">
+              <h2 style="color: green;">¡Registro Completado con Éxito!</h2>
+              <p>Tu folio de registro es:</p>
+              <div class="folio-box" id="success-folio"></div>
+              <img src="" id="success-qr" class="qr-code" alt="QR Folio">
+              <p>Guarde su folio para subir su plan de trabajo posteriormente.</p>
+              <div class="button-group">
+                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar comprobante</button>
+                <button type="button" class="btn btn-outline" onclick="location.reload()">Registrar otra empresa</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Dashboard de Usuario Post-Registro -->
+      <div id="user-dashboard" class="step-section">
+        <h2 id="dash-empresa">Empresa</h2>
+        <div id="dash-info" style="margin-bottom: 20px;">
+           <p><strong>Estatus de Certificación:</strong> <span id="dash-estatus" style="padding: 5px 10px; border-radius: 4px; font-weight: bold;"></span></p>
+           <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
+        </div>
+
+        <div id="plan-trabajo-section" style="border-top: 2px solid #eee; padding-top: 20px;">
+          <h3>Subir Plan de Trabajo</h3>
+          <div class="form-group">
+            <label>Descripción detallada del plan:</label>
+            <textarea id="plan-detalle" rows="5"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Adjuntar archivo (PDF, DOC, Imágenes):</label>
+            <input type="file" id="plan-archivo">
+          </div>
+          <button class="btn btn-secondary" onclick="enviarPlan()">Enviar Plan de Trabajo</button>
+        </div>
+
+        <div class="button-group" style="margin-top: 40px;">
+          <button class="btn btn-outline" onclick="showWelcome()">Cerrar Sesión</button>
+        </div>
+      </div>
+
+    </div>
+
+    <?!= include('JavaScript'); ?>
+  </body>
+</html>
