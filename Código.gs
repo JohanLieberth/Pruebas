@@ -4,15 +4,32 @@
 
 function doGet(e) {
   var page = e.parameter.p || 'Index';
-  return HtmlService.createTemplateFromFile(page)
-      .evaluate()
-      .setTitle('Mujeres Seguras - Registro de Certificación')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  try {
+    return HtmlService.createTemplateFromFile(page)
+        .evaluate()
+        .setTitle('Mujeres Seguras - Registro de Certificación')
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (err) {
+    return HtmlService.createHtmlOutput("Error al cargar la página: " + err.toString());
+  }
 }
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/**
+ * Asegura que la hoja exista, si no, la crea
+ */
+function getSheetSafe(name) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    setupDatabase();
+    sheet = ss.getSheetByName(name);
+  }
+  return sheet;
 }
 
 /**
@@ -42,10 +59,7 @@ function setupDatabase() {
  * Valida si un RFC ya existe
  */
 function validarRFCExistente(rfc) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Empresas");
-  if (!sheet) return false;
-
+  var sheet = getSheetSafe("Empresas");
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === rfc) return true;
@@ -57,14 +71,13 @@ function validarRFCExistente(rfc) {
  * Genera un folio único: MS-AAAA-#####
  */
 function generarFolio() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Empresas");
+  var sheet = getSheetSafe("Empresas");
   var year = new Date().getFullYear();
   var lastRow = sheet.getLastRow();
   var consecutive = 1;
 
   if (lastRow > 1) {
-    consecutive = lastRow; // Simplificado: usa el número de fila como consecutivo
+    consecutive = lastRow;
   }
 
   var numStr = ("00000" + consecutive).slice(-5);
@@ -76,9 +89,8 @@ function generarFolio() {
  */
 function procesarRegistro(data) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetEmpresas = ss.getSheetByName("Empresas");
-    var sheetSucursales = ss.getSheetByName("Sucursales");
+    var sheetEmpresas = getSheetSafe("Empresas");
+    var sheetSucursales = getSheetSafe("Sucursales");
 
     if (validarRFCExistente(data.empresa.rfc)) {
       throw new Error("El RFC ya se encuentra registrado.");
@@ -100,7 +112,7 @@ function procesarRegistro(data) {
     ]);
 
     // Guardar Sucursales
-    data.sucursales.forEach(function(suc, index) {
+    data.sucursales.forEach(function(suc) {
       sheetSucursales.appendRow([
         Utilities.getUuid(),
         data.empresa.rfc,
@@ -132,8 +144,7 @@ function procesarRegistro(data) {
  * Obtiene datos de una empresa por RFC
  */
 function buscarPorRFC(rfc) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Empresas");
+  var sheet = getSheetSafe("Empresas");
   var data = sheet.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
@@ -154,8 +165,7 @@ function buscarPorRFC(rfc) {
  */
 function guardarPlanTrabajo(data) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetPlanes = ss.getSheetByName("PlanesTrabajo");
+    var sheetPlanes = getSheetSafe("PlanesTrabajo");
     var folderName = "Planes_Trabajo_Mujeres_Seguras";
     var folder, fileUrl = "";
 
@@ -186,7 +196,7 @@ function guardarPlanTrabajo(data) {
     ]);
 
     // Actualizar estatus en Empresas si es necesario
-    var sheetEmpresas = ss.getSheetByName("Empresas");
+    var sheetEmpresas = getSheetSafe("Empresas");
     var empData = sheetEmpresas.getDataRange().getValues();
     for (var i = 1; i < empData.length; i++) {
       if (empData[i][0] === data.rfc) {
@@ -205,14 +215,12 @@ function guardarPlanTrabajo(data) {
  * Funciones para el Panel de Administración
  */
 function getRegistrosAdmin() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Empresas");
+  var sheet = getSheetSafe("Empresas");
   return sheet.getDataRange().getValues();
 }
 
 function cambiarEstatus(rfc, nuevoEstatus) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Empresas");
+  var sheet = getSheetSafe("Empresas");
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === rfc) {
