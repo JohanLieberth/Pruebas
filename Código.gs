@@ -42,8 +42,8 @@ function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheets = {
     "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
-    "Ubicaciones": ["ID", "RFC_Empresa", "Nombre", "Dirección", "Latitud_Longitud", "Fecha", "Compromisos"],
-    "Planes_Trabajo": ["ID", "RFC", "Nombre_Archivo", "URL_Archivo", "Estatus", "Observaciones", "Fecha_Subida", "Ultima_Modificacion"],
+    "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
+    "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
 
@@ -88,12 +88,12 @@ function generarFolio() {
 }
 
 /**
- * Procesa el registro completo (Empresa + Ubicaciones)
+ * Procesa el registro completo (Empresa + Sucursales)
  */
 function procesarRegistro(data) {
   try {
     var sheetEmpresas = getSheetSafe("Empresas");
-    var sheetUbicaciones = getSheetSafe("Ubicaciones");
+    var sheetSucursales = getSheetSafe("Sucursales");
 
     if (validarRFCExistente(data.empresa.rfc)) {
       throw new Error("El RFC ya se encuentra registrado.");
@@ -114,15 +114,20 @@ function procesarRegistro(data) {
       JSON.stringify(data.compromisos)
     ]);
 
-    // Guardar Ubicaciones (antes Sucursales)
+    // Guardar Sucursales
     data.sucursales.forEach(function(suc) {
-      sheetUbicaciones.appendRow([
+      var coords = suc.coordenadas.split(",");
+      sheetSucursales.appendRow([
         Utilities.getUuid(),
         data.empresa.rfc,
         suc.nombre,
         suc.direccion,
-        suc.coordenadas, // Latitud/Longitud unificado
-        fecha,
+        coords[0] ? coords[0].trim() : "",
+        coords[1] ? coords[1].trim() : "",
+        suc.horario,
+        suc.telefono,
+        suc.responsable,
+        suc.cargo,
         JSON.stringify(suc.compromisos || [])
       ]);
     });
@@ -141,20 +146,24 @@ function procesarRegistro(data) {
 }
 
 /**
- * Agrega una nueva ubicación de forma independiente
+ * Agrega una nueva sucursal de forma independiente
  */
 function agregarNuevaSucursal(data) {
   try {
-    var sheetUbicaciones = getSheetSafe("Ubicaciones");
-    var fecha = new Date();
+    var sheetSucursales = getSheetSafe("Sucursales");
+    var coords = data.coordenadas.split(",");
 
-    sheetUbicaciones.appendRow([
+    sheetSucursales.appendRow([
       Utilities.getUuid(),
       data.rfc,
       data.nombre,
       data.direccion,
-      data.coordenadas,
-      fecha,
+      coords[0] ? coords[0].trim() : "",
+      coords[1] ? coords[1].trim() : "",
+      data.horario,
+      data.telefono,
+      data.responsable,
+      data.cargo,
       JSON.stringify(data.compromisos || [])
     ]);
 
@@ -188,7 +197,7 @@ function buscarPorRFC(rfc) {
  * Obtiene el historial de Planes de Trabajo para un RFC
  */
 function getPlanesTrabajo(rfc) {
-  var sheet = getSheetSafe("Planes_Trabajo");
+  var sheet = getSheetSafe("PlanesTrabajo");
   var data = sheet.getDataRange().getValues();
   var result = [];
 
@@ -196,11 +205,32 @@ function getPlanesTrabajo(rfc) {
     if (data[i][1] === rfc) {
       result.push({
         id: data[i][0],
-        nombreArchivo: data[i][2],
-        urlArchivo: data[i][3],
-        estatus: data[i][4],
-        observaciones: data[i][5],
-        fechaSubida: Utilities.formatDate(data[i][6], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
+        folio: data[i][2],
+        fechaEnvio: Utilities.formatDate(data[i][3], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
+        planDetalle: data[i][4],
+        estatus: data[i][5],
+        observaciones: data[i][6],
+        idSucursal: data[i][7],
+        urlArchivo: data[i][8]
+      });
+    }
+  }
+  return result;
+}
+
+/**
+ * Obtiene las sucursales de una empresa
+ */
+function getUbicaciones(rfc) {
+  var sheet = getSheetSafe("Sucursales");
+  var data = sheet.getDataRange().getValues();
+  var result = [];
+
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][1] === rfc) {
+      result.push({
+        id: data[i][0],
+        nombre: data[i][2]
       });
     }
   }
@@ -212,9 +242,9 @@ function getPlanesTrabajo(rfc) {
  */
 function guardarPlanTrabajo(data) {
   try {
-    var sheetPlanes = getSheetSafe("Planes_Trabajo");
+    var sheetPlanes = getSheetSafe("PlanesTrabajo");
     var folderName = "Planes_Trabajo_Mujeres_Seguras";
-    var folder, fileUrl = "", fileName = "Sin archivo";
+    var folder, fileUrl = "";
     var now = new Date();
 
     if (data.fileData) {
@@ -230,18 +260,18 @@ function guardarPlanTrabajo(data) {
       var blob = Utilities.newBlob(bytes, contentType, data.fileName);
       var file = folder.createFile(blob);
       fileUrl = file.getUrl();
-      fileName = data.fileName;
     }
 
     sheetPlanes.appendRow([
       Utilities.getUuid(),
       data.rfc,
-      fileName,
-      fileUrl,
+      data.folio,
+      now,
+      data.planDetalle,
       "Recibido",
       "",
-      now,
-      now
+      data.idUbicacion,
+      fileUrl
     ]);
 
     // Actualizar estatus general de la empresa

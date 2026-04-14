@@ -69,17 +69,17 @@
             </div>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="showWelcome()">Cancelar</button>
-              <button type="button" class="btn btn-primary" onclick="nextStep(1)">Continuar a Ubicaciones</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(1)">Continuar a Sucursales</button>
             </div>
           </div>
 
-          <!-- PASO 2: UBICACIONES -->
+          <!-- PASO 2: SUCURSALES -->
           <div id="step-2" class="step-content" style="display:none;">
-            <h2>Paso 2: Registro de Ubicaciones</h2>
+            <h2>Paso 2: Registro de Sucursales</h2>
             <div id="sucursales-container">
-              <!-- Las ubicaciones se agregarán aquí dinámicamente -->
+              <!-- Las sucursales se agregarán aquí dinámicamente -->
             </div>
-            <button type="button" class="btn btn-outline" onclick="addBranch()" style="margin-bottom: 20px;">+ Agregar otra ubicación</button>
+            <button type="button" class="btn btn-outline" onclick="addBranch()" style="margin-bottom: 20px;">+ Agregar otra sucursal</button>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="prevStep(2)">Atrás</button>
               <button type="button" class="btn btn-primary" onclick="nextStep(2)">Continuar a Compromisos</button>
@@ -161,6 +161,7 @@
             <table>
               <thead>
                 <tr>
+                  <th>Sucursal</th>
                   <th>Archivo</th>
                   <th>Estatus</th>
                   <th>Fecha</th>
@@ -176,8 +177,8 @@
         </div>
 
         <div id="nueva-sucursal-section" style="border-top: 2px solid #eee; padding-top: 20px; margin-bottom: 20px;">
-          <h3>Gestión de Ubicaciones</h3>
-          <button class="btn btn-primary" onclick="toggleNuevaSucursal()">Registrar Nueva Ubicación</button>
+          <h3>Gestión de Sucursales</h3>
+          <button class="btn btn-primary" onclick="toggleNuevaSucursal()">Registrar Nueva Sucursal</button>
           <div id="nueva-sucursal-form" style="display: none; margin-top: 20px; background: #f9f9f9; padding: 20px; border-radius: 8px;">
              <!-- Se llena dinámicamente con JS -->
           </div>
@@ -185,6 +186,12 @@
 
         <div id="plan-trabajo-section" style="border-top: 2px solid #eee; padding-top: 20px;">
           <h3>Subir Nuevo Plan de Trabajo</h3>
+          <div class="form-group">
+            <label>Seleccionar Sucursal:</label>
+            <select id="plan-id-ubicacion" required>
+              <option value="">Cargando sucursales...</option>
+            </select>
+          </div>
           <div class="form-group">
             <label>Descripción detallada del plan:</label>
             <textarea id="plan-detalle" rows="4"></textarea>

@@ -27,23 +27,23 @@ window.google = {
           estatus: "Pendiente"
         }), 100);
       },
+      getUbicaciones: function(rfc) {
+        setTimeout(() => this.successHandler([
+          { id: "loc-123", nombre: "Sucursal Centro" },
+          { id: "loc-456", nombre: "Sucursal Norte" }
+        ]), 100);
+      },
       getPlanesTrabajo: function(rfc) {
         setTimeout(() => this.successHandler([
           {
-            nombreArchivo: "plan_inicial.pdf",
+            planDetalle: "Plan de acción preventivo",
             estatus: "Aprobado",
-            fechaSubida: "10/04/2023 14:00",
+            fechaEnvio: "10/04/2023 14:00",
             observaciones: "Todo correcto",
-            urlArchivo: "https://drive.google.com/test"
-          },
-          {
-            nombreArchivo: "Sin archivo",
-            estatus: "Pendiente",
-            fechaSubida: "11/04/2023 09:30",
-            observaciones: "",
-            urlArchivo: ""
+            urlArchivo: "https://drive.google.com/test",
+            idSucursal: "loc-123"
           }
-        ]), 100);
+        ]), 200);
       },
       guardarPlanTrabajo: function(data) {
         setTimeout(() => this.successHandler({ success: true }), 100);
