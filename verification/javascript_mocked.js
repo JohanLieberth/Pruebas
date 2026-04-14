@@ -8,7 +8,32 @@
     document.getElementById(id).classList.add('active');
   }
 
-  function showWelcome() { showSection('welcome-section'); }
+  function showWelcome() {
+    showSection('welcome-section');
+    cargarCatalogoPublico();
+  }
+
+  function cargarCatalogoPublico() {
+    const catalogDiv = document.getElementById('public-catalog');
+    google.script.run
+      .withSuccessHandler(function(sucursales) {
+        if (sucursales.length === 0) {
+          catalogDiv.innerHTML = '<p style="color: #999;">Aún no hay sucursales certificadas aprobadas.</p>';
+          return;
+        }
+        catalogDiv.innerHTML = sucursales.map(suc => `
+          <div class="catalog-card">
+            <h4>${suc.nombre}</h4>
+            <p>📍 ${suc.direccion}</p>
+            ${suc.telefono ? `<p>📞 ${suc.telefono}</p>` : ''}
+          </div>
+        `).join('');
+      })
+      .getSucursalesCertificadas();
+  }
+
+  // Cargar catálogo al inicio
+  window.addEventListener('load', cargarCatalogoPublico);
   function showLogin() { showSection('login-section'); }
   function showWizard() {
     showSection('wizard-section');

@@ -290,4 +290,41 @@ function guardarPlanTrabajo(data) {
   }
 }
 
+/**
+ * Obtiene las sucursales que ya cuentan con certificación aprobada
+ * Cruza la información de Sucursales con Planes de Trabajo aprobados
+ */
+function getSucursalesCertificadas() {
+  try {
+    var sheetSuc = getSheetSafe("Sucursales");
+    var sheetPlanes = getSheetSafe("PlanesTrabajo");
+
+    var dataSuc = sheetSuc.getDataRange().getValues();
+    var dataPlanes = sheetPlanes.getDataRange().getValues();
+
+    // Mapa de Sucursales Aprobadas (ID_Sucursal -> true)
+    var aprobadasMap = {};
+    for (var j = 1; j < dataPlanes.length; j++) {
+      if (dataPlanes[j][5] === "Aprobado") { // Columna Estatus en PlanesTrabajo
+        aprobadasMap[dataPlanes[j][7]] = true; // Columna ID_Sucursal en PlanesTrabajo
+      }
+    }
+
+    var result = [];
+    for (var i = 1; i < dataSuc.length; i++) {
+      var idSuc = dataSuc[i][0];
+      if (aprobadasMap[idSuc]) {
+        result.push({
+          nombre: dataSuc[i][2],
+          direccion: dataSuc[i][3],
+          telefono: dataSuc[i][7]
+        });
+      }
+    }
+    return result;
+  } catch (e) {
+    return [];
+  }
+}
+
 // Las funciones de administración getRegistrosAdmin y cambiarEstatus han sido ELIMINADAS.

@@ -12,14 +12,19 @@ async def run_verification():
         abs_path = os.path.abspath("verification/index_mocked.html")
         await page.goto(f"file://{abs_path}")
 
+        # Wait for catalog to load
+        await page.wait_for_selector(".catalog-card")
+        await page.screenshot(path="verification/screenshots/landing_page_v4.png")
+
         print("Testing Step 1: Company Data")
-        await page.click("text=Nuevo Registro")
+        # Click the button with the text "Nuevo Registro"
+        await page.click("button:has-text('Nuevo Registro')")
         await page.wait_for_selector("#reg-rfc", state="visible")
         await page.fill("#reg-rfc", "MAG040813731")
         await page.fill('input[name="representante"]', "Juan Perez")
         await page.fill('input[name="telefono"]', "5512345678")
         await page.fill('input[name="correo"]', "juan@test.com")
-        await page.click("text=Continuar a Ubicaciones")
+        await page.click("text=Continuar a Sucursales")
 
         print("Testing Step 2: Branches (Sucursales)")
         await page.wait_for_selector("text=Paso 2: Registro de Sucursales")
@@ -55,7 +60,7 @@ async def run_verification():
         # Test Dashboard / Login
         print("Testing Dashboard")
         await page.click("text=Registrar otra empresa / Volver al Inicio")
-        await page.click("text=Continuar Registro / Subir Plan de Trabajo")
+        await page.click("text=Continuar Registro / Plan de Trabajo")
         await page.fill("#login-rfc", "MAG040813731")
         await page.click("text=Acceder")
 

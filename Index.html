@@ -15,12 +15,33 @@
     </div>
 
     <div class="container" id="main-content">
-      <!-- Módulo de Inicio -->
+      <!-- Módulo de Inicio (Layout de Dos Columnas) -->
       <div id="welcome-section" class="step-section active">
-        <h2 style="text-align:center; color: var(--primary-color);">Bienvenido al Sistema de Certificación</h2>
-        <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 30px;">
-          <button class="btn btn-primary" onclick="showWizard()">Nuevo Registro</button>
-          <button class="btn btn-outline" onclick="showLogin()">Continuar Registro / Subir Plan de Trabajo</button>
+        <div class="welcome-grid">
+          <!-- Columna Izquierda: Catálogo de Sucursales Certificadas -->
+          <div class="welcome-column">
+            <h2 style="color: var(--primary-color);">Espacios Certificados</h2>
+            <p>Lugares que ya cuentan con el distintivo <strong>Mujeres Seguras</strong>:</p>
+            <div id="public-catalog" class="catalog-list">
+              <p style="color: #666; font-style: italic;">Cargando catálogo...</p>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Acciones -->
+          <div class="welcome-column action-panel">
+            <h2 style="color: var(--secondary-color);">Panel de Acciones</h2>
+            <p>Inicia o continúa el proceso de certificación para tu empresa.</p>
+            <div class="action-buttons">
+              <button class="btn btn-primary btn-large" onclick="showWizard()">
+                <div class="btn-icon">📝</div>
+                <span>Nuevo Registro</span>
+              </button>
+              <button class="btn btn-secondary btn-large" onclick="showLogin()">
+                <div class="btn-icon">📁</div>
+                <span>Continuar Registro / Plan de Trabajo</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

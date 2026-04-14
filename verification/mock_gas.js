@@ -48,6 +48,12 @@ window.google = {
       guardarPlanTrabajo: function(data) {
         setTimeout(() => this.successHandler({ success: true }), 100);
       },
+      getSucursalesCertificadas: function() {
+        setTimeout(() => this.successHandler([
+          { nombre: "Tienda Centro", direccion: "Av. Juarez 500", telefono: "555-0101" },
+          { nombre: "Farmacia Norte", direccion: "Calle 10 #200", telefono: "555-0202" }
+        ]), 100);
+      },
       setupDatabase: function() {
         console.log("Database setup called");
       }
