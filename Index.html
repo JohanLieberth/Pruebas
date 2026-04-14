@@ -69,17 +69,17 @@
             </div>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="showWelcome()">Cancelar</button>
-              <button type="button" class="btn btn-primary" onclick="nextStep(1)">Continuar a Sucursales</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(1)">Continuar a Ubicaciones</button>
             </div>
           </div>
 
-          <!-- PASO 2: SUCURSALES -->
+          <!-- PASO 2: UBICACIONES -->
           <div id="step-2" class="step-content" style="display:none;">
-            <h2>Paso 2: Registro de Sucursales</h2>
+            <h2>Paso 2: Registro de Ubicaciones</h2>
             <div id="sucursales-container">
-              <!-- Las sucursales se agregarán aquí dinámicamente -->
+              <!-- Las ubicaciones se agregarán aquí dinámicamente -->
             </div>
-            <button type="button" class="btn btn-outline" onclick="addBranch()" style="margin-bottom: 20px;">+ Agregar otra sucursal</button>
+            <button type="button" class="btn btn-outline" onclick="addBranch()" style="margin-bottom: 20px;">+ Agregar otra ubicación</button>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="prevStep(2)">Atrás</button>
               <button type="button" class="btn btn-primary" onclick="nextStep(2)">Continuar a Compromisos</button>
@@ -155,15 +155,35 @@
            <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
         </div>
 
+        <div id="plan-trabajo-history" style="margin-bottom: 30px;">
+          <h3>Historial de Planes de Trabajo</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Archivo</th>
+                  <th>Estatus</th>
+                  <th>Fecha</th>
+                  <th>Observaciones</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody id="lista-planes">
+                <!-- Se llena con JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="plan-trabajo-section" style="border-top: 2px solid #eee; padding-top: 20px;">
-          <h3>Subir Plan de Trabajo</h3>
+          <h3>Subir Nuevo Plan de Trabajo</h3>
           <div class="form-group">
             <label>Descripción detallada del plan:</label>
-            <textarea id="plan-detalle" rows="5"></textarea>
+            <textarea id="plan-detalle" rows="4"></textarea>
           </div>
           <div class="form-group">
             <label>Adjuntar archivo (PDF, DOC, Imágenes):</label>
-            <input type="file" id="plan-archivo">
+            <input type="file" id="plan-archivo" accept=".pdf,.doc,.docx,image/*">
           </div>
           <button class="btn btn-secondary" onclick="enviarPlan()">Enviar Plan de Trabajo</button>
         </div>

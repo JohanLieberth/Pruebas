@@ -1,9 +1,12 @@
 /**
- * Mujeres Seguras - Google Apps Script Backend
+ * Mujeres Seguras - Google Apps Script Backend (v2)
  */
 
 function doGet(e) {
   var page = e.parameter.p || 'Index';
+  // Note: Admin section is removed as per requirements.
+  if (page === 'Admin') page = 'Index';
+
   try {
     return HtmlService.createTemplateFromFile(page)
         .evaluate()
@@ -20,7 +23,7 @@ function include(filename) {
 }
 
 /**
- * Asegura que la hoja exista, si no, la crea
+ * Asegura que la hoja exista, si no, la crea con la nueva estructura
  */
 function getSheetSafe(name) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -33,14 +36,14 @@ function getSheetSafe(name) {
 }
 
 /**
- * Inicializa las hojas de cálculo necesarias
+ * Inicializa las hojas de cálculo necesarias con la estructura solicitada
  */
 function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheets = {
     "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
-    "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo"],
-    "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ArchivoURL"],
+    "Ubicaciones": ["ID", "RFC_Empresa", "Nombre", "Dirección", "Latitud_Longitud", "Fecha"],
+    "Planes_Trabajo": ["ID", "RFC", "Nombre_Archivo", "URL_Archivo", "Estatus", "Observaciones", "Fecha_Subida", "Ultima_Modificacion"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
 
@@ -85,12 +88,12 @@ function generarFolio() {
 }
 
 /**
- * Procesa el registro completo (Empresa + Sucursales)
+ * Procesa el registro completo (Empresa + Ubicaciones)
  */
 function procesarRegistro(data) {
   try {
     var sheetEmpresas = getSheetSafe("Empresas");
-    var sheetSucursales = getSheetSafe("Sucursales");
+    var sheetUbicaciones = getSheetSafe("Ubicaciones");
 
     if (validarRFCExistente(data.empresa.rfc)) {
       throw new Error("El RFC ya se encuentra registrado.");
@@ -111,19 +114,15 @@ function procesarRegistro(data) {
       JSON.stringify(data.compromisos)
     ]);
 
-    // Guardar Sucursales
+    // Guardar Ubicaciones (antes Sucursales)
     data.sucursales.forEach(function(suc) {
-      sheetSucursales.appendRow([
+      sheetUbicaciones.appendRow([
         Utilities.getUuid(),
         data.empresa.rfc,
         suc.nombre,
         suc.direccion,
-        suc.latitud,
-        suc.longitud,
-        suc.horario,
-        suc.telefono,
-        suc.responsable,
-        suc.cargo
+        suc.coordenadas, // Latitud/Longitud unificado
+        fecha
       ]);
     });
 
@@ -161,13 +160,37 @@ function buscarPorRFC(rfc) {
 }
 
 /**
- * Guarda el Plan de Trabajo y opcionalmente un archivo
+ * Obtiene el historial de Planes de Trabajo para un RFC
+ */
+function getPlanesTrabajo(rfc) {
+  var sheet = getSheetSafe("Planes_Trabajo");
+  var data = sheet.getDataRange().getValues();
+  var result = [];
+
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][1] === rfc) {
+      result.push({
+        id: data[i][0],
+        nombreArchivo: data[i][2],
+        urlArchivo: data[i][3],
+        estatus: data[i][4],
+        observaciones: data[i][5],
+        fechaSubida: Utilities.formatDate(data[i][6], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
+      });
+    }
+  }
+  return result;
+}
+
+/**
+ * Guarda el Plan de Trabajo y gestiona el archivo en Drive
  */
 function guardarPlanTrabajo(data) {
   try {
-    var sheetPlanes = getSheetSafe("PlanesTrabajo");
+    var sheetPlanes = getSheetSafe("Planes_Trabajo");
     var folderName = "Planes_Trabajo_Mujeres_Seguras";
-    var folder, fileUrl = "";
+    var folder, fileUrl = "", fileName = "Sin archivo";
+    var now = new Date();
 
     if (data.fileData) {
       var folders = DriveApp.getFoldersByName(folderName);
@@ -182,20 +205,21 @@ function guardarPlanTrabajo(data) {
       var blob = Utilities.newBlob(bytes, contentType, data.fileName);
       var file = folder.createFile(blob);
       fileUrl = file.getUrl();
+      fileName = data.fileName;
     }
 
     sheetPlanes.appendRow([
       Utilities.getUuid(),
       data.rfc,
-      data.folio,
-      new Date(),
-      data.planDetalle,
+      fileName,
+      fileUrl,
       "Recibido",
       "",
-      fileUrl
+      now,
+      now
     ]);
 
-    // Actualizar estatus en Empresas si es necesario
+    // Actualizar estatus general de la empresa
     var sheetEmpresas = getSheetSafe("Empresas");
     var empData = sheetEmpresas.getDataRange().getValues();
     for (var i = 1; i < empData.length; i++) {
@@ -211,22 +235,4 @@ function guardarPlanTrabajo(data) {
   }
 }
 
-/**
- * Funciones para el Panel de Administración
- */
-function getRegistrosAdmin() {
-  var sheet = getSheetSafe("Empresas");
-  return sheet.getDataRange().getValues();
-}
-
-function cambiarEstatus(rfc, nuevoEstatus) {
-  var sheet = getSheetSafe("Empresas");
-  var data = sheet.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === rfc) {
-      sheet.getRange(i + 1, 7).setValue(nuevoEstatus);
-      return true;
-    }
-  }
-  return false;
-}
+// Las funciones de administración getRegistrosAdmin y cambiarEstatus han sido ELIMINADAS.
