@@ -3,7 +3,7 @@
  */
 
 function doGet(e) {
-  var page = e.parameter.p || 'Index';
+  var page = (e && e.parameter && e.parameter.p) || 'Index';
   // Note: Admin section is removed as per requirements.
   if (page === 'Admin') page = 'Index';
 
