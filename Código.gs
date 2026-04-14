@@ -42,7 +42,7 @@ function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheets = {
     "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
-    "Ubicaciones": ["ID", "RFC_Empresa", "Nombre", "Dirección", "Latitud_Longitud", "Fecha"],
+    "Ubicaciones": ["ID", "RFC_Empresa", "Nombre", "Dirección", "Latitud_Longitud", "Fecha", "Compromisos"],
     "Planes_Trabajo": ["ID", "RFC", "Nombre_Archivo", "URL_Archivo", "Estatus", "Observaciones", "Fecha_Subida", "Ultima_Modificacion"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
@@ -122,7 +122,8 @@ function procesarRegistro(data) {
         suc.nombre,
         suc.direccion,
         suc.coordenadas, // Latitud/Longitud unificado
-        fecha
+        fecha,
+        JSON.stringify(suc.compromisos || [])
       ]);
     });
 
@@ -134,6 +135,30 @@ function procesarRegistro(data) {
       qrUrl: qrUrl
     };
 
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Agrega una nueva ubicación de forma independiente
+ */
+function agregarNuevaSucursal(data) {
+  try {
+    var sheetUbicaciones = getSheetSafe("Ubicaciones");
+    var fecha = new Date();
+
+    sheetUbicaciones.appendRow([
+      Utilities.getUuid(),
+      data.rfc,
+      data.nombre,
+      data.direccion,
+      data.coordenadas,
+      fecha,
+      JSON.stringify(data.compromisos || [])
+    ]);
+
+    return { success: true };
   } catch (e) {
     return { success: false, error: e.toString() };
   }

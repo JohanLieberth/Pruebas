@@ -15,28 +15,17 @@
     if (branchCount === 0) addBranch();
   }
 
-  /**
-   * Resetea la aplicación al estado inicial sin recargar la página
-   */
   function resetApp() {
-    // Resetear variables
     branchCount = 0;
     currentUser = null;
-
-    // Limpiar formularios
     document.getElementById('registroForm').reset();
     document.getElementById('login-rfc').value = '';
     document.getElementById('plan-detalle').value = '';
     document.getElementById('plan-archivo').value = '';
-
-    // Limpiar contenedores dinámicos
     document.getElementById('sucursales-container').innerHTML = '';
     document.getElementById('lista-planes').innerHTML = '';
-
-    // Resetear barra de progreso y pasos
+    document.getElementById('nueva-sucursal-form').style.display = 'none';
     transitionToStep(1);
-
-    // Volver a la pantalla de bienvenida
     showWelcome();
   }
 
@@ -84,13 +73,15 @@
   }
 
   // --- Manejo de Ubicaciones ---
-  function addBranch() {
+  function addBranch(containerId = 'sucursales-container') {
     branchCount++;
-    const container = document.getElementById('sucursales-container');
+    const container = document.getElementById(containerId);
+    const isWizard = containerId === 'sucursales-container';
+
     const branchHtml = `
       <div class="branch-card" id="branch-${branchCount}">
-        <span class="remove-branch" onclick="removeBranch(${branchCount})">&times;</span>
-        <h3>Ubicación #${branchCount}</h3>
+        ${isWizard ? `<span class="remove-branch" onclick="removeBranch(${branchCount})">&times;</span>` : ''}
+        <h3>Ubicación ${isWizard ? '#' + branchCount : ''}</h3>
         <div class="form-group">
           <label>Nombre de la Ubicación:</label>
           <input type="text" class="branch-nombre" required>
@@ -102,12 +93,22 @@
         <div class="form-group">
           <label>Latitud y Longitud (Copia de Google Maps):</label>
           <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <input type="text" class="branch-coords" placeholder="Ej: 19.4326, -99.1332 o 19°25'57.6\\"N 99°07'59.5\\"W"
+            <input type="text" class="branch-coords" placeholder="Ej: 19.4326, -99.1332"
                    oninput="updateMapPreview(this)" required style="flex: 1;">
             <button type="button" class="btn btn-outline" onclick="window.open('https://www.google.com/maps', '_blank')" style="padding: 8px 15px; font-size: 14px;">Obtener Coordenadas</button>
           </div>
           <div class="map-preview" id="preview-${branchCount}">Vista previa del mapa</div>
         </div>
+
+        <div class="form-group">
+          <label>Compromisos específicos para esta ubicación:</label>
+          <div class="checkbox-group" style="background: #fff; border: 1px solid #ddd; padding: 10px;">
+            <div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Personal capacitado en protocolos de género</label></div>
+            <div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Botón de pánico instalado y funcional</label></div>
+            <div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Cámaras de seguridad en accesos</label></div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label>Teléfono local:</label>
           <input type="tel" class="branch-telefono" required>
@@ -118,7 +119,7 @@
   }
 
   function removeBranch(id) {
-    if (document.querySelectorAll('.branch-card').length > 1) {
+    if (document.querySelectorAll('#sucursales-container .branch-card').length > 1) {
       document.getElementById('branch-' + id).remove();
     } else {
       alert("Debe registrar al menos una ubicación.");
@@ -128,7 +129,6 @@
   function parseCoordinates(input) {
     const decimalMatch = input.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
     if (decimalMatch) return { lat: decimalMatch[1], lng: decimalMatch[2] };
-
     const dmsMatch = input.match(/(\d+)°(\d+)'([\d.]+)"([NS])\s+(\d+)°(\d+)'([\d.]+)"([EW])/);
     if (dmsMatch) {
       const convert = (d, m, s, dir) => {
@@ -148,19 +148,66 @@
     const card = input.closest('.branch-card');
     const previewDiv = card.querySelector('.map-preview');
     const coords = parseCoordinates(input.value);
-
     if (coords) {
-      previewDiv.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0"
-        src="https://www.google.com/maps?q=${coords.lat},${coords.lng}&z=15&output=embed"></iframe>`;
+      previewDiv.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0" src="https://www.google.com/maps?q=${coords.lat},${coords.lng}&z=15&output=embed"></iframe>`;
     } else {
-      previewDiv.innerHTML = "Formato no reconocido. Ingrese coordenadas válidas.";
+      previewDiv.innerHTML = "Formato no reconocido.";
     }
   }
 
-  // --- Validaciones ---
+  // --- Dashboard Nueva Sucursal ---
+  function toggleNuevaSucursal() {
+    const div = document.getElementById('nueva-sucursal-form');
+    if (div.style.display === 'none') {
+      div.style.display = 'block';
+      div.innerHTML = '<h3>Registrar Nueva Ubicación</h3><div id="new-branch-hook"></div><div class="button-group"><button class="btn btn-outline" onclick="document.getElementById(\'nueva-sucursal-form\').style.display=\'none\'">Cancelar</button><button class="btn btn-primary" onclick="enviarNuevaSucursal()">Guardar Ubicación</button></div>';
+      addBranch('new-branch-hook');
+    } else {
+      div.style.display = 'none';
+    }
+  }
+
+  function enviarNuevaSucursal() {
+    const card = document.querySelector('#new-branch-hook .branch-card');
+    const coords = parseCoordinates(card.querySelector('.branch-coords').value);
+
+    if (!coords) return alert("Coordenadas inválidas.");
+
+    const compromisos = [];
+    card.querySelectorAll('.branch-comp:checked').forEach(c => {
+      compromisos.push(c.nextElementSibling.innerText);
+    });
+
+    const data = {
+      rfc: currentUser.rfc,
+      nombre: card.querySelector('.branch-nombre').value,
+      direccion: card.querySelector('.branch-direccion').value,
+      coordenadas: `${coords.lat}, ${coords.lng}`,
+      telefono: card.querySelector('.branch-telefono').value,
+      compromisos: compromisos
+    };
+
+    if (!data.nombre || !data.direccion) return alert("Complete los campos obligatorios.");
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showLoader(false);
+        if (res.success) {
+          alert("Ubicación agregada correctamente.");
+          document.getElementById('nueva-sucursal-form').style.display = 'none';
+        } else {
+          alert("Error: " + res.error);
+        }
+      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
+      .agregarNuevaSucursal(data);
+  }
+
+  // --- Validaciones y Envío Registro ---
   function validateStep(n) {
     const stepDiv = document.getElementById('step-' + n);
-    const inputs = stepDiv.querySelectorAll('input[required], select[required]');
+    const inputs = stepDiv.querySelectorAll('input[required]');
     for (let input of inputs) {
       if (!input.value.trim()) {
         alert("Por favor complete todos los campos obligatorios.");
@@ -168,54 +215,42 @@
         return false;
       }
     }
-
     if (n === 1) {
       const rfc = document.getElementById('reg-rfc').value;
       const rfcRegex = /^[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/;
       if (!rfcRegex.test(rfc.toUpperCase())) {
-        alert("El formato del RFC no es válido.");
+        alert("RFC inválido.");
         return false;
       }
     }
-
     if (n === 2) {
       const coordInputs = document.querySelectorAll('.branch-coords');
       for (let inp of coordInputs) {
         if (!parseCoordinates(inp.value)) {
-          alert("Una de las ubicaciones tiene un formato de coordenadas inválido.");
+          alert("Formato de coordenadas inválido.");
           inp.focus();
           return false;
         }
       }
     }
-
     if (n === 3) {
-      const checks = document.querySelectorAll('.compromiso:checked');
-      if (checks.length < 5) {
-        alert("Debe aceptar todos los compromisos para continuar.");
+      if (document.querySelectorAll('.compromiso:checked').length < 5) {
+        alert("Debe aceptar todos los compromisos generales.");
         return false;
       }
     }
-
     return true;
   }
 
-  // --- Resumen y Envío ---
   function mostrarResumen() {
     const rfc = document.getElementById('reg-rfc').value;
     const nombre = document.querySelector('input[name="representante"]').value;
-    const sucursales = document.querySelectorAll('.branch-card').length;
-
-    document.getElementById('resumen-registro').innerHTML = `
-      <p><strong>RFC:</strong> ${rfc}</p>
-      <p><strong>Representante:</strong> ${nombre}</p>
-      <p><strong>Ubicaciones a registrar:</strong> ${sucursales}</p>
-    `;
+    const sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
+    document.getElementById('resumen-registro').innerHTML = `<p><strong>RFC:</strong> ${rfc}</p><p><strong>Representante:</strong> ${nombre}</p><p><strong>Ubicaciones:</strong> ${sucursales}</p>`;
   }
 
   function submitRegistro() {
     showLoader(true);
-
     const data = {
       empresa: {
         rfc: document.getElementById('reg-rfc').value.toUpperCase(),
@@ -226,21 +261,19 @@
       sucursales: [],
       compromisos: []
     };
-
-    document.querySelectorAll('.branch-card').forEach(card => {
+    document.querySelectorAll('#sucursales-container .branch-card').forEach(card => {
       const coords = parseCoordinates(card.querySelector('.branch-coords').value);
+      const comps = [];
+      card.querySelectorAll('.branch-comp:checked').forEach(c => comps.push(c.nextElementSibling.innerText));
       data.sucursales.push({
         nombre: card.querySelector('.branch-nombre').value,
         direccion: card.querySelector('.branch-direccion').value,
         coordenadas: `${coords.lat}, ${coords.lng}`,
-        telefono: card.querySelector('.branch-telefono').value
+        telefono: card.querySelector('.branch-telefono').value,
+        compromisos: comps
       });
     });
-
-    document.querySelectorAll('.compromiso:checked').forEach(c => {
-      data.compromisos.push(c.nextElementSibling.innerText);
-    });
-
+    document.querySelectorAll('.compromiso:checked').forEach(c => data.compromisos.push(c.nextElementSibling.innerText));
     google.script.run
       .withSuccessHandler(function(res) {
         showLoader(false);
@@ -248,22 +281,16 @@
           document.getElementById('success-folio').innerText = res.folio;
           document.getElementById('success-qr').src = res.qrUrl;
           transitionToStep(5);
-        } else {
-          alert("Error: " + res.error);
-        }
+        } else alert("Error: " + res.error);
       })
-      .withFailureHandler(function(err) {
-        showLoader(false);
-        alert("Error al procesar registro: " + err);
-      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
       .procesarRegistro(data);
   }
 
-  // --- Manejo de Acceso Posterior ---
+  // --- Acceso Posterior ---
   function accederPorRFC() {
     const rfc = document.getElementById('login-rfc').value.toUpperCase();
     if (!rfc) return alert("Ingrese un RFC");
-
     showLoader(true);
     google.script.run
       .withSuccessHandler(function(user) {
@@ -272,26 +299,13 @@
           document.getElementById('dash-empresa').innerText = user.representante;
           document.getElementById('dash-folio').innerText = user.folio;
           document.getElementById('dash-estatus').innerText = user.estatus;
-
-          const colors = {
-            'Pendiente': '#f0ad4e',
-            'En Revisión': '#5bc0de',
-            'Aprobado': '#5cb85c',
-            'Rechazado': '#d9534f'
-          };
+          const colors = {'Pendiente': '#f0ad4e', 'En Revisión': '#5bc0de', 'Aprobado': '#5cb85c', 'Rechazado': '#d9534f'};
           document.getElementById('dash-estatus').style.backgroundColor = colors[user.estatus] || '#ccc';
           document.getElementById('dash-estatus').style.color = 'white';
-
           cargarHistorialPlanes(user.rfc);
-        } else {
-          showLoader(false);
-          alert("RFC no encontrado.");
-        }
+        } else { showLoader(false); alert("RFC no encontrado."); }
       })
-      .withFailureHandler(function(err) {
-        showLoader(false);
-        alert("Error al buscar RFC: " + err);
-      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
       .buscarPorRFC(rfc);
   }
 
@@ -301,86 +315,38 @@
         showLoader(false);
         const tbody = document.getElementById('lista-planes');
         tbody.innerHTML = '';
-
         planes.forEach(p => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${p.nombreArchivo}</td>
-            <td><span class="status-badge status-${p.estatus.toLowerCase().replace(/ /g, '-')}">${p.estatus}</span></td>
-            <td>${p.fechaSubida}</td>
-            <td>${p.observaciones || '-'}</td>
-            <td>${p.urlArchivo ? `<a href="${p.urlArchivo}" target="_blank">Ver</a>` : '-'}</td>
-          `;
+          tr.innerHTML = `<td>${p.nombreArchivo}</td><td><span class="status-badge status-${p.estatus.toLowerCase().replace(/ /g, '-')}">${p.estatus}</span></td><td>${p.fechaSubida}</td><td>${p.observaciones || '-'}</td><td>${p.urlArchivo ? `<a href="${p.urlArchivo}" target="_blank">Ver</a>` : '-'}</td>`;
           tbody.appendChild(tr);
         });
-
         showSection('user-dashboard');
       })
-      .withFailureHandler(function(err) {
-        showLoader(false);
-        alert("Error al cargar historial: " + err);
-        showSection('user-dashboard');
-      })
+      .withFailureHandler(err => { showLoader(false); alert(err); showSection('user-dashboard'); })
       .getPlanesTrabajo(rfc);
   }
 
   function enviarPlan() {
     const detalle = document.getElementById('plan-detalle').value;
     const fileInput = document.getElementById('plan-archivo');
-
-    if (!detalle) return alert("Por favor describa su plan de trabajo.");
-
+    if (!detalle) return alert("Describa su plan.");
     showLoader(true);
-
     if (fileInput.files.length > 0) {
       const file = fileInput.files[0];
       const reader = new FileReader();
       reader.onload = function(e) {
-        const data = {
-          rfc: currentUser.rfc,
-          folio: currentUser.folio,
-          planDetalle: detalle,
-          fileName: file.name,
-          fileData: e.target.result
-        };
-        google.script.run
-          .withSuccessHandler(finalizarEnvioPlan)
-          .withFailureHandler(function(err) {
-            showLoader(false);
-            alert("Error al subir archivo: " + err);
-          })
-          .guardarPlanTrabajo(data);
+        google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo({rfc: currentUser.rfc, folio: currentUser.folio, planDetalle: detalle, fileName: file.name, fileData: e.target.result});
       };
       reader.readAsDataURL(file);
     } else {
-      google.script.run
-        .withSuccessHandler(finalizarEnvioPlan)
-        .withFailureHandler(function(err) {
-          showLoader(false);
-          alert("Error al enviar plan: " + err);
-        })
-        .guardarPlanTrabajo({
-          rfc: currentUser.rfc,
-          folio: currentUser.folio,
-          planDetalle: detalle
-        });
+      google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo({rfc: currentUser.rfc, folio: currentUser.folio, planDetalle: detalle});
     }
   }
 
   function finalizarEnvioPlan(res) {
     showLoader(false);
-    if (res.success) {
-      alert("Plan de trabajo enviado correctamente.");
-      accederPorRFC(); // Recargar datos
-      document.getElementById('plan-detalle').value = '';
-      document.getElementById('plan-archivo').value = '';
-    } else {
-      alert("Error: " + res.error);
-    }
+    if (res.success) { alert("Plan enviado."); accederPorRFC(); } else alert("Error: " + res.error);
   }
 
-  // --- Utils ---
-  function showLoader(show) {
-    document.getElementById('loader').style.display = show ? 'flex' : 'none';
-  }
+  function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
 </script>
