@@ -35,6 +35,22 @@ function cargarConfiguracion() {
 }
 
 /**
+ * Función que maneja la carga de la aplicación web
+ */
+function doGet(e) {
+  const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'panelContrato';
+
+  try {
+    return HtmlService.createHtmlOutputFromFile(page)
+      .setTitle('Sistema de Gestión de Contratos')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  } catch (err) {
+    return HtmlService.createHtmlOutput('<h1>Error: Página no encontrada</h1><p>' + err.toString() + '</p>');
+  }
+}
+
+/**
  * Función inicial al abrir el documento
  */
 function onOpen() {
