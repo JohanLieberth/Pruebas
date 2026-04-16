@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }
+    .container-fluid { padding: 20px; }
+
+    /* Estilos para indicadores visuales de tiempo */
+    .estado-verde {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      border-left: 5px solid #28a745;
+      color: #155724;
+    }
+    .estado-amarillo {
+      background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+      border-left: 5px solid #ffc107;
+      color: #856404;
+      animation: pulse-amarillo 2s infinite;
+    }
+    .estado-rojo {
+      background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+      border-left: 5px solid #dc3545;
+      color: #721c24;
+      animation: pulse-rojo 1.5s infinite;
+      font-weight: bold;
+    }
+
+    @keyframes pulse-amarillo {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+    }
+    @keyframes pulse-rojo {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
+      50% { box-shadow: 0 0 0 12px rgba(220, 53, 69, 0); }
+    }
+
+    .indicador-tiempo {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 20px;
+      margin: 4px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .timeline-barras {
+      display: flex;
+      height: 40px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 15px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .barra-segmento {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 11px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+      position: relative;
+      min-width: 60px;
+      flex: 1;
+    }
+    .barra-segmento:hover {
+      transform: scaleY(1.1);
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .leyenda-secretaria {
+      background: #e3f2fd;
+      border: 2px dashed #2196f3;
+      padding: 10px;
+      border-radius: 8px;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+    .leyenda-secretaria::before { content: "📋 "; }
+
+    .card { margin-bottom: 20px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .card-header { background-color: #fff; border-bottom: 1px solid #eee; font-weight: bold; }
+    .nav-tabs .nav-link { color: #495057; }
+    .nav-tabs .nav-link.active { font-weight: bold; border-bottom: 3px solid #0d6efd; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <!-- Sección 1: Selector de Contrato -->
+    <div class="card">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-md-4">
+            <label for="selectContrato" class="form-label">Seleccionar Contrato</label>
+            <select id="selectContrato" class="form-select" onchange="cargarContrato()">
+              <option value="">-- Seleccione un contrato --</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <div id="estadoGeneral" class="indicador-tiempo">Estado General: --</div>
+          </div>
+          <div class="col-md-4 text-end">
+            <div class="btn-group">
+              <span class="badge bg-success m-1">🟢 Óptimo</span>
+              <span class="badge bg-warning text-dark m-1">🟡 Preventivo</span>
+              <span class="badge bg-danger m-1">🔴 Crítico</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección 2: Timeline Visual -->
+    <div class="card">
+      <div class="card-header">Línea de Tiempo del Proceso</div>
+      <div class="card-body">
+        <div id="timelineContenedor" class="timeline-barras">
+          <!-- Se llena dinámicamente -->
+        </div>
+        <div id="resumenColores" class="mt-2 small text-muted"></div>
+        <div class="leyenda-secretaria">
+          <strong>Aviso:</strong> La etapa de Secretaría Municipal cuenta con umbrales extendidos (Verde hasta 5d, Amarillo hasta 9d).
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs para Etapas -->
+    <ul class="nav nav-tabs" id="tabEtapas" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="interna-tab" data-bs-toggle="tab" data-bs-target="#interna" type="button" role="tab">Etapa Interna</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="externa-tab" data-bs-toggle="tab" data-bs-target="#externa" type="button" role="tab">Etapa Externa</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="documentos-tab" data-bs-toggle="tab" data-bs-target="#documentos" type="button" role="tab">Gestión Documental</button>
+      </li>
+    </ul>
+
+    <div class="tab-content p-3 bg-white border border-top-0 rounded-bottom" id="tabEtapasContent">
+      <!-- Sección 3: Detalle Etapa Interna -->
+      <div class="tab-pane fade show active" id="interna" role="tabpanel">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Sub-etapa</th>
+              <th>Inicio</th>
+              <th>Fin</th>
+              <th>Días</th>
+              <th>Indicador</th>
+              <th>Observaciones / Solventación</th>
+            </tr>
+          </thead>
+          <tbody id="tablaInterna">
+            <!-- Dinámico -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Sección 4: Detalle Etapa Externa -->
+      <div class="tab-pane fade" id="externa" role="tabpanel">
+        <div class="row" id="contenedorExterna">
+          <!-- Dinámico -->
+        </div>
+      </div>
+
+      <!-- Sección 6: Gestión Documental Final -->
+      <div class="tab-pane fade" id="documentos" role="tabpanel">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card border p-3">
+              <h6>Comité de Adquisiciones</h6>
+              <input type="file" class="form-control mb-2" id="fileComite">
+              <button class="btn btn-sm btn-primary" onclick="subirDoc('comite')">Subir</button>
+              <div id="urlComite" class="mt-2"></div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border p-3">
+              <h6>Expediente Administrativo</h6>
+              <input type="file" class="form-control mb-2" id="fileExpediente">
+              <button class="btn btn-sm btn-primary" onclick="subirDoc('expediente')">Subir</button>
+              <div id="urlExpediente" class="mt-2"></div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border p-3">
+              <h6>Contrato Firmado</h6>
+              <input type="file" class="form-control mb-2" id="fileContrato">
+              <button class="btn btn-sm btn-primary" onclick="subirDoc('contrato')">Subir</button>
+              <div id="urlContrato" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 text-center">
+      <button class="btn btn-success btn-lg" onclick="guardarTodo()">Guardar Cambios</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let contratoActual = null;
+
+    function cargarContrato() {
+      const consecutivo = document.getElementById('selectContrato').value;
+      if (!consecutivo) return;
+
+      google.script.run
+        .withSuccessHandler(datos => {
+          contratoActual = datos;
+          renderizarInterfaz();
+        })
+        .obtenerDatosContrato(consecutivo);
+    }
+
+    function renderizarInterfaz() {
+      if (!contratoActual) return;
+
+      const timeline = document.getElementById('timelineContenedor');
+      timeline.innerHTML = '';
+
+      const etapas = [
+        { nombre: "REVISIÓN DOC", d: contratoActual.etapaInterna.revisionDoc, sec: false },
+        { nombre: "ELABORACIÓN", d: contratoActual.etapaInterna.elaboracion, sec: false },
+        { nombre: "VALIDACIÓN", d: contratoActual.etapaInterna.validacion, sec: false },
+        { nombre: "SECRETARÍA", d: contratoActual.etapasExternas.secretaria, sec: true }
+      ];
+
+      etapas.forEach(e => {
+        let dias = 0;
+        let colorClase = 'bg-secondary';
+        if (e.d.inicio && e.d.fin) {
+          // Simplificado para JS, lo ideal es llamar al server para precisión de días hábiles
+          const diff = new Date(e.d.fin) - new Date(e.d.inicio);
+          dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
+          const ind = e.sec ? (dias <= 5 ? 'estado-verde' : (dias <= 9 ? 'estado-amarillo' : 'estado-rojo')) :
+                           (dias <= 3 ? 'estado-verde' : (dias <= 5 ? 'estado-amarillo' : 'estado-rojo'));
+          colorClase = ind;
+        }
+
+        const segmento = document.createElement('div');
+        segmento.className = `barra-segmento ${colorClase}`;
+        segmento.innerHTML = `<span>${e.nombre}</span><small>${dias}d</small>`;
+        timeline.appendChild(segmento);
+      });
+
+      // Renderizar Tablas
+      const tabla = document.getElementById('tablaInterna');
+      tabla.innerHTML = `
+        <tr>
+          <td>Revisión de Documentación</td>
+          <td><input type="date" class="form-control" value="${formatearFecha(contratoActual.etapaInterna.revisionDoc.inicio)}" id="rd_ini"></td>
+          <td><input type="date" class="form-control" value="${formatearFecha(contratoActual.etapaInterna.revisionDoc.fin)}" id="rd_fin"></td>
+          <td>-</td>
+          <td><div class="indicador-tiempo"></div></td>
+          <td><input type="text" class="form-control" value="${contratoActual.etapaInterna.revisionDoc.obs || ''}" placeholder="Obs"></td>
+        </tr>
+      `;
+
+      // URLs de documentos
+      document.getElementById('urlComite').innerHTML = contratoActual.documentos.comite ? `<a href="${contratoActual.documentos.comite}" target="_blank">Ver Archivo</a>` : 'No subido';
+      document.getElementById('urlExpediente').innerHTML = contratoActual.documentos.expediente ? `<a href="${contratoActual.documentos.expediente}" target="_blank">Ver Archivo</a>` : 'No subido';
+      document.getElementById('urlContrato').innerHTML = contratoActual.documentos.contratoFirmado ? `<a href="${contratoActual.documentos.contratoFirmado}" target="_blank">Ver Archivo</a>` : 'No subido';
+    }
+
+    function formatearFecha(f) {
+      if (!f) return '';
+      const date = new Date(f);
+      return date.toISOString().split('T')[0];
+    }
+
+    function guardarTodo() {
+      // Recopilar datos (ejemplo simplificado)
+      contratoActual.etapaInterna.revisionDoc.inicio = document.getElementById('rd_ini').value;
+      contratoActual.etapaInterna.revisionDoc.fin = document.getElementById('rd_fin').value;
+
+      google.script.run
+        .withSuccessHandler(res => alert(res.message))
+        .guardarProgresoContrato(contratoActual);
+    }
+
+    function subirDoc(tipo) {
+      const fileInput = document.getElementById('file' + tipo.charAt(0).toUpperCase() + tipo.slice(1));
+      const file = fileInput.files[0];
+      if (!file) return alert('Seleccione un archivo');
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        google.script.run
+          .withSuccessHandler(res => {
+            alert('Archivo subido');
+            cargarContrato(); // Recargar
+          })
+          .subirArchivoADrive(e.target.result, file.name, tipo, contratoActual.consecutivo);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    window.onload = () => {
+      google.script.run
+        .withSuccessHandler(lista => {
+          const select = document.getElementById('selectContrato');
+          lista.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.consecutivo;
+            opt.text = `${c.consecutivo} - ${c.numeroContrato}`;
+            select.add(opt);
+          });
+        })
+        .obtenerListaContratos();
+    };
+  </script>
+</body>
+</html>
