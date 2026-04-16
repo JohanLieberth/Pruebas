@@ -64,7 +64,7 @@ function onOpen() {
     .addItem('Gestión Documental', 'mostrarGestionDocumental')
     .addSeparator()
     .addItem('Calcular Tiempos', 'generarReporteKPI')
-    .addItem('Generar Reporte KPI', 'mostrarDashboardKPI')
+    .addItem('Dashboard de Indicadores', 'mostrarDashboardKPI')
     .addItem('Configuración', 'mostrarConfiguracion')
     .addToUi();
 }
@@ -172,7 +172,19 @@ function procesarFilaParaContrato(fila, numeroFila) {
  */
 function guardarProgresoContrato(datos) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
-  const fila = datos.fila;
+  let fila = datos.fila;
+
+  if (!fila) {
+    // Es un nuevo registro, buscar siguiente consecutivo
+    const lastRow = sheet.getLastRow();
+    const lastConsecutivo = lastRow > 1 ? parseInt(sheet.getRange(lastRow, 1).getValue()) || 0 : 0;
+    fila = lastRow + 1;
+    sheet.getRange(fila, 1).setValue(lastConsecutivo + 1); // A: Consecutivo
+  }
+
+  // Datos básicos
+  sheet.getRange(fila, 2).setValue(datos.numeroContrato);
+  sheet.getRange(fila, 3).setValue(datos.dependencia);
 
   // Mapeo de campos a columnas específicas
   // Etapa Interna

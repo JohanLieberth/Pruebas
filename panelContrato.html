@@ -92,25 +92,51 @@
 </head>
 <body>
   <div class="container-fluid">
-    <!-- Sección 1: Selector de Contrato -->
+    <!-- Sección 1: Selector y Acciones -->
     <div class="card">
       <div class="card-body">
         <div class="row align-items-center">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label for="selectContrato" class="form-label">Seleccionar Contrato</label>
             <select id="selectContrato" class="form-select" onchange="cargarContrato()">
-              <option value="">-- Seleccione un contrato --</option>
+              <option value="">-- Seleccione --</option>
             </select>
           </div>
-          <div class="col-md-4">
-            <div id="estadoGeneral" class="indicador-tiempo">Estado General: --</div>
+          <div class="col-md-3">
+            <label class="form-label">&nbsp;</label><br>
+            <button class="btn btn-outline-primary w-100" onclick="nuevoContrato()">+ Nuevo Registro</button>
           </div>
-          <div class="col-md-4 text-end">
-            <div class="btn-group">
-              <span class="badge bg-success m-1">🟢 Óptimo</span>
-              <span class="badge bg-warning text-dark m-1">🟡 Preventivo</span>
-              <span class="badge bg-danger m-1">🔴 Crítico</span>
-            </div>
+          <div class="col-md-3">
+            <label class="form-label">&nbsp;</label><br>
+            <button class="btn btn-outline-info w-100" onclick="verDashboard()">📊 Ver Indicadores</button>
+          </div>
+          <div class="col-md-3 text-end">
+            <div id="estadoGeneral" class="indicador-tiempo mb-2">Estado: --</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Datos Básicos (Solo visible en nuevo o edición) -->
+    <div class="card" id="seccionDatosBasicos">
+      <div class="card-header">Información General</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-3">
+            <label class="form-label">Consecutivo</label>
+            <input type="text" id="inputConsecutivo" class="form-control" readonly placeholder="Auto">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Número de Contrato</label>
+            <input type="text" id="inputNumContrato" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Dependencia</label>
+            <input type="text" id="inputDependencia" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha Solicitud</label>
+            <input type="date" id="inputFechaSolicitud" class="form-control">
           </div>
         </div>
       </div>
@@ -146,15 +172,15 @@
     <div class="tab-content p-3 bg-white border border-top-0 rounded-bottom" id="tabEtapasContent">
       <!-- Sección 3: Detalle Etapa Interna -->
       <div class="tab-pane fade show active" id="interna" role="tabpanel">
-        <table class="table align-middle">
+        <table class="table table-hover align-middle">
           <thead>
             <tr>
-              <th>Sub-etapa</th>
-              <th>Inicio</th>
-              <th>Fin</th>
-              <th>Días</th>
-              <th>Indicador</th>
-              <th>Observaciones / Solventación</th>
+              <th style="width: 25%">Sub-etapa</th>
+              <th style="width: 15%">Inicio</th>
+              <th style="width: 15%">Fin</th>
+              <th style="width: 10%">Días</th>
+              <th style="width: 10%">Ind.</th>
+              <th>Observación / Solventación</th>
             </tr>
           </thead>
           <tbody id="tablaInterna">
@@ -165,9 +191,21 @@
 
       <!-- Sección 4: Detalle Etapa Externa -->
       <div class="tab-pane fade" id="externa" role="tabpanel">
-        <div class="row" id="contenedorExterna">
-          <!-- Dinámico -->
-        </div>
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th style="width: 25%">Área / Etapa</th>
+              <th style="width: 15%">Inicio</th>
+              <th style="width: 15%">Fin</th>
+              <th style="width: 10%">Días</th>
+              <th style="width: 10%">Ind.</th>
+              <th>Observación / Solventación</th>
+            </tr>
+          </thead>
+          <tbody id="tablaExterna">
+            <!-- Dinámico -->
+          </tbody>
+        </table>
       </div>
 
       <!-- Sección 6: Gestión Documental Final -->
@@ -210,9 +248,39 @@
   <script>
     let contratoActual = null;
 
+    function nuevoContrato() {
+      contratoActual = {
+        consecutivo: "",
+        numeroContrato: "",
+        dependencia: "",
+        etapaInterna: {
+          inicio: "",
+          revisionDoc: { inicio: "", fin: "", obs: "", solv: "" },
+          elaboracion: { inicio: "", fin: "", obs: "", solv: "" },
+          validacion: { inicio: "", fin: "", obs: "", solv: "" }
+        },
+        etapasExternas: {
+          gobernacion: { inicio: "", fin: "", obs: "", solv: "" },
+          proveedor: { inicio: "", fin: "", obs: "", solv: "" },
+          dependenciaEjecutora: { inicio: "", fin: "", obs: "", solv: "" },
+          administracion: { inicio: "", fin: "", obs: "", solv: "" },
+          secretaria: { inicio: "", fin: "", obs: "", solv: "" },
+          alcaldesa: { inicio: "", fin: "", obs: "", solv: "" },
+          anexo: { inicio: "", fin: "", obs: "", solv: "" },
+          entrega: { inicio: "", fin: "", obs: "", solv: "" }
+        },
+        documentos: { comite: "", expediente: "", contratoFirmado: "" }
+      };
+      document.getElementById('selectContrato').value = "";
+      renderizarInterfaz();
+    }
+
     function cargarContrato() {
       const consecutivo = document.getElementById('selectContrato').value;
-      if (!consecutivo) return;
+      if (!consecutivo) {
+        nuevoContrato();
+        return;
+      }
 
       google.script.run
         .withSuccessHandler(datos => {
@@ -225,51 +293,101 @@
     function renderizarInterfaz() {
       if (!contratoActual) return;
 
+      // Datos Básicos
+      document.getElementById('inputConsecutivo').value = contratoActual.consecutivo || "Nuevo";
+      document.getElementById('inputNumContrato').value = contratoActual.numeroContrato || "";
+      document.getElementById('inputDependencia').value = contratoActual.dependencia || "";
+      document.getElementById('inputFechaSolicitud').value = formatearFecha(contratoActual.etapaInterna.inicio);
+
       const timeline = document.getElementById('timelineContenedor');
       timeline.innerHTML = '';
 
-      const etapas = [
-        { nombre: "REVISIÓN DOC", d: contratoActual.etapaInterna.revisionDoc, sec: false },
-        { nombre: "ELABORACIÓN", d: contratoActual.etapaInterna.elaboracion, sec: false },
-        { nombre: "VALIDACIÓN", d: contratoActual.etapaInterna.validacion, sec: false },
-        { nombre: "SECRETARÍA", d: contratoActual.etapasExternas.secretaria, sec: true }
+      const configEtapas = [
+        { key: "revisionDoc", label: "REVISIÓN", d: contratoActual.etapaInterna.revisionDoc, sec: false, cat: "I" },
+        { key: "elaboracion", label: "ELAB. CONT", d: contratoActual.etapaInterna.elaboracion, sec: false, cat: "I" },
+        { key: "validacion", label: "VALIDACIÓN", d: contratoActual.etapaInterna.validacion, sec: false, cat: "I" },
+        { key: "gobernacion", label: "GOBERNACIÓN", d: contratoActual.etapasExternas.gobernacion, sec: false, cat: "E" },
+        { key: "proveedor", label: "PROVEEDOR", d: contratoActual.etapasExternas.proveedor, sec: false, cat: "E" },
+        { key: "depEjec", label: "DEP. EJEC.", d: contratoActual.etapasExternas.dependenciaEjecutora, sec: false, cat: "E" },
+        { key: "admin", label: "ADMIN.", d: contratoActual.etapasExternas.administracion, sec: false, cat: "E" },
+        { key: "secretaria", label: "SECRETARÍA", d: contratoActual.etapasExternas.secretaria, sec: true, cat: "E" },
+        { key: "alcaldesa", label: "ALCALDESA", d: contratoActual.etapasExternas.alcaldesa, sec: false, cat: "E" },
+        { key: "anexo", label: "ANEXO/FIANZA", d: contratoActual.etapasExternas.anexo, sec: false, cat: "E" },
+        { key: "entrega", label: "ENTREGA", d: contratoActual.etapasExternas.entrega, sec: false, cat: "E" }
       ];
 
-      etapas.forEach(e => {
+      // Tablas
+      const tablaI = document.getElementById('tablaInterna');
+      const tablaE = document.getElementById('tablaExterna');
+      tablaI.innerHTML = '';
+      tablaE.innerHTML = '';
+
+      configEtapas.forEach(e => {
         let dias = 0;
         let colorClase = 'bg-secondary';
+        let indEmoji = '⚪';
+
         if (e.d.inicio && e.d.fin) {
-          // Simplificado para JS, lo ideal es llamar al server para precisión de días hábiles
-          const diff = new Date(e.d.fin) - new Date(e.d.inicio);
-          dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
+          const start = new Date(e.d.inicio);
+          const end = new Date(e.d.fin);
+          // Cálculo simple para UI (el servidor dará el oficial)
+          dias = Math.max(0, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
           const ind = e.sec ? (dias <= 5 ? 'estado-verde' : (dias <= 9 ? 'estado-amarillo' : 'estado-rojo')) :
                            (dias <= 3 ? 'estado-verde' : (dias <= 5 ? 'estado-amarillo' : 'estado-rojo'));
           colorClase = ind;
+          indEmoji = ind.includes('verde') ? '🟢' : (ind.includes('amarillo') ? '🟡' : '🔴');
         }
 
+        // Timeline segment
         const segmento = document.createElement('div');
         segmento.className = `barra-segmento ${colorClase}`;
-        segmento.innerHTML = `<span>${e.nombre}</span><small>${dias}d</small>`;
+        segmento.innerHTML = `<span>${e.label}</span><small>${dias}d</small>`;
         timeline.appendChild(segmento);
+
+        // Table row
+        const row = `
+          <tr>
+            <td>${e.label}</td>
+            <td><input type="date" class="form-control form-control-sm" value="${formatearFecha(e.d.inicio)}" onchange="actualizarFecha('${e.key}', 'inicio', this.value)"></td>
+            <td><input type="date" class="form-control form-control-sm" value="${formatearFecha(e.d.fin)}" onchange="actualizarFecha('${e.key}', 'fin', this.value)"></td>
+            <td class="text-center"><strong>${dias}</strong></td>
+            <td class="text-center">${indEmoji}</td>
+            <td>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" placeholder="Obs" value="${e.d.obs || ''}" onchange="actualizarFecha('${e.key}', 'obs', this.value)">
+                <input type="text" class="form-control" placeholder="Solv" value="${e.d.solv || ''}" onchange="actualizarFecha('${e.key}', 'solv', this.value)">
+              </div>
+            </td>
+          </tr>
+        `;
+        if (e.cat === "I") tablaI.innerHTML += row;
+        else tablaE.innerHTML += row;
       });
 
-      // Renderizar Tablas
-      const tabla = document.getElementById('tablaInterna');
-      tabla.innerHTML = `
-        <tr>
-          <td>Revisión de Documentación</td>
-          <td><input type="date" class="form-control" value="${formatearFecha(contratoActual.etapaInterna.revisionDoc.inicio)}" id="rd_ini"></td>
-          <td><input type="date" class="form-control" value="${formatearFecha(contratoActual.etapaInterna.revisionDoc.fin)}" id="rd_fin"></td>
-          <td>-</td>
-          <td><div class="indicador-tiempo"></div></td>
-          <td><input type="text" class="form-control" value="${contratoActual.etapaInterna.revisionDoc.obs || ''}" placeholder="Obs"></td>
-        </tr>
-      `;
-
       // URLs de documentos
-      document.getElementById('urlComite').innerHTML = contratoActual.documentos.comite ? `<a href="${contratoActual.documentos.comite}" target="_blank">Ver Archivo</a>` : 'No subido';
-      document.getElementById('urlExpediente').innerHTML = contratoActual.documentos.expediente ? `<a href="${contratoActual.documentos.expediente}" target="_blank">Ver Archivo</a>` : 'No subido';
-      document.getElementById('urlContrato').innerHTML = contratoActual.documentos.contratoFirmado ? `<a href="${contratoActual.documentos.contratoFirmado}" target="_blank">Ver Archivo</a>` : 'No subido';
+      document.getElementById('urlComite').innerHTML = contratoActual.documentos.comite ? `<a href="${contratoActual.documentos.comite}" target="_blank" class="btn btn-xs btn-link p-0">📄 Ver</a>` : '<span class="text-muted">Faltante</span>';
+      document.getElementById('urlExpediente').innerHTML = contratoActual.documentos.expediente ? `<a href="${contratoActual.documentos.expediente}" target="_blank" class="btn btn-xs btn-link p-0">📄 Ver</a>` : '<span class="text-muted">Faltante</span>';
+      document.getElementById('urlContrato').innerHTML = contratoActual.documentos.contratoFirmado ? `<a href="${contratoActual.documentos.contratoFirmado}" target="_blank" class="btn btn-xs btn-link p-0">📄 Ver</a>` : '<span class="text-muted">Faltante</span>';
+    }
+
+    function actualizarFecha(key, field, value) {
+      if (key === "revisionDoc" || key === "elaboracion" || key === "validacion") {
+        contratoActual.etapaInterna[key][field] = value;
+      } else {
+        const mapping = {
+          gobernacion: "gobernacion", proveedor: "proveedor", depEjec: "dependenciaEjecutora",
+          admin: "administracion", secretaria: "secretaria", alcaldesa: "alcaldesa",
+          anexo: "anexo", entrega: "entrega"
+        };
+        contratoActual.etapasExternas[mapping[key]][field] = value;
+      }
+      renderizarInterfaz(); // Recalcular indicadores visuales
+    }
+
+    function verDashboard() {
+      // Intentar abrir en nueva pestaña o dialog
+      const url = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'page=dashboardKPI';
+      window.open(url, '_blank');
     }
 
     function formatearFecha(f) {
@@ -279,12 +397,21 @@
     }
 
     function guardarTodo() {
-      // Recopilar datos (ejemplo simplificado)
-      contratoActual.etapaInterna.revisionDoc.inicio = document.getElementById('rd_ini').value;
-      contratoActual.etapaInterna.revisionDoc.fin = document.getElementById('rd_fin').value;
+      // Actualizar datos de cabecera antes de enviar
+      contratoActual.numeroContrato = document.getElementById('inputNumContrato').value;
+      contratoActual.dependencia = document.getElementById('inputDependencia').value;
+      contratoActual.etapaInterna.inicio = document.getElementById('inputFechaSolicitud').value;
+
+      if (!contratoActual.numeroContrato) {
+        alert("El número de contrato es obligatorio");
+        return;
+      }
 
       google.script.run
-        .withSuccessHandler(res => alert(res.message))
+        .withSuccessHandler(res => {
+          alert(res.message);
+          cargarLista(); // Refrescar dropdown
+        })
         .guardarProgresoContrato(contratoActual);
     }
 
@@ -305,19 +432,24 @@
       reader.readAsDataURL(file);
     }
 
-    window.onload = () => {
+    function cargarLista() {
       google.script.run
         .withSuccessHandler(lista => {
           const select = document.getElementById('selectContrato');
+          const valActual = select.value;
+          select.innerHTML = '<option value="">-- Seleccione --</option>';
           lista.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.consecutivo;
             opt.text = `${c.consecutivo} - ${c.numeroContrato}`;
             select.add(opt);
           });
+          select.value = valActual;
         })
         .obtenerListaContratos();
-    };
+    }
+
+    window.onload = cargarLista;
   </script>
 </body>
 </html>
