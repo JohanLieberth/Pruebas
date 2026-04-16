@@ -18,8 +18,11 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h3>Dashboard de Gestión de Contratos</h3>
       <div class="d-flex gap-2">
-        <select id="filtroDependencia" class="form-select w-auto"><option value="">Todas las Dependencias</option></select>
-        <button class="btn btn-primary" onclick="actualizarDashboard()">Actualizar</button>
+        <button class="btn btn-outline-secondary" onclick="irAListado()">📋 Ver Listado</button>
+        <select id="filtroDependencia" class="form-select w-auto" onchange="actualizarDashboard()">
+          <option value="">Todas las Dependencias</option>
+        </select>
+        <button class="btn btn-primary" onclick="actualizarDashboard()">🔄 Actualizar</button>
       </div>
     </div>
 
@@ -75,10 +78,27 @@
   </div>
 
   <script>
+    function irAListado() {
+      google.script.run.withSuccessHandler(url => window.location.href = url + '?page=listaRegistros').getWebAppUrl();
+    }
+
+    function cargarDependencias() {
+      google.script.run.withSuccessHandler(deps => {
+        const select = document.getElementById('filtroDependencia');
+        deps.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d;
+          opt.text = d;
+          select.add(opt);
+        });
+      }).obtenerDependenciasRegistradas();
+    }
+
     function actualizarDashboard() {
+      const dep = document.getElementById('filtroDependencia').value;
       google.script.run
         .withSuccessHandler(renderCharts)
-        .obtenerMetricasDashboard();
+        .obtenerMetricasDashboard(dep);
     }
 
     function renderCharts(data) {
@@ -89,7 +109,10 @@
       document.getElementById('kpiSecretaria').innerText = data.secretariaRojo;
     }
 
-    window.onload = actualizarDashboard;
+    window.onload = function() {
+      cargarDependencias();
+      actualizarDashboard();
+    };
   </script>
 </body>
 </html>

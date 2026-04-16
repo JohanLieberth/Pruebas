@@ -374,13 +374,25 @@ function generarReporteKPI() {
   SpreadsheetApp.getUi().alert("Reporte actualizado");
 }
 
-function obtenerMetricasDashboard() {
+function obtenerDependenciasRegistradas() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  if (!sheet) return [];
+  const data = sheet.getDataRange().getValues();
+  const deps = new Set();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][2]) deps.add(data[i][2]);
+  }
+  return Array.from(deps).sort();
+}
+
+function obtenerMetricasDashboard(filtroDependencia) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0 };
   const data = sheet.getDataRange().getValues();
   let verdes = 0, amarillos = 0, rojos = 0, secretariaRojo = 0;
 
   for (let i = 1; i < data.length; i++) {
+    if (filtroDependencia && data[i][2] !== filtroDependencia) continue;
     const c = procesarFilaParaContrato(data[i], i + 1);
     const etapas = [
       { d: c.etapaInterna.revisionDoc, n: "Standard" },
