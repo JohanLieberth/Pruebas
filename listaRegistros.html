@@ -44,7 +44,10 @@
     const WEB_APP_URL = "<?= webAppUrl ?>";
 
     function cargarLista() {
-      google.script.run.withSuccessHandler(renderLista).obtenerListaContratos();
+      google.script.run
+        .withFailureHandler(err => alert("Error al cargar lista: " + err))
+        .withSuccessHandler(renderLista)
+        .obtenerListaContratos();
     }
 
     function renderLista(data) {

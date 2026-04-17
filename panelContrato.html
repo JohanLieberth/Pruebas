@@ -29,7 +29,7 @@
   <div id="loader"><div class="spinner-border text-primary"></div></div>
   <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h3>Registro de Gestión de Contratos</h3>
+      <h3 id="header_title">Registro de Gestión de Contratos</h3>
       <div>
         <button class="btn btn-outline-primary me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
         <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
@@ -38,6 +38,16 @@
     </div>
 
     <!-- Información General -->
+    <!-- Timeline (Solo visible en modificación) -->
+    <div id="timeline_container" class="card hidden">
+      <div class="card-header">Estatus del Proceso</div>
+      <div class="card-body">
+        <div id="timeline_barras" class="timeline-barras" style="display: flex; height: 30px; border-radius: 5px; overflow: hidden; margin-bottom: 10px; background: #eee;">
+          <!-- Dinámico -->
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">1. Información General</div>
       <div class="card-body">
@@ -161,19 +171,39 @@
 
     window.onload = function() {
       const idCarga = "<?= idCarga ?>";
-      google.script.run.withSuccessHandler(res => {
-        lists = res;
-        populateDropdowns();
-        renderStages();
-        if (idCarga && idCarga !== "null" && idCarga !== "") {
-          google.script.run.withSuccessHandler(data => {
-            if (data) cargarDatosEnForm(data);
-            document.getElementById('loader').style.display = 'none';
-          }).obtenerDatosContrato(idCarga);
-        } else {
+      google.script.run
+        .withFailureHandler(err => {
+          alert("Error al cargar configuraciones: " + err);
           document.getElementById('loader').style.display = 'none';
-        }
-      }).getDropdownLists();
+        })
+        .withSuccessHandler(res => {
+          lists = res;
+          populateDropdowns();
+          renderStages();
+          if (idCarga && idCarga !== "null" && idCarga !== "") {
+            document.getElementById('header_title').innerText = "Modificación de Registro: " + idCarga;
+            document.getElementById('timeline_container').classList.remove('hidden');
+            google.script.run
+              .withFailureHandler(err => {
+                alert("Error al cargar el contrato: " + err);
+                document.getElementById('loader').style.display = 'none';
+              })
+              .withSuccessHandler(data => {
+                if (data) {
+                  cargarDatosEnForm(data);
+                  // Forzar recálculo de indicadores visuales
+                  stagesDef.forEach(s => calcInd(s.key, s.sec));
+                } else {
+                  alert("No se encontró el registro con ID: " + idCarga);
+                }
+                document.getElementById('loader').style.display = 'none';
+              }).obtenerDatosContrato(idCarga);
+          } else {
+            document.getElementById('header_title').innerText = "Nuevo Registro de Contrato";
+            document.getElementById('timeline_container').classList.add('hidden');
+            document.getElementById('loader').style.display = 'none';
+          }
+        }).getDropdownLists();
     };
 
     function cargarDatosEnForm(data) {
@@ -305,8 +335,31 @@
           document.getElementById(`st_${key}_dias`).innerText = res.dias + 'd';
           const dot = document.getElementById(`st_${key}_dot`);
           dot.className = 'indicador-dot ' + (res.ind.color === 'VERDE' ? 'dot-verde' : (res.ind.color === 'AMARILLO' ? 'dot-amarillo' : 'dot-rojo'));
+
+          actualizarTimeline();
         }).getIndicatorLocal(ini, fin, isSec);
       }
+    }
+
+    function actualizarTimeline() {
+      const timeline = document.getElementById('timeline_barras');
+      if (!timeline) return;
+      timeline.innerHTML = '';
+
+      stagesDef.forEach(s => {
+        const dot = document.getElementById(`st_${s.key}_dot`);
+        let color = '#ccc';
+        if (dot.classList.contains('dot-verde')) color = '#28a745';
+        else if (dot.classList.contains('dot-amarillo')) color = '#ffc107';
+        else if (dot.classList.contains('dot-rojo')) color = '#dc3545';
+
+        const segment = document.createElement('div');
+        segment.style.flex = "1";
+        segment.style.background = color;
+        segment.style.borderRight = "1px solid white";
+        segment.title = s.label;
+        timeline.appendChild(segment);
+      });
     }
 
     function verDashboard() {

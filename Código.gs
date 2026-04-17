@@ -38,7 +38,7 @@ function cargarConfiguracion() {
  * Función que maneja la carga de la aplicación web
  */
 function doGet(e) {
-  const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'panelContrato';
+  const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'listaRegistros';
   const id = (e && e.parameter && e.parameter.id) ? e.parameter.id : null;
 
   try {
