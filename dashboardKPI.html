@@ -103,12 +103,31 @@
         .obtenerMetricasDashboard(dep);
     }
 
+    let stateChart = null;
+
     function renderCharts(data) {
-      // Lógica de Chart.js
       document.getElementById('kpiVerde').innerText = data.verdes;
       document.getElementById('kpiAmarillo').innerText = data.amarillos;
       document.getElementById('kpiRojo').innerText = data.rojos;
       document.getElementById('kpiSecretaria').innerText = data.secretariaRojo;
+
+      const ctx = document.getElementById('chartEstados').getContext('2d');
+      if (stateChart) stateChart.destroy();
+
+      stateChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Óptimo', 'Próximo a Vencer', 'Excedido'],
+          datasets: [{
+            data: [data.verdes, data.amarillos, data.rojos],
+            backgroundColor: ['#198754', '#ffc107', '#dc3545']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
     }
 
     window.onload = function() {

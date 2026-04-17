@@ -106,19 +106,53 @@ function mostrarConfiguracion() {
 }
 
 /**
- * Obtiene los datos de un contrato por consecutivo
+ * Obtiene los datos de un contrato por consecutivo de forma robusta
  */
 function obtenerDatosContrato(consecutivo) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
-  const data = sheet.getDataRange().getValues();
-  const searchId = String(consecutivo).trim();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === searchId) {
-      return procesarFilaParaContrato(data[i], i + 1);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+    if (!sheet) {
+      console.error("No se encontró la hoja " + CONFIG.SHEET_NAME);
+      return null;
     }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    // Normalizar el ID de búsqueda a string y número
+    if (consecutivo === null || consecutivo === undefined || consecutivo === "") return null;
+    const searchIdStr = String(consecutivo).trim();
+    const searchIdNum = Number(consecutivo);
+
+    // Obtener solo la columna A para búsqueda rápida
+    const idColumn = sheet.getRange(1, 1, lastRow, 1).getValues();
+    let rowIndex = -1;
+
+    for (let i = 1; i < idColumn.length; i++) {
+      const cellVal = idColumn[i][0];
+      if (cellVal === "" || cellVal === null || cellVal === undefined) continue;
+
+      const cellStr = String(cellVal).trim();
+      const cellNum = Number(cellVal);
+
+      if (cellStr === searchIdStr || (!isNaN(cellNum) && !isNaN(searchIdNum) && cellNum === searchIdNum)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+
+    if (rowIndex !== -1) {
+      const fullRow = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
+      return procesarFilaParaContrato(fullRow, rowIndex);
+    }
+
+    console.warn("obtenerDatosContrato: No se encontró ID '" + searchIdStr + "' en " + (idColumn.length-1) + " registros.");
+    return null;
+  } catch (e) {
+    console.error("Error en obtenerDatosContrato: " + e.message);
+    return null;
   }
-  return null;
 }
 
 /**
@@ -193,9 +227,16 @@ function guardarProgresoContrato(datos) {
 
   // Buscar si ya existe por consecutivo para evitar duplicados
   if (datos.consecutivo) {
-    const searchId = String(datos.consecutivo).trim();
+    const searchIdStr = String(datos.consecutivo).trim();
+    const searchIdNum = parseFloat(datos.consecutivo);
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]).trim() === searchId) {
+      const cellVal = data[i][0];
+      if (cellVal === null || cellVal === "") continue;
+
+      const cellStr = String(cellVal).trim();
+      const cellNum = parseFloat(cellVal);
+
+      if ((cellStr === searchIdStr) || (!isNaN(cellNum) && !isNaN(searchIdNum) && cellNum === searchIdNum)) {
         fila = i + 1;
         break;
       }
@@ -204,9 +245,16 @@ function guardarProgresoContrato(datos) {
 
   if (fila === -1) {
     const lastRow = sheet.getLastRow();
-    const lastConsecutivo = lastRow > 1 ? parseInt(sheet.getRange(lastRow, 1).getValue()) || 0 : 0;
+    // Obtener todos los valores de la columna A para encontrar el ID máximo real
+    const ids = sheet.getRange(1, 1, Math.max(lastRow, 1), 1).getValues().flat();
+    let maxId = 0;
+    for (let i = 1; i < ids.length; i++) {
+      const currentId = parseInt(ids[i]);
+      if (!isNaN(currentId) && currentId > maxId) maxId = currentId;
+    }
+
     fila = lastRow + 1;
-    sheet.getRange(fila, 1).setValue(lastConsecutivo + 1);
+    sheet.getRange(fila, 1).setValue(maxId + 1);
   }
 
   const info = datos.infoGeneral;

@@ -362,16 +362,25 @@
       });
     }
 
+    function buildUrl(params) {
+      const sep = WEB_APP_URL.indexOf('?') !== -1 ? '&' : '?';
+      let query = '';
+      for (let key in params) {
+        query += (query ? '&' : '') + key + '=' + encodeURIComponent(params[key]);
+      }
+      return WEB_APP_URL + sep + query;
+    }
+
     function verDashboard() {
-      window.top.location.href = WEB_APP_URL + '?page=dashboardKPI';
+      window.top.location.href = buildUrl({ page: 'dashboardKPI' });
     }
 
     function nuevoRegistro() {
-      window.top.location.href = WEB_APP_URL + '?page=panelContrato';
+      window.top.location.href = buildUrl({ page: 'panelContrato' });
     }
 
     function irAListado() {
-      window.top.location.href = WEB_APP_URL + '?page=listaRegistros';
+      window.top.location.href = buildUrl({ page: 'listaRegistros' });
     }
 
     function guardarRegistro() {

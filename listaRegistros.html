@@ -70,16 +70,25 @@
       `).join('');
     }
 
+    function buildUrl(params) {
+      const sep = WEB_APP_URL.indexOf('?') !== -1 ? '&' : '?';
+      let query = '';
+      for (let key in params) {
+        query += (query ? '&' : '') + key + '=' + encodeURIComponent(params[key]);
+      }
+      return WEB_APP_URL + sep + query;
+    }
+
     function editar(id) {
-      window.top.location.href = WEB_APP_URL + '?page=panelContrato&id=' + id;
+      window.top.location.href = buildUrl({ page: 'panelContrato', id: id });
     }
 
     function nuevoRegistro() {
-      window.top.location.href = WEB_APP_URL + '?page=panelContrato';
+      window.top.location.href = buildUrl({ page: 'panelContrato' });
     }
 
     function verDashboard() {
-      window.top.location.href = WEB_APP_URL + '?page=dashboardKPI';
+      window.top.location.href = buildUrl({ page: 'dashboardKPI' });
     }
 
     window.onload = cargarLista;
