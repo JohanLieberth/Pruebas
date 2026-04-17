@@ -14,7 +14,11 @@
   <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h4>Listado de Registros de Contratos</h4>
-      <button class="btn btn-primary" onclick="cargarLista()">🔄 Actualizar</button>
+      <div>
+        <button class="btn btn-success me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
+        <button class="btn btn-outline-primary me-2" onclick="cargarLista()">🔄 Actualizar</button>
+        <button class="btn btn-outline-info" onclick="verDashboard()">📊 Dashboard</button>
+      </div>
     </div>
 
     <div class="table-container">
@@ -37,6 +41,8 @@
   </div>
 
   <script>
+    const WEB_APP_URL = "<?= webAppUrl ?>";
+
     function cargarLista() {
       google.script.run.withSuccessHandler(renderLista).obtenerListaContratos();
     }
@@ -62,9 +68,15 @@
     }
 
     function editar(id) {
-      google.script.run.withSuccessHandler(url => {
-        window.open(url + '?page=panelContrato&id=' + id, '_self');
-      }).getWebAppUrl();
+      window.top.location.href = WEB_APP_URL + '?page=panelContrato&id=' + id;
+    }
+
+    function nuevoRegistro() {
+      window.top.location.href = WEB_APP_URL + '?page=panelContrato';
+    }
+
+    function verDashboard() {
+      window.top.location.href = WEB_APP_URL + '?page=dashboardKPI';
     }
 
     window.onload = cargarLista;

@@ -78,8 +78,10 @@
   </div>
 
   <script>
+    const WEB_APP_URL = "<?= webAppUrl ?>";
+
     function irAListado() {
-      google.script.run.withSuccessHandler(url => window.location.href = url + '?page=listaRegistros').getWebAppUrl();
+      window.top.location.href = WEB_APP_URL + '?page=listaRegistros';
     }
 
     function cargarDependencias() {

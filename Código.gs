@@ -44,6 +44,7 @@ function doGet(e) {
   try {
     const template = HtmlService.createTemplateFromFile(page);
     template.idCarga = id;
+    template.webAppUrl = ScriptApp.getService().getUrl();
     const output = template.evaluate();
     return output
       .setTitle('Sistema de Gestión de Contratos')
