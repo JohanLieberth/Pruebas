@@ -111,9 +111,10 @@ function mostrarConfiguracion() {
 function obtenerDatosContrato(consecutivo) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
   const data = sheet.getDataRange().getValues();
+  const searchId = String(consecutivo).trim();
 
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == consecutivo) {
+    if (String(data[i][0]).trim() === searchId) {
       return procesarFilaParaContrato(data[i], i + 1);
     }
   }
@@ -192,8 +193,9 @@ function guardarProgresoContrato(datos) {
 
   // Buscar si ya existe por consecutivo para evitar duplicados
   if (datos.consecutivo) {
+    const searchId = String(datos.consecutivo).trim();
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0] == datos.consecutivo) {
+      if (String(data[i][0]).trim() === searchId) {
         fila = i + 1;
         break;
       }
