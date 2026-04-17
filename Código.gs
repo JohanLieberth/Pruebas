@@ -39,7 +39,7 @@ function cargarConfiguracion() {
  */
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'listaRegistros';
-  const id = (e && e.parameter && e.parameter.id) ? e.parameter.id : null;
+  const id = (e && e.parameter && e.parameter.id) ? e.parameter.id : "";
 
   try {
     const template = HtmlService.createTemplateFromFile(page);
@@ -106,51 +106,51 @@ function mostrarConfiguracion() {
 }
 
 /**
- * Obtiene los datos de un contrato por consecutivo de forma robusta
+ * Obtiene los datos de un contrato por consecutivo de forma robusta con logs de depuración
  */
 function obtenerDatosContrato(consecutivo) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
     if (!sheet) {
-      console.error("No se encontró la hoja " + CONFIG.SHEET_NAME);
+      console.error("Error: No se encontró la hoja '" + CONFIG.SHEET_NAME + "'");
       return null;
     }
 
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) return null;
-
-    // Normalizar el ID de búsqueda a string y número
-    if (consecutivo === null || consecutivo === undefined || consecutivo === "") return null;
+    // Normalizar el ID de búsqueda a string y número para comparación exacta
+    if (consecutivo === null || consecutivo === undefined || String(consecutivo) === "") return null;
     const searchIdStr = String(consecutivo).trim();
     const searchIdNum = Number(consecutivo);
 
-    // Obtener solo la columna A para búsqueda rápida
-    const idColumn = sheet.getRange(1, 1, lastRow, 1).getValues();
-    let rowIndex = -1;
+    console.log("DEPURACIÓN: Buscando registro con ID: '" + searchIdStr + "' (Num: " + searchIdNum + ")");
 
-    for (let i = 1; i < idColumn.length; i++) {
-      const cellVal = idColumn[i][0];
+    // Obtener todos los datos del rango con contenido para asegurar búsqueda exhaustiva
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) {
+      console.warn("DEPURACIÓN: La hoja '" + CONFIG.SHEET_NAME + "' solo contiene cabeceras o está vacía.");
+      return null;
+    }
+
+    for (let i = 1; i < data.length; i++) {
+      const cellVal = data[i][0];
       if (cellVal === "" || cellVal === null || cellVal === undefined) continue;
 
       const cellStr = String(cellVal).trim();
       const cellNum = Number(cellVal);
 
-      if (cellStr === searchIdStr || (!isNaN(cellNum) && !isNaN(searchIdNum) && cellNum === searchIdNum)) {
-        rowIndex = i + 1;
-        break;
+      // Comparación robusta: por string idéntico o por valor numérico
+      const match = (cellStr === searchIdStr) || (!isNaN(cellNum) && !isNaN(searchIdNum) && cellNum === searchIdNum);
+
+      if (match) {
+        console.log("DEPURACIÓN: Registro encontrado en fila " + (i + 1));
+        return procesarFilaParaContrato(data[i], i + 1);
       }
     }
 
-    if (rowIndex !== -1) {
-      const fullRow = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
-      return procesarFilaParaContrato(fullRow, rowIndex);
-    }
-
-    console.warn("obtenerDatosContrato: No se encontró ID '" + searchIdStr + "' en " + (idColumn.length-1) + " registros.");
+    console.warn("DEPURACIÓN: No se encontró coincidencia para '" + searchIdStr + "' tras revisar " + (data.length - 1) + " registros.");
     return null;
   } catch (e) {
-    console.error("Error en obtenerDatosContrato: " + e.message);
+    console.error("Error crítico en obtenerDatosContrato: " + e.message);
     return null;
   }
 }
@@ -261,9 +261,10 @@ function guardarProgresoContrato(datos) {
   const generalValues = [[
     info.numContrato, info.dependencia, info.tipoContratacion, info.objeto,
     info.procedimiento, info.tipoContrato, info.proveedor, info.inicioVigencia,
-    info.finVigencia, info.monto, info.desglose, info.fechaAprobacion, info.fechaSolicitud
+    info.finVigencia, info.monto, info.desglose, info.fechaAprobacion, info.fechaSolicitud,
+    "Activo" // Col O - ESTATUS_GENERAL
   ]];
-  sheet.getRange(fila, 2, 1, 13).setValues(generalValues);
+  sheet.getRange(fila, 2, 1, 14).setValues(generalValues);
 
   const stageColStart = 16; // Col P
   const colsPerStage = 6;
