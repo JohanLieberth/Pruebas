@@ -44,9 +44,16 @@
     const WEB_APP_URL = "<?= webAppUrl ?>";
 
     function cargarLista() {
+      console.log("Cargando lista de contratos desde el servidor...");
       google.script.run
-        .withFailureHandler(err => alert("Error al cargar lista: " + err))
-        .withSuccessHandler(renderLista)
+        .withFailureHandler(err => {
+          console.error("Error en obtenerListaContratos:", err);
+          alert("Error al cargar lista: " + err);
+        })
+        .withSuccessHandler(data => {
+          console.log("Lista recibida:", data);
+          renderLista(data);
+        })
         .obtenerListaContratos();
     }
 

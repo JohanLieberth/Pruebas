@@ -1,6 +1,6 @@
 /**
  * Sistema de Gestión de Contratos con Indicadores Visuales
- * v3.0 - Registro Detallado y Control de Estados
+ * v3.3 - Búsqueda Exhaustiva y Diagnóstico Proactivo
  */
 
 let CONFIG = {
@@ -16,11 +16,51 @@ let CONFIG = {
 };
 
 /**
+ * Obtiene una hoja de forma segura (insensible a mayúsculas/minúsculas)
+ */
+function getSheetSafe(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    const sheets = ss.getSheets();
+    const searchName = name.trim().toUpperCase();
+    sheet = sheets.find(s => s.getName().trim().toUpperCase() === searchName);
+  }
+  if (!sheet) console.error("Hoja no encontrada: " + name);
+  return sheet;
+}
+
+/**
+ * Sanitiza objetos para evitar errores de serialización en google.script.run
+ * Convierte objetos Date a strings ISO
+ */
+function sanitizeData(obj) {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeData(item));
+  }
+
+  const sanitized = {};
+  for (let key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      sanitized[key] = sanitizeData(obj[key]);
+    }
+  }
+  return sanitized;
+}
+
+/**
  * Carga la configuración desde la hoja
  */
 function cargarConfiguracion() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.CONFIG_SHEET);
+  const sheet = getSheetSafe(CONFIG.CONFIG_SHEET);
   if (sheet) {
     const data = sheet.getDataRange().getValues();
     const configObj = {};
@@ -38,13 +78,16 @@ function cargarConfiguracion() {
  * Función que maneja la carga de la aplicación web
  */
 function doGet(e) {
-  const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'listaRegistros';
-  const id = (e && e.parameter && e.parameter.id) ? e.parameter.id : "";
+  // Soporta tanto 'page' como 'v', e 'id' como 'consecutivo'
+  const page = (e && e.parameter && (e.parameter.page || e.parameter.v)) ? (e.parameter.page || e.parameter.v) : 'listaRegistros';
+  const id = (e && e.parameter && (e.parameter.id || e.parameter.consecutivo)) ? (e.parameter.id || e.parameter.consecutivo) : "";
+
+  console.log("doGet: page=" + page + ", id=" + id);
 
   try {
     const template = HtmlService.createTemplateFromFile(page);
     template.idCarga = id;
-    template.webAppUrl = ScriptApp.getService().getUrl();
+    template.webAppUrl = getWebAppUrl();
     const output = template.evaluate();
     return output
       .setTitle('Sistema de Gestión de Contratos')
@@ -106,92 +149,123 @@ function mostrarConfiguracion() {
 }
 
 /**
- * Obtiene los datos de un contrato por consecutivo de forma robusta con logs de depuración
+ * Función de diagnóstico para depuración desde la consola de GAS
+ */
+function diagnosticarSistema() {
+  console.log("--- INICIANDO DIAGNÓSTICO DEL SISTEMA ---");
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  console.log("ID Spreadsheet: " + ss.getId());
+  console.log("Hojas presentes: " + ss.getSheets().map(s => s.getName()).join(", "));
+
+  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    console.log("Hoja '" + CONFIG.SHEET_NAME + "': " + lastRow + " filas, " + lastCol + " columnas.");
+    if (lastRow > 0) {
+      const firstCol = sheet.getRange(1, 1, Math.min(lastRow, 10), 1).getDisplayValues();
+      console.log("Primeros 10 IDs (Col A): " + firstCol.map(r => r[0]).join(", "));
+    }
+  } else {
+    console.error("ERROR: No se encontró la hoja '" + CONFIG.SHEET_NAME + "'");
+  }
+  console.log("--- FIN DEL DIAGNÓSTICO ---");
+}
+
+/**
+ * Obtiene los datos de un contrato con una búsqueda exhaustiva (Múltiples estrategias)
  */
 function obtenerDatosContrato(consecutivo) {
+  if (!consecutivo || String(consecutivo).trim() === "" || String(consecutivo) === "null") return null;
+  const searchId = String(consecutivo).trim();
+  console.log("--- INICIANDO BÚSQUEDA EXHAUSTIVA PARA ID: " + searchId + " ---");
+
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-    if (!sheet) {
-      console.error("Error: No se encontró la hoja '" + CONFIG.SHEET_NAME + "'");
-      return null;
+    const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+    if (!sheet) throw new Error("No se pudo acceder a la hoja de contratos.");
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    // Estrategia 1: TextFinder (Búsqueda nativa de Google Sheets en Columna A)
+    const finder = sheet.getRange("A:A").createTextFinder(searchId).matchEntireCell(true);
+    const cell = finder.findNext();
+    if (cell) {
+      console.log("Estrategia 1 (TextFinder): Encontrado en " + cell.getA1Notation());
+      const row = cell.getRow();
+      const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+      return sanitizeData(procesarFilaParaContrato(rowData, row));
     }
 
-    // Normalizar el ID de búsqueda a string y número para comparación exacta
-    if (consecutivo === null || consecutivo === undefined || String(consecutivo) === "") return null;
-    const searchIdStr = String(consecutivo).trim();
-    const searchIdNum = Number(consecutivo);
-
-    console.log("DEPURACIÓN: Buscando registro con ID: '" + searchIdStr + "' (Num: " + searchIdNum + ")");
-
-    // Obtener todos los datos del rango con contenido para asegurar búsqueda exhaustiva
-    const data = sheet.getDataRange().getValues();
-    if (data.length < 2) {
-      console.warn("DEPURACIÓN: La hoja '" + CONFIG.SHEET_NAME + "' solo contiene cabeceras o está vacía.");
-      return null;
-    }
-
-    for (let i = 1; i < data.length; i++) {
-      const cellVal = data[i][0];
-      if (cellVal === "" || cellVal === null || cellVal === undefined) continue;
-
-      const cellStr = String(cellVal).trim();
-      const cellNum = Number(cellVal);
-
-      // Comparación robusta: por string idéntico o por valor numérico
-      const match = (cellStr === searchIdStr) || (!isNaN(cellNum) && !isNaN(searchIdNum) && cellNum === searchIdNum);
-
-      if (match) {
-        console.log("DEPURACIÓN: Registro encontrado en fila " + (i + 1));
-        return procesarFilaParaContrato(data[i], i + 1);
+    // Estrategia 2: Escaneo manual de DisplayValues (Lo que el usuario ve)
+    const displayValues = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
+    for (let i = 1; i < displayValues.length; i++) {
+      if (displayValues[i][0].trim() === searchId) {
+        console.log("Estrategia 2 (DisplayValues): Encontrado en fila " + (i + 1));
+        const rowData = sheet.getRange(i + 1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        return sanitizeData(procesarFilaParaContrato(rowData, i + 1));
       }
     }
 
-    console.warn("DEPURACIÓN: No se encontró coincidencia para '" + searchIdStr + "' tras revisar " + (data.length - 1) + " registros.");
+    // Estrategia 3: Escaneo manual de RawValues (Comparación numérica y de texto exacta)
+    const rawValues = sheet.getRange(1, 1, lastRow, 1).getValues();
+    const searchIdNum = Number(searchId);
+    for (let i = 1; i < rawValues.length; i++) {
+      const val = rawValues[i][0];
+      if (String(val).trim() === searchId || (!isNaN(searchIdNum) && Number(val) === searchIdNum)) {
+        console.log("Estrategia 3 (RawValues): Encontrado en fila " + (i + 1));
+        const rowData = sheet.getRange(i + 1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        return sanitizeData(procesarFilaParaContrato(rowData, i + 1));
+      }
+    }
+
+    console.warn("--- BÚSQUEDA FINALIZADA SIN ÉXITO ---");
     return null;
   } catch (e) {
-    console.error("Error crítico en obtenerDatosContrato: " + e.message);
+    console.error("Error en obtenerDatosContrato: " + e.toString());
     return null;
   }
 }
 
 /**
- * Mapea una fila a un objeto estructurado
+ * Mapea una fila a un objeto estructurado de forma segura
  */
 function procesarFilaParaContrato(fila, numeroFila) {
-  // Mapeo según setupDatabase
-  // A=0, B=1... O=14
+  if (!fila || !Array.isArray(fila)) return null;
+
+  const safe = (idx) => (fila[idx] === undefined || fila[idx] === null) ? "" : fila[idx];
+
   const stageColStart = 15; // P=15
   const colsPerStage = 6;
 
   const extractStage = (startIndex) => {
     return {
-      estatus: fila[startIndex],
-      inicio: fila[startIndex + 1],
-      fin: fila[startIndex + 2],
-      fechaObs: fila[startIndex + 3],
-      detalleObs: fila[startIndex + 4],
-      fechaSolv: fila[startIndex + 5]
+      estatus: safe(startIndex),
+      inicio: safe(startIndex + 1),
+      fin: safe(startIndex + 2),
+      fechaObs: safe(startIndex + 3),
+      detalleObs: safe(startIndex + 4),
+      fechaSolv: safe(startIndex + 5)
     };
   };
 
   return {
-    consecutivo: fila[0],
+    consecutivo: safe(0),
     fila: numeroFila,
     infoGeneral: {
-      numContrato: fila[1],
-      dependencia: fila[2],
-      tipoContratacion: fila[3],
-      objeto: fila[4],
-      procedimiento: fila[5],
-      tipoContrato: fila[6],
-      proveedor: fila[7],
-      inicioVigencia: fila[8],
-      finVigencia: fila[9],
-      monto: fila[10],
-      desglose: fila[11],
-      fechaAprobacion: fila[12],
-      fechaSolicitud: fila[13]
+      numContrato: safe(1),
+      dependencia: safe(2),
+      tipoContratacion: safe(3),
+      objeto: safe(4),
+      procedimiento: safe(5),
+      tipoContrato: safe(6),
+      proveedor: safe(7),
+      inicioVigencia: safe(8),
+      finVigencia: safe(9),
+      monto: safe(10),
+      desglose: safe(11),
+      fechaAprobacion: safe(12),
+      fechaSolicitud: safe(13)
     },
     etapaInterna: {
       revisionDoc: extractStage(stageColStart),
@@ -209,9 +283,9 @@ function procesarFilaParaContrato(fila, numeroFila) {
       entrega: extractStage(stageColStart + colsPerStage * 10)
     },
     documentos: {
-      comite: fila[81], // Actualizar estos índices según setupDatabase
-      expediente: fila[82],
-      contratoFirmado: fila[83]
+      comite: safe(81),
+      expediente: safe(82),
+      contratoFirmado: safe(83)
     }
   };
 }
@@ -227,16 +301,10 @@ function guardarProgresoContrato(datos) {
 
   // Buscar si ya existe por consecutivo para evitar duplicados
   if (datos.consecutivo) {
-    const searchIdStr = String(datos.consecutivo).trim();
-    const searchIdNum = parseFloat(datos.consecutivo);
-    for (let i = 1; i < data.length; i++) {
-      const cellVal = data[i][0];
-      if (cellVal === null || cellVal === "") continue;
-
-      const cellStr = String(cellVal).trim();
-      const cellNum = parseFloat(cellVal);
-
-      if ((cellStr === searchIdStr) || (!isNaN(cellNum) && !isNaN(searchIdNum) && cellNum === searchIdNum)) {
+    const searchId = String(datos.consecutivo).trim();
+    const displayValues = sheet.getDataRange().getDisplayValues();
+    for (let i = 1; i < displayValues.length; i++) {
+      if (displayValues[i][0].trim() === searchId) {
         fila = i + 1;
         break;
       }
@@ -285,6 +353,13 @@ function guardarProgresoContrato(datos) {
   stagesE.forEach((s, idx) => {
     sheet.getRange(fila, stageColStart + ((idx + 3) * colsPerStage), 1, colsPerStage).setValues([mapStage(s)]);
   });
+
+  // Guardar URLs de documentos si existen
+  if (datos.documentos) {
+    if (datos.documentos.comite) sheet.getRange(fila, 82).setValue(datos.documentos.comite);
+    if (datos.documentos.expediente) sheet.getRange(fila, 83).setValue(datos.documentos.expediente);
+    if (datos.documentos.contratoFirmado) sheet.getRange(fila, 84).setValue(datos.documentos.contratoFirmado);
+  }
 
   return { success: true, message: "Contrato guardado exitosamente", consecutivo: sheet.getRange(fila, 1).getValue() };
 }
@@ -350,21 +425,38 @@ function getIndicatorLocal(ini, fin, isSec) {
 }
 
 function obtenerListaContratos() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
-  if (!sheet) return [];
-  const data = sheet.getDataRange().getValues();
-  const lista = [];
-  for (let i = 1; i < data.length; i++) {
-    if (!data[i][0]) continue;
-    lista.push({
-      consecutivo: data[i][0],
-      numContrato: data[i][1],
-      dependencia: data[i][2],
-      tipo: data[i][3],
-      estatus: data[i][14] || "Activo"
-    });
+  console.log("Iniciando obtenerListaContratos...");
+  try {
+    const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+    if (!sheet) return [];
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      console.log("La hoja está vacía.");
+      return [];
+    }
+
+    const data = sheet.getRange(1, 1, lastRow, 15).getDisplayValues();
+    const lista = [];
+
+    for (let i = 1; i < data.length; i++) {
+      const id = data[i][0].toString().trim();
+      if (!id) continue;
+
+      lista.push({
+        consecutivo: id,
+        numContrato: data[i][1],
+        dependencia: data[i][2],
+        tipo: data[i][3],
+        estatus: data[i][14] || "Activo"
+      });
+    }
+    console.log("Registros encontrados para la lista: " + lista.length);
+    return lista;
+  } catch (e) {
+    console.error("Error en obtenerListaContratos: " + e.toString());
+    return [];
   }
-  return lista;
 }
 
 function subirArchivoADrive(base64Data, fileName, tipoDoc, consecutivo) {
@@ -417,13 +509,52 @@ function setupDatabase() {
 }
 
 function generarReporteKPI() {
-  // Implementación simplificada para el reporte
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
-  const resSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.RESUMEN_SHEET);
-  const data = sheet.getDataRange().getValues();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mainSheet = getSheetSafe(CONFIG.SHEET_NAME);
+  const resSheet = getSheetSafe(CONFIG.RESUMEN_SHEET);
+  if (!mainSheet || !resSheet) return;
+
+  const data = mainSheet.getDataRange().getValues();
+  const headers = [
+    "CONSECUTIVO", "NÚMERO DE CONTRATO", "DEPENDENCIA", "TIPO DE CONTRATO",
+    "FECHA_SOLICITUD", "FECHA_JURIDICO", "DIAS_ETAPA_INTERNA", "INDICADOR_ETAPA_INTERNA",
+    "AREAS_EXTERNAS_SELECCIONADAS", "FECHA_ULTIMA_ETAPA_EXTERNA", "DIAS_ETAPA_EXTERNA_TOTAL",
+    "INDICADOR_ETAPA_EXTERNA", "TIEMPO_TOTAL_CONTRATO", "INDICADOR_TOTAL_CONTRATO",
+    "ESTADO_ACTUAL", "DOCUMENTACION_COMPLETA", "INDICADOR_SECRETARIA_ESPECIFICO"
+  ];
+
+  const results = [headers];
+
+  for (let i = 1; i < data.length; i++) {
+    const c = procesarFilaParaContrato(data[i], i + 1);
+    if (!c.consecutivo) continue;
+
+    const diasInt = calcularDiasHabiles(c.infoGeneral.fechaSolicitud, c.etapaInterna.validacion.fin);
+    const indInt = calcularIndicadorVisual(diasInt, false);
+
+    const ultimaExt = c.etapasExternas.entrega.fin || c.etapasExternas.anexo.fin || c.etapasExternas.alcaldesa.fin;
+    const diasExt = calcularDiasHabiles(c.etapasExternas.gobernacion.inicio, ultimaExt);
+    const indExt = calcularIndicadorVisual(diasExt, false);
+
+    const diasSec = calcularDiasHabiles(c.etapasExternas.secretaria.inicio, c.etapasExternas.secretaria.fin);
+    const indSec = c.etapasExternas.secretaria.inicio ? calcularIndicadorVisual(diasSec, true) : { emoji: "-" };
+
+    const docsOk = (c.documentos.comite && c.documentos.expediente && c.documentos.contratoFirmado) ? "COMPLETA" : "FALTANTE";
+
+    results.push([
+      c.consecutivo, c.infoGeneral.numContrato, c.infoGeneral.dependencia, c.infoGeneral.tipoContrato,
+      c.infoGeneral.fechaSolicitud, c.etapaInterna.validacion.fin, diasInt, indInt.emoji,
+      "Gobernación, Proveedor, Jurídico, etc", ultimaExt, diasExt,
+      indExt.emoji, (diasInt + diasExt), "",
+      c.infoGeneral.estatusGeneral || "Activo", docsOk, indSec.emoji
+    ]);
+  }
+
   resSheet.clear();
-  resSheet.getRange(1, 1, data.length, 10).setValues(data.map(r => [r[0], r[1], r[2], r[14], "...", "...", "...", "...", "...", "..."]));
-  SpreadsheetApp.getUi().alert("Reporte actualizado");
+  resSheet.getRange(1, 1, results.length, headers.length).setValues(results);
+  resSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#d9ead3");
+
+  SpreadsheetApp.getUi().alert("Reporte KPI generado con éxito en la hoja: " + CONFIG.RESUMEN_SHEET);
 }
 
 function obtenerDependenciasRegistradas() {
@@ -438,7 +569,7 @@ function obtenerDependenciasRegistradas() {
 }
 
 function obtenerMetricasDashboard(filtroDependencia) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
   if (!sheet) return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0 };
   const data = sheet.getDataRange().getValues();
   let verdes = 0, amarillos = 0, rojos = 0, secretariaRojo = 0;
@@ -466,7 +597,7 @@ function obtenerMetricasDashboard(filtroDependencia) {
 }
 
 function guardarConfiguracionServer(config) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.CONFIG_SHEET);
+  const sheet = getSheetSafe(CONFIG.CONFIG_SHEET);
   sheet.getRange(2, 2, 5, 1).setValues([[config.folderId], [config.estandarVerde], [config.estandarAmarillo], [config.secretariaVerde], [config.secretariaAmarillo]]);
   return { success: true };
 }

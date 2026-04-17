@@ -170,31 +170,45 @@
     let lists = {};
 
     window.onload = function() {
-      const idCarga = "<?= idCarga ?>";
+      // Intento de obtener ID de la plantilla GAS o directamente de la URL (más resiliente)
+      let idCarga = "<?= idCarga ?>";
+      if (!idCarga || idCarga === "null") {
+        const urlParams = new URLSearchParams(window.location.search);
+        idCarga = urlParams.get('id') || urlParams.get('consecutivo') || "";
+      }
+
+      console.log("window.onload: idCarga detectado =", idCarga);
+
       google.script.run
         .withFailureHandler(err => {
-          alert("Error al cargar configuraciones: " + err);
+          console.error("Error al cargar configuraciones:", err);
+          alert("Error al cargar configuraciones iniciales. Intente recargar la página.");
           document.getElementById('loader').style.display = 'none';
         })
         .withSuccessHandler(res => {
           lists = res;
           populateDropdowns();
           renderStages();
-          if (idCarga && idCarga !== "null" && idCarga !== "") {
+
+          if (idCarga && idCarga !== "") {
             document.getElementById('header_title').innerText = "Modificación de Registro: " + idCarga;
             document.getElementById('timeline_container').classList.remove('hidden');
+
+            console.log("Solicitando datos del servidor para ID:", idCarga);
             google.script.run
               .withFailureHandler(err => {
-                alert("Error al cargar el contrato: " + err);
+                console.error("Error fatal en obtenerDatosContrato:", err);
+                alert("Error crítico al intentar recuperar la información del contrato.");
                 document.getElementById('loader').style.display = 'none';
               })
               .withSuccessHandler(data => {
+                console.log("Respuesta del servidor para obtenerDatosContrato:", data);
                 if (data) {
                   cargarDatosEnForm(data);
-                  // Forzar recálculo de indicadores visuales
                   stagesDef.forEach(s => calcInd(s.key, s.sec));
                 } else {
-                  alert("No se encontró el registro con ID: " + idCarga);
+                  console.warn("Registro no localizado en el servidor para ID:", idCarga);
+                  alert("ATENCIÓN: No se encontró el registro con ID '" + idCarga + "' en la hoja 'CONTRATOS'. Asegúrese de que el ID esté en la columna A.");
                 }
                 document.getElementById('loader').style.display = 'none';
               }).obtenerDatosContrato(idCarga);
@@ -244,9 +258,17 @@
 
     function formatDateForInput(date) {
       if (!date) return '';
+      // Si ya es un string ISO (ej. "2023-10-27T00:00:00.000Z"), lo recortamos
+      if (typeof date === 'string' && date.includes('T')) {
+        return date.split('T')[0];
+      }
       const d = new Date(date);
       if (isNaN(d.getTime())) return '';
-      return d.toISOString().split('T')[0];
+
+      // Ajuste de zona horaria para evitar desfase de un día
+      const userTimezoneOffset = d.getTimezoneOffset() * 60000;
+      const adjustedDate = new Date(d.getTime() + userTimezoneOffset);
+      return adjustedDate.toISOString().split('T')[0];
     }
 
     function populateDropdowns() {
