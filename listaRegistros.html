@@ -69,7 +69,11 @@
           <td>${c.numContrato}</td>
           <td>${c.dependencia}</td>
           <td>${c.tipo}</td>
-          <td><span class="badge bg-info">${c.estatus}</span></td>
+          <td>
+            <span class="badge ${c.esFinalizado ? 'bg-success' : 'bg-primary'}">
+              ${c.estatus}
+            </span>
+          </td>
           <td>
             <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">Editar</button>
           </td>

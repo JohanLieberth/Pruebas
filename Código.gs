@@ -425,33 +425,53 @@ function getIndicatorLocal(ini, fin, isSec) {
 }
 
 function obtenerListaContratos() {
-  console.log("Iniciando obtenerListaContratos...");
+  console.log("Iniciando obtenerListaContratos con cálculo de tiempo transcurrido...");
   try {
     const sheet = getSheetSafe(CONFIG.SHEET_NAME);
     if (!sheet) return [];
 
     const lastRow = sheet.getLastRow();
-    if (lastRow < 2) {
-      console.log("La hoja está vacía.");
-      return [];
-    }
+    if (lastRow < 2) return [];
 
-    const data = sheet.getRange(1, 1, lastRow, 15).getDisplayValues();
+    // Obtenemos todos los datos para procesar la lógica de tiempo
+    const data = sheet.getRange(1, 1, lastRow, sheet.getLastColumn()).getValues();
     const lista = [];
 
     for (let i = 1; i < data.length; i++) {
-      const id = data[i][0].toString().trim();
+      const row = data[i];
+      const id = String(row[0]).trim();
       if (!id) continue;
+
+      const c = procesarFilaParaContrato(row, i + 1);
+
+      // Lógica de Tiempo Transcurrido para Estatus General
+      // Inicio: Fecha Solicitud (infoGeneral.fechaSolicitud)
+      // Fin: Si Entrega es "Completa", usar su fecha de fin. Sino, usar hoy.
+      const fechaInicio = c.infoGeneral.fechaSolicitud;
+      let fechaFin = new Date();
+      let esFinalizado = false;
+
+      if (c.etapasExternas.entrega.estatus === "Completa" && c.etapasExternas.entrega.fin) {
+        fechaFin = new Date(c.etapasExternas.entrega.fin);
+        esFinalizado = true;
+      }
+
+      const diasTranscurridos = calcularDiasHabiles(fechaInicio, fechaFin);
+      const estatusTexto = esFinalizado ?
+        "Finalizado (" + diasTranscurridos + " días)" :
+        "En Proceso (" + diasTranscurridos + " días)";
 
       lista.push({
         consecutivo: id,
-        numContrato: data[i][1],
-        dependencia: data[i][2],
-        tipo: data[i][3],
-        estatus: data[i][14] || "Activo"
+        numContrato: c.infoGeneral.numContrato,
+        dependencia: c.infoGeneral.dependencia,
+        tipo: c.infoGeneral.tipoContratacion,
+        estatus: estatusTexto,
+        esFinalizado: esFinalizado
       });
     }
-    console.log("Registros encontrados para la lista: " + lista.length);
+
+    console.log("Lista generada con " + lista.length + " registros.");
     return lista;
   } catch (e) {
     console.error("Error en obtenerListaContratos: " + e.toString());
@@ -541,12 +561,23 @@ function generarReporteKPI() {
 
     const docsOk = (c.documentos.comite && c.documentos.expediente && c.documentos.contratoFirmado) ? "COMPLETA" : "FALTANTE";
 
+    // Cálculo de Estatus Global con Tiempo Transcurrido
+    const fInicio = c.infoGeneral.fechaSolicitud;
+    let fFin = new Date();
+    let isFinished = false;
+    if (c.etapasExternas.entrega.estatus === "Completa" && c.etapasExternas.entrega.fin) {
+      fFin = new Date(c.etapasExternas.entrega.fin);
+      isFinished = true;
+    }
+    const tTotal = calcularDiasHabiles(fInicio, fFin);
+    const estatusCalculado = isFinished ? "Finalizado (" + tTotal + " días)" : "En Proceso (" + tTotal + " días)";
+
     results.push([
       c.consecutivo, c.infoGeneral.numContrato, c.infoGeneral.dependencia, c.infoGeneral.tipoContrato,
       c.infoGeneral.fechaSolicitud, c.etapaInterna.validacion.fin, diasInt, indInt.emoji,
       "Gobernación, Proveedor, Jurídico, etc", ultimaExt, diasExt,
-      indExt.emoji, (diasInt + diasExt), "",
-      c.infoGeneral.estatusGeneral || "Activo", docsOk, indSec.emoji
+      indExt.emoji, tTotal, "",
+      estatusCalculado, docsOk, indSec.emoji
     ]);
   }
 
