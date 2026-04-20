@@ -14,6 +14,12 @@
     <h4>Configuración del Sistema</h4>
     <hr>
 
+    <div id="loading" class="text-center p-3">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p>Cargando configuración...</p>
+    </div>
+
+    <div id="content" class="d-none">
     <div class="config-section">
       <h5>Parámetros de Tiempo (Días Hábiles)</h5>
       <div class="row g-3">
@@ -44,23 +50,88 @@
       </div>
     </div>
 
-    <div class="mt-4">
-      <button class="btn btn-primary w-100" onclick="guardarConfig()">Guardar Configuración</button>
+    <div class="config-section">
+      <h5>Gestión de Usuarios y Permisos</h5>
+      <p class="small text-muted">1: Lectura | 2: Registro/Modificación | 3: Borrar | 4: Administrador</p>
+      <div id="userList" class="mb-3">
+        <!-- Usuarios dinámicos -->
+      </div>
+      <button class="btn btn-sm btn-outline-success" onclick="addUserRow()">+ Agregar Usuario</button>
+    </div>
+
+    <div class="mt-4 mb-5">
+      <button class="btn btn-primary w-100" onclick="guardarConfig()">Guardar Todo</button>
+    </div>
     </div>
   </div>
 
   <script>
+    let usuarios = [];
+
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(config => {
+          document.getElementById('estandarVerde').value = config.estandarVerde;
+          document.getElementById('estandarAmarillo').value = config.estandarAmarillo;
+          document.getElementById('secretariaVerde').value = config.secretariaVerde;
+          document.getElementById('secretariaAmarillo').value = config.secretariaAmarillo;
+          document.getElementById('folderId').value = config.folderId;
+          usuarios = config.usuarios;
+          renderUserList();
+          document.getElementById('loading').classList.add('d-none');
+          document.getElementById('content').classList.remove('d-none');
+        })
+        .obtenerConfiguracionFull();
+    };
+
+    function renderUserList() {
+      const container = document.getElementById('userList');
+      container.innerHTML = usuarios.map((u, i) => `
+        <div class="row g-2 mb-2 align-items-center">
+          <div class="col-7">
+            <input type="email" class="form-control form-control-sm" value="${u.email}" onchange="updateUser(${i}, 'email', this.value)">
+          </div>
+          <div class="col-3">
+            <select class="form-select form-select-sm" onchange="updateUser(${i}, 'permiso', this.value)">
+              <option value="1" ${u.permiso == 1 ? 'selected' : ''}>1</option>
+              <option value="2" ${u.permiso == 2 ? 'selected' : ''}>2</option>
+              <option value="3" ${u.permiso == 3 ? 'selected' : ''}>3</option>
+              <option value="4" ${u.permiso == 4 ? 'selected' : ''}>4</option>
+            </select>
+          </div>
+          <div class="col-2 text-end">
+            <button class="btn btn-sm btn-danger" onclick="removeUser(${i})">&times;</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addUserRow() {
+      usuarios.push({ email: '', permiso: 1 });
+      renderUserList();
+    }
+
+    function updateUser(idx, key, val) {
+      usuarios[idx][key] = val;
+    }
+
+    function removeUser(idx) {
+      usuarios.splice(idx, 1);
+      renderUserList();
+    }
+
     function guardarConfig() {
       const config = {
         estandarVerde: document.getElementById('estandarVerde').value,
         estandarAmarillo: document.getElementById('estandarAmarillo').value,
         secretariaVerde: document.getElementById('secretariaVerde').value,
         secretariaAmarillo: document.getElementById('secretariaAmarillo').value,
-        folderId: document.getElementById('folderId').value
+        folderId: document.getElementById('folderId').value,
+        usuarios: usuarios
       };
 
       google.script.run
-        .withSuccessHandler(() => alert('Configuración guardada'))
+        .withSuccessHandler(() => alert('Configuración y usuarios guardados exitosamente'))
         .guardarConfiguracionServer(config);
     }
   </script>

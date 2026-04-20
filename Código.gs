@@ -8,6 +8,7 @@ let CONFIG = {
   RESUMEN_SHEET: "RESUMEN_TIEMPOS",
   LOG_SHEET: "LOG_DOCUMENTAL",
   CONFIG_SHEET: "CONFIGURACION",
+  USERS_SHEET: "USUARIOS",
   FOLDER_ID_RAIZ: "",
   UMBRALES: {
     ESTANDAR: { VERDE: 3, AMARILLO: 5 },
@@ -91,11 +92,38 @@ function cargarConfiguracion() {
 }
 
 /**
+ * Obtiene el usuario actual y su nivel de permiso
+ */
+function getUsuarioActual() {
+  const email = Session.getActiveUser().getEmail();
+  const sheet = getSheetSafe(CONFIG.USERS_SHEET);
+  if (!sheet) return { email: email, permiso: 0 };
+
+  const data = sheet.getDataRange().getValues();
+  const userRow = data.find(row => row[0].toString().toLowerCase() === email.toLowerCase());
+
+  return {
+    email: email,
+    permiso: userRow ? parseInt(userRow[1]) : 0
+  };
+}
+
+/**
  * Función que maneja la carga de la aplicación web
  */
 function doGet(e) {
+  const user = getUsuarioActual();
+  if (user.permiso < 1) {
+    return HtmlService.createHtmlOutput('<h1>Acceso Denegado</h1><p>Su usuario (' + user.email + ') no tiene permisos para acceder a este sistema.</p>');
+  }
+
   // Soporta tanto 'page' como 'v', e 'id' como 'consecutivo'
   const page = (e && e.parameter && (e.parameter.page || e.parameter.v)) ? (e.parameter.page || e.parameter.v) : 'listaRegistros';
+
+  // Restricción adicional para Configuración
+  if (page === 'Configuracion' && user.permiso < 4) {
+    return HtmlService.createHtmlOutput('<h1>Acceso Restringido</h1><p>Solo los administradores pueden acceder a la configuración.</p>');
+  }
   const id = (e && e.parameter && (e.parameter.id || e.parameter.consecutivo)) ? (e.parameter.id || e.parameter.consecutivo) : "";
 
   console.log("doGet: page=" + page + ", id=" + id);
@@ -104,6 +132,7 @@ function doGet(e) {
     const template = HtmlService.createTemplateFromFile(page);
     template.idCarga = id;
     template.webAppUrl = getWebAppUrl();
+    template.userPermiso = user.permiso;
     const output = template.evaluate();
     return output
       .setTitle('Sistema de Gestión de Contratos')
@@ -252,7 +281,7 @@ function procesarFilaParaContrato(fila, numeroFila) {
   const safe = (idx) => (fila[idx] === undefined || fila[idx] === null) ? "" : fila[idx];
 
   const stageColStart = 15; // P=15
-  const colsPerStage = 9;
+  const colsPerStage = 11;
 
   const extractStage = (startIndex, key) => {
     return {
@@ -265,7 +294,9 @@ function procesarFilaParaContrato(fila, numeroFila) {
       fechaSolv: safe(startIndex + 5),
       tipoObs: safe(startIndex + 6),
       origenJuridico: safe(startIndex + 7),
-      origenDependencia: safe(startIndex + 8)
+      origenDependencia: safe(startIndex + 8),
+      fechaVigencia: safe(startIndex + 9),
+      montoSinIva: safe(startIndex + 10)
     };
   };
 
@@ -303,9 +334,9 @@ function procesarFilaParaContrato(fila, numeroFila) {
       entrega: extractStage(stageColStart + colsPerStage * 10, 'entrega')
     },
     documentos: {
-      comite: safe(114),
-      expediente: safe(115),
-      contratoFirmado: safe(116)
+      comite: safe(136),
+      expediente: safe(137),
+      contratoFirmado: safe(138)
     }
   };
 }
@@ -314,6 +345,9 @@ function procesarFilaParaContrato(fila, numeroFila) {
  * Guarda o actualiza un contrato
  */
 function guardarProgresoContrato(datos) {
+  const user = getUsuarioActual();
+  if (user.permiso < 2) throw new Error("No tiene permisos para guardar o modificar registros.");
+
   const sheet = getSheetSafe(CONFIG.SHEET_NAME);
   if (!sheet) throw new Error("No se pudo guardar: Hoja de contratos no encontrada.");
   const data = sheet.getDataRange().getValues();
@@ -355,12 +389,13 @@ function guardarProgresoContrato(datos) {
   sheet.getRange(fila, 2, 1, 14).setValues(generalValues);
 
   const stageColStart = 16; // Col P
-  const colsPerStage = 9;
+  const colsPerStage = 11;
 
   const mapStage = (s) => [
     s.estatus, s.inicio, s.fin,
     s.fechaObs, s.detalleObs, s.fechaSolv,
-    s.tipoObs || "", s.origenJuridico || false, s.origenDependencia || false
+    s.tipoObs || "", s.origenJuridico || false, s.origenDependencia || false,
+    s.fechaVigencia || "", s.montoSinIva || ""
   ];
 
   const ei = datos.etapaInterna;
@@ -508,6 +543,9 @@ function obtenerListaContratos() {
 }
 
 function subirArchivoADrive(base64Data, fileName, tipoDoc, consecutivo) {
+  const user = getUsuarioActual();
+  if (user.permiso < 2) throw new Error("No tiene permisos para subir archivos.");
+
   cargarConfiguracion();
   const folder = CONFIG.FOLDER_ID_RAIZ ? DriveApp.getFolderById(CONFIG.FOLDER_ID_RAIZ) : DriveApp.getRootFolder();
   const bytes = Utilities.base64Decode(base64Data.split(',')[1]);
@@ -548,24 +586,56 @@ function findColumnByHeader(sheet, headerName) {
   return idx !== -1 ? idx + 1 : -1;
 }
 
+/**
+ * Elimina un contrato (Nivel 3 o 4)
+ */
+function eliminarContrato(consecutivo) {
+  const user = getUsuarioActual();
+  if (user.permiso < 3) throw new Error("No tiene permisos para eliminar registros.");
+
+  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  if (!sheet) return { success: false, message: "Hoja no encontrada" };
+
+  const data = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
+  const searchId = String(consecutivo).trim();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === searchId) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: "Registro eliminado correctamente" };
+    }
+  }
+  return { success: false, message: "No se encontró el registro" };
+}
+
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = getSheetSafe(CONFIG.SHEET_NAME);
-  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEET_NAME);
 
   const headers = ["CONSECUTIVO", "NUM_CONTRATO", "DEPENDENCIA_EJECUTORA", "TIPO_CONTRATACION", "OBJETO", "PROCEDIMIENTO", "TIPO_CONTRATO", "PROVEEDOR", "INICIO_VIGENCIA", "FIN_VIGENCIA", "MONTO", "DESGLOSE", "FECHA_APROBACION", "FECHA_SOLICITUD", "ESTATUS_GENERAL"];
-
   const stages = ["REV_DOC", "ELAB_CONT", "VAL_JUR", "GOB", "PROV", "DEP_EJEC", "ADMIN", "SEC", "ALCALDESA", "ANEXO", "ENTREGA"];
   stages.forEach(s => {
     headers.push(
       s + "_ESTATUS", s + "_INICIO", s + "_FIN",
       s + "_FECHA_OBS", s + "_DETALLE_OBS", s + "_FECHA_SOLV",
-      s + "_TIPO_OBS", s + "_ORIGEN_JURIDICO", s + "_ORIGEN_DEPENDENCIA"
+      s + "_TIPO_OBS", s + "_ORIGEN_JURIDICO", s + "_ORIGEN_DEPENDENCIA",
+      s + "_FECHA_VIGENCIA", s + "_MONTO_SIN_IVA"
     );
   });
   headers.push("URL_COMITE", "URL_EXPEDIENTE", "URL_CONTRATO_FIRMADO");
 
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f3f3f3");
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEET_NAME);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f3f3f3");
+  } else {
+    // Si la hoja existe, verificar si el número de columnas coincide.
+    // Si no, es probable que necesitemos migrar (esto es una simplificación)
+    const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (currentHeaders.length !== headers.length) {
+       console.log("Actualizando cabeceras de la hoja...");
+       sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f3f3f3");
+    }
+  }
   sheet.setFrozenRows(1);
 
   if (!getSheetSafe(CONFIG.RESUMEN_SHEET)) ss.insertSheet(CONFIG.RESUMEN_SHEET);
@@ -575,6 +645,13 @@ function setupDatabase() {
       ["PARAMETRO", "VALOR"], ["FOLDER_ID_RAIZ", ""], ["UMBRAL_ESTANDAR_VERDE", 3],
       ["UMBRAL_ESTANDAR_AMARILLO", 5], ["UMBRAL_SECRETARIA_VERDE", 5], ["UMBRAL_SECRETARIA_AMARILLO", 9]
     ]);
+  }
+
+  if (!getSheetSafe(CONFIG.USERS_SHEET)) {
+    const userSheet = ss.insertSheet(CONFIG.USERS_SHEET);
+    userSheet.getRange(1, 1, 1, 2).setValues([["EMAIL", "PERMISO"]]).setFontWeight("bold");
+    // Agregar el usuario actual como administrador (Nivel 4) por defecto para que no se bloquee
+    userSheet.appendRow([Session.getEffectiveUser().getEmail(), 4]);
   }
 }
 
@@ -725,7 +802,48 @@ function obtenerMetricasDashboard(filtroDependencia) {
 }
 
 function guardarConfiguracionServer(config) {
+  const user = getUsuarioActual();
+  if (user.permiso < 4) throw new Error("No tiene permisos para modificar la configuración.");
+
   const sheet = getSheetSafe(CONFIG.CONFIG_SHEET);
   sheet.getRange(2, 2, 5, 1).setValues([[config.folderId], [config.estandarVerde], [config.estandarAmarillo], [config.secretariaVerde], [config.secretariaAmarillo]]);
+
+  // Guardar usuarios
+  if (config.usuarios && Array.isArray(config.usuarios)) {
+    const userSheet = getSheetSafe(CONFIG.USERS_SHEET);
+    if (userSheet) {
+      userSheet.clearContents();
+      userSheet.getRange(1, 1, 1, 2).setValues([["EMAIL", "PERMISO"]]).setFontWeight("bold");
+      if (config.usuarios.length > 0) {
+        userSheet.getRange(2, 1, config.usuarios.length, 2).setValues(config.usuarios.map(u => [u.email, u.permiso]));
+      }
+    }
+  }
+
   return { success: true };
+}
+
+function obtenerConfiguracionFull() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const configSheet = getSheetSafe(CONFIG.CONFIG_SHEET);
+  const userSheet = getSheetSafe(CONFIG.USERS_SHEET);
+
+  const configData = configSheet.getDataRange().getValues();
+  const configObj = {};
+  configData.forEach(row => { configObj[row[0]] = row[1]; });
+
+  const userData = userSheet.getDataRange().getValues();
+  const usuarios = [];
+  for (let i = 1; i < userData.length; i++) {
+    if (userData[i][0]) usuarios.push({ email: userData[i][0], permiso: userData[i][1] });
+  }
+
+  return {
+    estandarVerde: configObj["UMBRAL_ESTANDAR_VERDE"],
+    estandarAmarillo: configObj["UMBRAL_ESTANDAR_AMARILLO"],
+    secretariaVerde: configObj["UMBRAL_SECRETARIA_VERDE"],
+    secretariaAmarillo: configObj["UMBRAL_SECRETARIA_AMARILLO"],
+    folderId: configObj["FOLDER_ID_RAIZ"],
+    usuarios: usuarios
+  };
 }

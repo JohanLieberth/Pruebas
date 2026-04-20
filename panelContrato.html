@@ -31,7 +31,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h3 id="header_title">Registro de Gestión de Contratos</h3>
       <div>
-        <button class="btn btn-outline-primary me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
+        <button id="btnNuevo" class="btn btn-outline-primary me-2 d-none" onclick="nuevoRegistro()">+ Nuevo Registro</button>
         <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
         <button class="btn btn-indicators" onclick="verDashboard()">📊 Dashboard de Indicadores</button>
       </div>
@@ -151,25 +151,49 @@
       </div>
       <div class="tab-pane fade" id="tabDocumentos">
         <div class="row g-3">
-          <div class="col-md-4"><label>Comité</label><input type="file" class="form-control" onchange="uploadFile(this, 'comite')"><div id="link_comite"></div></div>
-          <div class="col-md-4"><label>Expediente</label><input type="file" class="form-control" onchange="uploadFile(this, 'expediente')"><div id="link_expediente"></div></div>
-          <div class="col-md-4"><label>Contrato Firmado</label><input type="file" class="form-control" onchange="uploadFile(this, 'contrato')"><div id="link_contrato"></div></div>
+          <div class="col-md-4">
+            <label>Comité</label>
+            <input type="file" class="form-control mb-1 upload-field" onchange="uploadFile(this, 'comite')">
+            <div id="link_comite"></div>
+          </div>
+          <div class="col-md-4">
+            <label>Expediente</label>
+            <input type="file" class="form-control mb-1 upload-field" onchange="uploadFile(this, 'expediente')">
+            <div id="link_expediente"></div>
+          </div>
+          <div class="col-md-4">
+            <label>Contrato Firmado</label>
+            <input type="file" class="form-control mb-1 upload-field" onchange="uploadFile(this, 'contrato')">
+            <div id="link_contrato"></div>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="text-center mt-4">
-      <button class="btn btn-success btn-lg px-5" onclick="guardarRegistro()">GUARDAR REGISTRO</button>
+      <button id="btnGuardar" class="btn btn-success btn-lg px-5 d-none" onclick="guardarRegistro()">GUARDAR REGISTRO</button>
+      <div id="msgReadOnly" class="alert alert-info d-none">Usted está en modo de solo lectura. No puede guardar cambios.</div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const WEB_APP_URL = "<?= webAppUrl ?>";
+    const USER_PERMISO = parseInt("<?= userPermiso ?>");
     let contratoActual = { consecutivo: "", infoGeneral: {}, etapaInterna: {}, etapasExternas: {}, documentos: {} };
     let lists = {};
 
     window.onload = function() {
+      if (USER_PERMISO >= 2) {
+        document.getElementById('btnNuevo').classList.remove('d-none');
+        document.getElementById('btnGuardar').classList.remove('d-none');
+      } else {
+        document.getElementById('msgReadOnly').classList.remove('d-none');
+        // Deshabilitar todos los inputs para lectura pura
+        document.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
+        document.querySelectorAll('.upload-field').forEach(el => el.classList.add('d-none'));
+      }
+
       // Intento de obtener ID de la plantilla GAS o directamente de la URL (más resiliente)
       let idCarga = "<?= idCarga ?>";
       if (!idCarga || idCarga === "null") {
@@ -251,6 +275,11 @@
           if (stage.tipoObs === "Externa") document.getElementById(`st_${s.key}_tipo_ext`).checked = true;
           document.getElementById(`st_${s.key}_orig_jur`).checked = (stage.origenJuridico === true || stage.origenJuridico === "true");
           document.getElementById(`st_${s.key}_orig_dep`).checked = (stage.origenDependencia === true || stage.origenDependencia === "true");
+
+          if (s.key === 'anexo') {
+            document.getElementById(`st_${s.key}_vig`).value = formatDateForInput(stage.fechaVigencia);
+            document.getElementById(`st_${s.key}_monto_sin_iva`).value = stage.montoSinIva || "";
+          }
 
           handleStatusChange(s.key);
           toggleObsMetadata(s.key);
@@ -344,7 +373,15 @@
             </div>
             <input type="date" class="form-control form-control-sm" id="st_${s.key}_fechaSolv" placeholder="Solv." onchange="handleSolvChange('${s.key}')">
           </td>
-          <td><input type="date" class="form-control form-control-sm" id="st_${s.key}_fin" disabled onchange="calcInd('${s.key}', ${s.sec})"></td>
+          <td>
+            <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_fin" disabled onchange="calcInd('${s.key}', ${s.sec})">
+            ${s.key === 'anexo' ? `
+              <div class="mt-1 border-top pt-1">
+                <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_vig" placeholder="Fecha Vigencia" title="Fecha de Vigencia">
+                <input type="number" class="form-control form-control-sm" id="st_${s.key}_monto_sin_iva" placeholder="Monto sin IVA" title="Monto sin IVA" step="0.01">
+              </div>
+            ` : ''}
+          </td>
           <td>
             <span id="st_${s.key}_dias">0d</span>
             <span id="st_${s.key}_dot" class="indicador-dot dot-gris"></span>
@@ -487,7 +524,9 @@
           fechaSolv: document.getElementById(`st_${s.key}_fechaSolv`).value,
           tipoObs: tipoInt ? "Interna" : (tipoExt ? "Externa" : ""),
           origenJuridico: document.getElementById(`st_${s.key}_orig_jur`).checked,
-          origenDependencia: document.getElementById(`st_${s.key}_orig_dep`).checked
+          origenDependencia: document.getElementById(`st_${s.key}_orig_dep`).checked,
+          fechaVigencia: s.key === 'anexo' ? document.getElementById(`st_${s.key}_vig`).value : "",
+          montoSinIva: s.key === 'anexo' ? document.getElementById(`st_${s.key}_monto_sin_iva`).value : ""
         };
         if (s.cat === 'I') data.etapaInterna[s.key] = stageData;
         else data.etapasExternas[s.key] = stageData;
