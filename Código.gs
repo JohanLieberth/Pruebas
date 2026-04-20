@@ -236,7 +236,7 @@ function procesarFilaParaContrato(fila, numeroFila) {
   const safe = (idx) => (fila[idx] === undefined || fila[idx] === null) ? "" : fila[idx];
 
   const stageColStart = 15; // P=15
-  const colsPerStage = 6;
+  const colsPerStage = 9;
 
   const extractStage = (startIndex) => {
     return {
@@ -245,7 +245,10 @@ function procesarFilaParaContrato(fila, numeroFila) {
       fin: safe(startIndex + 2),
       fechaObs: safe(startIndex + 3),
       detalleObs: safe(startIndex + 4),
-      fechaSolv: safe(startIndex + 5)
+      fechaSolv: safe(startIndex + 5),
+      tipoObs: safe(startIndex + 6),
+      origenJuridico: safe(startIndex + 7),
+      origenDependencia: safe(startIndex + 8)
     };
   };
 
@@ -283,9 +286,9 @@ function procesarFilaParaContrato(fila, numeroFila) {
       entrega: extractStage(stageColStart + colsPerStage * 10)
     },
     documentos: {
-      comite: safe(81),
-      expediente: safe(82),
-      contratoFirmado: safe(83)
+      comite: safe(114),
+      expediente: safe(115),
+      contratoFirmado: safe(116)
     }
   };
 }
@@ -335,9 +338,13 @@ function guardarProgresoContrato(datos) {
   sheet.getRange(fila, 2, 1, 14).setValues(generalValues);
 
   const stageColStart = 16; // Col P
-  const colsPerStage = 6;
+  const colsPerStage = 9;
 
-  const mapStage = (s) => [s.estatus, s.inicio, s.fin, s.fechaObs, s.detalleObs, s.fechaSolv];
+  const mapStage = (s) => [
+    s.estatus, s.inicio, s.fin,
+    s.fechaObs, s.detalleObs, s.fechaSolv,
+    s.tipoObs || "", s.origenJuridico || false, s.origenDependencia || false
+  ];
 
   const ei = datos.etapaInterna;
   const stagesI = [ei.revisionDoc, ei.elaboracion, ei.validacion];
@@ -356,9 +363,13 @@ function guardarProgresoContrato(datos) {
 
   // Guardar URLs de documentos si existen
   if (datos.documentos) {
-    if (datos.documentos.comite) sheet.getRange(fila, 82).setValue(datos.documentos.comite);
-    if (datos.documentos.expediente) sheet.getRange(fila, 83).setValue(datos.documentos.expediente);
-    if (datos.documentos.contratoFirmado) sheet.getRange(fila, 84).setValue(datos.documentos.contratoFirmado);
+    const colComite = findColumnByHeader(sheet, "URL_COMITE");
+    const colExpediente = findColumnByHeader(sheet, "URL_EXPEDIENTE");
+    const colContrato = findColumnByHeader(sheet, "URL_CONTRATO_FIRMADO");
+
+    if (colComite !== -1 && datos.documentos.comite) sheet.getRange(fila, colComite).setValue(datos.documentos.comite);
+    if (colExpediente !== -1 && datos.documentos.expediente) sheet.getRange(fila, colExpediente).setValue(datos.documentos.expediente);
+    if (colContrato !== -1 && datos.documentos.contratoFirmado) sheet.getRange(fila, colContrato).setValue(datos.documentos.contratoFirmado);
   }
 
   return { success: true, message: "Contrato guardado exitosamente", consecutivo: sheet.getRange(fila, 1).getValue() };
@@ -487,19 +498,37 @@ function subirArchivoADrive(base64Data, fileName, tipoDoc, consecutivo) {
   const file = folder.createFile(blob);
   const url = file.getUrl();
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
   const data = sheet.getDataRange().getValues();
+  const searchId = String(consecutivo).trim();
+
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == consecutivo) {
-      let col = 82; // BI=81? A=1, B=2... BI=61?
-      // Re-evaluar columnas de docs
-      if (tipoDoc === 'expediente') col = 83;
-      if (tipoDoc === 'contrato') col = 84;
-      sheet.getRange(i + 1, col).setValue(url);
+    if (String(data[i][0]).trim() === searchId) {
+      let headerName = "URL_COMITE";
+      if (tipoDoc === 'expediente') headerName = "URL_EXPEDIENTE";
+      if (tipoDoc === 'contrato') headerName = "URL_CONTRATO_FIRMADO";
+
+      const col = findColumnByHeader(sheet, headerName);
+      if (col !== -1) {
+        sheet.getRange(i + 1, col).setValue(url);
+      } else {
+        console.error("No se encontró la columna para " + headerName);
+      }
       break;
     }
   }
   return { success: true, url: url };
+}
+
+/**
+ * Encuentra el índice de una columna por su encabezado (1-based)
+ */
+function findColumnByHeader(sheet, headerName) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return -1;
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const idx = headers.indexOf(headerName);
+  return idx !== -1 ? idx + 1 : -1;
 }
 
 function setupDatabase() {
@@ -511,7 +540,11 @@ function setupDatabase() {
 
   const stages = ["REV_DOC", "ELAB_CONT", "VAL_JUR", "GOB", "PROV", "DEP_EJEC", "ADMIN", "SEC", "ALCALDESA", "ANEXO", "ENTREGA"];
   stages.forEach(s => {
-    headers.push(s + "_ESTATUS", s + "_INICIO", s + "_FIN", s + "_FECHA_OBS", s + "_DETALLE_OBS", s + "_FECHA_SOLV");
+    headers.push(
+      s + "_ESTATUS", s + "_INICIO", s + "_FIN",
+      s + "_FECHA_OBS", s + "_DETALLE_OBS", s + "_FECHA_SOLV",
+      s + "_TIPO_OBS", s + "_ORIGEN_JURIDICO", s + "_ORIGEN_DEPENDENCIA"
+    );
   });
   headers.push("URL_COMITE", "URL_EXPEDIENTE", "URL_CONTRATO_FIRMADO");
 
@@ -601,30 +634,66 @@ function obtenerDependenciasRegistradas() {
 
 function obtenerMetricasDashboard(filtroDependencia) {
   const sheet = getSheetSafe(CONFIG.SHEET_NAME);
-  if (!sheet) return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0 };
+  if (!sheet) return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0, tasaRetrabajo: 0, tatPromedio: 0, obsJuridico: 0, obsDependencia: 0 };
   const data = sheet.getDataRange().getValues();
+
   let verdes = 0, amarillos = 0, rojos = 0, secretariaRojo = 0;
+  let totalContratos = 0;
+  let contratosConObs = 0;
+  let sumaTAT = 0;
+  let conteoTAT = 0;
+  let obsJuridico = 0;
+  let obsDependencia = 0;
 
   for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === "") continue;
     if (filtroDependencia && data[i][2] !== filtroDependencia) continue;
+
+    totalContratos++;
     const c = procesarFilaParaContrato(data[i], i + 1);
-    const etapas = [
-      { d: c.etapaInterna.revisionDoc, n: "Standard" },
-      { d: c.etapaInterna.elaboracion, n: "Standard" },
-      { d: c.etapaInterna.validacion, n: "Standard" },
-      { d: c.etapasExternas.secretaria, n: "Secretaria" }
+    let tieneObs = false;
+
+    const allStages = [
+      ...Object.values(c.etapaInterna),
+      ...Object.values(c.etapasExternas)
     ];
-    etapas.forEach(e => {
-      if (e.d.inicio && e.d.fin) {
-        const dias = calcularDiasHabiles(e.d.inicio, e.d.fin);
-        const ind = calcularIndicadorVisual(dias, e.n === "Secretaria");
+
+    allStages.forEach((s, idx) => {
+      if (s.inicio && s.fin) {
+        const dias = calcularDiasHabiles(s.inicio, s.fin);
+        // Regla: Solo contar para KPI las etapas principales si se desea mantener simplicidad,
+        // pero aquí contaremos todas las completas para distribución de estados.
+        const ind = calcularIndicadorVisual(dias, s === c.etapasExternas.secretaria);
         if (ind.color === "VERDE") verdes++;
         else if (ind.color === "AMARILLO") amarillos++;
-        else { rojos++; if (e.n === "Secretaria") secretariaRojo++; }
+        else { rojos++; if (s === c.etapasExternas.secretaria) secretariaRojo++; }
+      }
+
+      // Re-trabajo y Origen
+      if (s.detalleObs && s.detalleObs.trim() !== "") {
+        tieneObs = true;
+        if (s.origenJuridico === true || s.origenJuridico === "true") obsJuridico++;
+        if (s.origenDependencia === true || s.origenDependencia === "true") obsDependencia++;
       }
     });
+
+    if (tieneObs) contratosConObs++;
+
+    // Ciclo de Entrega (TAT) - Solo registros con Entrega "Completa"
+    if (c.etapasExternas.entrega.estatus === "Completa" && c.infoGeneral.fechaSolicitud && c.etapasExternas.entrega.fin) {
+      const tat = calcularDiasHabiles(c.infoGeneral.fechaSolicitud, c.etapasExternas.entrega.fin);
+      sumaTAT += tat;
+      conteoTAT++;
+    }
   }
-  return { verdes, amarillos, rojos, secretariaRojo };
+
+  return {
+    verdes, amarillos, rojos, secretariaRojo,
+    tasaRetrabajo: totalContratos > 0 ? ((contratosConObs / totalContratos) * 100).toFixed(1) : 0,
+    tatPromedio: conteoTAT > 0 ? (sumaTAT / conteoTAT).toFixed(1) : 0,
+    obsJuridico,
+    obsDependencia
+  };
 }
 
 function guardarConfiguracionServer(config) {

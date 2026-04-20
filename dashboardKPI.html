@@ -54,8 +54,35 @@
       <div class="col-md-3">
         <div class="card kpi-card bg-info text-white">
           <div class="card-body text-center">
-            <h6>Secretaría (Crítico)</h6>
-            <div id="kpiSecretaria" class="kpi-value">0</div>
+            <h6>Tasa de Re-trabajo</h6>
+            <div id="kpiRetrabajo" class="kpi-value">0%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card kpi-card bg-primary text-white">
+          <div class="card-body text-center">
+            <h6>TAT Promedio (Días)</h6>
+            <div id="kpiTAT" class="kpi-value">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card kpi-card border-start border-4 border-secondary">
+          <div class="card-body text-center">
+            <h6>Origen: Jurídico</h6>
+            <div id="kpiObsJuridico" class="kpi-value text-secondary">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card kpi-card border-start border-4 border-info">
+          <div class="card-body text-center">
+            <h6>Origen: Dependencia</h6>
+            <div id="kpiObsDependencia" class="kpi-value text-info">0</div>
           </div>
         </div>
       </div>
@@ -70,8 +97,8 @@
       </div>
       <div class="col-md-6">
         <div class="chart-container">
-          <h6>Cumplimiento por Dependencia</h6>
-          <canvas id="chartDependencias"></canvas>
+          <h6>Análisis de Observaciones</h6>
+          <canvas id="chartObs"></canvas>
         </div>
       </div>
     </div>
@@ -104,12 +131,16 @@
     }
 
     let stateChart = null;
+    let obsChart = null;
 
     function renderCharts(data) {
       document.getElementById('kpiVerde').innerText = data.verdes;
       document.getElementById('kpiAmarillo').innerText = data.amarillos;
       document.getElementById('kpiRojo').innerText = data.rojos;
-      document.getElementById('kpiSecretaria').innerText = data.secretariaRojo;
+      document.getElementById('kpiRetrabajo').innerText = data.tasaRetrabajo + '%';
+      document.getElementById('kpiTAT').innerText = data.tatPromedio;
+      document.getElementById('kpiObsJuridico').innerText = data.obsJuridico;
+      document.getElementById('kpiObsDependencia').innerText = data.obsDependencia;
 
       const ctx = document.getElementById('chartEstados').getContext('2d');
       if (stateChart) stateChart.destroy();
@@ -126,6 +157,25 @@
         options: {
           responsive: true,
           maintainAspectRatio: false
+        }
+      });
+
+      const ctxObs = document.getElementById('chartObs').getContext('2d');
+      if (obsChart) obsChart.destroy();
+      obsChart = new Chart(ctxObs, {
+        type: 'bar',
+        data: {
+          labels: ['Jurídico', 'Dependencia'],
+          datasets: [{
+            label: 'Total Observaciones',
+            data: [data.obsJuridico, data.obsDependencia],
+            backgroundColor: ['#6c757d', '#0dcaf0']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true } }
         }
       });
     }

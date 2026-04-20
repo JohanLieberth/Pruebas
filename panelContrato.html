@@ -246,7 +246,15 @@
           document.getElementById(`st_${s.key}_fechaObs`).value = formatDateForInput(stage.fechaObs);
           document.getElementById(`st_${s.key}_detalleObs`).value = stage.detalleObs || '';
           document.getElementById(`st_${s.key}_fechaSolv`).value = formatDateForInput(stage.fechaSolv);
+
+          if (stage.tipoObs === "Interna") document.getElementById(`st_${s.key}_tipo_int`).checked = true;
+          if (stage.tipoObs === "Externa") document.getElementById(`st_${s.key}_tipo_ext`).checked = true;
+          document.getElementById(`st_${s.key}_orig_jur`).checked = (stage.origenJuridico === true || stage.origenJuridico === "true");
+          document.getElementById(`st_${s.key}_orig_dep`).checked = (stage.origenDependencia === true || stage.origenDependencia === "true");
+
           handleStatusChange(s.key);
+          toggleObsMetadata(s.key);
+          toggleExternaOptions(s.key);
           calcInd(s.key, s.sec);
         }
       });
@@ -312,7 +320,27 @@
           <td>
             <div id="obs_box_${s.key}" class="hidden mb-1">
               <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_fechaObs" placeholder="Fecha Obs">
-              <input type="text" class="form-control form-control-sm" id="st_${s.key}_detalleObs" placeholder="Detalle Obs">
+              <input type="text" class="form-control form-control-sm mb-1" id="st_${s.key}_detalleObs" placeholder="Detalle Obs" oninput="toggleObsMetadata('${s.key}')">
+              <div id="obs_metadata_${s.key}" class="hidden small p-2 border rounded bg-light">
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="tipo_obs_${s.key}" id="st_${s.key}_tipo_int" value="Interna" onchange="toggleExternaOptions('${s.key}')">
+                  <label class="form-check-label">Interna</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="tipo_obs_${s.key}" id="st_${s.key}_tipo_ext" value="Externa" onchange="toggleExternaOptions('${s.key}')">
+                  <label class="form-check-label">Externa</label>
+                </div>
+                <div id="externa_options_${s.key}" class="hidden mt-1 border-top pt-1">
+                   <div class="form-check">
+                     <input class="form-check-input" type="checkbox" id="st_${s.key}_orig_jur">
+                     <label class="form-check-label">Jurídico</label>
+                   </div>
+                   <div class="form-check">
+                     <input class="form-check-input" type="checkbox" id="st_${s.key}_orig_dep">
+                     <label class="form-check-label">Dependencia</label>
+                   </div>
+                </div>
+              </div>
             </div>
             <input type="date" class="form-control form-control-sm" id="st_${s.key}_fechaSolv" placeholder="Solv." onchange="handleSolvChange('${s.key}')">
           </td>
@@ -347,6 +375,26 @@
       const solv = document.getElementById(`st_${key}_fechaSolv`).value;
       const finInput = document.getElementById(`st_${key}_fin`);
       if (solv) finInput.disabled = false;
+    }
+
+    function toggleObsMetadata(key) {
+      const detail = document.getElementById(`st_${key}_detalleObs`).value;
+      const meta = document.getElementById(`obs_metadata_${key}`);
+      if (detail && detail.trim() !== "") {
+        meta.classList.remove('hidden');
+      } else {
+        meta.classList.add('hidden');
+      }
+    }
+
+    function toggleExternaOptions(key) {
+      const isExt = document.getElementById(`st_${key}_tipo_ext`).checked;
+      const options = document.getElementById(`externa_options_${key}`);
+      if (isExt) {
+        options.classList.remove('hidden');
+      } else {
+        options.classList.add('hidden');
+      }
     }
 
     function calcInd(key, isSec) {
@@ -427,13 +475,19 @@
       };
 
       stagesDef.forEach(s => {
+        const tipoInt = document.getElementById(`st_${s.key}_tipo_int`).checked;
+        const tipoExt = document.getElementById(`st_${s.key}_tipo_ext`).checked;
+
         const stageData = {
           estatus: document.getElementById(`st_${s.key}_est`).value,
           inicio: document.getElementById(`st_${s.key}_ini`).value,
           fin: document.getElementById(`st_${s.key}_fin`).value,
           fechaObs: document.getElementById(`st_${s.key}_fechaObs`).value,
           detalleObs: document.getElementById(`st_${s.key}_detalleObs`).value,
-          fechaSolv: document.getElementById(`st_${s.key}_fechaSolv`).value
+          fechaSolv: document.getElementById(`st_${s.key}_fechaSolv`).value,
+          tipoObs: tipoInt ? "Interna" : (tipoExt ? "Externa" : ""),
+          origenJuridico: document.getElementById(`st_${s.key}_orig_jur`).checked,
+          origenDependencia: document.getElementById(`st_${s.key}_orig_dep`).checked
         };
         if (s.cat === 'I') data.etapaInterna[s.key] = stageData;
         else data.etapasExternas[s.key] = stageData;
