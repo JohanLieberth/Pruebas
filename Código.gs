@@ -254,8 +254,9 @@ function procesarFilaParaContrato(fila, numeroFila) {
   const stageColStart = 15; // P=15
   const colsPerStage = 9;
 
-  const extractStage = (startIndex) => {
+  const extractStage = (startIndex, key) => {
     return {
+      key: key,
       estatus: safe(startIndex),
       inicio: safe(startIndex + 1),
       fin: safe(startIndex + 2),
@@ -287,19 +288,19 @@ function procesarFilaParaContrato(fila, numeroFila) {
       fechaSolicitud: safe(13)
     },
     etapaInterna: {
-      revisionDoc: extractStage(stageColStart),
-      elaboracion: extractStage(stageColStart + colsPerStage),
-      validacion: extractStage(stageColStart + colsPerStage * 2)
+      revisionDoc: extractStage(stageColStart, 'revisionDoc'),
+      elaboracion: extractStage(stageColStart + colsPerStage, 'elaboracion'),
+      validacion: extractStage(stageColStart + colsPerStage * 2, 'validacion')
     },
     etapasExternas: {
-      gobernacion: extractStage(stageColStart + colsPerStage * 3),
-      proveedor: extractStage(stageColStart + colsPerStage * 4),
-      dependenciaEjecutora: extractStage(stageColStart + colsPerStage * 5),
-      administracion: extractStage(stageColStart + colsPerStage * 6),
-      secretaria: extractStage(stageColStart + colsPerStage * 7),
-      alcaldesa: extractStage(stageColStart + colsPerStage * 8),
-      anexo: extractStage(stageColStart + colsPerStage * 9),
-      entrega: extractStage(stageColStart + colsPerStage * 10)
+      gobernacion: extractStage(stageColStart + colsPerStage * 3, 'gobernacion'),
+      proveedor: extractStage(stageColStart + colsPerStage * 4, 'proveedor'),
+      dependenciaEjecutora: extractStage(stageColStart + colsPerStage * 5, 'dependenciaEjecutora'),
+      administracion: extractStage(stageColStart + colsPerStage * 6, 'administracion'),
+      secretaria: extractStage(stageColStart + colsPerStage * 7, 'secretaria'),
+      alcaldesa: extractStage(stageColStart + colsPerStage * 8, 'alcaldesa'),
+      anexo: extractStage(stageColStart + colsPerStage * 9, 'anexo'),
+      entrega: extractStage(stageColStart + colsPerStage * 10, 'entrega')
     },
     documentos: {
       comite: safe(114),
@@ -649,9 +650,15 @@ function obtenerDependenciasRegistradas() {
 }
 
 function obtenerMetricasDashboard(filtroDependencia) {
+  console.log("Iniciando obtenerMetricasDashboard. Filtro:", filtroDependencia);
   const sheet = getSheetSafe(CONFIG.SHEET_NAME);
-  if (!sheet) return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0, tasaRetrabajo: 0, tatPromedio: 0, obsJuridico: 0, obsDependencia: 0 };
+  if (!sheet) {
+    console.error("No se encontró la hoja de contratos para el dashboard.");
+    return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0, tasaRetrabajo: 0, tatPromedio: 0, obsJuridico: 0, obsDependencia: 0 };
+  }
+
   const data = sheet.getDataRange().getValues();
+  console.log("Filas a procesar:", data.length - 1);
 
   let verdes = 0, amarillos = 0, rojos = 0, secretariaRojo = 0;
   let totalContratos = 0;
@@ -675,18 +682,21 @@ function obtenerMetricasDashboard(filtroDependencia) {
     ];
 
     allStages.forEach((s, idx) => {
-      if (s.inicio && s.fin) {
+      if (s && s.inicio && s.fin) {
         const dias = calcularDiasHabiles(s.inicio, s.fin);
-        // Regla: Solo contar para KPI las etapas principales si se desea mantener simplicidad,
-        // pero aquí contaremos todas las completas para distribución de estados.
-        const ind = calcularIndicadorVisual(dias, s === c.etapasExternas.secretaria);
+        const ind = calcularIndicadorVisual(dias, s.key === "secretaria");
         if (ind.color === "VERDE") verdes++;
         else if (ind.color === "AMARILLO") amarillos++;
-        else { rojos++; if (s === c.etapasExternas.secretaria) secretariaRojo++; }
+        else if (ind.color === "ROJO") {
+          rojos++;
+          if (s.key === "secretaria") {
+            secretariaRojo++;
+          }
+        }
       }
 
       // Re-trabajo y Origen
-      if (s.detalleObs && s.detalleObs.trim() !== "") {
+      if (s && s.detalleObs && s.detalleObs.trim() !== "") {
         tieneObs = true;
         if (s.origenJuridico === true || s.origenJuridico === "true") obsJuridico++;
         if (s.origenDependencia === true || s.origenDependencia === "true") obsDependencia++;
@@ -703,13 +713,15 @@ function obtenerMetricasDashboard(filtroDependencia) {
     }
   }
 
-  return {
+  const res = {
     verdes, amarillos, rojos, secretariaRojo,
     tasaRetrabajo: totalContratos > 0 ? ((contratosConObs / totalContratos) * 100).toFixed(1) : 0,
     tatPromedio: conteoTAT > 0 ? (sumaTAT / conteoTAT).toFixed(1) : 0,
     obsJuridico,
     obsDependencia
   };
+  console.log("Métricas finales calculadas:", JSON.stringify(res));
+  return res;
 }
 
 function guardarConfiguracionServer(config) {

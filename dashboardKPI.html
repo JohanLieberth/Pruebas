@@ -10,10 +10,14 @@
     .kpi-card { border-radius: 10px; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.08); transition: all 0.3s; }
     .kpi-card:hover { transform: translateY(-5px); }
     .kpi-value { font-size: 2.5rem; font-weight: bold; }
-    .chart-container { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; height: 350px; }
+    .chart-container { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; min-height: 350px; position: relative; }
+    #loader-global { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+    .hidden { display: none !important; }
+    .no-data-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.8); color: #666; font-style: italic; z-index: 5; }
   </style>
 </head>
 <body>
+  <div id="loader-global" class="hidden"><div class="spinner-border text-primary"></div></div>
   <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h3>Dashboard de Gestión de Contratos</h3>
@@ -125,8 +129,27 @@
 
     function actualizarDashboard() {
       const dep = document.getElementById('filtroDependencia').value;
+      console.log("Actualizando dashboard para:", dep || "Todas");
+
+      document.getElementById('loader-global').classList.remove('hidden');
+      document.querySelectorAll('.kpi-value').forEach(el => el.innerText = '...');
+
       google.script.run
-        .withSuccessHandler(renderCharts)
+        .withFailureHandler(err => {
+          console.error("Error al obtener métricas:", err);
+          document.getElementById('loader-global').classList.add('hidden');
+          alert("Error al cargar los datos del dashboard. Verifique la consola de GAS para más detalles.");
+          document.querySelectorAll('.kpi-value').forEach(el => el.innerText = 'Error');
+        })
+        .withSuccessHandler(data => {
+          document.getElementById('loader-global').classList.add('hidden');
+          if (!data) {
+             console.error("Servidor retornó null/undefined para métricas");
+             alert("El servidor no pudo calcular las métricas.");
+             return;
+          }
+          renderCharts(data);
+        })
         .obtenerMetricasDashboard(dep);
     }
 
@@ -134,51 +157,87 @@
     let obsChart = null;
 
     function renderCharts(data) {
-      document.getElementById('kpiVerde').innerText = data.verdes;
-      document.getElementById('kpiAmarillo').innerText = data.amarillos;
-      document.getElementById('kpiRojo').innerText = data.rojos;
-      document.getElementById('kpiRetrabajo').innerText = data.tasaRetrabajo + '%';
-      document.getElementById('kpiTAT').innerText = data.tatPromedio;
-      document.getElementById('kpiObsJuridico').innerText = data.obsJuridico;
-      document.getElementById('kpiObsDependencia').innerText = data.obsDependencia;
+      console.log("Renderizando gráficos con:", data);
+
+      document.getElementById('kpiVerde').innerText = data.verdes || 0;
+      document.getElementById('kpiAmarillo').innerText = data.amarillos || 0;
+      document.getElementById('kpiRojo').innerText = data.rojos || 0;
+      document.getElementById('kpiRetrabajo').innerText = (data.tasaRetrabajo || 0) + '%';
+      document.getElementById('kpiTAT').innerText = data.tatPromedio || 0;
+      document.getElementById('kpiObsJuridico').innerText = data.obsJuridico || 0;
+      document.getElementById('kpiObsDependencia').innerText = data.obsDependencia || 0;
 
       const ctx = document.getElementById('chartEstados').getContext('2d');
       if (stateChart) stateChart.destroy();
 
-      stateChart = new Chart(ctx, {
-        type: 'pie',
-        data: {
-          labels: ['Óptimo', 'Próximo a Vencer', 'Excedido'],
-          datasets: [{
-            data: [data.verdes, data.amarillos, data.rojos],
-            backgroundColor: ['#198754', '#ffc107', '#dc3545']
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false
+      const hasStateData = (data.verdes > 0 || data.amarillos > 0 || data.rojos > 0);
+      document.getElementById('chartEstados').parentElement.querySelectorAll('.no-data-overlay').forEach(el => el.remove());
+
+      if (!hasStateData) {
+         const overlay = document.createElement('div');
+         overlay.className = 'no-data-overlay';
+         overlay.innerText = 'Sin datos de etapas completas o en proceso';
+         document.getElementById('chartEstados').parentElement.appendChild(overlay);
+      } else {
+        try {
+          stateChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['Óptimo', 'Próximo a Vencer', 'Excedido'],
+            datasets: [{
+              data: [data.verdes || 0, data.amarillos || 0, data.rojos || 0],
+              backgroundColor: ['#198754', '#ffc107', '#dc3545']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
+          }
+          });
+        } catch (e) {
+          console.error("Error al crear stateChart:", e);
         }
-      });
+      }
 
       const ctxObs = document.getElementById('chartObs').getContext('2d');
       if (obsChart) obsChart.destroy();
-      obsChart = new Chart(ctxObs, {
-        type: 'bar',
-        data: {
-          labels: ['Jurídico', 'Dependencia'],
-          datasets: [{
-            label: 'Total Observaciones',
-            data: [data.obsJuridico, data.obsDependencia],
-            backgroundColor: ['#6c757d', '#0dcaf0']
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: { y: { beginAtZero: true } }
+
+      const hasObsData = (data.obsJuridico > 0 || data.obsDependencia > 0);
+      document.getElementById('chartObs').parentElement.querySelectorAll('.no-data-overlay').forEach(el => el.remove());
+
+      if (!hasObsData) {
+         const overlay = document.createElement('div');
+         overlay.className = 'no-data-overlay';
+         overlay.innerText = 'Sin observaciones registradas';
+         document.getElementById('chartObs').parentElement.appendChild(overlay);
+      } else {
+        try {
+          obsChart = new Chart(ctxObs, {
+            type: 'bar',
+            data: {
+              labels: ['Jurídico', 'Dependencia'],
+              datasets: [{
+                label: 'Total Observaciones',
+                data: [data.obsJuridico || 0, data.obsDependencia || 0],
+                backgroundColor: ['#6c757d', '#0dcaf0']
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: { y: { beginAtZero: true } }
+            }
+          });
+        } catch (e) {
+          console.error("Error al crear obsChart:", e);
         }
-      });
+      }
     }
+
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.error('Error JS Global:', msg, 'en', lineNo + ':' + columnNo);
+      return false;
+    };
 
     window.onload = function() {
       cargarDependencias();
