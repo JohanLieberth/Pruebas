@@ -172,7 +172,10 @@
 
     <div class="text-center mt-4">
       <button id="btnGuardar" class="btn btn-success btn-lg px-5 d-none" onclick="guardarRegistro()">GUARDAR REGISTRO</button>
-      <div id="msgReadOnly" class="alert alert-info d-none">Usted está en modo de solo lectura. No puede guardar cambios.</div>
+      <div id="msgReadOnly" class="alert alert-info d-none">
+        Usted está en modo de solo lectura. No puede guardar cambios.
+        <br><small>(Cuenta: <?= Session.getActiveUser().getEmail() ?>)</small>
+      </div>
     </div>
   </div>
 

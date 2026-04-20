@@ -93,19 +93,45 @@ function cargarConfiguracion() {
 
 /**
  * Obtiene el usuario actual y su nivel de permiso
+ * Maneja tanto niveles numéricos como descriptivos
  */
 function getUsuarioActual() {
-  const email = Session.getActiveUser().getEmail();
+  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
   const sheet = getSheetSafe(CONFIG.USERS_SHEET);
   if (!sheet) return { email: email, permiso: 0 };
 
   const data = sheet.getDataRange().getValues();
-  const userRow = data.find(row => row[0].toString().toLowerCase() === email.toLowerCase());
 
-  return {
-    email: email,
-    permiso: userRow ? parseInt(userRow[1]) : 0
+  // Mapeo de texto a nivel numérico
+  const mapping = {
+    "lectura": 1,
+    "registros": 2,
+    "modificación": 2,
+    "registros/modificación": 2,
+    "modificacion": 2,
+    "borrar": 3,
+    "todos": 4,
+    "cambios": 4,
+    "todos los cambios": 4,
+    "administrador": 4
   };
+
+  for (let i = 1; i < data.length; i++) {
+    const sheetEmail = String(data[i][0]).toLowerCase().trim();
+    if (sheetEmail === email) {
+      let val = String(data[i][1]).toLowerCase().trim();
+
+      // Si es número directo
+      if (!isNaN(parseInt(val))) return { email: email, permiso: parseInt(val) };
+
+      // Si es texto, buscar en mapeo (por palabras clave o frase completa)
+      for (let key in mapping) {
+        if (val.includes(key)) return { email: email, permiso: mapping[key] };
+      }
+    }
+  }
+
+  return { email: email, permiso: 0 };
 }
 
 /**
@@ -812,10 +838,12 @@ function guardarConfiguracionServer(config) {
   if (config.usuarios && Array.isArray(config.usuarios)) {
     const userSheet = getSheetSafe(CONFIG.USERS_SHEET);
     if (userSheet) {
-      userSheet.clearContents();
-      userSheet.getRange(1, 1, 1, 2).setValues([["EMAIL", "PERMISO"]]).setFontWeight("bold");
+      userSheet.clear(); // Borra todo, incluyendo formato
+      userSheet.getRange(1, 1, 1, 2).setValues([["EMAIL", "PERMISO"]]).setFontWeight("bold").setBackground("#f3f3f3");
       if (config.usuarios.length > 0) {
-        userSheet.getRange(2, 1, config.usuarios.length, 2).setValues(config.usuarios.map(u => [u.email, u.permiso]));
+        // Aseguramos que el email sea trim() y el permiso sea número o el texto original si se prefiere,
+        // pero la UI manda números ahora.
+        userSheet.getRange(2, 1, config.usuarios.length, 2).setValues(config.usuarios.map(u => [u.email.toLowerCase().trim(), u.permiso]));
       }
     }
   }
