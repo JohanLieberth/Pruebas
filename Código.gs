@@ -19,14 +19,30 @@ let CONFIG = {
  * Obtiene una hoja de forma segura (insensible a mayúsculas/minúsculas)
  */
 function getSheetSafe(name) {
+  if (name === undefined || name === null || String(name).trim() === "") {
+    console.warn("getSheetSafe: El nombre de la hoja es nulo o vacío.");
+    return null;
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const searchName = String(name).trim().toUpperCase();
+
+  // Intento 1: Nombre exacto
   let sheet = ss.getSheetByName(name);
+
+  // Intento 2: Búsqueda insensible a mayúsculas y espacios
   if (!sheet) {
     const sheets = ss.getSheets();
-    const searchName = name.trim().toUpperCase();
-    sheet = sheets.find(s => s.getName().trim().toUpperCase() === searchName);
+    sheet = sheets.find(s => {
+      const sName = s.getName();
+      return sName && String(sName).trim().toUpperCase() === searchName;
+    });
   }
-  if (!sheet) console.error("Hoja no encontrada: " + name);
+
+  if (!sheet) {
+    console.warn("Hoja no encontrada: '" + name + "'. Hojas disponibles: " + ss.getSheets().map(s => s.getName()).join(", "));
+  }
+
   return sheet;
 }
 
@@ -110,7 +126,7 @@ function getWebAppUrl() {
  */
 function onOpen() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss.getSheetByName(CONFIG.SHEET_NAME)) {
+  if (!getSheetSafe(CONFIG.SHEET_NAME)) {
     setupDatabase();
   }
   const ui = SpreadsheetApp.getUi();
@@ -297,8 +313,8 @@ function procesarFilaParaContrato(fila, numeroFila) {
  * Guarda o actualiza un contrato
  */
 function guardarProgresoContrato(datos) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  if (!sheet) throw new Error("No se pudo guardar: Hoja de contratos no encontrada.");
   const data = sheet.getDataRange().getValues();
   let fila = -1;
 
@@ -533,7 +549,7 @@ function findColumnByHeader(sheet, headerName) {
 
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  let sheet = getSheetSafe(CONFIG.SHEET_NAME);
   if (!sheet) sheet = ss.insertSheet(CONFIG.SHEET_NAME);
 
   const headers = ["CONSECUTIVO", "NUM_CONTRATO", "DEPENDENCIA_EJECUTORA", "TIPO_CONTRATACION", "OBJETO", "PROCEDIMIENTO", "TIPO_CONTRATO", "PROVEEDOR", "INICIO_VIGENCIA", "FIN_VIGENCIA", "MONTO", "DESGLOSE", "FECHA_APROBACION", "FECHA_SOLICITUD", "ESTATUS_GENERAL"];
@@ -551,9 +567,9 @@ function setupDatabase() {
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f3f3f3");
   sheet.setFrozenRows(1);
 
-  if (!ss.getSheetByName(CONFIG.RESUMEN_SHEET)) ss.insertSheet(CONFIG.RESUMEN_SHEET);
-  if (!ss.getSheetByName(CONFIG.LOG_SHEET)) ss.insertSheet(CONFIG.LOG_SHEET).appendRow(["FECHA", "CONSECUTIVO", "TIPO", "FILE", "URL", "USER"]);
-  if (!ss.getSheetByName(CONFIG.CONFIG_SHEET)) {
+  if (!getSheetSafe(CONFIG.RESUMEN_SHEET)) ss.insertSheet(CONFIG.RESUMEN_SHEET);
+  if (!getSheetSafe(CONFIG.LOG_SHEET)) ss.insertSheet(CONFIG.LOG_SHEET).appendRow(["FECHA", "CONSECUTIVO", "TIPO", "FILE", "URL", "USER"]);
+  if (!getSheetSafe(CONFIG.CONFIG_SHEET)) {
     ss.insertSheet(CONFIG.CONFIG_SHEET).getRange(1, 1, 6, 2).setValues([
       ["PARAMETRO", "VALOR"], ["FOLDER_ID_RAIZ", ""], ["UMBRAL_ESTANDAR_VERDE", 3],
       ["UMBRAL_ESTANDAR_AMARILLO", 5], ["UMBRAL_SECRETARIA_VERDE", 5], ["UMBRAL_SECRETARIA_AMARILLO", 9]
@@ -622,7 +638,7 @@ function generarReporteKPI() {
 }
 
 function obtenerDependenciasRegistradas() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
   const deps = new Set();
