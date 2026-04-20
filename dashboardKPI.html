@@ -10,10 +10,19 @@
     .kpi-card { border-radius: 10px; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.08); transition: all 0.3s; }
     .kpi-card:hover { transform: translateY(-5px); }
     .kpi-value { font-size: 2.5rem; font-weight: bold; }
-    .chart-container { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; min-height: 350px; position: relative; }
+    .chart-container {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      height: 400px;
+      position: relative;
+      overflow: hidden;
+    }
     #loader-global { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 2000; display: flex; align-items: center; justify-content: center; }
     .hidden { display: none !important; }
     .no-data-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.8); color: #666; font-style: italic; z-index: 5; }
+    canvas { max-width: 100% !important; max-height: 100% !important; }
   </style>
 </head>
 <body>
@@ -181,18 +190,19 @@
       } else {
         try {
           stateChart = new Chart(ctx, {
-          type: 'pie',
-          data: {
-            labels: ['Óptimo', 'Próximo a Vencer', 'Excedido'],
-            datasets: [{
-              data: [data.verdes || 0, data.amarillos || 0, data.rojos || 0],
-              backgroundColor: ['#198754', '#ffc107', '#dc3545']
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false
-          }
+            type: 'pie',
+            data: {
+              labels: ['Óptimo', 'Próximo a Vencer', 'Excedido'],
+              datasets: [{
+                data: [data.verdes || 0, data.amarillos || 0, data.rojos || 0],
+                backgroundColor: ['#198754', '#ffc107', '#dc3545']
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              animation: { duration: 500 }
+            }
           });
         } catch (e) {
           console.error("Error al crear stateChart:", e);
@@ -224,7 +234,7 @@
             },
             options: {
               responsive: true,
-              maintainAspectRatio: false,
+              maintainAspectRatio: true,
               scales: { y: { beginAtZero: true } }
             }
           });
