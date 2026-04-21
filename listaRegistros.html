@@ -22,6 +22,15 @@
     </div>
 
     <div class="table-container">
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="input-group">
+            <span class="input-group-text">🔍</span>
+            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por ID, Contrato, Dependencia, Proveedor..." oninput="filtrarLista()">
+          </div>
+        </div>
+      </div>
+
       <table class="table table-hover">
         <thead class="table-light">
           <tr>
@@ -42,6 +51,7 @@
 
   <script>
     const WEB_APP_URL = "<?= webAppUrl ?>";
+    let listaCompleta = [];
 
     function cargarLista() {
       console.log("Cargando lista de contratos desde el servidor...");
@@ -52,15 +62,28 @@
         })
         .withSuccessHandler(data => {
           console.log("Lista recibida:", data);
+          listaCompleta = data;
           renderLista(data);
         })
         .obtenerListaContratos();
     }
 
+    function filtrarLista() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const filtrados = listaCompleta.filter(c => {
+        return String(c.consecutivo).toLowerCase().includes(query) ||
+               String(c.numContrato).toLowerCase().includes(query) ||
+               String(c.dependencia).toLowerCase().includes(query) ||
+               String(c.proveedor || "").toLowerCase().includes(query) ||
+               String(c.estatus).toLowerCase().includes(query);
+      });
+      renderLista(filtrados);
+    }
+
     function renderLista(data) {
       const body = document.getElementById('listaBody');
       if (data.length === 0) {
-        body.innerHTML = '<tr><td colspan="6" class="text-center">No hay registros</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="text-center">No se encontraron registros</td></tr>';
         return;
       }
       body.innerHTML = data.map(c => `

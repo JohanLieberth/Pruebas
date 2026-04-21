@@ -509,6 +509,7 @@ function obtenerListaContratos() {
         numContrato: c.infoGeneral.numContrato,
         dependencia: c.infoGeneral.dependencia,
         tipo: c.infoGeneral.tipoContratacion,
+        proveedor: c.infoGeneral.proveedor,
         estatus: estatusTexto,
         esFinalizado: esFinalizado
       });
