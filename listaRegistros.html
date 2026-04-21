@@ -76,22 +76,11 @@
           </td>
           <td>
             <div class="btn-group">
-              <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">Editar</button>
-              <button class="btn btn-sm btn-outline-danger" onclick="borrar('${c.consecutivo}')">Borrar</button>
+              <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">Ver/Editar</button>
             </div>
           </td>
         </tr>
       `).join('');
-    }
-
-    function borrar(id) {
-      if (!confirm('¿Está seguro de eliminar el registro ID ' + id + '? Esta acción no se puede deshacer.')) return;
-      google.script.run
-        .withSuccessHandler(res => {
-          alert(res.message);
-          cargarLista();
-        })
-        .eliminarContrato(id);
     }
 
     function buildUrl(params) {

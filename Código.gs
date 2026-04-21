@@ -563,25 +563,6 @@ function findColumnByHeader(sheet, headerName) {
   return idx !== -1 ? idx + 1 : -1;
 }
 
-/**
- * Elimina un contrato (Nivel 3 o 4)
- */
-function eliminarContrato(consecutivo) {
-  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
-  if (!sheet) return { success: false, message: "Hoja no encontrada" };
-
-  const data = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
-  const searchId = String(consecutivo).trim();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === searchId) {
-      sheet.deleteRow(i + 1);
-      return { success: true, message: "Registro eliminado correctamente" };
-    }
-  }
-  return { success: false, message: "No se encontró el registro" };
-}
-
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = getSheetSafe(CONFIG.SHEET_NAME);
