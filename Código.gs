@@ -8,7 +8,6 @@ let CONFIG = {
   RESUMEN_SHEET: "RESUMEN_TIEMPOS",
   LOG_SHEET: "LOG_DOCUMENTAL",
   CONFIG_SHEET: "CONFIGURACION",
-  USERS_SHEET: "USUARIOS",
   FOLDER_ID_RAIZ: "",
   UMBRALES: {
     ESTANDAR: { VERDE: 3, AMARILLO: 5 },
@@ -92,64 +91,11 @@ function cargarConfiguracion() {
 }
 
 /**
- * Obtiene el usuario actual y su nivel de permiso
- * Maneja tanto niveles numéricos como descriptivos
- */
-function getUsuarioActual() {
-  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
-  const sheet = getSheetSafe(CONFIG.USERS_SHEET);
-  if (!sheet) return { email: email, permiso: 0 };
-
-  const data = sheet.getDataRange().getValues();
-
-  // Mapeo de texto a nivel numérico
-  const mapping = {
-    "lectura": 1,
-    "registros": 2,
-    "modificación": 2,
-    "registros/modificación": 2,
-    "modificacion": 2,
-    "borrar": 3,
-    "todos": 4,
-    "cambios": 4,
-    "todos los cambios": 4,
-    "administrador": 4
-  };
-
-  for (let i = 1; i < data.length; i++) {
-    const sheetEmail = String(data[i][0]).toLowerCase().trim();
-    if (sheetEmail === email) {
-      let val = String(data[i][1]).toLowerCase().trim();
-
-      // Si es número directo
-      if (!isNaN(parseInt(val))) return { email: email, permiso: parseInt(val) };
-
-      // Si es texto, buscar en mapeo (por palabras clave o frase completa)
-      for (let key in mapping) {
-        if (val.includes(key)) return { email: email, permiso: mapping[key] };
-      }
-    }
-  }
-
-  return { email: email, permiso: 0 };
-}
-
-/**
  * Función que maneja la carga de la aplicación web
  */
 function doGet(e) {
-  const user = getUsuarioActual();
-  if (user.permiso < 1) {
-    return HtmlService.createHtmlOutput('<h1>Acceso Denegado</h1><p>Su usuario (' + user.email + ') no tiene permisos para acceder a este sistema.</p>');
-  }
-
   // Soporta tanto 'page' como 'v', e 'id' como 'consecutivo'
   const page = (e && e.parameter && (e.parameter.page || e.parameter.v)) ? (e.parameter.page || e.parameter.v) : 'listaRegistros';
-
-  // Restricción adicional para Configuración
-  if (page === 'Configuracion' && user.permiso < 4) {
-    return HtmlService.createHtmlOutput('<h1>Acceso Restringido</h1><p>Solo los administradores pueden acceder a la configuración.</p>');
-  }
   const id = (e && e.parameter && (e.parameter.id || e.parameter.consecutivo)) ? (e.parameter.id || e.parameter.consecutivo) : "";
 
   console.log("doGet: page=" + page + ", id=" + id);
@@ -158,7 +104,6 @@ function doGet(e) {
     const template = HtmlService.createTemplateFromFile(page);
     template.idCarga = id;
     template.webAppUrl = getWebAppUrl();
-    template.userPermiso = user.permiso;
     const output = template.evaluate();
     return output
       .setTitle('Sistema de Gestión de Contratos')
@@ -371,9 +316,6 @@ function procesarFilaParaContrato(fila, numeroFila) {
  * Guarda o actualiza un contrato
  */
 function guardarProgresoContrato(datos) {
-  const user = getUsuarioActual();
-  if (user.permiso < 2) throw new Error("No tiene permisos para guardar o modificar registros.");
-
   const sheet = getSheetSafe(CONFIG.SHEET_NAME);
   if (!sheet) throw new Error("No se pudo guardar: Hoja de contratos no encontrada.");
   const data = sheet.getDataRange().getValues();
@@ -507,10 +449,22 @@ function calcularIndicadorVisual(dias, esSecretaria) {
 /**
  * Función para cálculos en tiempo real desde la UI
  */
-function getIndicatorLocal(ini, fin, isSec) {
+function getIndicatorLocal(ini, fin, isSec, key) {
   const dias = calcularDiasHabiles(ini, fin);
   const ind = calcularIndicadorVisual(dias, isSec);
-  return { dias, ind };
+  return { dias, ind, key };
+}
+
+/**
+ * Calcula múltiples indicadores en una sola llamada al servidor
+ */
+function getIndicatorsBatch(stagesArray) {
+  return stagesArray.map(s => {
+    if (!s.ini || !s.fin) return { key: s.key, dias: 0, ind: { color: 'GRIS' } };
+    const dias = calcularDiasHabiles(s.ini, s.fin);
+    const ind = calcularIndicadorVisual(dias, s.isSec);
+    return { key: s.key, dias, ind };
+  });
 }
 
 function obtenerListaContratos() {
@@ -569,9 +523,6 @@ function obtenerListaContratos() {
 }
 
 function subirArchivoADrive(base64Data, fileName, tipoDoc, consecutivo) {
-  const user = getUsuarioActual();
-  if (user.permiso < 2) throw new Error("No tiene permisos para subir archivos.");
-
   cargarConfiguracion();
   const folder = CONFIG.FOLDER_ID_RAIZ ? DriveApp.getFolderById(CONFIG.FOLDER_ID_RAIZ) : DriveApp.getRootFolder();
   const bytes = Utilities.base64Decode(base64Data.split(',')[1]);
@@ -616,9 +567,6 @@ function findColumnByHeader(sheet, headerName) {
  * Elimina un contrato (Nivel 3 o 4)
  */
 function eliminarContrato(consecutivo) {
-  const user = getUsuarioActual();
-  if (user.permiso < 3) throw new Error("No tiene permisos para eliminar registros.");
-
   const sheet = getSheetSafe(CONFIG.SHEET_NAME);
   if (!sheet) return { success: false, message: "Hoja no encontrada" };
 
@@ -673,12 +621,6 @@ function setupDatabase() {
     ]);
   }
 
-  if (!getSheetSafe(CONFIG.USERS_SHEET)) {
-    const userSheet = ss.insertSheet(CONFIG.USERS_SHEET);
-    userSheet.getRange(1, 1, 1, 2).setValues([["EMAIL", "PERMISO"]]).setFontWeight("bold");
-    // Agregar el usuario actual como administrador (Nivel 4) por defecto para que no se bloquee
-    userSheet.appendRow([Session.getEffectiveUser().getEmail(), 4]);
-  }
 }
 
 function generarReporteKPI() {
@@ -828,50 +770,22 @@ function obtenerMetricasDashboard(filtroDependencia) {
 }
 
 function guardarConfiguracionServer(config) {
-  const user = getUsuarioActual();
-  if (user.permiso < 4) throw new Error("No tiene permisos para modificar la configuración.");
-
   const sheet = getSheetSafe(CONFIG.CONFIG_SHEET);
   sheet.getRange(2, 2, 5, 1).setValues([[config.folderId], [config.estandarVerde], [config.estandarAmarillo], [config.secretariaVerde], [config.secretariaAmarillo]]);
-
-  // Guardar usuarios
-  if (config.usuarios && Array.isArray(config.usuarios)) {
-    const userSheet = getSheetSafe(CONFIG.USERS_SHEET);
-    if (userSheet) {
-      userSheet.clear(); // Borra todo, incluyendo formato
-      userSheet.getRange(1, 1, 1, 2).setValues([["EMAIL", "PERMISO"]]).setFontWeight("bold").setBackground("#f3f3f3");
-      if (config.usuarios.length > 0) {
-        // Aseguramos que el email sea trim() y el permiso sea número o el texto original si se prefiere,
-        // pero la UI manda números ahora.
-        userSheet.getRange(2, 1, config.usuarios.length, 2).setValues(config.usuarios.map(u => [u.email.toLowerCase().trim(), u.permiso]));
-      }
-    }
-  }
-
   return { success: true };
 }
 
 function obtenerConfiguracionFull() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const configSheet = getSheetSafe(CONFIG.CONFIG_SHEET);
-  const userSheet = getSheetSafe(CONFIG.USERS_SHEET);
-
   const configData = configSheet.getDataRange().getValues();
   const configObj = {};
   configData.forEach(row => { configObj[row[0]] = row[1]; });
-
-  const userData = userSheet.getDataRange().getValues();
-  const usuarios = [];
-  for (let i = 1; i < userData.length; i++) {
-    if (userData[i][0]) usuarios.push({ email: userData[i][0], permiso: userData[i][1] });
-  }
 
   return {
     estandarVerde: configObj["UMBRAL_ESTANDAR_VERDE"],
     estandarAmarillo: configObj["UMBRAL_ESTANDAR_AMARILLO"],
     secretariaVerde: configObj["UMBRAL_SECRETARIA_VERDE"],
     secretariaAmarillo: configObj["UMBRAL_SECRETARIA_AMARILLO"],
-    folderId: configObj["FOLDER_ID_RAIZ"],
-    usuarios: usuarios
+    folderId: configObj["FOLDER_ID_RAIZ"]
   };
 }

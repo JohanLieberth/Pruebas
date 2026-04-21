@@ -15,8 +15,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h4>Listado de Registros de Contratos</h4>
       <div>
-        <span id="userEmail" class="me-3 small text-muted"></span>
-        <button id="btnNuevo" class="btn btn-success me-2 d-none" onclick="nuevoRegistro()">+ Nuevo Registro</button>
+        <button id="btnNuevo" class="btn btn-success me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
         <button class="btn btn-outline-primary me-2" onclick="cargarLista()">🔄 Actualizar</button>
         <button class="btn btn-outline-info" onclick="verDashboard()">📊 Dashboard</button>
       </div>
@@ -43,7 +42,6 @@
 
   <script>
     const WEB_APP_URL = "<?= webAppUrl ?>";
-    const USER_PERMISO = parseInt("<?= userPermiso ?>");
 
     function cargarLista() {
       console.log("Cargando lista de contratos desde el servidor...");
@@ -78,12 +76,8 @@
           </td>
           <td>
             <div class="btn-group">
-              <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">
-                ${USER_PERMISO >= 2 ? 'Editar' : 'Ver'}
-              </button>
-              ${USER_PERMISO >= 3 ? `
-                <button class="btn btn-sm btn-outline-danger" onclick="borrar('${c.consecutivo}')">Borrar</button>
-              ` : ''}
+              <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">Editar</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="borrar('${c.consecutivo}')">Borrar</button>
             </div>
           </td>
         </tr>
@@ -122,9 +116,6 @@
     }
 
     window.onload = function() {
-      if (USER_PERMISO >= 2) {
-        document.getElementById('btnNuevo').classList.remove('d-none');
-      }
       cargarLista();
     };
   </script>
