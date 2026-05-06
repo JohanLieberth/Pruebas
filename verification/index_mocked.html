@@ -465,7 +465,7 @@
 </style>
 </style>
 <script>
-window.google = { script: { run: { withSuccessHandler: function(callback) { this.successHandler = callback; return this; }, withFailureHandler: function(callback) { this.failureHandler = callback; return this; }, getSucursalesCertificadas: function() { setTimeout(() => this.successHandler([{ nombre: 'Tienda Centro', direccion: 'Av. Juarez 500', telefono: '555-0101' }]), 100); }, validarRFCExistente: function() { setTimeout(() => this.successHandler(false), 100); }, procesarRegistro: function() { setTimeout(() => this.successHandler({success:true, folio:'MS-2023-001'}), 100); }, buscarPorRFC: function(rfc) { setTimeout(() => this.successHandler({rfc:rfc, representante:'Juan', folio:'MS-201', estatus:'Pendiente'}), 100); }, getUbicaciones: function() { setTimeout(() => this.successHandler([{id:'loc-123', nombre:'Centro'}]), 100); }, getPlanesTrabajo: function() { setTimeout(() => this.successHandler([{ id: 'p1', idSucursal: 'loc-123', tipoArchivo: 'Plan Inicial', estatus: 'Con Observaciones', fecha: '01/10/2023', observaciones: 'Corregir logos' }]), 100); }, agregarNuevaSucursal: function() { setTimeout(() => this.successHandler({success:true}), 100); }, getCursosDisponibles: function() { setTimeout(() => this.successHandler([{ id: 'c1', nombre: 'Mesa de Diálogo', fecha: '2023-11-01', hora: '10:00', sede: 'Centro' }]), 100); }, inscribirCurso: function() { setTimeout(() => this.successHandler({ success: true }), 100); }, getProgresoCapacitacion: function() { setTimeout(() => this.successHandler({ modulos: [], completados: 0, total: 5, estatusGeneral: 'En Proceso' }), 100); }, guardarPlanTrabajo: function() { setTimeout(() => this.successHandler({ success: true }), 100); } } } };
+window.google = { script: { run: { withSuccessHandler: function(callback) { this.successHandler = callback; return this; }, withFailureHandler: function(callback) { this.failureHandler = callback; return this; }, getSucursalesCertificadas: function() { setTimeout(() => this.successHandler([{ nombre: 'Tienda Centro', direccion: 'Av. Juarez 500', telefono: '555-0101' }]), 100); }, validarRFCExistente: function() { setTimeout(() => this.successHandler(false), 100); }, procesarRegistro: function() { setTimeout(() => this.successHandler({success:true, folio:'MS-2023-001'}), 100); }, buscarPorRFC: function(rfc) { setTimeout(() => this.successHandler({rfc:rfc, representante:'Juan', folio:'MS-201', estatus:'Pendiente'}), 100); }, getUbicaciones: function() { setTimeout(() => this.successHandler([{id:'loc-123', nombre:'Centro'}]), 100); }, getPlanesTrabajo: function() { setTimeout(() => this.successHandler([{ id: 'p1', idSucursal: 'loc-123', tipoArchivo: 'Plan Inicial', estatus: 'Con Observaciones', fecha: '01/10/2023', observaciones: 'Corregir logos' }]), 100); }, agregarNuevaSucursal: function() { setTimeout(() => this.successHandler({success:true}), 100); }, getCursosDisponibles: function() { setTimeout(() => this.successHandler([{ id: 'c1', nombre: 'Mesa de Diálogo', fecha: '01/11/2023', hora: '10:00', sede: 'Centro' }]), 100); }, inscribirCurso: function() { setTimeout(() => this.successHandler({ success: true }), 100); }, getProgresoCapacitacion: function() { setTimeout(() => this.successHandler({ modulos: [], completados: 0, total: 5, estatusGeneral: 'En Proceso' }), 100); }, guardarPlanTrabajo: function() { setTimeout(() => this.successHandler({ success: true }), 100); } } } };
 <script>
   let branchCount = 0;
   let currentUser = null;
@@ -859,18 +859,30 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
 
   function cargarCalendario() {
     showLoader(true);
-    google.script.run.withSuccessHandler(function(cursos) {
-      showLoader(false);
-      const view = document.getElementById('calendar-view');
-      view.innerHTML = cursos.map(c => `
-        <div class="calendar-item" onclick="selectCourse(this, '${c.id}', '${c.nombre}', '${c.fecha}', '${c.hora}')">
-          <h4>${c.nombre}</h4>
-          <p>📅 ${c.fecha}</p>
-          <p>⏰ ${c.hora}</p>
-          <p>📍 ${c.sede}</p>
-        </div>
-      `).join('');
-    }).getCursosDisponibles();
+    const view = document.getElementById('calendar-view');
+    view.innerHTML = '<p style="text-align:center; padding: 20px; color: #666; width: 100%;">Cargando fechas disponibles...</p>';
+
+    google.script.run
+      .withSuccessHandler(function(cursos) {
+        showLoader(false);
+        if (!cursos || cursos.length === 0) {
+          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron cursos disponibles en este momento. Por favor intente más tarde.</p>';
+          return;
+        }
+        view.innerHTML = cursos.map(c => `
+          <div class="calendar-item" onclick="selectCourse(this, '${c.id}', '${c.nombre}', '${c.fecha}', '${c.hora}')">
+            <h4>${c.nombre}</h4>
+            <p>📅 ${c.fecha}</p>
+            <p>⏰ ${c.hora}</p>
+            <p>📍 ${c.sede}</p>
+          </div>
+        `).join('');
+      })
+      .withFailureHandler(function(err) {
+        showLoader(false);
+        view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">Error al cargar el calendario: ' + err + '</p>';
+      })
+      .getCursosDisponibles();
   }
 
   function selectCourse(el, id, nombre, fecha, hora) {
@@ -1170,7 +1182,7 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
             </div>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="prevStep(3)">Atrás</button>
-              <button type="button" class="btn btn-primary" onclick="nextStep(3)">Revisar y Confirmar</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(3)">Continuar a Capacitación</button>
             </div>
           </div>
 

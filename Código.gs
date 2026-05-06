@@ -58,15 +58,15 @@ function setupDatabase() {
     }
   }
 
-  // Cursos Obligatorios default
+  // Cursos Obligatorios default (con objetos Date)
   var sheetCursos = ss.getSheetByName("Cursos_Disponibles");
-  if (sheetCursos.getLastRow() === 1) {
+  if (sheetCursos && sheetCursos.getLastRow() === 1) {
     var cursos = [
-      [Utilities.getUuid(), "Mesa de Diálogo", "2023-12-01", "10:00", "", 50],
-      [Utilities.getUuid(), "¿La igualdad de género es un bien?", "2023-12-05", "11:00", "", 50],
-      [Utilities.getUuid(), "Comprender para prevenir la violencia de género", "2023-12-10", "09:00", "", 50],
-      [Utilities.getUuid(), "Fortaleciendo espacios parte 1", "2023-12-15", "16:00", "", 50],
-      [Utilities.getUuid(), "Fortaleciendo espacios parte 2", "2023-12-20", "16:00", "", 50]
+      [Utilities.getUuid(), "Mesa de Diálogo", new Date(2023, 11, 1), "10:00", "", 50],
+      [Utilities.getUuid(), "¿La igualdad de género es un bien?", new Date(2023, 11, 5), "11:00", "", 50],
+      [Utilities.getUuid(), "Comprender para prevenir la violencia de género", new Date(2023, 11, 10), "09:00", "", 50],
+      [Utilities.getUuid(), "Fortaleciendo espacios parte 1", new Date(2023, 11, 15), "16:00", "", 50],
+      [Utilities.getUuid(), "Fortaleciendo espacios parte 2", new Date(2023, 11, 20), "16:00", "", 50]
     ];
     sheetCursos.getRange(2, 1, cursos.length, 6).setValues(cursos);
   }
@@ -355,31 +355,60 @@ function getSucursalesCertificadas() {
 }
 
 /**
- * Lógica de Capacitación
+ * Lógica de Capacitación - Obtiene cursos con manejo de fechas robusto
  */
 function getCursosDisponibles() {
-  var sheet = getSheetSafe("Cursos_Disponibles");
-  var sheetSuc = getSheetSafe("Sucursales");
-  var data = sheet.getDataRange().getValues();
-  var sucs = sheetSuc.getDataRange().getValues();
-  var result = [];
+  try {
+    var sheet = getSheetSafe("Cursos_Disponibles");
 
-  for (var i = 1; i < data.length; i++) {
-    var sedeNombre = "Sede Central";
-    if (data[i][4]) {
-       for(var j=1; j<sucs.length; j++) {
-         if(sucs[j][0] === data[i][4]) { sedeNombre = sucs[j][2]; break; }
-       }
+    // Auto-poblar si está vacío (segunda capa de seguridad)
+    if (sheet.getLastRow() <= 1) {
+       var cursos = [
+          [Utilities.getUuid(), "Mesa de Diálogo", new Date(2023, 11, 1), "10:00", "", 50],
+          [Utilities.getUuid(), "¿La igualdad de género es un bien?", new Date(2023, 11, 5), "11:00", "", 50],
+          [Utilities.getUuid(), "Comprender para prevenir la violencia de género", new Date(2023, 11, 10), "09:00", "", 50],
+          [Utilities.getUuid(), "Fortaleciendo espacios parte 1", new Date(2023, 11, 15), "16:00", "", 50],
+          [Utilities.getUuid(), "Fortaleciendo espacios parte 2", new Date(2023, 11, 20), "16:00", "", 50]
+        ];
+        sheet.getRange(2, 1, cursos.length, 6).setValues(cursos);
     }
-    result.push({
-      id: data[i][0],
-      nombre: data[i][1],
-      fecha: Utilities.formatDate(data[i][2], Session.getScriptTimeZone(), "yyyy-MM-dd"),
-      hora: data[i][3],
-      sede: sedeNombre
-    });
+    var sheetSuc = getSheetSafe("Sucursales");
+    var data = sheet.getDataRange().getValues();
+    var sucs = sheetSuc.getDataRange().getValues();
+    var result = [];
+
+    for (var i = 1; i < data.length; i++) {
+      if (!data[i][1]) continue; // Saltar vacíos
+
+      var sedeNombre = "Sede Central";
+      if (data[i][4]) {
+         for(var j=1; j<sucs.length; j++) {
+           if(sucs[j][0] === data[i][4]) { sedeNombre = sucs[j][2]; break; }
+         }
+      }
+
+      var fechaVal = data[i][2];
+      var fechaStr = "";
+
+      if (fechaVal instanceof Date) {
+        fechaStr = Utilities.formatDate(fechaVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
+      } else if (fechaVal) {
+        fechaStr = String(fechaVal);
+      }
+
+      result.push({
+        id: data[i][0],
+        nombre: data[i][1],
+        fecha: fechaStr,
+        hora: data[i][3],
+        sede: sedeNombre
+      });
+    }
+    return result;
+  } catch (e) {
+    Logger.log("Error en getCursosDisponibles: " + e.toString());
+    return [];
   }
-  return result;
 }
 
 function inscribirCurso(data) {

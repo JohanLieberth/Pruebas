@@ -391,18 +391,30 @@
 
   function cargarCalendario() {
     showLoader(true);
-    google.script.run.withSuccessHandler(function(cursos) {
-      showLoader(false);
-      const view = document.getElementById('calendar-view');
-      view.innerHTML = cursos.map(c => `
-        <div class="calendar-item" onclick="selectCourse(this, '${c.id}', '${c.nombre}', '${c.fecha}', '${c.hora}')">
-          <h4>${c.nombre}</h4>
-          <p>📅 ${c.fecha}</p>
-          <p>⏰ ${c.hora}</p>
-          <p>📍 ${c.sede}</p>
-        </div>
-      `).join('');
-    }).getCursosDisponibles();
+    const view = document.getElementById('calendar-view');
+    view.innerHTML = '<p style="text-align:center; padding: 20px; color: #666; width: 100%;">Cargando fechas disponibles...</p>';
+
+    google.script.run
+      .withSuccessHandler(function(cursos) {
+        showLoader(false);
+        if (!cursos || cursos.length === 0) {
+          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron cursos disponibles en este momento. Por favor intente más tarde.</p>';
+          return;
+        }
+        view.innerHTML = cursos.map(c => `
+          <div class="calendar-item" onclick="selectCourse(this, '${c.id}', '${c.nombre}', '${c.fecha}', '${c.hora}')">
+            <h4>${c.nombre}</h4>
+            <p>📅 ${c.fecha}</p>
+            <p>⏰ ${c.hora}</p>
+            <p>📍 ${c.sede}</p>
+          </div>
+        `).join('');
+      })
+      .withFailureHandler(function(err) {
+        showLoader(false);
+        view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">Error al cargar el calendario: ' + err + '</p>';
+      })
+      .getCursosDisponibles();
   }
 
   function selectCourse(el, id, nombre, fecha, hora) {
