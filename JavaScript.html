@@ -398,15 +398,15 @@
       .withSuccessHandler(function(cursos) {
         showLoader(false);
         if (!cursos || cursos.length === 0) {
-          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron cursos disponibles en este momento. Por favor intente más tarde.</p>';
+          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron fechas para "Mesa de diálogo" disponibles en este momento. Por favor intente más tarde.</p>';
           return;
         }
         view.innerHTML = cursos.map(c => `
           <div class="calendar-item" onclick="selectCourse(this, '${c.id || ''}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha || ''}', '${c.hora || ''}')">
             <h4>${c.nombre || 'Curso sin nombre'}</h4>
-            <p>📅 ${c.fecha || 'Sin fecha'}</p>
-            <p>⏰ ${c.hora || 'Sin hora'}</p>
-            <p>📍 ${c.sede || 'Sede no especificada'}</p>
+            <p><strong>Fecha:</strong> ${c.fechaAmigable || c.fecha || 'Sin fecha'}</p>
+            <p><strong>Hora:</strong> ${c.hora || 'Sin hora'}</p>
+            <p><strong>Sede:</strong> ${c.sede || 'Sede no especificada'}</p>
           </div>
         `).join('');
       })
@@ -435,10 +435,14 @@
           currentUser = user;
           document.getElementById('dash-empresa').innerText = user.representante;
           document.getElementById('dash-folio').innerText = user.folio;
-          document.getElementById('dash-estatus').innerText = user.estatus;
-          const colors = {'Pendiente': '#f0ad4e', 'En Revisión': '#5bc0de', 'Aprobado': '#5cb85c', 'Rechazado': '#d9534f', 'Terminado': '#5cb85c'};
-          document.getElementById('dash-estatus').style.backgroundColor = colors[user.estatus] || '#ccc';
-          document.getElementById('dash-estatus').style.color = 'white';
+
+          const estatusSelect = document.getElementById('dash-estatus-select');
+          // Normalizar el valor del estatus del backend a las opciones disponibles
+          const backendStatus = user.estatus;
+          let matchedValue = "En revisión"; // default
+          if (backendStatus === "Certificado") matchedValue = "Certificado";
+          estatusSelect.value = matchedValue;
+          updateStatusSelectColor(matchedValue);
 
           cargarUbicacionesDropdown(user.rfc);
           cargarHistorialPlanes(user.rfc);
@@ -505,8 +509,8 @@
         const tbody = document.getElementById('lista-planes');
         tbody.innerHTML = '';
         planes.forEach(p => {
-          const nombreSuc = (window.ubicacionesMap && window.ubicacionesMap[p.idSucursal]) || 'No especificada';
-          const btnHtml = (p.estatus.includes("Observaciones")) ?
+          const nombreSuc = p.nombreSucursal || "No especificada";
+          const btnHtml = (p.estatus === "Observado") ?
             `<button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="prepararActualizacion('${p.id}', '${p.idSucursal}')">Actualizar</button>` : '-';
 
           const tr = document.createElement('tr');
@@ -573,6 +577,28 @@
       document.getElementById('plan-detalle').placeholder = "";
       accederPorRFC();
     } else alert("Error: " + res.error);
+  }
+
+  function cambiarEstatusUI(nuevoValor) {
+    const msg = document.getElementById('save-status-msg');
+    msg.style.display = 'inline';
+    updateStatusSelectColor(nuevoValor);
+    google.script.run
+      .withSuccessHandler(() => {
+        setTimeout(() => msg.style.display = 'none', 2000);
+      })
+      .withFailureHandler(err => {
+        alert("Error al actualizar estatus: " + err);
+        msg.style.display = 'none';
+      })
+      .actualizarEstatusCertificacion(currentUser.rfc, nuevoValor);
+  }
+
+  function updateStatusSelectColor(val) {
+    const el = document.getElementById('dash-estatus-select');
+    const colors = {'En revisión': '#f0ad4e', 'Certificado': '#5cb85c'};
+    el.style.backgroundColor = colors[val] || '#eee';
+    el.style.color = 'white';
   }
 
   function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }

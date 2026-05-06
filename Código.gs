@@ -45,7 +45,7 @@ function setupDatabase() {
     "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
     "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
     "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "Sede_o_Sucursal", "Cupo_Máximo"],
-    "Inscripciones_Cursos": ["ID", "RFC", "Curso_ID", "Fecha_Inscripcion", "Estatus"],
+    "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Curso", "Fecha", "Estatus"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
 
@@ -62,7 +62,7 @@ function setupDatabase() {
   var sheetCursos = ss.getSheetByName("Cursos_Disponibles");
   if (sheetCursos && sheetCursos.getLastRow() === 1) {
     var cursos = [
-      ["C1", "Mesa de Diálogo", "01/12/2023", "10:00", "Sede Central", 50],
+      ["C1", "Mesa de diálogo", "01/12/2023", "10:00", "Sede Central", 50],
       ["C2", "¿La igualdad de género es un bien?", "05/12/2023", "11:00", "Sede Central", 50],
       ["C3", "Comprender para prevenir la violencia de género", "10/12/2023", "09:00", "Sede Central", 50],
       ["C4", "Fortaleciendo espacios parte 1", "15/12/2023", "16:00", "Sede Central", 50],
@@ -210,21 +210,41 @@ function buscarPorRFC(rfc) {
 }
 
 /**
- * Obtiene el historial de Planes de Trabajo para un RFC (Estructura Limpia)
+ * Obtiene el historial de Planes de Trabajo para un RFC (Mapeo de Estatus y Lookup de Sucursal)
  */
 function getPlanesTrabajo(rfc) {
   var sheet = getSheetSafe("PlanesTrabajo");
   var data = sheet.getDataRange().getValues();
-  var result = [];
 
+  var sheetSuc = getSheetSafe("Sucursales");
+  var dataSuc = sheetSuc.getDataRange().getValues();
+
+  // Mapa de Sucursales (ID -> Nombre)
+  var sucsMap = {};
+  for (var j = 1; j < dataSuc.length; j++) {
+    sucsMap[dataSuc[j][0]] = dataSuc[j][2]; // [ID] = Nombre
+  }
+
+  var result = [];
   for (var i = 1; i < data.length; i++) {
-    if (data[i][1] === rfc) {
+    if (String(data[i][1]).trim().toUpperCase() === String(rfc).trim().toUpperCase()) {
+      var rawStatus = String(data[i][5] || "").trim();
+
+      // Lógica de Mapeo de Estatus solicitado: Recibido, Observado, Aprobado
+      var cleanStatus = "Recibido";
+      if (rawStatus.toLowerCase().includes("observa")) cleanStatus = "Observado";
+      if (rawStatus.toLowerCase().includes("aproba")) cleanStatus = "Aprobado";
+
+      var idSuc = data[i][7];
+      var nombreSuc = sucsMap[idSuc] || "Sede Desconocida";
+
       result.push({
         id: data[i][0],
-        idSucursal: data[i][7],
+        idSucursal: idSuc,
+        nombreSucursal: nombreSuc,
         tipoArchivo: data[i][9] || "Plan de Trabajo",
-        estatus: data[i][5],
-        fecha: Utilities.formatDate(data[i][10] || data[i][3], Session.getScriptTimeZone(), "dd/MM/yyyy"),
+        estatus: cleanStatus,
+        fecha: (data[i][10] instanceof Date) ? Utilities.formatDate(data[i][10], "GMT-6", "dd/MM/yyyy") : (data[i][10] || "-"),
         observaciones: data[i][6]
       });
     }
@@ -317,6 +337,22 @@ function guardarPlanTrabajo(data) {
   }
 }
 
+function actualizarEstatusCertificacion(rfc, nuevoEstatus) {
+  try {
+    var sheet = getSheetSafe("Empresas");
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] === rfc) {
+        sheet.getRange(i + 1, 7).setValue(nuevoEstatus);
+        return { success: true };
+      }
+    }
+    return { success: false, error: "Empresa no encontrada" };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
 /**
  * Obtiene las sucursales que ya cuentan con certificación aprobada
  * Cruza la información de Sucursales con Planes de Trabajo aprobados
@@ -374,18 +410,20 @@ function getCursosDisponibles() {
 
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
-      var id = row[0] || ("TEMP-" + i); // ID manual o temporal
-      var nombre = row[1];
+      var id = row[0] || ("TEMP-" + i);
+      var nombre = String(row[1] || "").trim();
       var fechaRaw = row[2];
       var hora = row[3] ? String(row[3]) : "Por definir";
       var sedeId = row[4];
 
-      if (!nombre) continue; // Si no hay nombre, ignorar fila
+      // FILTRO: Solo "Mesa de diálogo"
+      if (nombre !== "Mesa de diálogo") continue;
 
-      // Procesar Fecha con máxima flexibilidad
+      // Procesar Fecha en Español
       var fechaFinal = "Fecha no disponible";
       if (fechaRaw instanceof Date) {
-        fechaFinal = Utilities.formatDate(fechaRaw, Session.getScriptTimeZone(), "dd/MM/yyyy");
+        // Forzamos formato día/mes/año
+        fechaFinal = Utilities.formatDate(fechaRaw, "GMT-6", "dd/MM/yyyy");
       } else if (fechaRaw) {
         fechaFinal = String(fechaRaw);
       }
@@ -406,7 +444,8 @@ function getCursosDisponibles() {
         nombre: String(nombre),
         fecha: fechaFinal,
         hora: hora,
-        sede: sedeNombre
+        sede: sedeNombre,
+        fechaAmigable: (fechaRaw instanceof Date) ? Utilities.formatDate(fechaRaw, "GMT-6", "EEEE, d 'de' MMMM") : fechaFinal
       });
     }
     return result;
@@ -418,7 +457,7 @@ function getCursosDisponibles() {
 
 function inscribirCurso(data) {
   try {
-    var sheet = getSheetSafe("Inscripciones_Cursos");
+    var sheet = getSheetSafe("Seguimiento");
     sheet.appendRow([
       Utilities.getUuid(),
       data.rfc,
@@ -434,14 +473,14 @@ function inscribirCurso(data) {
 
 function getProgresoCapacitacion(rfc) {
   var modules = [
-    "Mesa de Diálogo",
+    "Mesa de diálogo",
     "¿La igualdad de género es un bien?",
     "Comprender para prevenir la violencia de género",
     "Fortaleciendo espacios parte 1",
     "Fortaleciendo espacios parte 2"
   ];
 
-  var sheetInsc = getSheetSafe("Inscripciones_Cursos");
+  var sheetInsc = getSheetSafe("Seguimiento");
   var sheetCursos = getSheetSafe("Cursos_Disponibles");
   var sheetSuc = getSheetSafe("Sucursales");
 
@@ -451,14 +490,15 @@ function getProgresoCapacitacion(rfc) {
 
   var inscritos = [];
   for (var i = 1; i < inscData.length; i++) {
-    if (inscData[i][1] === rfc) {
-      var cursoId = inscData[i][2];
-      var cursoInfo = {};
+    // Mapeo exacto basado en el RFC de la empresa
+    if (String(inscData[i][1]).trim().toUpperCase() === String(rfc).trim().toUpperCase()) {
+      var cursoId = String(inscData[i][2]);
+      var cursoInfo = null;
       for (var j = 1; j < cursData.length; j++) {
-        if (cursData[j][0] === cursoId) {
+        if (String(cursData[j][0]) === cursoId) {
           cursoInfo = {
             nombre: cursData[j][1],
-            fecha: Utilities.formatDate(cursData[j][2], Session.getScriptTimeZone(), "dd/MM/yyyy"),
+            fecha: (cursData[j][2] instanceof Date) ? Utilities.formatDate(cursData[j][2], "GMT-6", "dd/MM/yyyy") : cursData[j][2],
             hora: cursData[j][3],
             sedeId: cursData[j][4]
           };
@@ -466,9 +506,14 @@ function getProgresoCapacitacion(rfc) {
         }
       }
 
+      if (!cursoInfo) continue;
+
       var sedeNombre = "Sede Central";
       for (var k = 1; k < sucsData.length; k++) {
-        if (sucsData[k][0] === cursoInfo.sedeId) { sedeNombre = sucsData[k][2]; break; }
+        if (String(sucsData[k][0]) === String(cursoInfo.sedeId) || String(sucsData[k][2]) === String(cursoInfo.sedeId)) {
+          sedeNombre = sucsData[k][2];
+          break;
+        }
       }
 
       inscritos.push({
@@ -476,7 +521,7 @@ function getProgresoCapacitacion(rfc) {
         fecha: cursoInfo.fecha,
         hora: cursoInfo.hora,
         sede: sedeNombre,
-        estatus: inscData[i][4]
+        estatus: inscData[i][4] || "Pendiente"
       });
     }
   }

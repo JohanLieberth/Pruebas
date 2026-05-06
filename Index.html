@@ -188,8 +188,15 @@
       <!-- Dashboard de Usuario Post-Registro -->
       <div id="user-dashboard" class="step-section">
         <h2 id="dash-empresa">Empresa</h2>
-        <div id="dash-info" style="margin-bottom: 20px;">
-           <p><strong>Estatus de Certificación:</strong> <span id="dash-estatus" style="padding: 5px 10px; border-radius: 4px; font-weight: bold;"></span></p>
+        <div id="dash-info" style="margin-bottom: 20px; background: #fefefe; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+           <p>
+             <strong>Estatus de Certificación:</strong>
+             <select id="dash-estatus-select" onchange="cambiarEstatusUI(this.value)" style="width: auto; display: inline-block; padding: 5px 10px; font-weight: bold; border-radius: 4px;">
+                <option value="En revisión">En revisión</option>
+                <option value="Certificado">Certificado</option>
+             </select>
+             <span id="save-status-msg" style="font-size: 12px; margin-left: 10px; color: green; display: none;">Guardado...</span>
+           </p>
            <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
         </div>
 
