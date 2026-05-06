@@ -66,6 +66,7 @@
           <div class="progress-step" id="p-step-3">3</div>
           <div class="progress-step" id="p-step-4">4</div>
           <div class="progress-step" id="p-step-5">5</div>
+            <div class="progress-step" id="p-step-6">6</div>
         </div>
 
         <form id="registroForm">
@@ -151,17 +152,42 @@
             </div>
           </div>
 
-          <!-- PASO 5: ÉXITO -->
+          <!-- PASO 5: ÉXITO INICIAL -->
           <div id="step-5" class="step-content" style="display:none;">
             <div class="success-card">
-              <h2 style="color: green;">¡Registro Completado con Éxito!</h2>
+              <h2 style="color: green;">¡Información de Empresa Registrada!</h2>
               <p>Tu folio de registro es:</p>
               <div class="folio-box" id="success-folio"></div>
-              <img src="" id="success-qr" class="qr-code" alt="QR Folio">
-              <p>Guarde su folio para subir su plan de trabajo posteriormente.</p>
+              <p>A continuación, por favor seleccione su primera capacitación obligatoria para continuar.</p>
               <div class="button-group">
-                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar comprobante</button>
-                <button type="button" class="btn btn-outline" onclick="resetApp()">Registrar otra empresa / Volver al Inicio</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(5)">Seleccionar Capacitación</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PASO 6: CALENDARIO DE CAPACITACIÓN -->
+          <div id="step-6" class="step-content" style="display:none;">
+            <h2>Paso 6: Calendario de Capacitaciones</h2>
+            <p>Seleccione el curso y fecha de su preferencia:</p>
+            <div id="calendar-view" class="calendar-container">
+              <!-- Se llena con JS -->
+            </div>
+            <input type="hidden" id="selected-course-id">
+            <div class="button-group">
+              <button type="button" class="btn btn-primary" onclick="finalizarConCapacitacion()">Finalizar e Inscribir</button>
+            </div>
+          </div>
+
+          <!-- COMPROBANTE FINAL -->
+          <div id="step-final" class="step-content" style="display:none;">
+            <div class="success-card">
+              <h2 style="color: green;">¡Inscripción Completada!</h2>
+              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left;">
+                <!-- Se llena con JS -->
+              </div>
+              <div class="button-group">
+                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante (PDF)</button>
+                <button type="button" class="btn btn-outline" onclick="resetApp()">Volver al Inicio</button>
               </div>
             </div>
           </div>
@@ -176,6 +202,31 @@
            <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
         </div>
 
+        <div id="training-progress-section" style="margin-bottom: 30px; background: #f0ebf5; padding: 20px; border-radius: 8px;">
+          <h3>Seguimiento de Capacitación</h3>
+          <div class="progress-bar-container" style="background: #ddd; height: 25px; border-radius: 12px; margin-bottom: 15px; position: relative;">
+            <div id="training-progress-bar" style="background: var(--primary-color); height: 100%; width: 0%; border-radius: 12px; transition: width 0.5s;"></div>
+            <span id="training-progress-text" style="position: absolute; width: 100%; text-align: center; top: 0; font-weight: bold; color: #333;">0/5 Módulos</span>
+          </div>
+          <div class="table-container">
+            <table style="background: white;">
+              <thead>
+                <tr>
+                  <th>Módulo</th>
+                  <th>Fecha</th>
+                  <th>Hora</th>
+                  <th>Sede</th>
+                  <th>Estatus</th>
+                </tr>
+              </thead>
+              <tbody id="lista-capacitacion"></tbody>
+            </table>
+          </div>
+          <div id="comprobante-termino-container" style="display: none; margin-top: 20px; text-align: center;">
+             <button class="btn btn-secondary" onclick="descargarTermino()">Descargar Comprobante de Término</button>
+          </div>
+        </div>
+
         <div id="plan-trabajo-history" style="margin-bottom: 30px;">
           <h3>Historial de Planes de Trabajo</h3>
           <div class="table-container">
@@ -183,11 +234,11 @@
               <thead>
                 <tr>
                   <th>Sucursal</th>
-                  <th>Archivo</th>
-                  <th>Estatus</th>
-                  <th>Fecha</th>
-                  <th>Observaciones</th>
-                  <th>Link</th>
+                  <th>Tipo de Archivo</th>
+                  <th>Estatus de Plan</th>
+                  <th>Fecha (Últ. Act.)</th>
+                  <th>Cuadro de Observaciones</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody id="lista-planes">

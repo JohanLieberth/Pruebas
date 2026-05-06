@@ -342,6 +342,7 @@
   .status-aprobado { background-color: var(--success-color); }
   .status-rechazado { background-color: var(--danger-color); }
   .status-recibido { background-color: #999; }
+  .status-terminado { background-color: #5cb85c !important; } /* Format Rule Green */
 
   /* Success Message */
   .success-card {
@@ -364,6 +365,37 @@
     display: block;
     max-width: 200px;
   }
+
+  /* Calendar Selection */
+  .calendar-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+  }
+
+  .calendar-item {
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #fff;
+  }
+
+  .calendar-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 8px rgba(107, 44, 145, 0.1);
+  }
+
+  .calendar-item.selected {
+    background: #6B2C91;
+    color: white;
+    border-color: #6B2C91;
+  }
+
+  .calendar-item h4 { margin: 0 0 10px 0; font-size: 14px; }
+  .calendar-item p { margin: 2px 0; font-size: 12px; }
 
   /* Maps Preview */
   .map-preview {
@@ -433,7 +465,7 @@
 </style>
 </style>
 <script>
-window.google = { script: { run: { withSuccessHandler: function(callback) { this.successHandler = callback; return this; }, withFailureHandler: function(callback) { this.failureHandler = callback; return this; }, getSucursalesCertificadas: function() { setTimeout(() => this.successHandler([{ nombre: 'Tienda Centro', direccion: 'Av. Juarez 500', telefono: '555-0101' }, { nombre: 'Farmacia Norte', direccion: 'Calle 10 #200', telefono: '555-0202' }]), 100); }, validarRFCExistente: function() { setTimeout(() => this.successHandler(false), 100); }, procesarRegistro: function() { setTimeout(() => this.successHandler({success:true, folio:'MS-2023-001', qrUrl:'#'}), 100); }, buscarPorRFC: function(rfc) { setTimeout(() => this.successHandler({rfc:rfc, representante:'Juan', folio:'MS-201', estatus:'Pendiente'}), 100); }, getUbicaciones: function() { setTimeout(() => this.successHandler([{id:'loc-123', nombre:'Centro'}]), 100); }, getPlanesTrabajo: function() { setTimeout(() => this.successHandler([]), 100); }, agregarNuevaSucursal: function() { setTimeout(() => this.successHandler({success:true}), 100); } } } };
+window.google = { script: { run: { withSuccessHandler: function(callback) { this.successHandler = callback; return this; }, withFailureHandler: function(callback) { this.failureHandler = callback; return this; }, getSucursalesCertificadas: function() { setTimeout(() => this.successHandler([{ nombre: 'Tienda Centro', direccion: 'Av. Juarez 500', telefono: '555-0101' }]), 100); }, validarRFCExistente: function() { setTimeout(() => this.successHandler(false), 100); }, procesarRegistro: function() { setTimeout(() => this.successHandler({success:true, folio:'MS-2023-001'}), 100); }, buscarPorRFC: function(rfc) { setTimeout(() => this.successHandler({rfc:rfc, representante:'Juan', folio:'MS-201', estatus:'Pendiente'}), 100); }, getUbicaciones: function() { setTimeout(() => this.successHandler([{id:'loc-123', nombre:'Centro'}]), 100); }, getPlanesTrabajo: function() { setTimeout(() => this.successHandler([{ id: 'p1', idSucursal: 'loc-123', tipoArchivo: 'Plan Inicial', estatus: 'Con Observaciones', fecha: '01/10/2023', observaciones: 'Corregir logos' }]), 100); }, agregarNuevaSucursal: function() { setTimeout(() => this.successHandler({success:true}), 100); }, getCursosDisponibles: function() { setTimeout(() => this.successHandler([{ id: 'c1', nombre: 'Mesa de Diálogo', fecha: '2023-11-01', hora: '10:00', sede: 'Centro' }]), 100); }, inscribirCurso: function() { setTimeout(() => this.successHandler({ success: true }), 100); }, getProgresoCapacitacion: function() { setTimeout(() => this.successHandler({ modulos: [{ nombre: 'Mesa de Diálogo', fecha: '01/11/2023', hora: '10:00', sede: 'Centro', estatus: 'Completado' }], completados: 1, total: 5, estatusGeneral: 'En Proceso' }), 100); }, guardarPlanTrabajo: function() { setTimeout(() => this.successHandler({ success: true }), 100); } } } };
 <script>
   let branchCount = 0;
   let currentUser = null;
@@ -480,6 +512,7 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
   function resetApp() {
     branchCount = 0;
     currentUser = null;
+    window.idPlanActualizar = null;
     document.getElementById('registroForm').reset();
     document.getElementById('login-rfc').value = '';
     document.getElementById('plan-detalle').value = '';
@@ -487,12 +520,14 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
     document.getElementById('sucursales-container').innerHTML = '';
     document.getElementById('lista-planes').innerHTML = '';
     document.getElementById('nueva-sucursal-form').style.display = 'none';
+    document.getElementById('plan-id-ubicacion').disabled = false;
+    document.getElementById('comprobante-termino-container').style.display = 'none';
     transitionToStep(1);
     showWelcome();
   }
 
   function nextStep(current) {
-    if (!validateStep(current)) return;
+    if (current !== 5 && !validateStep(current)) return;
 
     if (current === 1) {
       const rfc = document.getElementById('reg-rfc').value;
@@ -514,6 +549,8 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
     } else if (current === 3) {
       mostrarResumen();
       transitionToStep(4);
+    } else if (current === 5) {
+      cargarCalendario();
     } else {
       transitionToStep(current + 1);
     }
@@ -760,13 +797,57 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
       .withSuccessHandler(function(res) {
         showLoader(false);
         if (res.success) {
+          currentUser = { rfc: data.empresa.rfc, folio: res.folio };
           document.getElementById('success-folio').innerText = res.folio;
-          document.getElementById('success-qr').src = res.qrUrl;
           transitionToStep(5);
         } else alert("Error: " + res.error);
       })
       .withFailureHandler(err => { showLoader(false); alert(err); })
       .procesarRegistro(data);
+  }
+
+  function cargarCalendario() {
+    showLoader(true);
+    google.script.run.withSuccessHandler(function(cursos) {
+      showLoader(false);
+      const view = document.getElementById('calendar-view');
+      view.innerHTML = cursos.map(c => `
+        <div class="calendar-item" onclick="selectCourse(this, '${c.id}', '${c.nombre}', '${c.fecha}', '${c.hora}')">
+          <h4>${c.nombre}</h4>
+          <p>📅 ${c.fecha}</p>
+          <p>⏰ ${c.hora}</p>
+          <p>📍 ${c.sede}</p>
+        </div>
+      `).join('');
+      transitionToStep(6);
+    }).getCursosDisponibles();
+  }
+
+  function selectCourse(el, id, nombre, fecha, hora) {
+    document.querySelectorAll('.calendar-item').forEach(i => i.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('selected-course-id').value = id;
+    window.selectedCourseInfo = { nombre, fecha, hora };
+  }
+
+  function finalizarConCapacitacion() {
+    const cursoId = document.getElementById('selected-course-id').value;
+    if (!cursoId) return alert("Seleccione un curso.");
+
+    showLoader(true);
+    google.script.run.withSuccessHandler(function(res) {
+      showLoader(false);
+      if (res.success) {
+        document.getElementById('comprobante-inscripcion').innerHTML = `
+          <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
+          <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
+          <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
+          <p><strong>Folio:</strong> ${currentUser.folio}</p>
+        `;
+        document.querySelectorAll('.step-content').forEach(s => s.style.display = 'none');
+        document.getElementById('step-final').style.display = 'block';
+      } else alert(res.error);
+    }).inscribirCurso({ rfc: currentUser.rfc, cursoId: cursoId });
   }
 
   // --- Acceso Posterior ---
@@ -781,17 +862,42 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
           document.getElementById('dash-empresa').innerText = user.representante;
           document.getElementById('dash-folio').innerText = user.folio;
           document.getElementById('dash-estatus').innerText = user.estatus;
-          const colors = {'Pendiente': '#f0ad4e', 'En Revisión': '#5bc0de', 'Aprobado': '#5cb85c', 'Rechazado': '#d9534f'};
+          const colors = {'Pendiente': '#f0ad4e', 'En Revisión': '#5bc0de', 'Aprobado': '#5cb85c', 'Rechazado': '#d9534f', 'Terminado': '#5cb85c'};
           document.getElementById('dash-estatus').style.backgroundColor = colors[user.estatus] || '#ccc';
           document.getElementById('dash-estatus').style.color = 'white';
 
-          // Use Promise to ensure both loads finish before showing dashboard
           cargarUbicacionesDropdown(user.rfc);
           cargarHistorialPlanes(user.rfc);
+          cargarProgresoCapacitacion(user.rfc);
         } else { showLoader(false); alert("RFC no encontrado."); }
       })
       .withFailureHandler(err => { showLoader(false); alert(err); })
       .buscarPorRFC(rfc);
+  }
+
+  function cargarProgresoCapacitacion(rfc) {
+    google.script.run.withSuccessHandler(function(prog) {
+      const bar = document.getElementById('training-progress-bar');
+      const text = document.getElementById('training-progress-text');
+      const pct = (prog.completados / prog.total) * 100;
+      bar.style.width = pct + "%";
+      text.innerText = `${prog.completados}/${prog.total} Módulos`;
+
+      const tbody = document.getElementById('lista-capacitacion');
+      tbody.innerHTML = prog.modulos.map(m => `
+        <tr>
+          <td>${m.nombre}</td>
+          <td>${m.fecha}</td>
+          <td>${m.hora}</td>
+          <td>${m.sede}</td>
+          <td><span class="status-badge status-${m.estatus.toLowerCase().replace(/ /g, '-')}">${m.estatus}</span></td>
+        </tr>
+      `).join('');
+
+      if (prog.estatusGeneral === "Terminado") {
+        document.getElementById('comprobante-termino-container').style.display = 'block';
+      }
+    }).getProgresoCapacitacion(rfc);
   }
 
   /**
@@ -825,9 +931,19 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
         const tbody = document.getElementById('lista-planes');
         tbody.innerHTML = '';
         planes.forEach(p => {
-          const nombreUbicacion = (window.ubicacionesMap && window.ubicacionesMap[p.idSucursal]) || 'No especificada';
+          const nombreSuc = (window.ubicacionesMap && window.ubicacionesMap[p.idSucursal]) || 'No especificada';
+          const btnHtml = (p.estatus.includes("Observaciones")) ?
+            `<button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="prepararActualizacion('${p.id}', '${p.idSucursal}')">Actualizar</button>` : '-';
+
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${nombreUbicacion}</td><td>${p.planDetalle ? p.planDetalle.substring(0,20)+'...' : 'Plan'}</td><td><span class="status-badge status-${p.estatus.toLowerCase().replace(/ /g, '-')}">${p.estatus}</span></td><td>${p.fechaEnvio}</td><td>${p.observaciones || '-'}</td><td>${p.urlArchivo ? `<a href="${p.urlArchivo}" target="_blank">Ver Archivo</a>` : '-'}</td>`;
+          tr.innerHTML = `
+            <td>${nombreSuc}</td>
+            <td>${p.tipoArchivo}</td>
+            <td><span class="status-badge status-${p.estatus.toLowerCase().replace(/ /g, '-')}">${p.estatus}</span></td>
+            <td>${p.fecha}</td>
+            <td>${p.observaciones || '-'}</td>
+            <td>${btnHtml}</td>
+          `;
           tbody.appendChild(tr);
         });
         showSection('user-dashboard');
@@ -836,30 +952,53 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
       .getPlanesTrabajo(rfc);
   }
 
+  function prepararActualizacion(idPlan, idSuc) {
+    window.idPlanActualizar = idPlan;
+    document.getElementById('plan-id-ubicacion').value = idSuc;
+    document.getElementById('plan-id-ubicacion').disabled = true;
+    document.getElementById('plan-detalle').placeholder = "Describa los cambios realizados...";
+    document.getElementById('plan-trabajo-section').scrollIntoView();
+  }
+
   function enviarPlan() {
     const idUbicacion = document.getElementById('plan-id-ubicacion').value;
     const detalle = document.getElementById('plan-detalle').value;
     const fileInput = document.getElementById('plan-archivo');
 
     if (!idUbicacion) return alert("Por favor seleccione una sucursal.");
-    if (!detalle) return alert("Describa su plan.");
 
     showLoader(true);
+    const payload = {
+      rfc: currentUser.rfc,
+      folio: currentUser.folio,
+      planDetalle: detalle,
+      idUbicacion: idUbicacion,
+      idPlan: window.idPlanActualizar || null
+    };
+
     if (fileInput.files.length > 0) {
       const file = fileInput.files[0];
       const reader = new FileReader();
       reader.onload = function(e) {
-        google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo({rfc: currentUser.rfc, folio: currentUser.folio, planDetalle: detalle, fileName: file.name, fileData: e.target.result, idUbicacion: idUbicacion});
+        payload.fileName = file.name;
+        payload.fileData = e.target.result;
+        google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo(payload);
       };
       reader.readAsDataURL(file);
     } else {
-      google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo({rfc: currentUser.rfc, folio: currentUser.folio, planDetalle: detalle, idUbicacion: idUbicacion});
+      google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo(payload);
     }
   }
 
   function finalizarEnvioPlan(res) {
     showLoader(false);
-    if (res.success) { alert("Plan enviado."); accederPorRFC(); } else alert("Error: " + res.error);
+    if (res.success) {
+      alert("Plan enviado correctamente.");
+      window.idPlanActualizar = null;
+      document.getElementById('plan-id-ubicacion').disabled = false;
+      document.getElementById('plan-detalle').placeholder = "";
+      accederPorRFC();
+    } else alert("Error: " + res.error);
   }
 
   function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
@@ -932,6 +1071,7 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
           <div class="progress-step" id="p-step-3">3</div>
           <div class="progress-step" id="p-step-4">4</div>
           <div class="progress-step" id="p-step-5">5</div>
+            <div class="progress-step" id="p-step-6">6</div>
         </div>
 
         <form id="registroForm">
@@ -1017,17 +1157,42 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
             </div>
           </div>
 
-          <!-- PASO 5: ÉXITO -->
+          <!-- PASO 5: ÉXITO INICIAL -->
           <div id="step-5" class="step-content" style="display:none;">
             <div class="success-card">
-              <h2 style="color: green;">¡Registro Completado con Éxito!</h2>
+              <h2 style="color: green;">¡Información de Empresa Registrada!</h2>
               <p>Tu folio de registro es:</p>
               <div class="folio-box" id="success-folio"></div>
-              <img src="" id="success-qr" class="qr-code" alt="QR Folio">
-              <p>Guarde su folio para subir su plan de trabajo posteriormente.</p>
+              <p>A continuación, por favor seleccione su primera capacitación obligatoria para continuar.</p>
               <div class="button-group">
-                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar comprobante</button>
-                <button type="button" class="btn btn-outline" onclick="resetApp()">Registrar otra empresa / Volver al Inicio</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(5)">Seleccionar Capacitación</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PASO 6: CALENDARIO DE CAPACITACIÓN -->
+          <div id="step-6" class="step-content" style="display:none;">
+            <h2>Paso 6: Calendario de Capacitaciones</h2>
+            <p>Seleccione el curso y fecha de su preferencia:</p>
+            <div id="calendar-view" class="calendar-container">
+              <!-- Se llena con JS -->
+            </div>
+            <input type="hidden" id="selected-course-id">
+            <div class="button-group">
+              <button type="button" class="btn btn-primary" onclick="finalizarConCapacitacion()">Finalizar e Inscribir</button>
+            </div>
+          </div>
+
+          <!-- COMPROBANTE FINAL -->
+          <div id="step-final" class="step-content" style="display:none;">
+            <div class="success-card">
+              <h2 style="color: green;">¡Inscripción Completada!</h2>
+              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left;">
+                <!-- Se llena con JS -->
+              </div>
+              <div class="button-group">
+                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante (PDF)</button>
+                <button type="button" class="btn btn-outline" onclick="resetApp()">Volver al Inicio</button>
               </div>
             </div>
           </div>
@@ -1042,6 +1207,31 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
            <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
         </div>
 
+        <div id="training-progress-section" style="margin-bottom: 30px; background: #f0ebf5; padding: 20px; border-radius: 8px;">
+          <h3>Seguimiento de Capacitación</h3>
+          <div class="progress-bar-container" style="background: #ddd; height: 25px; border-radius: 12px; margin-bottom: 15px; position: relative;">
+            <div id="training-progress-bar" style="background: var(--primary-color); height: 100%; width: 0%; border-radius: 12px; transition: width 0.5s;"></div>
+            <span id="training-progress-text" style="position: absolute; width: 100%; text-align: center; top: 0; font-weight: bold; color: #333;">0/5 Módulos</span>
+          </div>
+          <div class="table-container">
+            <table style="background: white;">
+              <thead>
+                <tr>
+                  <th>Módulo</th>
+                  <th>Fecha</th>
+                  <th>Hora</th>
+                  <th>Sede</th>
+                  <th>Estatus</th>
+                </tr>
+              </thead>
+              <tbody id="lista-capacitacion"></tbody>
+            </table>
+          </div>
+          <div id="comprobante-termino-container" style="display: none; margin-top: 20px; text-align: center;">
+             <button class="btn btn-secondary" onclick="descargarTermino()">Descargar Comprobante de Término</button>
+          </div>
+        </div>
+
         <div id="plan-trabajo-history" style="margin-bottom: 30px;">
           <h3>Historial de Planes de Trabajo</h3>
           <div class="table-container">
@@ -1049,11 +1239,11 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
               <thead>
                 <tr>
                   <th>Sucursal</th>
-                  <th>Archivo</th>
-                  <th>Estatus</th>
-                  <th>Fecha</th>
-                  <th>Observaciones</th>
-                  <th>Link</th>
+                  <th>Tipo de Archivo</th>
+                  <th>Estatus de Plan</th>
+                  <th>Fecha (Últ. Act.)</th>
+                  <th>Cuadro de Observaciones</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody id="lista-planes">

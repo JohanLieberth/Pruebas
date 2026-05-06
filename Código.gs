@@ -43,7 +43,9 @@ function setupDatabase() {
   var sheets = {
     "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
     "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
-    "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo"],
+    "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
+    "Cursos_Disponibles": ["ID", "Nombre", "Fecha", "Hora", "Sede_ID", "Capacidad"],
+    "Inscripciones_Cursos": ["ID", "RFC", "Curso_ID", "Fecha_Inscripcion", "Estatus"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
 
@@ -55,6 +57,20 @@ function setupDatabase() {
       sheet.getRange(1, 1, 1, sheets[name].length).setFontWeight("bold").setBackground("#6B2C91").setFontColor("white");
     }
   }
+
+  // Cursos Obligatorios default
+  var sheetCursos = ss.getSheetByName("Cursos_Disponibles");
+  if (sheetCursos.getLastRow() === 1) {
+    var cursos = [
+      [Utilities.getUuid(), "Mesa de Diálogo", "2023-12-01", "10:00", "", 50],
+      [Utilities.getUuid(), "¿La igualdad de género es un bien?", "2023-12-05", "11:00", "", 50],
+      [Utilities.getUuid(), "Comprender para prevenir la violencia de género", "2023-12-10", "09:00", "", 50],
+      [Utilities.getUuid(), "Fortaleciendo espacios parte 1", "2023-12-15", "16:00", "", 50],
+      [Utilities.getUuid(), "Fortaleciendo espacios parte 2", "2023-12-20", "16:00", "", 50]
+    ];
+    sheetCursos.getRange(2, 1, cursos.length, 6).setValues(cursos);
+  }
+
   return "Base de datos configurada correctamente.";
 }
 
@@ -194,7 +210,7 @@ function buscarPorRFC(rfc) {
 }
 
 /**
- * Obtiene el historial de Planes de Trabajo para un RFC
+ * Obtiene el historial de Planes de Trabajo para un RFC (Estructura Limpia)
  */
 function getPlanesTrabajo(rfc) {
   var sheet = getSheetSafe("PlanesTrabajo");
@@ -205,13 +221,11 @@ function getPlanesTrabajo(rfc) {
     if (data[i][1] === rfc) {
       result.push({
         id: data[i][0],
-        folio: data[i][2],
-        fechaEnvio: Utilities.formatDate(data[i][3], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
-        planDetalle: data[i][4],
-        estatus: data[i][5],
-        observaciones: data[i][6],
         idSucursal: data[i][7],
-        urlArchivo: data[i][8]
+        tipoArchivo: data[i][9] || "Plan de Trabajo",
+        estatus: data[i][5],
+        fecha: Utilities.formatDate(data[i][10] || data[i][3], Session.getScriptTimeZone(), "dd/MM/yyyy"),
+        observaciones: data[i][6]
       });
     }
   }
@@ -238,7 +252,7 @@ function getUbicaciones(rfc) {
 }
 
 /**
- * Guarda el Plan de Trabajo y gestiona el archivo en Drive
+ * Guarda o Actualiza el Plan de Trabajo
  */
 function guardarPlanTrabajo(data) {
   try {
@@ -249,11 +263,7 @@ function guardarPlanTrabajo(data) {
 
     if (data.fileData) {
       var folders = DriveApp.getFoldersByName(folderName);
-      if (folders.hasNext()) {
-        folder = folders.next();
-      } else {
-        folder = DriveApp.createFolder(folderName);
-      }
+      folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
 
       var contentType = data.fileData.substring(data.fileData.indexOf(":")+1, data.fileData.indexOf(";"));
       var bytes = Utilities.base64Decode(data.fileData.split(",")[1]);
@@ -262,17 +272,34 @@ function guardarPlanTrabajo(data) {
       fileUrl = file.getUrl();
     }
 
-    sheetPlanes.appendRow([
-      Utilities.getUuid(),
-      data.rfc,
-      data.folio,
-      now,
-      data.planDetalle,
-      "Recibido",
-      "",
-      data.idUbicacion,
-      fileUrl
-    ]);
+    if (data.idPlan) {
+      // Lógica de Actualización (Versionado)
+      var rows = sheetPlanes.getDataRange().getValues();
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i][0] === data.idPlan) {
+          if (fileUrl) sheetPlanes.getRange(i + 1, 9).setValue(fileUrl);
+          sheetPlanes.getRange(i + 1, 6).setValue("Recibido (Actualizado)");
+          sheetPlanes.getRange(i + 1, 11).setValue(now);
+          if (data.planDetalle) sheetPlanes.getRange(i + 1, 5).setValue(data.planDetalle);
+          break;
+        }
+      }
+    } else {
+      // Nuevo Registro
+      sheetPlanes.appendRow([
+        Utilities.getUuid(),
+        data.rfc,
+        data.folio,
+        now,
+        data.planDetalle,
+        "Recibido",
+        "",
+        data.idUbicacion,
+        fileUrl,
+        data.tipoArchivo || "Plan de Trabajo",
+        now
+      ]);
+    }
 
     // Actualizar estatus general de la empresa
     var sheetEmpresas = getSheetSafe("Empresas");
@@ -325,6 +352,112 @@ function getSucursalesCertificadas() {
   } catch (e) {
     return [];
   }
+}
+
+/**
+ * Lógica de Capacitación
+ */
+function getCursosDisponibles() {
+  var sheet = getSheetSafe("Cursos_Disponibles");
+  var sheetSuc = getSheetSafe("Sucursales");
+  var data = sheet.getDataRange().getValues();
+  var sucs = sheetSuc.getDataRange().getValues();
+  var result = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var sedeNombre = "Sede Central";
+    if (data[i][4]) {
+       for(var j=1; j<sucs.length; j++) {
+         if(sucs[j][0] === data[i][4]) { sedeNombre = sucs[j][2]; break; }
+       }
+    }
+    result.push({
+      id: data[i][0],
+      nombre: data[i][1],
+      fecha: Utilities.formatDate(data[i][2], Session.getScriptTimeZone(), "yyyy-MM-dd"),
+      hora: data[i][3],
+      sede: sedeNombre
+    });
+  }
+  return result;
+}
+
+function inscribirCurso(data) {
+  try {
+    var sheet = getSheetSafe("Inscripciones_Cursos");
+    sheet.appendRow([
+      Utilities.getUuid(),
+      data.rfc,
+      data.cursoId,
+      new Date(),
+      "Pendiente"
+    ]);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+function getProgresoCapacitacion(rfc) {
+  var modules = [
+    "Mesa de Diálogo",
+    "¿La igualdad de género es un bien?",
+    "Comprender para prevenir la violencia de género",
+    "Fortaleciendo espacios parte 1",
+    "Fortaleciendo espacios parte 2"
+  ];
+
+  var sheetInsc = getSheetSafe("Inscripciones_Cursos");
+  var sheetCursos = getSheetSafe("Cursos_Disponibles");
+  var sheetSuc = getSheetSafe("Sucursales");
+
+  var inscData = sheetInsc.getDataRange().getValues();
+  var cursData = sheetCursos.getDataRange().getValues();
+  var sucsData = sheetSuc.getDataRange().getValues();
+
+  var inscritos = [];
+  for (var i = 1; i < inscData.length; i++) {
+    if (inscData[i][1] === rfc) {
+      var cursoId = inscData[i][2];
+      var cursoInfo = {};
+      for (var j = 1; j < cursData.length; j++) {
+        if (cursData[j][0] === cursoId) {
+          cursoInfo = {
+            nombre: cursData[j][1],
+            fecha: Utilities.formatDate(cursData[j][2], Session.getScriptTimeZone(), "dd/MM/yyyy"),
+            hora: cursData[j][3],
+            sedeId: cursData[j][4]
+          };
+          break;
+        }
+      }
+
+      var sedeNombre = "Sede Central";
+      for (var k = 1; k < sucsData.length; k++) {
+        if (sucsData[k][0] === cursoInfo.sedeId) { sedeNombre = sucsData[k][2]; break; }
+      }
+
+      inscritos.push({
+        nombre: cursoInfo.nombre,
+        fecha: cursoInfo.fecha,
+        hora: cursoInfo.hora,
+        sede: sedeNombre,
+        estatus: inscData[i][4]
+      });
+    }
+  }
+
+  var completados = inscritos.filter(i => i.estatus === "Completado").length;
+
+  return {
+    modulos: modules.map(m => {
+      var ins = inscritos.find(i => i.nombre === m);
+      return ins || { nombre: m, estatus: "No Inscrito", fecha: "-", hora: "-", sede: "-" };
+    }),
+    completados: completados,
+    total: modules.length,
+    estatusGeneral: completados === modules.length ? "Terminado" : "En Proceso"
+  };
 }
 
 // Las funciones de administración getRegistrosAdmin y cambiarEstatus han sido ELIMINADAS.
