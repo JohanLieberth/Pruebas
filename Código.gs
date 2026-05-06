@@ -44,7 +44,7 @@ function setupDatabase() {
     "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
     "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
     "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
-    "Cursos_Disponibles": ["ID", "Nombre", "Fecha", "Hora", "Sede_ID", "Capacidad"],
+    "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "Sede_o_Sucursal", "Cupo_Máximo"],
     "Inscripciones_Cursos": ["ID", "RFC", "Curso_ID", "Fecha_Inscripcion", "Estatus"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
@@ -58,15 +58,15 @@ function setupDatabase() {
     }
   }
 
-  // Cursos Obligatorios default (con objetos Date)
+  // Cursos Obligatorios default
   var sheetCursos = ss.getSheetByName("Cursos_Disponibles");
   if (sheetCursos && sheetCursos.getLastRow() === 1) {
     var cursos = [
-      [Utilities.getUuid(), "Mesa de Diálogo", new Date(2023, 11, 1), "10:00", "", 50],
-      [Utilities.getUuid(), "¿La igualdad de género es un bien?", new Date(2023, 11, 5), "11:00", "", 50],
-      [Utilities.getUuid(), "Comprender para prevenir la violencia de género", new Date(2023, 11, 10), "09:00", "", 50],
-      [Utilities.getUuid(), "Fortaleciendo espacios parte 1", new Date(2023, 11, 15), "16:00", "", 50],
-      [Utilities.getUuid(), "Fortaleciendo espacios parte 2", new Date(2023, 11, 20), "16:00", "", 50]
+      ["C1", "Mesa de Diálogo", "01/12/2023", "10:00", "Sede Central", 50],
+      ["C2", "¿La igualdad de género es un bien?", "05/12/2023", "11:00", "Sede Central", 50],
+      ["C3", "Comprender para prevenir la violencia de género", "10/12/2023", "09:00", "Sede Central", 50],
+      ["C4", "Fortaleciendo espacios parte 1", "15/12/2023", "16:00", "Sede Central", 50],
+      ["C5", "Fortaleciendo espacios parte 2", "20/12/2023", "16:00", "Sede Central", 50]
     ];
     sheetCursos.getRange(2, 1, cursos.length, 6).setValues(cursos);
   }
@@ -355,58 +355,63 @@ function getSucursalesCertificadas() {
 }
 
 /**
- * Lógica de Capacitación - Obtiene cursos con manejo de fechas robusto
+ * Lógica de Capacitación - Obtiene cursos leyendo directamente de Sheets
  */
 function getCursosDisponibles() {
   try {
     var sheet = getSheetSafe("Cursos_Disponibles");
-
-    // Auto-poblar si está vacío (segunda capa de seguridad)
-    if (sheet.getLastRow() <= 1) {
-       var cursos = [
-          [Utilities.getUuid(), "Mesa de Diálogo", new Date(2023, 11, 1), "10:00", "", 50],
-          [Utilities.getUuid(), "¿La igualdad de género es un bien?", new Date(2023, 11, 5), "11:00", "", 50],
-          [Utilities.getUuid(), "Comprender para prevenir la violencia de género", new Date(2023, 11, 10), "09:00", "", 50],
-          [Utilities.getUuid(), "Fortaleciendo espacios parte 1", new Date(2023, 11, 15), "16:00", "", 50],
-          [Utilities.getUuid(), "Fortaleciendo espacios parte 2", new Date(2023, 11, 20), "16:00", "", 50]
-        ];
-        sheet.getRange(2, 1, cursos.length, 6).setValues(cursos);
-    }
-    var sheetSuc = getSheetSafe("Sucursales");
     var data = sheet.getDataRange().getValues();
+
+    // Si solo hay encabezados, intentar poblar con valores iniciales
+    if (data.length <= 1) {
+       setupDatabase();
+       data = sheet.getDataRange().getValues();
+    }
+
+    var sheetSuc = getSheetSafe("Sucursales");
     var sucs = sheetSuc.getDataRange().getValues();
     var result = [];
 
     for (var i = 1; i < data.length; i++) {
-      if (!data[i][1]) continue; // Saltar vacíos
+      var row = data[i];
+      var id = row[0] || ("TEMP-" + i); // ID manual o temporal
+      var nombre = row[1];
+      var fechaRaw = row[2];
+      var hora = row[3] ? String(row[3]) : "Por definir";
+      var sedeId = row[4];
 
+      if (!nombre) continue; // Si no hay nombre, ignorar fila
+
+      // Procesar Fecha con máxima flexibilidad
+      var fechaFinal = "Fecha no disponible";
+      if (fechaRaw instanceof Date) {
+        fechaFinal = Utilities.formatDate(fechaRaw, Session.getScriptTimeZone(), "dd/MM/yyyy");
+      } else if (fechaRaw) {
+        fechaFinal = String(fechaRaw);
+      }
+
+      // Buscar nombre de la sede
       var sedeNombre = "Sede Central";
-      if (data[i][4]) {
+      if (sedeId) {
          for(var j=1; j<sucs.length; j++) {
-           if(sucs[j][0] === data[i][4]) { sedeNombre = sucs[j][2]; break; }
+           if(sucs[j][0] === sedeId || sucs[j][2] === sedeId) {
+             sedeNombre = sucs[j][2]; // Usar nombre de la sucursal
+             break;
+           }
          }
       }
 
-      var fechaVal = data[i][2];
-      var fechaStr = "";
-
-      if (fechaVal instanceof Date) {
-        fechaStr = Utilities.formatDate(fechaVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
-      } else if (fechaVal) {
-        fechaStr = String(fechaVal);
-      }
-
       result.push({
-        id: data[i][0],
-        nombre: data[i][1],
-        fecha: fechaStr,
-        hora: data[i][3],
+        id: String(id),
+        nombre: String(nombre),
+        fecha: fechaFinal,
+        hora: hora,
         sede: sedeNombre
       });
     }
     return result;
   } catch (e) {
-    Logger.log("Error en getCursosDisponibles: " + e.toString());
+    console.error("Error en getCursosDisponibles: " + e.toString());
     return [];
   }
 }

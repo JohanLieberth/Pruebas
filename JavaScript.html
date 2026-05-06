@@ -402,11 +402,11 @@
           return;
         }
         view.innerHTML = cursos.map(c => `
-          <div class="calendar-item" onclick="selectCourse(this, '${c.id}', '${c.nombre}', '${c.fecha}', '${c.hora}')">
-            <h4>${c.nombre}</h4>
-            <p>📅 ${c.fecha}</p>
-            <p>⏰ ${c.hora}</p>
-            <p>📍 ${c.sede}</p>
+          <div class="calendar-item" onclick="selectCourse(this, '${c.id || ''}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha || ''}', '${c.hora || ''}')">
+            <h4>${c.nombre || 'Curso sin nombre'}</h4>
+            <p>📅 ${c.fecha || 'Sin fecha'}</p>
+            <p>⏰ ${c.hora || 'Sin hora'}</p>
+            <p>📍 ${c.sede || 'Sede no especificada'}</p>
           </div>
         `).join('');
       })
