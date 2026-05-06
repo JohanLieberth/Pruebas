@@ -66,7 +66,6 @@
           <div class="progress-step" id="p-step-3">3</div>
           <div class="progress-step" id="p-step-4">4</div>
           <div class="progress-step" id="p-step-5">5</div>
-            <div class="progress-step" id="p-step-6">6</div>
         </div>
 
         <form id="registroForm">
@@ -136,58 +135,50 @@
             </div>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="prevStep(3)">Atrás</button>
-              <button type="button" class="btn btn-primary" onclick="nextStep(3)">Revisar y Confirmar</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(3)">Continuar a Capacitación</button>
             </div>
           </div>
 
-          <!-- PASO 4: CONFIRMACIÓN -->
+          <!-- PASO 4: SELECCIÓN DE CURSO (CALENDARIO) -->
           <div id="step-4" class="step-content" style="display:none;">
-            <h2>Paso 4: Confirmación del Registro</h2>
-            <div id="resumen-registro" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-              <!-- Se llena con JS -->
-            </div>
-            <div class="button-group">
-              <button type="button" class="btn btn-outline" onclick="prevStep(4)">Atrás</button>
-              <button type="button" class="btn btn-secondary" onclick="submitRegistro()">Finalizar Registro</button>
-            </div>
-          </div>
-
-          <!-- PASO 5: ÉXITO INICIAL -->
-          <div id="step-5" class="step-content" style="display:none;">
-            <div class="success-card">
-              <h2 style="color: green;">¡Información de Empresa Registrada!</h2>
-              <p>Tu folio de registro es:</p>
-              <div class="folio-box" id="success-folio"></div>
-              <p>A continuación, por favor seleccione su primera capacitación obligatoria para continuar.</p>
-              <div class="button-group">
-                <button type="button" class="btn btn-primary" onclick="nextStep(5)">Seleccionar Capacitación</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- PASO 6: CALENDARIO DE CAPACITACIÓN -->
-          <div id="step-6" class="step-content" style="display:none;">
-            <h2>Paso 6: Calendario de Capacitaciones</h2>
-            <p>Seleccione el curso y fecha de su preferencia:</p>
+            <h2>Paso 4: Calendario de Capacitaciones</h2>
+            <p>Seleccione la fecha y sede de su primera capacitación obligatoria:</p>
             <div id="calendar-view" class="calendar-container">
               <!-- Se llena con JS -->
             </div>
             <input type="hidden" id="selected-course-id">
             <div class="button-group">
-              <button type="button" class="btn btn-primary" onclick="finalizarConCapacitacion()">Finalizar e Inscribir</button>
+              <button type="button" class="btn btn-outline" onclick="prevStep(4)">Atrás</button>
+              <button type="button" class="btn btn-primary" id="btn-next-step-4" onclick="nextStep(4)">Continuar a Confirmación</button>
             </div>
           </div>
 
-          <!-- COMPROBANTE FINAL -->
-          <div id="step-final" class="step-content" style="display:none;">
+          <!-- PASO 5: CONFIRMACIÓN FINAL -->
+          <div id="step-5" class="step-content" style="display:none;">
+            <h2>Paso 5: Confirmación y Finalización</h2>
+            <div id="resumen-registro" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <!-- Se llena con JS -->
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(5)">Atrás</button>
+              <button type="button" class="btn btn-secondary" onclick="submitRegistro()">Finalizar Registro</button>
+            </div>
+          </div>
+
+          <!-- ÉXITO / COMPROBANTE FINAL -->
+          <div id="step-6" class="step-content" style="display:none;">
             <div class="success-card">
-              <h2 style="color: green;">¡Inscripción Completada!</h2>
-              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left;">
+              <h2 style="color: green;">¡Registro e Inscripción Completados!</h2>
+              <p>Guarde su folio y comprobante de capacitación:</p>
+              <div class="folio-box" id="success-folio"></div>
+
+              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; background: #fff;">
                 <!-- Se llena con JS -->
               </div>
+
               <div class="button-group">
-                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante (PDF)</button>
-                <button type="button" class="btn btn-outline" onclick="resetApp()">Volver al Inicio</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante</button>
+                <button type="button" class="btn btn-outline" onclick="resetApp()">Finalizar y Volver al Inicio</button>
               </div>
             </div>
           </div>

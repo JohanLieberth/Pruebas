@@ -465,7 +465,7 @@
 </style>
 </style>
 <script>
-window.google = { script: { run: { withSuccessHandler: function(callback) { this.successHandler = callback; return this; }, withFailureHandler: function(callback) { this.failureHandler = callback; return this; }, getSucursalesCertificadas: function() { setTimeout(() => this.successHandler([{ nombre: 'Tienda Centro', direccion: 'Av. Juarez 500', telefono: '555-0101' }]), 100); }, validarRFCExistente: function() { setTimeout(() => this.successHandler(false), 100); }, procesarRegistro: function() { setTimeout(() => this.successHandler({success:true, folio:'MS-2023-001'}), 100); }, buscarPorRFC: function(rfc) { setTimeout(() => this.successHandler({rfc:rfc, representante:'Juan', folio:'MS-201', estatus:'Pendiente'}), 100); }, getUbicaciones: function() { setTimeout(() => this.successHandler([{id:'loc-123', nombre:'Centro'}]), 100); }, getPlanesTrabajo: function() { setTimeout(() => this.successHandler([{ id: 'p1', idSucursal: 'loc-123', tipoArchivo: 'Plan Inicial', estatus: 'Con Observaciones', fecha: '01/10/2023', observaciones: 'Corregir logos' }]), 100); }, agregarNuevaSucursal: function() { setTimeout(() => this.successHandler({success:true}), 100); }, getCursosDisponibles: function() { setTimeout(() => this.successHandler([{ id: 'c1', nombre: 'Mesa de Diálogo', fecha: '2023-11-01', hora: '10:00', sede: 'Centro' }]), 100); }, inscribirCurso: function() { setTimeout(() => this.successHandler({ success: true }), 100); }, getProgresoCapacitacion: function() { setTimeout(() => this.successHandler({ modulos: [{ nombre: 'Mesa de Diálogo', fecha: '01/11/2023', hora: '10:00', sede: 'Centro', estatus: 'Completado' }], completados: 1, total: 5, estatusGeneral: 'En Proceso' }), 100); }, guardarPlanTrabajo: function() { setTimeout(() => this.successHandler({ success: true }), 100); } } } };
+window.google = { script: { run: { withSuccessHandler: function(callback) { this.successHandler = callback; return this; }, withFailureHandler: function(callback) { this.failureHandler = callback; return this; }, getSucursalesCertificadas: function() { setTimeout(() => this.successHandler([{ nombre: 'Tienda Centro', direccion: 'Av. Juarez 500', telefono: '555-0101' }]), 100); }, validarRFCExistente: function() { setTimeout(() => this.successHandler(false), 100); }, procesarRegistro: function() { setTimeout(() => this.successHandler({success:true, folio:'MS-2023-001'}), 100); }, buscarPorRFC: function(rfc) { setTimeout(() => this.successHandler({rfc:rfc, representante:'Juan', folio:'MS-201', estatus:'Pendiente'}), 100); }, getUbicaciones: function() { setTimeout(() => this.successHandler([{id:'loc-123', nombre:'Centro'}]), 100); }, getPlanesTrabajo: function() { setTimeout(() => this.successHandler([{ id: 'p1', idSucursal: 'loc-123', tipoArchivo: 'Plan Inicial', estatus: 'Con Observaciones', fecha: '01/10/2023', observaciones: 'Corregir logos' }]), 100); }, agregarNuevaSucursal: function() { setTimeout(() => this.successHandler({success:true}), 100); }, getCursosDisponibles: function() { setTimeout(() => this.successHandler([{ id: 'c1', nombre: 'Mesa de Diálogo', fecha: '2023-11-01', hora: '10:00', sede: 'Centro' }]), 100); }, inscribirCurso: function() { setTimeout(() => this.successHandler({ success: true }), 100); }, getProgresoCapacitacion: function() { setTimeout(() => this.successHandler({ modulos: [], completados: 0, total: 5, estatusGeneral: 'En Proceso' }), 100); }, guardarPlanTrabajo: function() { setTimeout(() => this.successHandler({ success: true }), 100); } } } };
 <script>
   let branchCount = 0;
   let currentUser = null;
@@ -527,7 +527,7 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
   }
 
   function nextStep(current) {
-    if (current !== 5 && !validateStep(current)) return;
+    if (!validateStep(current)) return;
 
     if (current === 1) {
       const rfc = document.getElementById('reg-rfc').value;
@@ -547,10 +547,11 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
         })
         .validarRFCExistente(rfc);
     } else if (current === 3) {
-      mostrarResumen();
-      transitionToStep(4);
-    } else if (current === 5) {
       cargarCalendario();
+      transitionToStep(4);
+    } else if (current === 4) {
+      mostrarResumen();
+      transitionToStep(5);
     } else {
       transitionToStep(current + 1);
     }
@@ -566,8 +567,11 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
 
     document.querySelectorAll('.progress-step').forEach((s, idx) => {
       s.classList.remove('active', 'completed');
-      if (idx + 1 < n) s.classList.add('completed');
-      if (idx + 1 === n) s.classList.add('active');
+      // Step 6 is hidden from the bar
+      if (idx < 5) {
+        if (idx + 1 < n) s.classList.add('completed');
+        if (idx + 1 === n) s.classList.add('active');
+      }
     });
   }
 
@@ -722,6 +726,13 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
 
   // --- Validaciones y Envío Registro ---
   function validateStep(n) {
+    if (n === 4) {
+      if (!document.getElementById('selected-course-id').value) {
+        alert("Debe seleccionar un curso del calendario.");
+        return false;
+      }
+      return true;
+    }
     const stepDiv = document.getElementById('step-' + n);
     const inputs = stepDiv.querySelectorAll('input[required]');
     for (let input of inputs) {
@@ -762,10 +773,24 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
     const rfc = document.getElementById('reg-rfc').value;
     const nombre = document.querySelector('input[name="representante"]').value;
     const sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
-    document.getElementById('resumen-registro').innerHTML = `<p><strong>RFC:</strong> ${rfc}</p><p><strong>Representante:</strong> ${nombre}</p><p><strong>Sucursales:</strong> ${sucursales}</p>`;
+    const curso = window.selectedCourseInfo ? window.selectedCourseInfo.nombre : 'No seleccionado';
+    const fecha = window.selectedCourseInfo ? window.selectedCourseInfo.fecha : '-';
+
+    document.getElementById('resumen-registro').innerHTML = `
+      <p><strong>RFC:</strong> ${rfc}</p>
+      <p><strong>Representante:</strong> ${nombre}</p>
+      <p><strong>Sucursales a registrar:</strong> ${sucursales}</p>
+      <hr>
+      <p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada:</p>
+      <p><strong>Módulo:</strong> ${curso}</p>
+      <p><strong>Fecha:</strong> ${fecha}</p>
+    `;
   }
 
   function submitRegistro() {
+    const cursoId = document.getElementById('selected-course-id').value;
+    if (!cursoId) return alert("Seleccione un curso en el Paso 4.");
+
     showLoader(true);
     const data = {
       empresa: {
@@ -793,14 +818,40 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
       });
     });
     document.querySelectorAll('.compromiso:checked').forEach(c => data.compromisos.push(c.nextElementSibling.innerText));
+
+    // Proceso unificado: Registrar Empresa + Inscribir Curso
     google.script.run
       .withSuccessHandler(function(res) {
-        showLoader(false);
         if (res.success) {
-          currentUser = { rfc: data.empresa.rfc, folio: res.folio };
-          document.getElementById('success-folio').innerText = res.folio;
-          transitionToStep(5);
-        } else alert("Error: " + res.error);
+          const folio = res.folio;
+          currentUser = { rfc: data.empresa.rfc, folio: folio };
+
+          // Inscribir al curso seleccionado
+          google.script.run.withSuccessHandler(function(resIns) {
+            showLoader(false);
+            if (resIns.success) {
+              document.getElementById('success-folio').innerText = folio;
+              document.getElementById('comprobante-inscripcion').innerHTML = `
+                <div style="text-align: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px;">
+                   <h3 style="color: #6B2C91; margin:0;">COMPROBANTE DE INSCRIPCIÓN</h3>
+                   <small>Folio: ${folio}</small>
+                </div>
+                <p><strong>Organización:</strong> ${data.empresa.representante}</p>
+                <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
+                <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
+                <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
+                <p style="margin-top:20px; padding: 10px; background: #f9f9f9; border-left: 4px solid #F47C20; font-size: 13px;">
+                  <strong>Importante:</strong> Favor de presentarse 15 minutos antes con este comprobante impreso o digital.
+                </p>
+              `;
+              transitionToStep(6); // Mostrar éxito final
+            } else alert("Error al inscribir: " + resIns.error);
+          }).inscribirCurso({ rfc: data.empresa.rfc, cursoId: cursoId });
+
+        } else {
+          showLoader(false);
+          alert("Error: " + res.error);
+        }
       })
       .withFailureHandler(err => { showLoader(false); alert(err); })
       .procesarRegistro(data);
@@ -819,7 +870,6 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
           <p>📍 ${c.sede}</p>
         </div>
       `).join('');
-      transitionToStep(6);
     }).getCursosDisponibles();
   }
 
@@ -828,26 +878,6 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
     el.classList.add('selected');
     document.getElementById('selected-course-id').value = id;
     window.selectedCourseInfo = { nombre, fecha, hora };
-  }
-
-  function finalizarConCapacitacion() {
-    const cursoId = document.getElementById('selected-course-id').value;
-    if (!cursoId) return alert("Seleccione un curso.");
-
-    showLoader(true);
-    google.script.run.withSuccessHandler(function(res) {
-      showLoader(false);
-      if (res.success) {
-        document.getElementById('comprobante-inscripcion').innerHTML = `
-          <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
-          <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
-          <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
-          <p><strong>Folio:</strong> ${currentUser.folio}</p>
-        `;
-        document.querySelectorAll('.step-content').forEach(s => s.style.display = 'none');
-        document.getElementById('step-final').style.display = 'block';
-      } else alert(res.error);
-    }).inscribirCurso({ rfc: currentUser.rfc, cursoId: cursoId });
   }
 
   // --- Acceso Posterior ---
@@ -1071,7 +1101,6 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
           <div class="progress-step" id="p-step-3">3</div>
           <div class="progress-step" id="p-step-4">4</div>
           <div class="progress-step" id="p-step-5">5</div>
-            <div class="progress-step" id="p-step-6">6</div>
         </div>
 
         <form id="registroForm">
@@ -1145,54 +1174,46 @@ window.google = { script: { run: { withSuccessHandler: function(callback) { this
             </div>
           </div>
 
-          <!-- PASO 4: CONFIRMACIÓN -->
+          <!-- PASO 4: SELECCIÓN DE CURSO (CALENDARIO) -->
           <div id="step-4" class="step-content" style="display:none;">
-            <h2>Paso 4: Confirmación del Registro</h2>
-            <div id="resumen-registro" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-              <!-- Se llena con JS -->
-            </div>
-            <div class="button-group">
-              <button type="button" class="btn btn-outline" onclick="prevStep(4)">Atrás</button>
-              <button type="button" class="btn btn-secondary" onclick="submitRegistro()">Finalizar Registro</button>
-            </div>
-          </div>
-
-          <!-- PASO 5: ÉXITO INICIAL -->
-          <div id="step-5" class="step-content" style="display:none;">
-            <div class="success-card">
-              <h2 style="color: green;">¡Información de Empresa Registrada!</h2>
-              <p>Tu folio de registro es:</p>
-              <div class="folio-box" id="success-folio"></div>
-              <p>A continuación, por favor seleccione su primera capacitación obligatoria para continuar.</p>
-              <div class="button-group">
-                <button type="button" class="btn btn-primary" onclick="nextStep(5)">Seleccionar Capacitación</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- PASO 6: CALENDARIO DE CAPACITACIÓN -->
-          <div id="step-6" class="step-content" style="display:none;">
-            <h2>Paso 6: Calendario de Capacitaciones</h2>
-            <p>Seleccione el curso y fecha de su preferencia:</p>
+            <h2>Paso 4: Calendario de Capacitaciones</h2>
+            <p>Seleccione la fecha y sede de su primera capacitación obligatoria:</p>
             <div id="calendar-view" class="calendar-container">
               <!-- Se llena con JS -->
             </div>
             <input type="hidden" id="selected-course-id">
             <div class="button-group">
-              <button type="button" class="btn btn-primary" onclick="finalizarConCapacitacion()">Finalizar e Inscribir</button>
+              <button type="button" class="btn btn-outline" onclick="prevStep(4)">Atrás</button>
+              <button type="button" class="btn btn-primary" id="btn-next-step-4" onclick="nextStep(4)">Continuar a Confirmación</button>
             </div>
           </div>
 
-          <!-- COMPROBANTE FINAL -->
-          <div id="step-final" class="step-content" style="display:none;">
+          <!-- PASO 5: CONFIRMACIÓN FINAL -->
+          <div id="step-5" class="step-content" style="display:none;">
+            <h2>Paso 5: Confirmación y Finalización</h2>
+            <div id="resumen-registro" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <!-- Se llena con JS -->
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(5)">Atrás</button>
+              <button type="button" class="btn btn-secondary" onclick="submitRegistro()">Finalizar Registro</button>
+            </div>
+          </div>
+
+          <!-- ÉXITO / COMPROBANTE FINAL -->
+          <div id="step-6" class="step-content" style="display:none;">
             <div class="success-card">
-              <h2 style="color: green;">¡Inscripción Completada!</h2>
-              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left;">
+              <h2 style="color: green;">¡Registro e Inscripción Completados!</h2>
+              <p>Guarde su folio y comprobante de capacitación:</p>
+              <div class="folio-box" id="success-folio"></div>
+
+              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; background: #fff;">
                 <!-- Se llena con JS -->
               </div>
+
               <div class="button-group">
-                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante (PDF)</button>
-                <button type="button" class="btn btn-outline" onclick="resetApp()">Volver al Inicio</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante</button>
+                <button type="button" class="btn btn-outline" onclick="resetApp()">Finalizar y Volver al Inicio</button>
               </div>
             </div>
           </div>

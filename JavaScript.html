@@ -59,7 +59,7 @@
   }
 
   function nextStep(current) {
-    if (current !== 5 && !validateStep(current)) return;
+    if (!validateStep(current)) return;
 
     if (current === 1) {
       const rfc = document.getElementById('reg-rfc').value;
@@ -79,10 +79,11 @@
         })
         .validarRFCExistente(rfc);
     } else if (current === 3) {
-      mostrarResumen();
-      transitionToStep(4);
-    } else if (current === 5) {
       cargarCalendario();
+      transitionToStep(4);
+    } else if (current === 4) {
+      mostrarResumen();
+      transitionToStep(5);
     } else {
       transitionToStep(current + 1);
     }
@@ -98,8 +99,11 @@
 
     document.querySelectorAll('.progress-step').forEach((s, idx) => {
       s.classList.remove('active', 'completed');
-      if (idx + 1 < n) s.classList.add('completed');
-      if (idx + 1 === n) s.classList.add('active');
+      // Step 6 is hidden from the bar
+      if (idx < 5) {
+        if (idx + 1 < n) s.classList.add('completed');
+        if (idx + 1 === n) s.classList.add('active');
+      }
     });
   }
 
@@ -254,6 +258,13 @@
 
   // --- Validaciones y Envío Registro ---
   function validateStep(n) {
+    if (n === 4) {
+      if (!document.getElementById('selected-course-id').value) {
+        alert("Debe seleccionar un curso del calendario.");
+        return false;
+      }
+      return true;
+    }
     const stepDiv = document.getElementById('step-' + n);
     const inputs = stepDiv.querySelectorAll('input[required]');
     for (let input of inputs) {
@@ -294,10 +305,24 @@
     const rfc = document.getElementById('reg-rfc').value;
     const nombre = document.querySelector('input[name="representante"]').value;
     const sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
-    document.getElementById('resumen-registro').innerHTML = `<p><strong>RFC:</strong> ${rfc}</p><p><strong>Representante:</strong> ${nombre}</p><p><strong>Sucursales:</strong> ${sucursales}</p>`;
+    const curso = window.selectedCourseInfo ? window.selectedCourseInfo.nombre : 'No seleccionado';
+    const fecha = window.selectedCourseInfo ? window.selectedCourseInfo.fecha : '-';
+
+    document.getElementById('resumen-registro').innerHTML = `
+      <p><strong>RFC:</strong> ${rfc}</p>
+      <p><strong>Representante:</strong> ${nombre}</p>
+      <p><strong>Sucursales a registrar:</strong> ${sucursales}</p>
+      <hr>
+      <p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada:</p>
+      <p><strong>Módulo:</strong> ${curso}</p>
+      <p><strong>Fecha:</strong> ${fecha}</p>
+    `;
   }
 
   function submitRegistro() {
+    const cursoId = document.getElementById('selected-course-id').value;
+    if (!cursoId) return alert("Seleccione un curso en el Paso 4.");
+
     showLoader(true);
     const data = {
       empresa: {
@@ -325,14 +350,40 @@
       });
     });
     document.querySelectorAll('.compromiso:checked').forEach(c => data.compromisos.push(c.nextElementSibling.innerText));
+
+    // Proceso unificado: Registrar Empresa + Inscribir Curso
     google.script.run
       .withSuccessHandler(function(res) {
-        showLoader(false);
         if (res.success) {
-          currentUser = { rfc: data.empresa.rfc, folio: res.folio };
-          document.getElementById('success-folio').innerText = res.folio;
-          transitionToStep(5);
-        } else alert("Error: " + res.error);
+          const folio = res.folio;
+          currentUser = { rfc: data.empresa.rfc, folio: folio };
+
+          // Inscribir al curso seleccionado
+          google.script.run.withSuccessHandler(function(resIns) {
+            showLoader(false);
+            if (resIns.success) {
+              document.getElementById('success-folio').innerText = folio;
+              document.getElementById('comprobante-inscripcion').innerHTML = `
+                <div style="text-align: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px;">
+                   <h3 style="color: #6B2C91; margin:0;">COMPROBANTE DE INSCRIPCIÓN</h3>
+                   <small>Folio: ${folio}</small>
+                </div>
+                <p><strong>Organización:</strong> ${data.empresa.representante}</p>
+                <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
+                <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
+                <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
+                <p style="margin-top:20px; padding: 10px; background: #f9f9f9; border-left: 4px solid #F47C20; font-size: 13px;">
+                  <strong>Importante:</strong> Favor de presentarse 15 minutos antes con este comprobante impreso o digital.
+                </p>
+              `;
+              transitionToStep(6); // Mostrar éxito final
+            } else alert("Error al inscribir: " + resIns.error);
+          }).inscribirCurso({ rfc: data.empresa.rfc, cursoId: cursoId });
+
+        } else {
+          showLoader(false);
+          alert("Error: " + res.error);
+        }
       })
       .withFailureHandler(err => { showLoader(false); alert(err); })
       .procesarRegistro(data);
@@ -351,7 +402,6 @@
           <p>📍 ${c.sede}</p>
         </div>
       `).join('');
-      transitionToStep(6);
     }).getCursosDisponibles();
   }
 
@@ -360,26 +410,6 @@
     el.classList.add('selected');
     document.getElementById('selected-course-id').value = id;
     window.selectedCourseInfo = { nombre, fecha, hora };
-  }
-
-  function finalizarConCapacitacion() {
-    const cursoId = document.getElementById('selected-course-id').value;
-    if (!cursoId) return alert("Seleccione un curso.");
-
-    showLoader(true);
-    google.script.run.withSuccessHandler(function(res) {
-      showLoader(false);
-      if (res.success) {
-        document.getElementById('comprobante-inscripcion').innerHTML = `
-          <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
-          <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
-          <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
-          <p><strong>Folio:</strong> ${currentUser.folio}</p>
-        `;
-        document.querySelectorAll('.step-content').forEach(s => s.style.display = 'none');
-        document.getElementById('step-final').style.display = 'block';
-      } else alert(res.error);
-    }).inscribirCurso({ rfc: currentUser.rfc, cursoId: cursoId });
   }
 
   // --- Acceso Posterior ---
