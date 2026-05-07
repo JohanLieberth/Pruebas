@@ -41,12 +41,11 @@ function getSheetSafe(name) {
 function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheets = {
-    "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
+    "Empresas": ["RFC", "NombreEmpresa", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
     "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
     "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
     "Cursos Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
-    "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Curso", "ID_Sucursal", "Fecha_Inscripcion", "Estatus"],
-    "Estatus de Certificación": ["Valor_Estatus", "Color_Hex"],
+    "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
 
@@ -59,13 +58,6 @@ function setupDatabase() {
     }
   }
 
-  // Configuración de Estatus dinámicos
-  var sheetConfig = ss.getSheetByName("Estatus de Certificación");
-  if (sheetConfig && sheetConfig.getLastRow() === 1) {
-    sheetConfig.appendRow(["En revisión", "#f0ad4e"]);
-    sheetConfig.appendRow(["Certificado", "#5cb85c"]);
-    sheetConfig.appendRow(["Pendiente", "#999999"]);
-  }
 
   // Cursos Obligatorios default
   var sheetCursos = ss.getSheetByName("Cursos Disponibles");
@@ -130,7 +122,7 @@ function procesarRegistro(data) {
     // Guardar Empresa
     sheetEmpresas.appendRow([
       data.empresa.rfc,
-      data.empresa.representante,
+      data.empresa.nombreEmpresa, // Actualizado: Nombre de la Empresa Principal
       data.empresa.telefono,
       data.empresa.correo,
       folio,
@@ -171,15 +163,16 @@ function procesarRegistro(data) {
 }
 
 /**
- * Agrega una nueva sucursal de forma independiente
+ * Agrega una nueva sucursal y vincula obligatoriamente la capacitación en 'Seguimiento'
  */
 function agregarNuevaSucursal(data) {
   try {
     var sheetSucursales = getSheetSafe("Sucursales");
+    var sucursalId = Utilities.getUuid();
     var coords = data.coordenadas.split(",");
 
     sheetSucursales.appendRow([
-      Utilities.getUuid(),
+      sucursalId,
       data.rfc,
       data.nombre,
       data.direccion,
@@ -191,6 +184,21 @@ function agregarNuevaSucursal(data) {
       data.cargo,
       JSON.stringify(data.compromisos || [])
     ]);
+
+    // Registro obligatorio en Seguimiento
+    if (data.capacitacion) {
+      var sheetSeg = getSheetSafe("Seguimiento");
+      sheetSeg.appendRow([
+        Utilities.getUuid(),
+        data.rfc,
+        sucursalId,
+        data.capacitacion.idCurso,
+        new Date(),
+        "Programada",
+        data.capacitacion.hora,
+        data.capacitacion.sede
+      ]);
+    }
 
     return { success: true };
   } catch (e) {
@@ -209,7 +217,7 @@ function buscarPorRFC(rfc) {
     if (data[i][0] === rfc) {
       return {
         rfc: data[i][0],
-        representante: data[i][1],
+        nombreEmpresa: data[i][1], // Cambiado de representante a Nombre de la Empresa
         folio: data[i][4],
         estatus: data[i][6]
       };
@@ -346,50 +354,6 @@ function guardarPlanTrabajo(data) {
   }
 }
 
-function actualizarEstatusCertificacion(rfc, nuevoEstatus) {
-  try {
-    // 1. Validar que el estatus sea uno de los permitidos dinámicamente
-    var config = getValoresEstatusConfig();
-    var permitidos = config.map(function(c) { return c.valor; });
-
-    if (permitidos.indexOf(nuevoEstatus) === -1) {
-      throw new Error("Estatus '" + nuevoEstatus + "' no es válido según la pestaña de configuración.");
-    }
-
-    var sheet = getSheetSafe("Empresas");
-    var data = sheet.getDataRange().getValues();
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0] === rfc) {
-        sheet.getRange(i + 1, 7).setValue(nuevoEstatus);
-        return { success: true };
-      }
-    }
-    return { success: false, error: "Empresa no encontrada" };
-  } catch (e) {
-    return { success: false, error: e.toString() };
-  }
-}
-
-/**
- * REQUERIMIENTO 1: Dinamismo del Estatus de Certificación
- * Lee los valores permitidos y sus colores directamente de la pestaña 'Estatus de Certificación'
- */
-function getValoresEstatusConfig() {
-  try {
-    var sheet = getSheetSafe("Estatus de Certificación");
-    var data = sheet.getDataRange().getValues();
-    // Usamos slice(1) para omitir encabezados y map para crear objetos limpios
-    return data.slice(1).filter(function(row) { return row[0]; }).map(function(row) {
-      return {
-        valor: row[0],
-        color: row[1] || "#333333"
-      };
-    });
-  } catch (e) {
-    console.error("Error leyendo Estatus de Certificación: " + e.toString());
-    return [{valor: "En revisión", color: "#f0ad4e"}, {valor: "Certificado", color: "#5cb85c"}];
-  }
-}
 
 /**
  * Obtiene las sucursales que ya cuentan con certificación aprobada

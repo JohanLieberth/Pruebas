@@ -77,8 +77,8 @@
               <input type="text" name="rfc" id="reg-rfc" required placeholder="12 o 13 caracteres">
             </div>
             <div class="form-group">
-              <label>Nombre del Representante Legal:</label>
-              <input type="text" name="representante" required>
+              <label>Nombre de la Empresa Principal:</label>
+              <input type="text" name="nombreEmpresa" required>
             </div>
             <div class="form-group">
               <label>Teléfono de contacto:</label>
@@ -189,23 +189,11 @@
       <div id="user-dashboard" class="step-section">
         <h2 id="dash-empresa">Empresa</h2>
         <div id="dash-info" style="margin-bottom: 20px; background: #fefefe; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-           <p>
-             <strong>Estatus de Certificación:</strong>
-             <select id="dash-estatus-select" onchange="cambiarEstatusUI(this.value)" style="width: auto; display: inline-block; padding: 5px 10px; font-weight: bold; border-radius: 4px;">
-                <option value="En revisión">En revisión</option>
-                <option value="Certificado">Certificado</option>
-             </select>
-             <span id="save-status-msg" style="font-size: 12px; margin-left: 10px; color: green; display: none;">Guardado...</span>
-           </p>
            <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
         </div>
 
         <div id="training-progress-section" style="margin-bottom: 30px; background: #f0ebf5; padding: 20px; border-radius: 8px;">
           <h3>Seguimiento de Capacitación</h3>
-          <div class="progress-bar-container" style="background: #ddd; height: 25px; border-radius: 12px; margin-bottom: 15px; position: relative;">
-            <div id="training-progress-bar" style="background: var(--primary-color); height: 100%; width: 0%; border-radius: 12px; transition: width 0.5s;"></div>
-            <span id="training-progress-text" style="position: absolute; width: 100%; text-align: center; top: 0; font-weight: bold; color: #333;">0/5 Módulos</span>
-          </div>
           <div class="table-container">
             <table style="background: white;">
               <thead>

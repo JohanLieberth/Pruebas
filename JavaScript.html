@@ -208,8 +208,21 @@
     const div = document.getElementById('nueva-sucursal-form');
     if (div.style.display === 'none') {
       div.style.display = 'block';
-      div.innerHTML = '<h3>Registrar Nueva Sucursal</h3><div id="new-branch-hook"></div><div class="button-group"><button class="btn btn-outline" onclick="document.getElementById(\'nueva-sucursal-form\').style.display=\'none\'">Cancelar</button><button class="btn btn-primary" onclick="enviarNuevaSucursal()">Guardar Sucursal</button></div>';
+      div.innerHTML = `
+        <h3>Registrar Nueva Sucursal</h3>
+        <div id="new-branch-hook"></div>
+        <div style="margin-top:20px; border-top: 1px solid #ddd; padding-top:15px;">
+           <label style="font-weight:bold;">Seleccione la Capacitación Obligatoria:</label>
+           <div id="new-branch-calendar" class="calendar-container"></div>
+           <input type="hidden" id="new-branch-course-id">
+        </div>
+        <div class="button-group">
+          <button class="btn btn-outline" onclick="document.getElementById('nueva-sucursal-form').style.display='none'">Cancelar</button>
+          <button class="btn btn-primary" onclick="enviarNuevaSucursal()">Guardar Sucursal y Capacitación</button>
+        </div>
+      `;
       addBranch('new-branch-hook');
+      cargarCalendario('new-branch-calendar', 'new-branch-course-id');
     } else {
       div.style.display = 'none';
     }
@@ -217,9 +230,11 @@
 
   function enviarNuevaSucursal() {
     const card = document.querySelector('#new-branch-hook .branch-card');
+    const cursoId = document.getElementById('new-branch-course-id').value;
     const coords = parseCoordinates(card.querySelector('.branch-coords').value);
 
     if (!coords) return alert("Coordenadas inválidas.");
+    if (!cursoId) return alert("Debe seleccionar una capacitación para la sucursal.");
 
     const compromisos = [];
     card.querySelectorAll('.branch-comp:checked').forEach(c => {
@@ -235,7 +250,12 @@
       telefono: card.querySelector('.branch-telefono').value,
       responsable: card.querySelector('.branch-responsable').value,
       cargo: card.querySelector('.branch-cargo').value,
-      compromisos: compromisos
+      compromisos: compromisos,
+      capacitacion: {
+        idCurso: cursoId,
+        hora: window.selectedCourseInfo ? window.selectedCourseInfo.hora : "-",
+        sede: window.selectedCourseInfo ? window.selectedCourseInfo.sede : "-"
+      }
     };
 
     if (!data.nombre || !data.direccion) return alert("Complete los campos obligatorios.");
@@ -245,9 +265,9 @@
       .withSuccessHandler(function(res) {
         showLoader(false);
         if (res.success) {
-          alert("Sucursal agregada correctamente.");
+          alert("Sucursal agregada y capacitación programada.");
           document.getElementById('nueva-sucursal-form').style.display = 'none';
-          accederPorRFC(); // Recargar datos
+          accederPorRFC();
         } else {
           alert("Error: " + res.error);
         }
@@ -303,17 +323,17 @@
 
   function mostrarResumen() {
     const rfc = document.getElementById('reg-rfc').value;
-    const nombre = document.querySelector('input[name="representante"]').value;
+    const nombre = document.querySelector('input[name="nombreEmpresa"]').value;
     const sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
     const curso = window.selectedCourseInfo ? window.selectedCourseInfo.nombre : 'No seleccionado';
     const fecha = window.selectedCourseInfo ? window.selectedCourseInfo.fecha : '-';
 
     document.getElementById('resumen-registro').innerHTML = `
       <p><strong>RFC:</strong> ${rfc}</p>
-      <p><strong>Representante:</strong> ${nombre}</p>
+      <p><strong>Empresa Principal:</strong> ${nombre}</p>
       <p><strong>Sucursales a registrar:</strong> ${sucursales}</p>
       <hr>
-      <p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada:</p>
+      <p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada (Primera Sede):</p>
       <p><strong>Módulo:</strong> ${curso}</p>
       <p><strong>Fecha:</strong> ${fecha}</p>
     `;
@@ -327,7 +347,7 @@
     const data = {
       empresa: {
         rfc: document.getElementById('reg-rfc').value.toUpperCase(),
-        representante: document.querySelector('input[name="representante"]').value,
+        nombreEmpresa: document.querySelector('input[name="nombreEmpresa"]').value,
         telefono: document.querySelector('input[name="telefono"]').value,
         correo: document.querySelector('input[name="correo"]').value
       },
@@ -389,20 +409,20 @@
       .procesarRegistro(data);
   }
 
-  function cargarCalendario() {
+  function cargarCalendario(containerId = 'calendar-view', inputId = 'selected-course-id') {
     showLoader(true);
-    const view = document.getElementById('calendar-view');
+    const view = document.getElementById(containerId);
     view.innerHTML = '<p style="text-align:center; padding: 20px; color: #666; width: 100%;">Cargando fechas disponibles...</p>';
 
     google.script.run
       .withSuccessHandler(function(cursos) {
         showLoader(false);
         if (!cursos || cursos.length === 0) {
-          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron fechas para "Mesa de diálogo" disponibles en este momento. Por favor intente más tarde.</p>';
+          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron cursos disponibles en este momento.</p>';
           return;
         }
         view.innerHTML = cursos.map(c => `
-          <div class="calendar-item" onclick="selectCourse(this, '${c.id || ''}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha || ''}', '${c.hora || ''}')">
+          <div class="calendar-item" data-container="${containerId}" onclick="selectCourse(this, '${c.id || ''}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha || ''}', '${c.hora || ''}', '${(c.sede || '').replace(/'/g, "\\'")}', '${inputId}')">
             <h4>${c.nombre || 'Curso sin nombre'}</h4>
             <p><strong>Fecha:</strong> ${c.fechaAmigable || c.fecha || 'Sin fecha'}</p>
             <p><strong>Hora:</strong> ${c.hora || 'Sin hora'}</p>
@@ -417,10 +437,11 @@
       .getCursosDisponibles();
   }
 
-  function selectCourse(el, id, nombre, fecha, hora) {
-    document.querySelectorAll('.calendar-item').forEach(i => i.classList.remove('selected'));
+  function selectCourse(el, id, nombre, fecha, hora, sede, inputId) {
+    const containerId = el.getAttribute('data-container');
+    document.querySelectorAll(`#${containerId} .calendar-item`).forEach(i => i.classList.remove('selected'));
     el.classList.add('selected');
-    document.getElementById('selected-course-id').value = id;
+    document.getElementById(inputId).value = id;
     window.selectedCourseInfo = { nombre, fecha, hora };
   }
 
@@ -430,68 +451,46 @@
     if (!rfc) return alert("Ingrese un RFC");
     showLoader(true);
 
-    // Cargar configuración de estatus dinámicos antes de procesar el acceso
-    google.script.run.withSuccessHandler(function(config) {
-      window.estatusConfig = config;
-      const select = document.getElementById('dash-estatus-select');
-      select.innerHTML = config.map(c => `<option value="${c.valor}">${c.valor}</option>`).join('');
+    google.script.run
+      .withSuccessHandler(function(user) {
+        if (user) {
+          currentUser = user;
+          document.getElementById('dash-empresa').innerText = user.nombreEmpresa;
+          document.getElementById('dash-folio').innerText = user.folio;
 
-      google.script.run
-        .withSuccessHandler(function(user) {
-          if (user) {
-            currentUser = user;
-            document.getElementById('dash-empresa').innerText = user.representante;
-            document.getElementById('dash-folio').innerText = user.folio;
-
-            const estatusSelect = document.getElementById('dash-estatus-select');
-            estatusSelect.value = user.estatus;
-            updateStatusSelectColor(user.estatus);
-
-            cargarUbicacionesDropdown(user.rfc);
-            cargarHistorialPlanes(user.rfc);
-            cargarProgresoCapacitacion(user.rfc);
-          } else { showLoader(false); alert("RFC no encontrado."); }
-        })
-        .withFailureHandler(err => { showLoader(false); alert(err); })
-        .buscarPorRFC(rfc);
-
-    }).getValoresEstatusConfig();
+          cargarUbicacionesDropdown(user.rfc);
+          cargarHistorialPlanes(user.rfc);
+          cargarProgresoCapacitacion(user.rfc);
+        } else { showLoader(false); alert("RFC no encontrado."); }
+      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
+      .buscarPorRFC(rfc);
   }
 
   function cargarProgresoCapacitacion(rfc) {
-    google.script.run.withSuccessHandler(function(prog) {
-      const bar = document.getElementById('training-progress-bar');
-      const text = document.getElementById('training-progress-text');
-      const pct = (prog.totalGlobal > 0) ? (prog.completadosGlobal / prog.totalGlobal) * 100 : 0;
-      bar.style.width = pct + "%";
-      text.innerText = `${prog.completadosGlobal}/${prog.totalGlobal} Módulos Globales`;
-
+    google.script.run.withSuccessHandler(function(res) {
+      showLoader(false);
       const tbody = document.getElementById('lista-capacitacion');
       tbody.innerHTML = '';
 
-      prog.porSucursal.forEach(suc => {
-        // Encabezado de sucursal
-        const rowHeader = document.createElement('tr');
-        rowHeader.style.background = '#f4f4f4';
-        rowHeader.innerHTML = `<td colspan="5"><strong>📍 Sucursal: ${suc.sucursalNombre}</strong> (${suc.completados}/${suc.total})</td>`;
-        tbody.appendChild(rowHeader);
+      if (res.seguimientoDetallado.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay registros de seguimiento.</td></tr>';
+        return;
+      }
 
-        suc.modulos.forEach(m => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td style="padding-left: 20px;">${m.cursoNombre}</td>
-            <td>${m.fecha}</td>
-            <td>${m.hora}</td>
-            <td><small>${m.idSeguimiento || 'N/A'}</small></td>
-            <td><span class="status-badge status-${m.estatus.toLowerCase().replace(/ /g, '-')}">${m.estatus}</span></td>
-          `;
-          tbody.appendChild(row);
-        });
+      res.seguimientoDetallado.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.nombreCurso}</td>
+          <td>${row.fecha}</td>
+          <td>${row.hora}</td>
+          <td>${row.sucursalNombre}</td>
+          <td><span class="status-badge status-${row.estatus.toLowerCase().replace(/ /g, '-')}">${row.estatus}</span></td>
+        `;
+        tbody.appendChild(tr);
       });
 
-      if (prog.estatusGeneral === "Terminado") {
-        document.getElementById('comprobante-termino-container').style.display = 'block';
-      }
+      showSection('user-dashboard');
     }).getProgresoCapacitacion(rfc);
   }
 
@@ -596,28 +595,6 @@
     } else alert("Error: " + res.error);
   }
 
-  function cambiarEstatusUI(nuevoValor) {
-    const msg = document.getElementById('save-status-msg');
-    msg.style.display = 'inline';
-    updateStatusSelectColor(nuevoValor);
-    google.script.run
-      .withSuccessHandler(() => {
-        setTimeout(() => msg.style.display = 'none', 2000);
-      })
-      .withFailureHandler(err => {
-        alert("Error al actualizar estatus: " + err);
-        msg.style.display = 'none';
-      })
-      .actualizarEstatusCertificacion(currentUser.rfc, nuevoValor);
-  }
-
-  function updateStatusSelectColor(val) {
-    const el = document.getElementById('dash-estatus-select');
-    // Buscamos el color en la configuración cargada dinámicamente
-    const cfg = (window.estatusConfig || []).find(c => c.valor === val);
-    el.style.backgroundColor = cfg ? cfg.color : '#999999';
-    el.style.color = 'white';
-  }
 
   function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
 </script>
