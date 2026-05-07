@@ -36,6 +36,46 @@ function getSheetSafe(name) {
 }
 
 /**
+ * Helper para obtener el siguiente ID secuencial en Seguimiento
+ */
+function getNextSeguimientoId() {
+  var sheet = getSheetSafe("Seguimiento");
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return 1;
+  var data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var maxId = 0;
+  for (var i = 0; i < data.length; i++) {
+    var val = parseInt(data[i][0]);
+    if (!isNaN(val) && val > maxId) maxId = val;
+  }
+  return maxId + 1;
+}
+
+/**
+ * Helper para formatear hora a HH:mm (24h)
+ */
+function formatTime24h(timeValue) {
+  if (!timeValue) return "-";
+  if (timeValue instanceof Date) {
+    return Utilities.formatDate(timeValue, "GMT", "HH:mm");
+  }
+  var timeStr = String(timeValue);
+  if (timeStr.toLowerCase().includes("am") || timeStr.toLowerCase().includes("pm")) {
+    var date = new Date("2000-01-01 " + timeStr);
+    if (!isNaN(date.getTime())) {
+      return Utilities.formatDate(date, "GMT", "HH:mm");
+    }
+  }
+  var match = timeStr.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    var h = ("0" + match[1]).slice(-2);
+    var m = match[2];
+    return h + ":" + m;
+  }
+  return timeStr;
+}
+
+/**
  * Inicializa las hojas de cálculo necesarias con la estructura solicitada
  */
 function setupDatabase() {
@@ -146,13 +186,13 @@ function procesarRegistro(data) {
     // Vincular capacitación inicial si se proporcionó
     if (data.capacitacionInicial && data.capacitacionInicial.idCurso) {
       sheetSeg.appendRow([
-        Utilities.getUuid(),
+        getNextSeguimientoId(),
         data.empresa.rfc,
         firstSucursalId || "GENERAL",
         data.capacitacionInicial.idCurso,
         fecha,
         "Programada",
-        data.capacitacionInicial.hora || "-",
+        formatTime24h(data.capacitacionInicial.hora),
         data.capacitacionInicial.sede || "-"
       ]);
     }
@@ -197,13 +237,13 @@ function agregarNuevaSucursal(data) {
     if (data.capacitacion) {
       var sheetSeg = getSheetSafe("Seguimiento");
       sheetSeg.appendRow([
-        Utilities.getUuid(),
+        getNextSeguimientoId(),
         data.rfc,
         sucursalId,
         data.capacitacion.idCurso,
         new Date(),
         "Programada",
-        data.capacitacion.hora || "-",
+        formatTime24h(data.capacitacion.hora),
         data.capacitacion.sede || "-"
       ]);
     }
@@ -420,7 +460,7 @@ function getCursosDisponibles() {
       var id = row[0];
       var nombre = String(row[1] || "").trim();
       var fechaRaw = row[2];
-      var hora = row[3] ? String(row[3]) : "Por definir";
+      var hora = formatTime24h(row[3]);
       var sedeId = row[4];
 
       if (!nombre) continue; // Muestra la lista completa tal cual está en el Sheet
@@ -464,13 +504,13 @@ function inscribirCurso(data) {
     var sheet = getSheetSafe("Seguimiento");
     // Schema: ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"]
     sheet.appendRow([
-      Utilities.getUuid(),
+      getNextSeguimientoId(),
       data.rfc,
       data.idSucursal || "GENERAL",
       data.cursoId,
       new Date(),
       "Programada",
-      data.hora || "-",
+      formatTime24h(data.hora),
       data.sede || "-"
     ]);
     return { success: true };
@@ -524,14 +564,22 @@ function getProgresoCapacitacion(rfc) {
     var cursoInfo = cursData.slice(1).find(function(c) { return String(c[0]) === cursoId; });
     var sucInfo = misSucursales.find(function(s) { return String(s.id) === String(row[2]); });
 
+    var fechaFinal = "-";
+    if (cursoInfo && cursoInfo[2]) {
+      // Sincronización de Fecha con Cursos_Disponibles si existe el curso
+      fechaFinal = (cursoInfo[2] instanceof Date) ? Utilities.formatDate(cursoInfo[2], "GMT-6", "dd/MM/yyyy") : String(cursoInfo[2]);
+    } else {
+      fechaFinal = row[4] instanceof Date ? Utilities.formatDate(row[4], "GMT-6", "dd/MM/yyyy") : (row[4] || "-");
+    }
+
     return {
       idSeguimiento: row[0],
       sucursalId: row[2], // Columna C: ID_Sucursal
       sucursalNombre: sucInfo ? sucInfo.nombre : (row[2] === "GENERAL" ? "General" : "Desconocida"),
       nombreCurso: cursoInfo ? cursoInfo[1] : (row[3] || "Curso Desconocido"),
       estatus: row[5] || "Pendiente",
-      fecha: row[4] instanceof Date ? Utilities.formatDate(row[4], "GMT-6", "dd/MM/yyyy") : (row[4] || "-"),
-      hora: row[6] || "-",
+      fecha: fechaFinal,
+      hora: formatTime24h(cursoInfo ? cursoInfo[3] : row[6]),
       sede: row[7] || "-"
     };
   });
@@ -608,12 +656,14 @@ function agregarCursosManual(idSeguimientoBase, idCursoNuevo) {
 
     // 3. Agregar el nuevo registro de seguimiento vinculado
     sheetSeg.appendRow([
-      Utilities.getUuid(),
+      getNextSeguimientoId(),
       registroBase.rfc,
-      idCursoNuevo,
       registroBase.sucursalId,
+      idCursoNuevo,
       new Date(),
-      "Completado (Manual)"
+      "Completado (Manual)",
+      "-",
+      "-"
     ]);
 
     return { success: true };

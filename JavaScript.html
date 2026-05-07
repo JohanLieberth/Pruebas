@@ -327,6 +327,8 @@
     const sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
     const curso = window.selectedCourseInfo ? window.selectedCourseInfo.nombre : 'No seleccionado';
     const fecha = window.selectedCourseInfo ? window.selectedCourseInfo.fecha : '-';
+    const hora = window.selectedCourseInfo ? window.selectedCourseInfo.hora : '-';
+    const sede = window.selectedCourseInfo ? window.selectedCourseInfo.sede : '-';
 
     document.getElementById('resumen-registro').innerHTML = `
       <p><strong>RFC:</strong> ${rfc}</p>
@@ -336,6 +338,8 @@
       <p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada (Primera Sede):</p>
       <p><strong>Módulo:</strong> ${curso}</p>
       <p><strong>Fecha:</strong> ${fecha}</p>
+      <p><strong>Hora:</strong> ${hora}</p>
+      <p><strong>Sede:</strong> ${sede}</p>
     `;
   }
 
