@@ -44,8 +44,9 @@ function setupDatabase() {
     "Empresas": ["RFC", "Representante", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
     "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
     "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
-    "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "Sede_o_Sucursal", "Cupo_Máximo"],
-    "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Curso", "Fecha", "Estatus"],
+    "Cursos Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
+    "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Curso", "ID_Sucursal", "Fecha_Inscripcion", "Estatus"],
+    "Estatus de Certificación": ["Valor_Estatus", "Color_Hex"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
 
@@ -58,8 +59,16 @@ function setupDatabase() {
     }
   }
 
+  // Configuración de Estatus dinámicos
+  var sheetConfig = ss.getSheetByName("Estatus de Certificación");
+  if (sheetConfig && sheetConfig.getLastRow() === 1) {
+    sheetConfig.appendRow(["En revisión", "#f0ad4e"]);
+    sheetConfig.appendRow(["Certificado", "#5cb85c"]);
+    sheetConfig.appendRow(["Pendiente", "#999999"]);
+  }
+
   // Cursos Obligatorios default
-  var sheetCursos = ss.getSheetByName("Cursos_Disponibles");
+  var sheetCursos = ss.getSheetByName("Cursos Disponibles");
   if (sheetCursos && sheetCursos.getLastRow() === 1) {
     var cursos = [
       ["C1", "Mesa de diálogo", "01/12/2023", "10:00", "Sede Central", 50],
@@ -339,6 +348,14 @@ function guardarPlanTrabajo(data) {
 
 function actualizarEstatusCertificacion(rfc, nuevoEstatus) {
   try {
+    // 1. Validar que el estatus sea uno de los permitidos dinámicamente
+    var config = getValoresEstatusConfig();
+    var permitidos = config.map(function(c) { return c.valor; });
+
+    if (permitidos.indexOf(nuevoEstatus) === -1) {
+      throw new Error("Estatus '" + nuevoEstatus + "' no es válido según la pestaña de configuración.");
+    }
+
     var sheet = getSheetSafe("Empresas");
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
@@ -350,6 +367,27 @@ function actualizarEstatusCertificacion(rfc, nuevoEstatus) {
     return { success: false, error: "Empresa no encontrada" };
   } catch (e) {
     return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * REQUERIMIENTO 1: Dinamismo del Estatus de Certificación
+ * Lee los valores permitidos y sus colores directamente de la pestaña 'Estatus de Certificación'
+ */
+function getValoresEstatusConfig() {
+  try {
+    var sheet = getSheetSafe("Estatus de Certificación");
+    var data = sheet.getDataRange().getValues();
+    // Usamos slice(1) para omitir encabezados y map para crear objetos limpios
+    return data.slice(1).filter(function(row) { return row[0]; }).map(function(row) {
+      return {
+        valor: row[0],
+        color: row[1] || "#333333"
+      };
+    });
+  } catch (e) {
+    console.error("Error leyendo Estatus de Certificación: " + e.toString());
+    return [{valor: "En revisión", color: "#f0ad4e"}, {valor: "Certificado", color: "#5cb85c"}];
   }
 }
 
@@ -445,7 +483,7 @@ function getCursosDisponibles() {
         fecha: fechaFinal,
         hora: hora,
         sede: sedeNombre,
-        fechaAmigable: (fechaRaw instanceof Date) ? Utilities.formatDate(fechaRaw, "GMT-6", "EEEE, d 'de' MMMM") : fechaFinal
+        fechaAmigable: (fechaRaw instanceof Date) ? formatearFechaEspañol(fechaRaw) : fechaFinal
       });
     }
     return result;
@@ -471,6 +509,19 @@ function inscribirCurso(data) {
   }
 }
 
+/**
+ * REQUERIMIENTO 2: Integración de Seguimiento de Capacitación y Sucursales
+ * Retorna el progreso de capacitación desglosado por sucursal
+ */
+/**
+ * Formatea una fecha en texto largo en español
+ */
+function formatearFechaEspañol(date) {
+  var dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  var meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  return dias[date.getDay()] + ", " + date.getDate() + " de " + meses[date.getMonth()];
+}
+
 function getProgresoCapacitacion(rfc) {
   var modules = [
     "Mesa de diálogo",
@@ -488,55 +539,113 @@ function getProgresoCapacitacion(rfc) {
   var cursData = sheetCursos.getDataRange().getValues();
   var sucsData = sheetSuc.getDataRange().getValues();
 
-  var inscritos = [];
-  for (var i = 1; i < inscData.length; i++) {
-    // Mapeo exacto basado en el RFC de la empresa
-    if (String(inscData[i][1]).trim().toUpperCase() === String(rfc).trim().toUpperCase()) {
-      var cursoId = String(inscData[i][2]);
-      var cursoInfo = null;
-      for (var j = 1; j < cursData.length; j++) {
-        if (String(cursData[j][0]) === cursoId) {
-          cursoInfo = {
-            nombre: cursData[j][1],
-            fecha: (cursData[j][2] instanceof Date) ? Utilities.formatDate(cursData[j][2], "GMT-6", "dd/MM/yyyy") : cursData[j][2],
-            hora: cursData[j][3],
-            sedeId: cursData[j][4]
-          };
-          break;
-        }
-      }
+  // 1. Obtener todas las sucursales de la empresa
+  var misSucursales = sucsData.slice(1).filter(function(s) {
+    return String(s[1]).trim().toUpperCase() === String(rfc).trim().toUpperCase();
+  }).map(function(s) {
+    return { id: s[0], nombre: s[2] };
+  });
 
-      if (!cursoInfo) continue;
+  // 2. Procesar inscripciones
+  var inscripciones = inscData.slice(1).filter(function(row) {
+    return String(row[1]).trim().toUpperCase() === String(rfc).trim().toUpperCase();
+  }).map(function(row) {
+    var cursoId = String(row[2]);
+    var cursoInfo = cursData.slice(1).find(function(c) { return String(c[0]) === cursoId; });
 
-      var sedeNombre = "Sede Central";
-      for (var k = 1; k < sucsData.length; k++) {
-        if (String(sucsData[k][0]) === String(cursoInfo.sedeId) || String(sucsData[k][2]) === String(cursoInfo.sedeId)) {
-          sedeNombre = sucsData[k][2];
-          break;
-        }
-      }
+    return {
+      idSeguimiento: row[0],
+      cursoNombre: cursoInfo ? cursoInfo[1] : "Curso Desconocido",
+      sucursalId: row[3],
+      estatus: row[5] || "Pendiente",
+      fecha: cursoInfo ? ((cursoInfo[2] instanceof Date) ? Utilities.formatDate(cursoInfo[2], "GMT-6", "dd/MM/yyyy") : cursoInfo[2]) : "-",
+      hora: cursoInfo ? cursoInfo[3] : "-"
+    };
+  });
 
-      inscritos.push({
-        nombre: cursoInfo.nombre,
-        fecha: cursoInfo.fecha,
-        hora: cursoInfo.hora,
-        sede: sedeNombre,
-        estatus: inscData[i][4] || "Pendiente"
-      });
-    }
-  }
+  // 3. Agrupar progreso por Sucursal
+  var desglosePorSucursal = misSucursales.map(function(suc) {
+    var inscDeSuc = inscripciones.filter(function(i) { return String(i.sucursalId) === String(suc.id); });
 
-  var completados = inscritos.filter(i => i.estatus === "Completado").length;
+    var modulosAvance = modules.map(function(m) {
+      var ins = inscDeSuc.find(function(i) { return i.cursoNombre === m; });
+      return ins || { cursoNombre: m, estatus: "No Inscrito", fecha: "-", hora: "-" };
+    });
+
+    var completados = modulosAvance.filter(function(m) { return m.estatus === "Completado"; }).length;
+
+    return {
+      sucursalNombre: suc.nombre,
+      modulos: modulosAvance,
+      completados: completados,
+      total: modules.length,
+      terminado: completados === modules.length
+    };
+  });
+
+  // Estatus global consolidado
+  var totalCompletados = desglosePorSucursal.reduce(function(acc, s) { return acc + s.completados; }, 0);
+  var totalEsperados = desglosePorSucursal.length * modules.length;
 
   return {
-    modulos: modules.map(m => {
-      var ins = inscritos.find(i => i.nombre === m);
-      return ins || { nombre: m, estatus: "No Inscrito", fecha: "-", hora: "-", sede: "-" };
-    }),
-    completados: completados,
-    total: modules.length,
-    estatusGeneral: completados === modules.length ? "Terminado" : "En Proceso"
+    porSucursal: desglosePorSucursal,
+    completadosGlobal: totalCompletados,
+    totalGlobal: totalEsperados,
+    estatusGeneral: (totalCompletados === totalEsperados && totalEsperados > 0) ? "Terminado" : "En Proceso"
   };
+}
+
+/**
+ * REQUERIMIENTO 3: Vinculación de Cursos Disponibles vía ID_Seguimiento
+ * Esta función permite 'completar' el perfil de capacitación de una empresa
+ * partiendo de un registro de seguimiento existente (llave primaria ID_Seguimiento).
+ * Integra las pestañas 'Seguimiento' y 'Cursos Disponibles'.
+ */
+function agregarCursosManual(idSeguimientoBase, idCursoNuevo) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetSeg = getSheetSafe("Seguimiento");
+    var segData = sheetSeg.getDataRange().getValues();
+
+    // 1. Buscar el registro base mediante ID_Seguimiento para obtener el RFC y Sucursal
+    var registroBase = null;
+    for (var i = 1; i < segData.length; i++) {
+      if (String(segData[i][0]) === String(idSeguimientoBase)) {
+        registroBase = {
+          rfc: segData[i][1],
+          sucursalId: segData[i][3]
+        };
+        break;
+      }
+    }
+
+    if (!registroBase) {
+      throw new Error("El ID_Seguimiento '" + idSeguimientoBase + "' no existe.");
+    }
+
+    // 2. Validar existencia del curso nuevo
+    var sheetCursos = getSheetSafe("Cursos Disponibles");
+    var cursosData = sheetCursos.getDataRange().getValues();
+    var cursoExiste = cursosData.slice(1).some(function(row) { return String(row[0]) === String(idCursoNuevo); });
+
+    if (!cursoExiste) {
+      throw new Error("El ID_Curso '" + idCursoNuevo + "' no existe en Cursos Disponibles.");
+    }
+
+    // 3. Agregar el nuevo registro de seguimiento vinculado
+    sheetSeg.appendRow([
+      Utilities.getUuid(),
+      registroBase.rfc,
+      idCursoNuevo,
+      registroBase.sucursalId,
+      new Date(),
+      "Completado (Manual)"
+    ]);
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
 }
 
 // Las funciones de administración getRegistrosAdmin y cambiarEstatus han sido ELIMINADAS.

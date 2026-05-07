@@ -429,48 +429,65 @@
     const rfc = document.getElementById('login-rfc').value.toUpperCase();
     if (!rfc) return alert("Ingrese un RFC");
     showLoader(true);
-    google.script.run
-      .withSuccessHandler(function(user) {
-        if (user) {
-          currentUser = user;
-          document.getElementById('dash-empresa').innerText = user.representante;
-          document.getElementById('dash-folio').innerText = user.folio;
 
-          const estatusSelect = document.getElementById('dash-estatus-select');
-          // Normalizar el valor del estatus del backend a las opciones disponibles
-          const backendStatus = user.estatus;
-          let matchedValue = "En revisión"; // default
-          if (backendStatus === "Certificado") matchedValue = "Certificado";
-          estatusSelect.value = matchedValue;
-          updateStatusSelectColor(matchedValue);
+    // Cargar configuración de estatus dinámicos antes de procesar el acceso
+    google.script.run.withSuccessHandler(function(config) {
+      window.estatusConfig = config;
+      const select = document.getElementById('dash-estatus-select');
+      select.innerHTML = config.map(c => `<option value="${c.valor}">${c.valor}</option>`).join('');
 
-          cargarUbicacionesDropdown(user.rfc);
-          cargarHistorialPlanes(user.rfc);
-          cargarProgresoCapacitacion(user.rfc);
-        } else { showLoader(false); alert("RFC no encontrado."); }
-      })
-      .withFailureHandler(err => { showLoader(false); alert(err); })
-      .buscarPorRFC(rfc);
+      google.script.run
+        .withSuccessHandler(function(user) {
+          if (user) {
+            currentUser = user;
+            document.getElementById('dash-empresa').innerText = user.representante;
+            document.getElementById('dash-folio').innerText = user.folio;
+
+            const estatusSelect = document.getElementById('dash-estatus-select');
+            estatusSelect.value = user.estatus;
+            updateStatusSelectColor(user.estatus);
+
+            cargarUbicacionesDropdown(user.rfc);
+            cargarHistorialPlanes(user.rfc);
+            cargarProgresoCapacitacion(user.rfc);
+          } else { showLoader(false); alert("RFC no encontrado."); }
+        })
+        .withFailureHandler(err => { showLoader(false); alert(err); })
+        .buscarPorRFC(rfc);
+
+    }).getValoresEstatusConfig();
   }
 
   function cargarProgresoCapacitacion(rfc) {
     google.script.run.withSuccessHandler(function(prog) {
       const bar = document.getElementById('training-progress-bar');
       const text = document.getElementById('training-progress-text');
-      const pct = (prog.completados / prog.total) * 100;
+      const pct = (prog.totalGlobal > 0) ? (prog.completadosGlobal / prog.totalGlobal) * 100 : 0;
       bar.style.width = pct + "%";
-      text.innerText = `${prog.completados}/${prog.total} Módulos`;
+      text.innerText = `${prog.completadosGlobal}/${prog.totalGlobal} Módulos Globales`;
 
       const tbody = document.getElementById('lista-capacitacion');
-      tbody.innerHTML = prog.modulos.map(m => `
-        <tr>
-          <td>${m.nombre}</td>
-          <td>${m.fecha}</td>
-          <td>${m.hora}</td>
-          <td>${m.sede}</td>
-          <td><span class="status-badge status-${m.estatus.toLowerCase().replace(/ /g, '-')}">${m.estatus}</span></td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = '';
+
+      prog.porSucursal.forEach(suc => {
+        // Encabezado de sucursal
+        const rowHeader = document.createElement('tr');
+        rowHeader.style.background = '#f4f4f4';
+        rowHeader.innerHTML = `<td colspan="5"><strong>📍 Sucursal: ${suc.sucursalNombre}</strong> (${suc.completados}/${suc.total})</td>`;
+        tbody.appendChild(rowHeader);
+
+        suc.modulos.forEach(m => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td style="padding-left: 20px;">${m.cursoNombre}</td>
+            <td>${m.fecha}</td>
+            <td>${m.hora}</td>
+            <td><small>${m.idSeguimiento || 'N/A'}</small></td>
+            <td><span class="status-badge status-${m.estatus.toLowerCase().replace(/ /g, '-')}">${m.estatus}</span></td>
+          `;
+          tbody.appendChild(row);
+        });
+      });
 
       if (prog.estatusGeneral === "Terminado") {
         document.getElementById('comprobante-termino-container').style.display = 'block';
@@ -596,8 +613,9 @@
 
   function updateStatusSelectColor(val) {
     const el = document.getElementById('dash-estatus-select');
-    const colors = {'En revisión': '#f0ad4e', 'Certificado': '#5cb85c'};
-    el.style.backgroundColor = colors[val] || '#eee';
+    // Buscamos el color en la configuración cargada dinámicamente
+    const cfg = (window.estatusConfig || []).find(c => c.valor === val);
+    el.style.backgroundColor = cfg ? cfg.color : '#999999';
     el.style.color = 'white';
   }
 
