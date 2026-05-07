@@ -372,33 +372,34 @@
     document.querySelectorAll('.compromiso:checked').forEach(c => data.compromisos.push(c.nextElementSibling.innerText));
 
     // Proceso unificado: Registrar Empresa + Inscribir Curso
+    data.capacitacionInicial = {
+      idCurso: cursoId,
+      hora: window.selectedCourseInfo ? window.selectedCourseInfo.hora : "-",
+      sede: window.selectedCourseInfo ? window.selectedCourseInfo.sede : "-"
+    };
+
     google.script.run
       .withSuccessHandler(function(res) {
+        showLoader(false);
         if (res.success) {
           const folio = res.folio;
           currentUser = { rfc: data.empresa.rfc, folio: folio };
 
-          // Inscribir al curso seleccionado
-          google.script.run.withSuccessHandler(function(resIns) {
-            showLoader(false);
-            if (resIns.success) {
-              document.getElementById('success-folio').innerText = folio;
-              document.getElementById('comprobante-inscripcion').innerHTML = `
-                <div style="text-align: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px;">
-                   <h3 style="color: #6B2C91; margin:0;">COMPROBANTE DE INSCRIPCIÓN</h3>
-                   <small>Folio: ${folio}</small>
-                </div>
-                <p><strong>Organización:</strong> ${data.empresa.representante}</p>
-                <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
-                <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
-                <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
-                <p style="margin-top:20px; padding: 10px; background: #f9f9f9; border-left: 4px solid #F47C20; font-size: 13px;">
-                  <strong>Importante:</strong> Favor de presentarse 15 minutos antes con este comprobante impreso o digital.
-                </p>
-              `;
-              transitionToStep(6); // Mostrar éxito final
-            } else alert("Error al inscribir: " + resIns.error);
-          }).inscribirCurso({ rfc: data.empresa.rfc, cursoId: cursoId });
+          document.getElementById('success-folio').innerText = folio;
+          document.getElementById('comprobante-inscripcion').innerHTML = `
+            <div style="text-align: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px;">
+               <h3 style="color: #6B2C91; margin:0;">COMPROBANTE DE INSCRIPCIÓN</h3>
+               <small>Folio: ${folio}</small>
+            </div>
+            <p><strong>Organización:</strong> ${data.empresa.nombreEmpresa}</p>
+            <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
+            <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
+            <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
+            <p style="margin-top:20px; padding: 10px; background: #f9f9f9; border-left: 4px solid #F47C20; font-size: 13px;">
+              <strong>Importante:</strong> Favor de presentarse 15 minutos antes con este comprobante impreso o digital.
+            </p>
+          `;
+          transitionToStep(6); // Mostrar éxito final
 
         } else {
           showLoader(false);

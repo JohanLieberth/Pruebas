@@ -94,12 +94,14 @@ function generarFolio() {
 }
 
 /**
- * Procesa el registro completo (Empresa + Sucursales)
+ * Procesa el registro completo (Empresa + Sucursales + Capacitación Inicial)
  */
 function procesarRegistro(data) {
   try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheetEmpresas = getSheetSafe("Empresas");
     var sheetSucursales = getSheetSafe("Sucursales");
+    var sheetSeg = getSheetSafe("Seguimiento");
 
     if (validarRFCExistente(data.empresa.rfc)) {
       throw new Error("El RFC ya se encuentra registrado.");
@@ -111,7 +113,7 @@ function procesarRegistro(data) {
     // Guardar Empresa
     sheetEmpresas.appendRow([
       data.empresa.rfc,
-      data.empresa.nombreEmpresa, // Actualizado: Nombre de la Empresa Principal
+      data.empresa.nombreEmpresa,
       data.empresa.telefono,
       data.empresa.correo,
       folio,
@@ -120,11 +122,14 @@ function procesarRegistro(data) {
       JSON.stringify(data.compromisos)
     ]);
 
+    var firstSucursalId = "";
     // Guardar Sucursales
-    data.sucursales.forEach(function(suc) {
-      var coords = suc.coordenadas.split(",");
+    data.sucursales.forEach(function(suc, index) {
+      var id = Utilities.getUuid();
+      if (index === 0) firstSucursalId = id;
+      var coords = (suc.coordenadas || "").split(",");
       sheetSucursales.appendRow([
-        Utilities.getUuid(),
+        id,
         data.empresa.rfc,
         suc.nombre,
         suc.direccion,
@@ -137,6 +142,20 @@ function procesarRegistro(data) {
         JSON.stringify(suc.compromisos || [])
       ]);
     });
+
+    // Vincular capacitación inicial si se proporcionó
+    if (data.capacitacionInicial && data.capacitacionInicial.idCurso) {
+      sheetSeg.appendRow([
+        Utilities.getUuid(),
+        data.empresa.rfc,
+        firstSucursalId || "GENERAL",
+        data.capacitacionInicial.idCurso,
+        fecha,
+        "Programada",
+        data.capacitacionInicial.hora || "-",
+        data.capacitacionInicial.sede || "-"
+      ]);
+    }
 
     var qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(folio) + "&size=200";
 
@@ -158,7 +177,7 @@ function agregarNuevaSucursal(data) {
   try {
     var sheetSucursales = getSheetSafe("Sucursales");
     var sucursalId = Utilities.getUuid();
-    var coords = data.coordenadas.split(",");
+    var coords = (data.coordenadas || "").split(",");
 
     sheetSucursales.appendRow([
       sucursalId,
@@ -184,8 +203,8 @@ function agregarNuevaSucursal(data) {
         data.capacitacion.idCurso,
         new Date(),
         "Programada",
-        data.capacitacion.hora,
-        data.capacitacion.sede
+        data.capacitacion.hora || "-",
+        data.capacitacion.sede || "-"
       ]);
     }
 
@@ -443,12 +462,16 @@ function getCursosDisponibles() {
 function inscribirCurso(data) {
   try {
     var sheet = getSheetSafe("Seguimiento");
+    // Schema: ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"]
     sheet.appendRow([
       Utilities.getUuid(),
       data.rfc,
+      data.idSucursal || "GENERAL",
       data.cursoId,
       new Date(),
-      "Pendiente"
+      "Programada",
+      data.hora || "-",
+      data.sede || "-"
     ]);
     return { success: true };
   } catch (e) {
@@ -493,20 +516,23 @@ function getProgresoCapacitacion(rfc) {
     return { id: s[0], nombre: s[2] };
   });
 
-  // 2. Procesar inscripciones
+  // 2. Procesar inscripciones (Alineado con el schema de Seguimiento)
   var inscripciones = inscData.slice(1).filter(function(row) {
     return String(row[1]).trim().toUpperCase() === String(rfc).trim().toUpperCase();
   }).map(function(row) {
-    var cursoId = String(row[2]);
+    var cursoId = String(row[3]); // Columna D: ID_Curso
     var cursoInfo = cursData.slice(1).find(function(c) { return String(c[0]) === cursoId; });
+    var sucInfo = misSucursales.find(function(s) { return String(s.id) === String(row[2]); });
 
     return {
       idSeguimiento: row[0],
-      cursoNombre: cursoInfo ? cursoInfo[1] : "Curso Desconocido",
-      sucursalId: row[3],
+      sucursalId: row[2], // Columna C: ID_Sucursal
+      sucursalNombre: sucInfo ? sucInfo.nombre : (row[2] === "GENERAL" ? "General" : "Desconocida"),
+      nombreCurso: cursoInfo ? cursoInfo[1] : (row[3] || "Curso Desconocido"),
       estatus: row[5] || "Pendiente",
-      fecha: cursoInfo ? ((cursoInfo[2] instanceof Date) ? Utilities.formatDate(cursoInfo[2], "GMT-6", "dd/MM/yyyy") : cursoInfo[2]) : "-",
-      hora: cursoInfo ? cursoInfo[3] : "-"
+      fecha: row[4] instanceof Date ? Utilities.formatDate(row[4], "GMT-6", "dd/MM/yyyy") : (row[4] || "-"),
+      hora: row[6] || "-",
+      sede: row[7] || "-"
     };
   });
 
@@ -515,11 +541,11 @@ function getProgresoCapacitacion(rfc) {
     var inscDeSuc = inscripciones.filter(function(i) { return String(i.sucursalId) === String(suc.id); });
 
     var modulosAvance = modules.map(function(m) {
-      var ins = inscDeSuc.find(function(i) { return i.cursoNombre === m; });
-      return ins || { cursoNombre: m, estatus: "No Inscrito", fecha: "-", hora: "-" };
+      var ins = inscDeSuc.find(function(i) { return i.nombreCurso === m; });
+      return ins || { nombreCurso: m, estatus: "No Inscrito", fecha: "-", hora: "-", sede: "-" };
     });
 
-    var completados = modulosAvance.filter(function(m) { return m.estatus === "Completado"; }).length;
+    var completados = modulosAvance.filter(function(m) { return m.estatus === "Completado" || m.estatus === "Terminada"; }).length;
 
     return {
       sucursalNombre: suc.nombre,
@@ -536,6 +562,7 @@ function getProgresoCapacitacion(rfc) {
 
   return {
     porSucursal: desglosePorSucursal,
+    seguimientoDetallado: inscripciones, // Añadido para compatibilidad con el frontend
     completadosGlobal: totalCompletados,
     totalGlobal: totalEsperados,
     estatusGeneral: (totalCompletados === totalEsperados && totalEsperados > 0) ? "Terminado" : "En Proceso"
