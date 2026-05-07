@@ -442,7 +442,7 @@
     document.querySelectorAll(`#${containerId} .calendar-item`).forEach(i => i.classList.remove('selected'));
     el.classList.add('selected');
     document.getElementById(inputId).value = id;
-    window.selectedCourseInfo = { nombre, fecha, hora };
+    window.selectedCourseInfo = { nombre, fecha, hora, sede };
   }
 
   // --- Acceso Posterior ---
@@ -481,10 +481,12 @@
       res.seguimientoDetallado.forEach(row => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
+          <td><small>${row.idSeguimiento}</small></td>
+          <td>${row.sucursalNombre}</td>
           <td>${row.nombreCurso}</td>
           <td>${row.fecha}</td>
           <td>${row.hora}</td>
-          <td>${row.sucursalNombre}</td>
+          <td>${row.sede}</td>
           <td><span class="status-badge status-${row.estatus.toLowerCase().replace(/ /g, '-')}">${row.estatus}</span></td>
         `;
         tbody.appendChild(tr);

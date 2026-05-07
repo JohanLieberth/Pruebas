@@ -44,7 +44,7 @@ function setupDatabase() {
     "Empresas": ["RFC", "NombreEmpresa", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
     "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
     "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
-    "Cursos Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
+    "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
     "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
   };
@@ -59,18 +59,7 @@ function setupDatabase() {
   }
 
 
-  // Cursos Obligatorios default
-  var sheetCursos = ss.getSheetByName("Cursos Disponibles");
-  if (sheetCursos && sheetCursos.getLastRow() === 1) {
-    var cursos = [
-      ["C1", "Mesa de diálogo", "01/12/2023", "10:00", "Sede Central", 50],
-      ["C2", "¿La igualdad de género es un bien?", "05/12/2023", "11:00", "Sede Central", 50],
-      ["C3", "Comprender para prevenir la violencia de género", "10/12/2023", "09:00", "Sede Central", 50],
-      ["C4", "Fortaleciendo espacios parte 1", "15/12/2023", "16:00", "Sede Central", 50],
-      ["C5", "Fortaleciendo espacios parte 2", "20/12/2023", "16:00", "Sede Central", 50]
-    ];
-    sheetCursos.getRange(2, 1, cursos.length, 6).setValues(cursos);
-  }
+  // La hoja 'Cursos_Disponibles' se lee directamente de la configuración manual del administrador.
 
   return "Base de datos configurada correctamente.";
 }
@@ -393,38 +382,32 @@ function getSucursalesCertificadas() {
 }
 
 /**
- * Lógica de Capacitación - Obtiene cursos leyendo directamente de Sheets
+ * Lógica de Capacitación - Lectura de Cursos_Disponibles (SOLO LECTURA)
+ * Se elimina el filtrado y el auto-poblamiento para depender 100% del Sheet.
  */
 function getCursosDisponibles() {
   try {
-    var sheet = getSheetSafe("Cursos_Disponibles");
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Cursos_Disponibles");
+    if (!sheet) return [];
+
     var data = sheet.getDataRange().getValues();
-
-    // Si solo hay encabezados, intentar poblar con valores iniciales
-    if (data.length <= 1) {
-       setupDatabase();
-       data = sheet.getDataRange().getValues();
-    }
-
     var sheetSuc = getSheetSafe("Sucursales");
     var sucs = sheetSuc.getDataRange().getValues();
     var result = [];
 
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
-      var id = row[0] || ("TEMP-" + i);
+      var id = row[0];
       var nombre = String(row[1] || "").trim();
       var fechaRaw = row[2];
       var hora = row[3] ? String(row[3]) : "Por definir";
       var sedeId = row[4];
 
-      // FILTRO: Solo "Mesa de diálogo"
-      if (nombre !== "Mesa de diálogo") continue;
+      if (!nombre) continue; // Muestra la lista completa tal cual está en el Sheet
 
-      // Procesar Fecha en Español
       var fechaFinal = "Fecha no disponible";
       if (fechaRaw instanceof Date) {
-        // Forzamos formato día/mes/año
         fechaFinal = Utilities.formatDate(fechaRaw, "GMT-6", "dd/MM/yyyy");
       } else if (fechaRaw) {
         fechaFinal = String(fechaRaw);
@@ -588,7 +571,7 @@ function agregarCursosManual(idSeguimientoBase, idCursoNuevo) {
     }
 
     // 2. Validar existencia del curso nuevo
-    var sheetCursos = getSheetSafe("Cursos Disponibles");
+    var sheetCursos = getSheetSafe("Cursos_Disponibles");
     var cursosData = sheetCursos.getDataRange().getValues();
     var cursoExiste = cursosData.slice(1).some(function(row) { return String(row[0]) === String(idCursoNuevo); });
 
