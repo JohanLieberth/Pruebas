@@ -433,7 +433,7 @@ function getCursosDisponibles() {
       var nombre = String(row[1] || "").trim();
       var fechaRaw = row[2];
       var hora = dispRow[3] || "-"; // Usar valor mostrado en celda sin conversión
-      var sedeId = row[4];
+      var sede = dispRow[4] || "-"; // Leer directamente de la columna Sede (index 4)
 
       if (!nombre) continue; // Muestra la lista completa tal cual está en el Sheet
 
@@ -444,23 +444,12 @@ function getCursosDisponibles() {
         fechaFinal = String(fechaRaw);
       }
 
-      // Buscar nombre de la sede
-      var sedeNombre = "Sede Central";
-      if (sedeId) {
-         for(var j=1; j<sucs.length; j++) {
-           if(sucs[j][0] === sedeId || sucs[j][2] === sedeId) {
-             sedeNombre = sucs[j][2]; // Usar nombre de la sucursal
-             break;
-           }
-         }
-      }
-
       result.push({
         id: String(id),
         nombre: String(nombre),
         fecha: fechaFinal,
         hora: hora,
-        sede: sedeNombre,
+        sede: sede,
         fechaAmigable: (fechaRaw instanceof Date) ? formatearFechaEspañol(fechaRaw) : fechaFinal
       });
     }
@@ -559,8 +548,9 @@ function getProgresoCapacitacion(rfc) {
         fechaFinal = row[4] instanceof Date ? Utilities.formatDate(row[4], "GMT-6", "dd/MM/yyyy") : (row[4] || "-");
       }
 
-      // El campo HORA se toma de cursoDispInfo[3] si existe, si no de dispRow[6] (Hoja Seguimiento)
+      // El campo HORA y SEDE se toman de cursoDispInfo si existe, si no de dispRow (Hoja Seguimiento)
       var horaFinal = cursoDispInfo ? cursoDispInfo[3] : (dispRow[6] || "-");
+      var sedeFinal = cursoDispInfo ? cursoDispInfo[4] : (dispRow[7] || "-");
 
       inscripciones.push({
         idSeguimiento: row[0],
@@ -570,7 +560,7 @@ function getProgresoCapacitacion(rfc) {
         estatus: row[5] || "Pendiente",
         fecha: fechaFinal,
         hora: horaFinal,
-        sede: row[7] || "-"
+        sede: sedeFinal
       });
     }
   }
