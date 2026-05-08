@@ -64,7 +64,7 @@ function setupDatabase() {
     "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
     "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
-    "Config_Espacios": ["Sucursal", "Dirección", "Teléfono", "URL_Maps"]
+    "Config_Espacios": ["Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps"]
   };
 
   for (var name in sheets) {
@@ -391,14 +391,15 @@ function getSucursalesCertificadas() {
     var data = sheet.getDataRange().getValues();
     var result = [];
 
-    // [Sucursal, Dirección, Teléfono, URL_Maps]
+    // [Nombre de la Empresa, Sucursal, Dirección, Teléfono, URL_Maps]
     for (var i = 1; i < data.length; i++) {
-      if (data[i][0]) { // Si tiene nombre
+      if (data[i][1]) { // Si tiene nombre de sucursal
         result.push({
-          nombre: data[i][0],
-          direccion: data[i][1],
-          telefono: data[i][2],
-          urlMaps: data[i][3]
+          empresa: data[i][0],
+          nombre: data[i][1],
+          direccion: data[i][2],
+          telefono: data[i][3],
+          urlMaps: data[i][4]
         });
       }
     }

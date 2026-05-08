@@ -23,7 +23,8 @@
         }
         catalogDiv.innerHTML = sucursales.map(suc => `
           <div class="catalog-card">
-            <h4>${suc.nombre}</h4>
+            <small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase;">${suc.empresa || ''}</small>
+            <h4 style="margin-top: 5px;">${suc.nombre}</h4>
             <p>📍 ${suc.direccion}</p>
             ${suc.telefono ? `<p>📞 ${suc.telefono}</p>` : ''}
             ${suc.urlMaps ? `
