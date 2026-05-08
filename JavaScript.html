@@ -26,6 +26,11 @@
             <h4>${suc.nombre}</h4>
             <p>📍 ${suc.direccion}</p>
             ${suc.telefono ? `<p>📞 ${suc.telefono}</p>` : ''}
+            ${suc.urlMaps ? `
+              <div style="margin-top:10px;">
+                <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="window.open('${suc.urlMaps}', '_blank')">Ver en Google Maps</button>
+              </div>
+            ` : ''}
           </div>
         `).join('');
       })

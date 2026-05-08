@@ -51,29 +51,6 @@ function getNextSeguimientoId() {
   return maxId + 1;
 }
 
-/**
- * Helper para formatear hora a HH:mm (24h)
- */
-function formatTime24h(timeValue) {
-  if (!timeValue) return "-";
-  if (timeValue instanceof Date) {
-    return Utilities.formatDate(timeValue, "GMT", "HH:mm");
-  }
-  var timeStr = String(timeValue);
-  if (timeStr.toLowerCase().includes("am") || timeStr.toLowerCase().includes("pm")) {
-    var date = new Date("2000-01-01 " + timeStr);
-    if (!isNaN(date.getTime())) {
-      return Utilities.formatDate(date, "GMT", "HH:mm");
-    }
-  }
-  var match = timeStr.match(/^(\d{1,2}):(\d{2})/);
-  if (match) {
-    var h = ("0" + match[1]).slice(-2);
-    var m = match[2];
-    return h + ":" + m;
-  }
-  return timeStr;
-}
 
 /**
  * Inicializa las hojas de cálculo necesarias con la estructura solicitada
@@ -86,7 +63,8 @@ function setupDatabase() {
     "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
     "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
     "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
-    "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"]
+    "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
+    "Config_Espacios": ["Sucursal", "Dirección", "Teléfono", "URL_Maps"]
   };
 
   for (var name in sheets) {
@@ -192,7 +170,7 @@ function procesarRegistro(data) {
         data.capacitacionInicial.idCurso,
         fecha,
         "Programada",
-        formatTime24h(data.capacitacionInicial.hora),
+        String(data.capacitacionInicial.hora || "-"), // Tratado como texto sin conversión
         data.capacitacionInicial.sede || "-"
       ]);
     }
@@ -243,7 +221,7 @@ function agregarNuevaSucursal(data) {
         data.capacitacion.idCurso,
         new Date(),
         "Programada",
-        formatTime24h(data.capacitacion.hora),
+        String(data.capacitacion.hora || "-"), // Tratado como texto sin conversión
         data.capacitacion.sede || "-"
       ]);
     }
@@ -405,37 +383,28 @@ function guardarPlanTrabajo(data) {
 
 /**
  * Obtiene las sucursales que ya cuentan con certificación aprobada
- * Cruza la información de Sucursales con Planes de Trabajo aprobados
+ * Ahora lee exclusivamente de la pestaña Config_Espacios (Manual)
  */
 function getSucursalesCertificadas() {
   try {
-    var sheetSuc = getSheetSafe("Sucursales");
-    var sheetPlanes = getSheetSafe("PlanesTrabajo");
-
-    var dataSuc = sheetSuc.getDataRange().getValues();
-    var dataPlanes = sheetPlanes.getDataRange().getValues();
-
-    // Mapa de Sucursales Aprobadas (ID_Sucursal -> true)
-    var aprobadasMap = {};
-    for (var j = 1; j < dataPlanes.length; j++) {
-      if (dataPlanes[j][5] === "Aprobado") { // Columna Estatus en PlanesTrabajo
-        aprobadasMap[dataPlanes[j][7]] = true; // Columna ID_Sucursal en PlanesTrabajo
-      }
-    }
-
+    var sheet = getSheetSafe("Config_Espacios");
+    var data = sheet.getDataRange().getValues();
     var result = [];
-    for (var i = 1; i < dataSuc.length; i++) {
-      var idSuc = dataSuc[i][0];
-      if (aprobadasMap[idSuc]) {
+
+    // [Sucursal, Dirección, Teléfono, URL_Maps]
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0]) { // Si tiene nombre
         result.push({
-          nombre: dataSuc[i][2],
-          direccion: dataSuc[i][3],
-          telefono: dataSuc[i][7]
+          nombre: data[i][0],
+          direccion: data[i][1],
+          telefono: data[i][2],
+          urlMaps: data[i][3]
         });
       }
     }
     return result;
   } catch (e) {
+    console.error("Error en getSucursalesCertificadas: " + e.toString());
     return [];
   }
 }
@@ -450,17 +419,19 @@ function getCursosDisponibles() {
     var sheet = ss.getSheetByName("Cursos_Disponibles");
     if (!sheet) return [];
 
-    var data = sheet.getDataRange().getValues();
+    var dataValues = sheet.getDataRange().getValues();
+    var displayValues = sheet.getDataRange().getDisplayValues(); // Para campos de Hora como Texto
     var sheetSuc = getSheetSafe("Sucursales");
     var sucs = sheetSuc.getDataRange().getValues();
     var result = [];
 
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
+    for (var i = 1; i < dataValues.length; i++) {
+      var row = dataValues[i];
+      var dispRow = displayValues[i];
       var id = row[0];
       var nombre = String(row[1] || "").trim();
       var fechaRaw = row[2];
-      var hora = formatTime24h(row[3]);
+      var hora = dispRow[3] || "-"; // Usar valor mostrado en celda sin conversión
       var sedeId = row[4];
 
       if (!nombre) continue; // Muestra la lista completa tal cual está en el Sheet
@@ -510,7 +481,7 @@ function inscribirCurso(data) {
       data.cursoId,
       new Date(),
       "Programada",
-      formatTime24h(data.hora),
+      String(data.hora || "-"), // Tratado como texto sin conversión
       data.sede || "-"
     ]);
     return { success: true };
@@ -546,7 +517,9 @@ function getProgresoCapacitacion(rfc) {
   var sheetSuc = getSheetSafe("Sucursales");
 
   var inscData = sheetInsc.getDataRange().getValues();
+  var inscDispData = sheetInsc.getDataRange().getDisplayValues(); // Para campos de Hora
   var cursData = sheetCursos.getDataRange().getValues();
+  var cursDispData = sheetCursos.getDataRange().getDisplayValues(); // Para campos de Hora
   var sucsData = sheetSuc.getDataRange().getValues();
 
   // 1. Obtener todas las sucursales de la empresa
@@ -557,32 +530,49 @@ function getProgresoCapacitacion(rfc) {
   });
 
   // 2. Procesar inscripciones (Alineado con el schema de Seguimiento)
-  var inscripciones = inscData.slice(1).filter(function(row) {
-    return String(row[1]).trim().toUpperCase() === String(rfc).trim().toUpperCase();
-  }).map(function(row) {
-    var cursoId = String(row[3]); // Columna D: ID_Curso
-    var cursoInfo = cursData.slice(1).find(function(c) { return String(c[0]) === cursoId; });
-    var sucInfo = misSucursales.find(function(s) { return String(s.id) === String(row[2]); });
+  var inscripciones = [];
+  for (var i = 1; i < inscData.length; i++) {
+    var row = inscData[i];
+    var dispRow = inscDispData[i];
 
-    var fechaFinal = "-";
-    if (cursoInfo && cursoInfo[2]) {
-      // Sincronización de Fecha con Cursos_Disponibles si existe el curso
-      fechaFinal = (cursoInfo[2] instanceof Date) ? Utilities.formatDate(cursoInfo[2], "GMT-6", "dd/MM/yyyy") : String(cursoInfo[2]);
-    } else {
-      fechaFinal = row[4] instanceof Date ? Utilities.formatDate(row[4], "GMT-6", "dd/MM/yyyy") : (row[4] || "-");
+    if (String(row[1]).trim().toUpperCase() === String(rfc).trim().toUpperCase()) {
+      var cursoId = String(row[3]);
+
+      // Buscar info del curso y su valor mostrado (Hora)
+      var cursoInfo = null;
+      var cursoDispInfo = null;
+      for (var k = 1; k < cursData.length; k++) {
+        if (String(cursData[k][0]) === cursoId) {
+          cursoInfo = cursData[k];
+          cursoDispInfo = cursDispData[k];
+          break;
+        }
+      }
+
+      var sucInfo = misSucursales.find(function(s) { return String(s.id) === String(row[2]); });
+
+      var fechaFinal = "-";
+      if (cursoInfo && cursoInfo[2]) {
+        fechaFinal = (cursoInfo[2] instanceof Date) ? Utilities.formatDate(cursoInfo[2], "GMT-6", "dd/MM/yyyy") : String(cursoInfo[2]);
+      } else {
+        fechaFinal = row[4] instanceof Date ? Utilities.formatDate(row[4], "GMT-6", "dd/MM/yyyy") : (row[4] || "-");
+      }
+
+      // El campo HORA se toma de cursoDispInfo[3] si existe, si no de dispRow[6] (Hoja Seguimiento)
+      var horaFinal = cursoDispInfo ? cursoDispInfo[3] : (dispRow[6] || "-");
+
+      inscripciones.push({
+        idSeguimiento: row[0],
+        sucursalId: row[2],
+        sucursalNombre: sucInfo ? sucInfo.nombre : (row[2] === "GENERAL" ? "General" : "Desconocida"),
+        nombreCurso: cursoInfo ? cursoInfo[1] : (row[3] || "Curso Desconocido"),
+        estatus: row[5] || "Pendiente",
+        fecha: fechaFinal,
+        hora: horaFinal,
+        sede: row[7] || "-"
+      });
     }
-
-    return {
-      idSeguimiento: row[0],
-      sucursalId: row[2], // Columna C: ID_Sucursal
-      sucursalNombre: sucInfo ? sucInfo.nombre : (row[2] === "GENERAL" ? "General" : "Desconocida"),
-      nombreCurso: cursoInfo ? cursoInfo[1] : (row[3] || "Curso Desconocido"),
-      estatus: row[5] || "Pendiente",
-      fecha: fechaFinal,
-      hora: formatTime24h(cursoInfo ? cursoInfo[3] : row[6]),
-      sede: row[7] || "-"
-    };
-  });
+  }
 
   // 3. Agrupar progreso por Sucursal
   var desglosePorSucursal = misSucursales.map(function(suc) {
