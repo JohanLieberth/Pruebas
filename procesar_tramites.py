@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
-import os
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
@@ -26,8 +25,8 @@ def create_session():
     session.mount("https://", adapter)
     return session
 
-def process_url(url, session):
-    """Procesa una URL individual: valida status 200 y busca 'Consulta en línea'."""
+def check_consulta_en_linea(url, session):
+    """Verifica si una URL contiene el dato 'Consulta en línea'."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -37,42 +36,30 @@ def process_url(url, session):
 
     result = {
         "URL": url,
-        "Estado": "Desconocido",
         "Tiene Consulta en Línea": "No"
     }
 
     try:
-        # 1. Validación de URL (status 200)
         response = session.get(url, headers=headers, timeout=TIMEOUT)
 
         if response.status_code == 200:
-            # Detectar bloqueo por Captcha
+            # Detectar bloqueo por Captcha como "No" (ya que no podemos ver el dato)
             if "captcha" in response.text.lower() or "activity and behavior on this site made us think that you are a bot" in response.text:
-                result["Estado"] = "Bloqueado (Captcha)"
                 return result
 
-            result["Estado"] = "Válida"
-
-            # 2. Verificar "Consulta en línea"
-            # Se busca en el contenido HTML ignorando mayúsculas/minúsculas
+            # Verificar "Consulta en línea" en el HTML
             if re.search(r"Consulta en línea", response.text, re.I):
                 result["Tiene Consulta en Línea"] = "Sí"
             else:
-                # Búsqueda adicional en el texto renderizado si no se encontró en el crudo
+                # Búsqueda en texto procesado por BeautifulSoup
                 soup = BeautifulSoup(response.text, "html.parser")
                 page_text = soup.get_text(separator=' ', strip=True)
                 if re.search(r"Consulta en línea", page_text, re.I):
                     result["Tiene Consulta en Línea"] = "Sí"
 
-        else:
-            result["Estado"] = f"Caída (Error {response.status_code})"
-
-    except requests.exceptions.Timeout:
-        result["Estado"] = "Error: Timeout"
-    except requests.exceptions.ConnectionError:
-        result["Estado"] = "Error: Conexión"
-    except Exception as e:
-        result["Estado"] = f"Error: {type(e).__name__}"
+    except Exception:
+        # En caso de error, se mantiene como "No"
+        pass
 
     return result
 
@@ -95,46 +82,34 @@ def main():
     results = []
 
     print("="*50)
-    print("VALIDADOR DE TRÁMITES - AYUNTAMIENTO DE MÉRIDA")
+    print("ANALIZADOR: 'CONSULTA EN LÍNEA'")
     print("="*50)
-    print(f"Iniciando procesamiento de {len(urls)} URLs...")
+    print(f"Procesando {len(urls)} URLs...")
 
-    try:
-        for i, url in enumerate(urls):
-            print(f"[{i+1}/{len(urls)}] Procesando: {url}")
-            res = process_url(url, session)
-            results.append(res)
+    for i, url in enumerate(urls):
+        print(f"[{i+1}/{len(urls)}] Analizando: {url}")
+        res = check_consulta_en_linea(url, session)
+        results.append(res)
 
-            # Feedback inmediato
-            print(f"    Estado: {res['Estado']} | En línea: {res['Tiene Consulta en Línea']}")
+        # Delay respetuoso
+        if i < len(urls) - 1:
+            time.sleep(DELAY_BETWEEN_REQUESTS)
 
-            # Delay para no saturar el servidor
-            if i < len(urls) - 1:
-                time.sleep(DELAY_BETWEEN_REQUESTS)
-
-    except KeyboardInterrupt:
-        print("\nProcesamiento cancelado.")
-
-    if not results:
-        print("No se obtuvieron resultados.")
-        return
-
-    # Generación de Reporte en Excel
-    print(f"\nGenerando reporte: {OUTPUT_FILE}...")
+    # Generar DataFrame y Reporte
     df = pd.DataFrame(results)
+    df.to_excel(OUTPUT_FILE, index=False)
 
-    try:
-        df.to_excel(OUTPUT_FILE, index=False)
-        print("Reporte generado exitosamente.")
-    except Exception as e:
-        print(f"Error al guardar el archivo Excel: {e}")
+    # Cálculos finales
+    total_con = (df["Tiene Consulta en Línea"] == "Sí").sum()
+    total_sin = (df["Tiene Consulta en Línea"] == "No").sum()
 
-    # Resumen final en consola
-    total_en_linea = (df["Tiene Consulta en Línea"] == "Sí").sum()
     print("\n" + "-"*30)
-    print(f"Total con 'Consulta en línea': {total_en_linea}")
+    print("RESULTADOS FINALES")
     print("-"*30)
-    print(f"Archivo: {os.path.abspath(OUTPUT_FILE)}")
+    print(f"Total CON 'Consulta en línea': {total_con}")
+    print(f"Total SIN 'Consulta en línea': {total_sin}")
+    print("-"*30)
+    print(f"Reporte guardado en: {OUTPUT_FILE}")
     print("="*50)
 
 if __name__ == "__main__":
