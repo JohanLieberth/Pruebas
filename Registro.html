@@ -1,0 +1,207 @@
+<div class="card shadow-sm">
+  <div class="card-header bg-merida text-white">
+    <h5 class="mb-0"><i class="bi bi-file-earmark-plus me-2"></i>Crear Nuevo Documento</h5>
+  </div>
+  <div class="card-body">
+    <!-- Indicador de Pasos -->
+    <div class="step-indicator">
+      <div class="step-item active" id="step-1-indicator">1. Información General</div>
+      <div class="step-item" id="step-2-indicator">2. Contenido Principal</div>
+      <div class="step-item" id="step-3-indicator">3. Tablas y Anexos</div>
+      <div class="step-item" id="step-4-indicator">4. Revisión</div>
+    </div>
+
+    <form id="formRegistro">
+      <!-- Paso 1: Información General -->
+      <div class="wizard-step active" id="step-1">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Tipo de Documento</label>
+            <select class="form-select" id="reg_tipo" onchange="toggleFormFields()" required>
+              <option value="" selected disabled>Seleccionar...</option>
+              <option value="F-ADM/CMC-14">Procedimiento (F-ADM/CMC-14)</option>
+              <option value="F-ADM/CMC-13">Política (F-ADM/CMC-13)</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Nombre del Documento</label>
+            <input type="text" class="form-control" id="reg_nombre" placeholder="Ej. Procedimiento de Compras" required>
+          </div>
+
+          <hr>
+          <h6 class="color-merida">Encabezado Institucional</h6>
+          <div class="col-md-4">
+            <label class="form-label">Municipio</label>
+            <input type="text" class="form-control" id="reg_municipio" value="Mérida, Yucatán">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Coordinación General</label>
+            <input type="text" class="form-control" id="reg_coordinacion">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Dirección</label>
+            <input type="text" class="form-control" id="reg_direccion">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Subdirección</label>
+            <input type="text" class="form-control" id="reg_subdireccion">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Departamento</label>
+            <input type="text" class="form-control" id="reg_departamento">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">NR</label>
+            <input type="text" class="form-control" id="reg_nr">
+          </div>
+        </div>
+        <div class="mt-4 text-end">
+          <button type="button" class="btn btn-merida" onclick="nextStep(2)">Siguiente <i class="bi bi-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Paso 2: Contenido Principal -->
+      <div class="wizard-step" id="step-2">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-bold">Objetivo</label>
+            <textarea class="form-control" id="reg_objetivo" rows="3"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-bold">Alcance</label>
+            <textarea class="form-control" id="reg_alcance" rows="3"></textarea>
+          </div>
+
+          <!-- Campos específicos para Procedimientos -->
+          <div class="col-12 fields-procedimiento">
+            <label class="form-label fw-bold">Responsabilidades</label>
+            <textarea class="form-control" id="reg_responsabilidades" rows="3"></textarea>
+          </div>
+
+          <!-- Campos específicos para Políticas -->
+          <div class="col-12 fields-politica" style="display:none;">
+            <label class="form-label fw-bold">Marco Legal</label>
+            <textarea class="form-control" id="reg_marcolegal" rows="3"></textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-bold">Definiciones</label>
+            <textarea class="form-control" id="reg_definiciones" rows="3"></textarea>
+          </div>
+
+          <!-- Más campos para Políticas -->
+          <div class="fields-politica" style="display:none;">
+            <div class="col-12 mb-3">
+              <label class="form-label fw-bold">Políticas Generales</label>
+              <textarea class="form-control" id="reg_politicas_generales" rows="3"></textarea>
+            </div>
+            <div class="col-12 mb-3">
+              <label class="form-label fw-bold">Políticas Específicas</label>
+              <textarea class="form-control" id="reg_politicas_especificas" rows="3"></textarea>
+            </div>
+            <div class="col-12 mb-3">
+              <label class="form-label fw-bold">Sanciones</label>
+              <textarea class="form-control" id="reg_sanciones" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" onclick="prevStep(1)"><i class="bi bi-arrow-left"></i> Anterior</button>
+          <button type="button" class="btn btn-merida" onclick="nextStep(3)">Siguiente <i class="bi bi-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Paso 3: Tablas Dinámicas -->
+      <div class="wizard-step" id="step-3">
+        <!-- Tabla: Documentos de Referencia -->
+        <div class="mb-4">
+          <h6 class="fw-bold color-merida">Documentos de Referencia</h6>
+          <table class="table table-sm table-bordered dynamic-table" id="tablaRef">
+            <thead>
+              <tr>
+                <th>Código/Nombre</th>
+                <th>Tipo (Interno/Externo)</th>
+                <th style="width: 50px;">Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow('tablaRef', 2)">+ Agregar Fila</button>
+        </div>
+
+        <!-- Tabla: Recursos (Solo Proc) -->
+        <div class="mb-4 fields-procedimiento">
+          <h6 class="fw-bold color-merida">Recursos a Utilizar</h6>
+          <table class="table table-sm table-bordered dynamic-table" id="tablaRecursos">
+            <thead>
+              <tr>
+                <th>Software</th>
+                <th>Herramientas/Equipo/Vehículos/Maquinaria</th>
+                <th style="width: 50px;">Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow('tablaRecursos', 2)">+ Agregar Fila</button>
+        </div>
+
+        <!-- Tabla: Registros que genera (Solo Proc) -->
+        <div class="mb-4 fields-procedimiento">
+          <h6 class="fw-bold color-merida">Registros que Genera</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered dynamic-table" id="tablaRegistros">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Nombre</th>
+                  <th>Almacenamiento</th>
+                  <th>Tiempo</th>
+                  <th>Disposición</th>
+                  <th style="width: 50px;"></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow('tablaRegistros', 5)">+ Agregar Fila</button>
+        </div>
+
+        <div class="mb-4">
+          <h6 class="fw-bold color-merida">Control de Cambios</h6>
+          <table class="table table-sm table-bordered dynamic-table" id="tablaControl">
+            <thead>
+              <tr>
+                <th>No. Revisión</th>
+                <th>Fecha</th>
+                <th>Descripción del Cambio</th>
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow('tablaControl', 3)">+ Agregar Fila</button>
+        </div>
+
+        <div class="mt-4 d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" onclick="prevStep(2)"><i class="bi bi-arrow-left"></i> Anterior</button>
+          <button type="button" class="btn btn-merida" onclick="nextStep(4)">Siguiente <i class="bi bi-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Paso 4: Revisión Final -->
+      <div class="wizard-step" id="step-4">
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle-fill me-2"></i> Revise la información antes de guardar. Al guardar, el documento quedará en estado <b>Borrador</b>.
+        </div>
+        <div id="resumenRegistro"></div>
+
+        <div class="mt-4 d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" onclick="prevStep(3)"><i class="bi bi-arrow-left"></i> Anterior</button>
+          <button type="button" class="btn btn-success btn-lg" onclick="saveNewDocument()">
+            <i class="bi bi-save me-2"></i> Guardar Borrador
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

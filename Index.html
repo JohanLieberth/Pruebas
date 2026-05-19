@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión Documental - Mérida</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-merida sticky-top">
+      <div class="container">
+        <a class="navbar-brand" href="#" onclick="showSection('inicio')">
+          <i class="bi bi-file-earmark-text-fill me-2"></i>Gestión Documental
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="#" onclick="showSection('seguimiento')">Seguimiento</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" onclick="showSection('registro')">Nuevo Registro</a>
+            </li>
+            <li class="nav-item admin-only" style="display:none;">
+              <a class="nav-link" href="#" onclick="showSection('admin')">Administración</a>
+            </li>
+          </ul>
+          <span class="navbar-text text-white" id="userDisplay">
+            <i class="bi bi-person-circle me-1"></i> Cargando...
+          </span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container my-4" id="mainContainer">
+
+      <!-- Loader Global -->
+      <div id="loader" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-2">Cargando plataforma...</p>
+      </div>
+
+      <!-- Sección: Inicio / Bienvenida -->
+      <div id="inicio" class="section" style="display:none;">
+        <div class="row align-items-center">
+          <div class="col-md-6">
+            <h1 class="display-4 fw-bold color-merida">Mérida Digital</h1>
+            <p class="lead">Sistema de Gestión y Registro de Procedimientos (F-ADM/CMC-14) y Políticas (F-ADM/CMC-13).</p>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+              <button class="btn btn-merida btn-lg px-4 me-md-2" onclick="showSection('registro')">Registrar Nuevo Documento</button>
+              <button class="btn btn-outline-secondary btn-lg px-4" onclick="showSection('seguimiento')">Ver Mis Documentos</button>
+            </div>
+          </div>
+          <div class="col-md-6 text-center">
+            <img src="https://www.merida.gob.mx/municipio/portal/img/logo_merida.png" alt="Mérida" class="img-fluid" style="max-height: 250px;">
+          </div>
+        </div>
+
+        <div class="row mt-5">
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-body">
+                <i class="bi bi-pencil-square fs-1 color-merida"></i>
+                <h5 class="card-title mt-3">Registro Estructurado</h5>
+                <p class="card-text">Formularios inteligentes por secciones para asegurar el cumplimiento de la norma técnica.</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-body">
+                <i class="bi bi-shield-check fs-1 color-merida"></i>
+                <h5 class="card-title mt-3">Control de Cambios</h5>
+                <p class="card-text">Historial automático de versiones y gestión de estados desde borrador hasta aprobado.</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-body">
+                <i class="bi bi-cloud-arrow-up fs-1 color-merida"></i>
+                <h5 class="card-title mt-3">Expediente Digital</h5>
+                <p class="card-text">Almacenamiento seguro en Google Drive para todos tus anexos y documentos firmados.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección: Registro -->
+      <div id="registro" class="section" style="display:none;">
+        <?!= include('Registro'); ?>
+      </div>
+
+      <!-- Sección: Seguimiento -->
+      <div id="seguimiento" class="section" style="display:none;">
+        <?!= include('Seguimiento'); ?>
+      </div>
+
+      <!-- Sección: Detalle -->
+      <div id="detalle" class="section" style="display:none;">
+        <?!= include('Detalle'); ?>
+      </div>
+
+      <!-- Sección: Administración -->
+      <div id="admin" class="section" style="display:none;">
+        <?!= include('Admin'); ?>
+      </div>
+
+    </div>
+
+    <!-- Toasts (Notificaciones) -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+          <strong class="me-auto" id="toastTitle">Notificación</strong>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastMessage"></div>
+      </div>
+    </div>
+
+    <!-- Modales Globales -->
+    <div class="modal fade" id="modalConfirm" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalConfirmTitle">Confirmación</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="modalConfirmBody"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btnConfirmAction">Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <?!= include('Scripts'); ?>
+  </body>
+</html>

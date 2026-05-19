@@ -1,0 +1,568 @@
+<script>
+  /**
+   * Variables Globales y Estado
+   */
+  let currentUser = null;
+  let allDocuments = [];
+  let currentStep = 1;
+  let activeDocId = null;
+  let toastBootstrap;
+
+  $(document).ready(function() {
+    toastBootstrap = bootstrap.Toast.getOrCreateInstance(document.getElementById('liveToast'));
+    initApp();
+  });
+
+  function initApp() {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(userInfo) {
+        currentUser = userInfo;
+        $('#userDisplay').html(`<i class="bi bi-person-circle me-1"></i> ${userInfo.nombre} (${userInfo.rol})`);
+
+        if (userInfo.rol === 'ADMIN') {
+          $('.admin-only').show();
+        }
+
+        showSection('inicio');
+        showLoader(false);
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error', 'No se pudo cargar la información del usuario: ' + err.message, 'danger');
+      })
+      .getUserInfo();
+  }
+
+  // --- NAVEGACIÓN ---
+
+  function showSection(sectionId) {
+    $('.section').hide();
+    $(`#${sectionId}`).show();
+    $('.nav-link').removeClass('active');
+    $(`a[onclick="showSection('${sectionId}')"]`).addClass('active');
+
+    if (sectionId === 'seguimiento') loadDocuments();
+    if (sectionId === 'admin') loadAdminData();
+    if (sectionId === 'registro') resetWizard();
+  }
+
+  function showLoader(show) {
+    $('#loader').toggle(show);
+  }
+
+  function showToast(title, message, type = 'primary') {
+    $('#toastTitle').text(title);
+    $('#toastMessage').text(message);
+    $('#liveToast').removeClass('text-bg-primary text-bg-danger text-bg-success').addClass(`text-bg-${type}`);
+    toastBootstrap.show();
+  }
+
+  // --- WIZARD DE REGISTRO ---
+
+  function nextStep(step) {
+    // Validación básica
+    if (step === 2 && !$('#reg_tipo').val()) {
+      showToast('Validación', 'Seleccione un tipo de documento', 'warning');
+      return;
+    }
+    if (step === 2 && !$('#reg_nombre').val()) {
+      showToast('Validación', 'Ingrese el nombre del documento', 'warning');
+      return;
+    }
+
+    $(`.wizard-step`).removeClass('active');
+    $(`#step-${step}`).addClass('active');
+    $(`.step-item`).removeClass('active');
+    for(let i=1; i<=step; i++) { $(`#step-${i}-indicator`).addClass('active'); }
+    currentStep = step;
+
+    if (step === 4) buildSummary();
+  }
+
+  function prevStep(step) {
+    $(`.wizard-step`).removeClass('active');
+    $(`#step-${step}`).addClass('active');
+    $(`.step-item`).removeClass('active');
+    for(let i=1; i<=step; i++) { $(`#step-${i}-indicator`).addClass('active'); }
+    currentStep = step;
+  }
+
+  function toggleFormFields() {
+    const tipo = $('#reg_tipo').val();
+    if (tipo === 'F-ADM/CMC-14') { // Procedimiento
+      $('.fields-procedimiento').show();
+      $('.fields-politica').hide();
+    } else { // Política
+      $('.fields-procedimiento').hide();
+      $('.fields-politica').show();
+    }
+  }
+
+  function addRow(tableId, cols) {
+    let row = '<tr>';
+    for (let i = 0; i < cols; i++) {
+      row += '<td><input type="text" class="form-control form-control-sm"></td>';
+    }
+    row += '<td><button type="button" class="btn btn-sm btn-danger" onclick="$(this).closest(\'tr\').remove()"><i class="bi bi-trash"></i></button></td>';
+    row += '</tr>';
+    $(`#${tableId} tbody`).append(row);
+  }
+
+  function getTableData(tableId) {
+    const data = [];
+    $(`#${tableId} tbody tr`).each(function() {
+      const row = [];
+      $(this).find('input').each(function() {
+        row.push($(this).val());
+      });
+      data.push(row);
+    });
+    return data;
+  }
+
+  function buildSummary() {
+    const summary = `
+      <div class="row">
+        <div class="col-md-6">
+          <p><b>Tipo:</b> ${$('#reg_tipo').val()}</p>
+          <p><b>Nombre:</b> ${$('#reg_nombre').val()}</p>
+        </div>
+        <div class="col-md-6">
+          <p><b>Unidad:</b> ${$('#reg_direccion').val()} / ${$('#reg_departamento').val()}</p>
+        </div>
+      </div>
+    `;
+    $('#resumenRegistro').html(summary);
+  }
+
+  function saveNewDocument() {
+    const docData = {
+      Tipo: $('#reg_tipo').val(),
+      NombreDoc: $('#reg_nombre').val(),
+      Municipio: $('#reg_municipio').val(),
+      Coordinacion: $('#reg_coordinacion').val(),
+      Direccion: $('#reg_direccion').val(),
+      Subdireccion: $('#reg_subdireccion').val(),
+      Departamento: $('#reg_departamento').val(),
+      NR: $('#reg_nr').val(),
+      Objetivo: $('#reg_objetivo').val(),
+      Alcance: $('#reg_alcance').val(),
+      Responsabilidades: $('#reg_responsabilidades').val(),
+      MarcoLegal: $('#reg_marcolegal').val(),
+      Definiciones: $('#reg_definiciones').val(),
+      PoliticasGenerales: $('#reg_politicas_generales').val(),
+      PoliticasEspecificas: $('#reg_politicas_especificas').val(),
+      Sanciones: $('#reg_sanciones').val()
+    };
+
+    const dynamicTables = {
+      "REFERENCIA": getTableData('tablaRef'),
+      "RECURSOS": getTableData('tablaRecursos'),
+      "REGISTROS": getTableData('tablaRegistros'),
+      "CONTROL": getTableData('tablaControl')
+    };
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast('Éxito', 'Documento guardado como borrador: ' + res.codigo, 'success');
+        showSection('seguimiento');
+        showLoader(false);
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error', err.message, 'danger');
+        showLoader(false);
+      })
+      .saveDocument(docData, dynamicTables);
+  }
+
+  function resetWizard() {
+    $('#formRegistro')[0].reset();
+    $('.dynamic-table tbody').empty();
+    nextStep(1);
+  }
+
+  // --- SEGUIMIENTO Y LISTADO ---
+
+  function loadDocuments() {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(docs) {
+        allDocuments = docs;
+        renderDocsTable(docs);
+        showLoader(false);
+      })
+      .getDocuments();
+  }
+
+  function renderDocsTable(docs) {
+    const tbody = $('#listaDocumentos');
+    tbody.empty();
+
+    docs.forEach(doc => {
+      const fecha = doc.FechaActualizacion ? new Date(doc.FechaActualizacion).toLocaleDateString() : '-';
+      const badgeClass = `badge-${doc.Estado.toLowerCase().replace(' ', '')}`;
+
+      const row = `
+        <tr>
+          <td><span class="fw-bold">${doc.Codigo}</span></td>
+          <td><small>${doc.Tipo}</small></td>
+          <td>${doc.NombreDoc}</td>
+          <td>v${doc.Version}</td>
+          <td><span class="badge ${badgeClass}">${doc.Estado}</span></td>
+          <td>${fecha}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" onclick="viewDetail('${doc.ID}')">
+              <i class="bi bi-eye"></i> Ver Detalle
+            </button>
+          </td>
+        </tr>
+      `;
+      tbody.append(row);
+    });
+  }
+
+  function filterDocs() {
+    const text = $('#filterText').val().toLowerCase();
+    const tipo = $('#filterTipo').val();
+    const estado = $('#filterEstado').val();
+
+    const filtered = allDocuments.filter(doc => {
+      const matchText = doc.NombreDoc.toLowerCase().includes(text) || doc.Codigo.toLowerCase().includes(text);
+      const matchTipo = tipo === "" || doc.Tipo === tipo;
+      const matchEstado = estado === "" || doc.Estado === estado;
+      return matchText && matchTipo && matchEstado;
+    });
+
+    renderDocsTable(filtered);
+  }
+
+  // --- VISTA DE DETALLE ---
+
+  function viewDetail(id) {
+    activeDocId = id;
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(data) {
+        renderDetail(data);
+        showSection('detalle');
+        showLoader(false);
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error', err.message, 'danger');
+        showLoader(false);
+      })
+      .getDocumentDetail(id);
+  }
+
+  function renderDetail(data) {
+    const doc = data.doc;
+    const tables = data.tables;
+    const files = data.files;
+
+    $('#det_id').val(doc.ID);
+    $('#det_titulo').text(doc.NombreDoc);
+    $('#det_codigo').val(doc.Codigo);
+    $('#det_version').val('v' + doc.Version);
+    $('#det_objetivo').val(doc.Objetivo);
+    $('#det_alcance').val(doc.Alcance);
+
+    const badgeClass = `badge-${doc.Estado.toLowerCase().replace(' ', '')}`;
+    $('#det_badge').text(doc.Estado).attr('class', `badge ${badgeClass}`);
+
+    // Limpiar campos dinámicos
+    const container = $('#camposDinamicosDetalle');
+    container.empty();
+
+    if (doc.Tipo === 'F-ADM/CMC-14') {
+      container.append(createDetailField('Responsabilidades', 'det_responsabilidades', doc.Responsabilidades));
+      container.append(createDetailField('Definiciones', 'det_definiciones', doc.Definiciones));
+    } else {
+      container.append(createDetailField('Marco Legal', 'det_marcolegal', doc.MarcoLegal));
+      container.append(createDetailField('Políticas Generales', 'det_politicas_generales', doc.PoliticasGenerales));
+      container.append(createDetailField('Políticas Específicas', 'det_politicas_especificas', doc.PoliticasEspecificas));
+      container.append(createDetailField('Sanciones', 'det_sanciones', doc.Sanciones));
+    }
+
+    // Renderizar tablas
+    renderDetailTables(doc.Tipo, tables);
+
+    // Renderizar archivos
+    renderAnexos(files);
+
+    // Configurar acciones según estado y rol
+    setupDetalleAcciones(doc);
+  }
+
+  function createDetailField(label, id, value) {
+    return `
+      <div class="col-12">
+        <label class="form-label fw-bold">${label}</label>
+        <textarea class="form-control edit-field" id="${id}" rows="2">${value || ''}</textarea>
+      </div>
+    `;
+  }
+
+  function renderDetailTables(tipo, tables) {
+    const container = $('#seccionTablasDetalle');
+    container.empty();
+
+    // Tabla Referencia (Ambos)
+    container.append(createDetailTable('Documentos de Referencia', 'det_tablaRef', ['Código/Nombre', 'Tipo'], tables['REFERENCIA']));
+
+    if (tipo === 'F-ADM/CMC-14') {
+      container.append(createDetailTable('Recursos a Utilizar', 'det_tablaRecursos', ['Software', 'Herramientas/Equipo'], tables['RECURSOS']));
+      container.append(createDetailTable('Registros que Genera', 'det_tablaRegistros', ['Código', 'Nombre', 'Alm.', 'Tiempo', 'Disp.'], tables['REGISTROS']));
+    }
+
+    container.append(createDetailTable('Control de Cambios', 'det_tablaControl', ['No. Rev.', 'Fecha', 'Descripción'], tables['CONTROL']));
+  }
+
+  function createDetailTable(title, id, headers, rows) {
+    let html = `<h6 class="fw-bold mt-4">${title}</h6><table class="table table-sm table-bordered dynamic-table" id="${id}"><thead><tr>`;
+    headers.forEach(h => html += `<th>${h}</th>`);
+    html += `<th style="width:50px"></th></tr></thead><tbody>`;
+
+    if (rows) {
+      rows.forEach(row => {
+        html += '<tr>';
+        row.forEach(cell => html += `<td><input type="text" class="form-control form-control-sm" value="${cell}"></td>`);
+        html += `<td><button type="button" class="btn btn-sm btn-danger" onclick="$(this).closest('tr').remove()"><i class="bi bi-trash"></i></button></td></tr>`;
+      });
+    }
+
+    html += `</tbody></table><button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow('${id}', ${headers.length})">+ Agregar Fila</button>`;
+    return html;
+  }
+
+  function renderAnexos(files) {
+    const list = $('#listaAnexos');
+    list.empty();
+    if (files.length === 0) {
+      list.append('<li class="list-group-item text-muted small">No hay archivos adjuntos</li>');
+    } else {
+      files.forEach(f => {
+        list.append(`
+          <li class="list-group-item d-flex justify-content-between align-items-center p-2">
+            <a href="${f.fileURL}" target="_blank" class="text-truncate small" style="max-width: 180px;">${f.fileName}</a>
+            <i class="bi bi-file-earmark-check text-success"></i>
+          </li>
+        `);
+      });
+    }
+  }
+
+  function setupDetalleAcciones(doc) {
+    const container = $('#detalleAcciones');
+    container.empty();
+
+    const isOwner = doc.CreadoPor === currentUser.email;
+    const isAdmin = currentUser.rol === 'ADMIN';
+    const canEdit = (doc.Estado === 'Borrador' && isOwner) || isAdmin;
+
+    if (canEdit) {
+      $('#btnGuardarCambiosContainer').show();
+      $('#dropZone').show();
+      $('.edit-field').prop('readonly', false);
+      container.append(`<button class="btn btn-warning me-2" onclick="enviarARevision('${doc.ID}')">Enviar a Revisión</button>`);
+    } else {
+      $('#btnGuardarCambiosContainer').hide();
+      $('#dropZone').hide();
+      $('.edit-field').prop('readonly', true);
+      $('button[onclick^="addRow"]').hide();
+      $('.dynamic-table input').prop('readonly', true);
+      $('.dynamic-table .btn-danger').hide();
+    }
+
+    if (isAdmin && doc.Estado === 'En revisión') {
+      container.append(`<button class="btn btn-success me-2" onclick="aprobarDocumento('${doc.ID}')">Aprobar Documento</button>`);
+      container.append(`<button class="btn btn-danger" onclick="rechazarDocumento('${doc.ID}')">Devolver a Borrador</button>`);
+    }
+
+    if (doc.Estado === 'Aprobado') {
+      $('#cardFirma').show();
+      if (doc.FirmaNombre) {
+        $('#subirFirmadoContainer').hide();
+        $('#infoFirmaView').show();
+        $('#view_firma_nombre').text(doc.FirmaNombre);
+        $('#view_firma_puesto').text(doc.FirmaPuesto);
+        $('#view_firma_fecha').text(new Date(doc.FirmaFecha).toLocaleString());
+      } else {
+        $('#subirFirmadoContainer').show();
+        $('#infoFirmaView').hide();
+      }
+    } else {
+      $('#cardFirma').hide();
+    }
+  }
+
+  // --- ACCIONES DE DOCUMENTO ---
+
+  function updateDocument() {
+    const id = $('#det_id').val();
+    const docData = {
+      ID: id,
+      Objetivo: $('#det_objetivo').val(),
+      Alcance: $('#det_alcance').val(),
+      Responsabilidades: $('#det_responsabilidades').val(),
+      MarcoLegal: $('#det_marcolegal').val(),
+      Definiciones: $('#det_definiciones').val(),
+      PoliticasGenerales: $('#det_politicas_generales').val(),
+      PoliticasEspecificas: $('#det_politicas_especificas').val(),
+      Sanciones: $('#det_sanciones').val()
+    };
+
+    const dynamicTables = {
+      "REFERENCIA": getTableData('det_tablaRef'),
+      "RECURSOS": getTableData('det_tablaRecursos'),
+      "REGISTROS": getTableData('det_tablaRegistros'),
+      "CONTROL": getTableData('det_tablaControl')
+    };
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function() {
+        showToast('Actualizado', 'Cambios guardados correctamente', 'success');
+        viewDetail(id);
+      })
+      .saveDocument(docData, dynamicTables);
+  }
+
+  function enviarARevision(id) {
+    if(!confirm("¿Desea enviar este documento a revisión? Ya no podrá editarlo hasta que sea revisado.")) return;
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(() => viewDetail(id))
+      .changeStatus(id, 'En revisión');
+  }
+
+  function aprobarDocumento(id) {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(() => viewDetail(id))
+      .changeStatus(id, 'Aprobado');
+  }
+
+  function rechazarDocumento(id) {
+    const obs = prompt("Ingrese observaciones para el usuario:");
+    if (obs === null) return;
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(() => viewDetail(id))
+      .changeStatus(id, 'Borrador');
+  }
+
+  function handleFileUpload() {
+    const file = $('#fileInput')[0].files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          showToast('Carga Exitosa', 'El archivo se adjuntó correctamente', 'success');
+          viewDetail(activeDocId);
+        })
+        .uploadFile(activeDocId, file.name, e.target.result, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function uploadSignedDoc() {
+    const file = $('#fileFirmado')[0].files[0];
+    const nombre = $('#firma_nombre').val();
+    const puesto = $('#firma_puesto').val();
+
+    if (!file || !nombre || !puesto) {
+      showToast('Faltan Datos', 'Debe seleccionar el archivo y completar los datos de firma', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          const firmaData = { nombre, puesto };
+          google.script.run
+            .withSuccessHandler(() => {
+              showToast('Éxito', 'Documento firmado y finalizado', 'success');
+              viewDetail(activeDocId);
+            })
+            .changeStatus(activeDocId, 'Aprobado', firmaData);
+        })
+        .uploadFile(activeDocId, 'FIRMADO_' + file.name, e.target.result, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // --- ADMINISTRACIÓN ---
+
+  function loadAdminData() {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(stats) {
+        $('#stat_total').text(stats.total);
+        $('#stat_revision').text(stats.porEstado['En revisión'] || 0);
+        $('#stat_aprobado').text(stats.porEstado['Aprobado'] || 0);
+
+        let tiposHtml = '';
+        for(let t in stats.porTipo) {
+          tiposHtml += `<div>${t}: <b>${stats.porTipo[t]}</b></div>`;
+        }
+        $('#stat_tipos').html(tiposHtml);
+
+        loadUsers();
+      })
+      .getAdminStats();
+  }
+
+  function loadUsers() {
+    google.script.run
+      .withSuccessHandler(function(users) {
+        const tbody = $('#listaUsuarios');
+        tbody.empty();
+        users.forEach(u => {
+          tbody.append(`
+            <tr>
+              <td>${u.email}</td>
+              <td>${u.nombre}</td>
+              <td><span class="badge bg-secondary">${u.rol}</span></td>
+              <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u.email}')"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>
+          `);
+        });
+        showLoader(false);
+      })
+      .getUsers();
+  }
+
+  function saveUser() {
+    const user = {
+      email: $('#user_email').val(),
+      nombre: $('#user_nombre').val(),
+      rol: $('#user_rol').val()
+    };
+    if (!user.email || !user.nombre) return;
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function() {
+        $('#modalUsuario').modal('hide');
+        $('#formUsuario')[0].reset();
+        loadUsers();
+      })
+      .addUser(user);
+  }
+
+  function deleteUser(email) {
+    if(!confirm("¿Eliminar acceso para " + email + "?")) return;
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(() => loadUsers())
+      .removeUser(email);
+  }
+</script>

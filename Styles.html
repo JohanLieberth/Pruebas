@@ -1,0 +1,102 @@
+<style>
+  :root {
+    --merida-primary: #004a99;
+    --merida-secondary: #00a1e4;
+    --merida-accent: #f2f2f2;
+    --merida-dark: #333333;
+  }
+
+  body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  .bg-merida {
+    background-color: var(--merida-primary) !important;
+  }
+
+  .color-merida {
+    color: var(--merida-primary);
+  }
+
+  .btn-merida {
+    background-color: var(--merida-primary);
+    color: white;
+  }
+
+  .btn-merida:hover {
+    background-color: var(--merida-secondary);
+    color: white;
+  }
+
+  .section {
+    display: none;
+    animation: fadeIn 0.5s;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+
+  .nav-link {
+    cursor: pointer;
+  }
+
+  .wizard-step {
+    display: none;
+  }
+
+  .wizard-step.active {
+    display: block;
+  }
+
+  .step-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+  }
+
+  .step-item {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border-bottom: 3px solid #dee2e6;
+    color: #6c757d;
+  }
+
+  .step-item.active {
+    border-color: var(--merida-primary);
+    color: var(--merida-primary);
+    font-weight: bold;
+  }
+
+  .dynamic-table th {
+    background-color: #f1f3f5;
+  }
+
+  .badge-borrador { background-color: #6c757d; }
+  .badge-revision { background-color: #ffc107; color: #000; }
+  .badge-aprobado { background-color: #198754; }
+  .badge-obsoleto { background-color: #dc3545; }
+
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    display: none;
+  }
+</style>
