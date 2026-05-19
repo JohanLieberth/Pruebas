@@ -14,9 +14,11 @@
   });
 
   function initApp() {
+    console.log("Iniciando aplicación...");
     showLoader(true);
     google.script.run
       .withSuccessHandler(function(userInfo) {
+        console.log("UserInfo cargado:", userInfo);
         currentUser = userInfo;
         $('#userDisplay').html(`<i class="bi bi-person-circle me-1"></i> ${userInfo.nombre} (${userInfo.rol})`);
 
@@ -32,7 +34,9 @@
         showLoader(false);
       })
       .withFailureHandler(function(err) {
-        showToast('Error', 'No se pudo cargar la información del usuario: ' + err.message, 'danger');
+        console.error("Error al cargar UserInfo:", err);
+        showToast('Error Crítico', 'No se pudo cargar la información del usuario: ' + err.message, 'danger');
+        showLoader(false);
       })
       .getUserInfo();
   }
@@ -40,14 +44,34 @@
   // --- NAVEGACIÓN ---
 
   function showSection(sectionId) {
-    $('.section').hide();
-    $(`#${sectionId}`).show();
-    $('.nav-link').removeClass('active');
-    $(`a[onclick="showSection('${sectionId}')"]`).addClass('active');
+    try {
+      console.log("Navegando a:", sectionId);
+      // Ocultar todas las secciones
+      $('.section').hide();
 
-    if (sectionId === 'seguimiento') loadDocuments();
-    if (sectionId === 'admin') loadAdminData();
-    if (sectionId === 'registro') resetWizard();
+      const target = $(`#${sectionId}`);
+      if (target.length) {
+        target.show();
+
+        // Actualizar Navbar
+        $('.nav-link').removeClass('active');
+        $(`.navbar-nav a[onclick*="${sectionId}"]`).addClass('active');
+
+        // Acciones específicas por sección
+        if (sectionId === 'seguimiento') {
+          loadDocuments();
+        } else if (sectionId === 'admin') {
+          loadAdminData();
+        } else if (sectionId === 'registro') {
+          resetWizard();
+        }
+      } else {
+        console.warn("La sección no existe en el DOM:", sectionId);
+        $('#inicio').show();
+      }
+    } catch (e) {
+      console.error("Error en showSection:", e);
+    }
   }
 
   function showLoader(show) {
@@ -181,9 +205,16 @@
   }
 
   function resetWizard() {
-    $('#formRegistro')[0].reset();
-    $('.dynamic-table tbody').empty();
-    nextStep(1);
+    try {
+      const form = $('#formRegistro');
+      if (form.length && form[0]) {
+        form[0].reset();
+      }
+      $('.dynamic-table tbody').empty();
+      nextStep(1);
+    } catch (e) {
+      console.error("Error en resetWizard:", e);
+    }
   }
 
   // --- SEGUIMIENTO Y LISTADO ---
@@ -194,6 +225,10 @@
       .withSuccessHandler(function(docs) {
         allDocuments = docs;
         renderDocsTable(docs);
+        showLoader(false);
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error', 'No se pudieron cargar los documentos: ' + err.message, 'danger');
         showLoader(false);
       })
       .getDocuments();
@@ -429,6 +464,10 @@
         showToast('Actualizado', 'Cambios guardados correctamente', 'success');
         viewDetail(id);
       })
+      .withFailureHandler(function(err) {
+        showToast('Error al Guardar', err.message, 'danger');
+        showLoader(false);
+      })
       .saveDocument(docData, dynamicTables);
   }
 
@@ -437,6 +476,10 @@
     showLoader(true);
     google.script.run
       .withSuccessHandler(() => viewDetail(id))
+      .withFailureHandler(function(err) {
+        showToast('Error', err.message, 'danger');
+        showLoader(false);
+      })
       .changeStatus(id, 'En revisión');
   }
 
@@ -444,6 +487,10 @@
     showLoader(true);
     google.script.run
       .withSuccessHandler(() => viewDetail(id))
+      .withFailureHandler(function(err) {
+        showToast('Error', err.message, 'danger');
+        showLoader(false);
+      })
       .changeStatus(id, 'Aprobado');
   }
 
@@ -453,6 +500,10 @@
     showLoader(true);
     google.script.run
       .withSuccessHandler(() => viewDetail(id))
+      .withFailureHandler(function(err) {
+        showToast('Error', err.message, 'danger');
+        showLoader(false);
+      })
       .changeStatus(id, 'Borrador');
   }
 
@@ -467,6 +518,10 @@
         .withSuccessHandler(function() {
           showToast('Carga Exitosa', 'El archivo se adjuntó correctamente', 'success');
           viewDetail(activeDocId);
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error de Carga', err.message, 'danger');
+          showLoader(false);
         })
         .uploadFile(activeDocId, file.name, e.target.result, file.type);
     };
@@ -494,7 +549,15 @@
               showToast('Éxito', 'Documento firmado y finalizado', 'success');
               viewDetail(activeDocId);
             })
+            .withFailureHandler(function(err) {
+              showToast('Error al Finalizar', err.message, 'danger');
+              showLoader(false);
+            })
             .changeStatus(activeDocId, 'Aprobado', firmaData);
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error de Archivo', err.message, 'danger');
+          showLoader(false);
         })
         .uploadFile(activeDocId, 'FIRMADO_' + file.name, e.target.result, file.type);
     };
@@ -519,6 +582,10 @@
 
         loadUsers();
       })
+      .withFailureHandler(function(err) {
+        showToast('Error Admin', err.message, 'danger');
+        showLoader(false);
+      })
       .getAdminStats();
   }
 
@@ -541,16 +608,20 @@
         });
         showLoader(false);
       })
+      .withFailureHandler(function(err) {
+        showToast('Error Usuarios', err.message, 'danger');
+        showLoader(false);
+      })
       .getUsers();
   }
 
   function saveUser() {
-    const user = {
+    const userData = {
       email: $('#user_email').val(),
       nombre: $('#user_nombre').val(),
       rol: $('#user_rol').val()
     };
-    if (!user.email || !user.nombre) return;
+    if (!userData.email || !userData.nombre) return;
 
     showLoader(true);
     google.script.run
@@ -559,7 +630,11 @@
         $('#formUsuario')[0].reset();
         loadUsers();
       })
-      .addUser(user);
+      .withFailureHandler(function(err) {
+        showToast('Error Guardar Usuario', err.message, 'danger');
+        showLoader(false);
+      })
+      .addUser(userData);
   }
 
   function deleteUser(email) {
@@ -567,6 +642,10 @@
     showLoader(true);
     google.script.run
       .withSuccessHandler(() => loadUsers())
+      .withFailureHandler(function(err) {
+        showToast('Error al Eliminar', err.message, 'danger');
+        showLoader(false);
+      })
       .removeUser(email);
   }
 </script>

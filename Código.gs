@@ -4,8 +4,18 @@
  */
 
 // --- CONFIGURACIÓN Y CONSTANTES ---
-const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
 const FOLDER_ROOT_NAME = "Gestión_Documental_Mérida";
+
+function getSS() {
+  try {
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {
+    // Si falla (ej. ejecutado desde el editor sin SS activo), intentar con el ID si se conoce
+    // Pero en GAS web apps, getActive suele funcionar si el script está vinculado.
+    console.error("Error al obtener Spreadsheet:", e);
+    throw new Error("No se pudo conectar con la base de datos. Verifique que el script esté vinculado a una hoja de cálculo.");
+  }
+}
 
 const SHEETS = {
   DOCUMENTOS: "Documentos",
@@ -46,7 +56,7 @@ function onOpen() {
 }
 
 function setup() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSS();
 
   // 1. Crear hojas si no existen
   const requiredSheets = [
@@ -106,13 +116,8 @@ function include(filename) {
  * Obtener información del usuario actual y su rol.
  */
 function getUserInfo() {
-  const email = Session.getActiveUser().getEmail();
-  let ss;
-  try {
-    ss = SpreadsheetApp.getActiveSpreadsheet();
-  } catch (e) {
-    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  }
+  const email = Session.getActiveUser().getEmail() || "desconocido@merida.gob.mx";
+  const ss = getSS();
 
   const sheet = ss.getSheetByName(SHEETS.USUARIOS);
   if (!sheet) {
@@ -151,7 +156,7 @@ function getUserInfo() {
  * Genera el siguiente código secuencial para un tipo de documento.
  */
 function getNextCodigo(tipo) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const data = sheet.getDataRange().getValues();
   let max = 0;
@@ -173,7 +178,7 @@ function getNextCodigo(tipo) {
  * Guarda un nuevo documento o actualiza uno existente.
  */
 function saveDocument(docData, dynamicTables) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const user = getUserInfo();
 
@@ -241,7 +246,7 @@ function saveDocument(docData, dynamicTables) {
 }
 
 function saveDynamicTables(docId, tables) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.TABLAS);
   const data = sheet.getDataRange().getValues();
 
@@ -275,7 +280,7 @@ function saveDynamicTables(docId, tables) {
  */
 function getDocuments() {
   const user = getUserInfo();
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
@@ -296,7 +301,7 @@ function getDocuments() {
  * Obtiene el detalle completo de un documento.
  */
 function getDocumentDetail(id) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const docSheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const tableSheet = ss.getSheetByName(SHEETS.TABLAS);
   const fileSheet = ss.getSheetByName(SHEETS.ARCHIVOS);
@@ -347,7 +352,7 @@ function getDocumentDetail(id) {
  * Manejo de subida de archivos.
  */
 function uploadFile(id, fileName, base64Data, fileType) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const docSheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const fileSheet = ss.getSheetByName(SHEETS.ARCHIVOS);
 
@@ -390,12 +395,11 @@ function uploadFile(id, fileName, base64Data, fileType) {
  */
 function changeStatus(id, newStatus, firmaData = null) {
   const user = getUserInfo();
-  // Solo Admin puede aprobar o rechazar. Usuarios pueden enviar a revisión sus propios docs.
   if (newStatus === ESTADOS.APROBADO || newStatus === ESTADOS.OBSOLETO) {
     if (user.rol !== ROLES.ADMIN) throw new Error("No tiene permisos para cambiar a este estado.");
   }
 
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
@@ -432,7 +436,7 @@ function getAdminStats() {
   const user = getUserInfo();
   if (user.rol !== ROLES.ADMIN) throw new Error("Acceso denegado: Se requiere rol ADMIN.");
 
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.DOCUMENTOS);
   const data = sheet.getDataRange().getValues();
 
@@ -461,7 +465,7 @@ function getUsers() {
   const user = getUserInfo();
   if (user.rol !== ROLES.ADMIN) throw new Error("Acceso denegado: Se requiere rol ADMIN.");
 
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
   const users = [];
@@ -483,7 +487,7 @@ function addUser(userData) {
   const user = getUserInfo();
   if (user.rol !== ROLES.ADMIN) throw new Error("Acceso denegado: Se requiere rol ADMIN.");
 
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
 
@@ -510,7 +514,7 @@ function removeUser(email) {
   const user = getUserInfo();
   if (user.rol !== ROLES.ADMIN) throw new Error("Acceso denegado: Se requiere rol ADMIN.");
 
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
 
