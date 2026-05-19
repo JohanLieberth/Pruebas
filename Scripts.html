@@ -24,6 +24,10 @@
           $('.admin-only').show();
         }
 
+        if (userInfo.needsSetup) {
+          showToast('Configuración Pendiente', 'El sistema no ha sido configurado. Use el menú de la hoja de cálculo para ejecutar "Configurar Sistema".', 'warning');
+        }
+
         showSection('inicio');
         showLoader(false);
       })

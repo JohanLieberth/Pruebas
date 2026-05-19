@@ -107,8 +107,24 @@ function include(filename) {
  */
 function getUserInfo() {
   const email = Session.getActiveUser().getEmail();
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let ss;
+  try {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  }
+
   const sheet = ss.getSheetByName(SHEETS.USUARIOS);
+  if (!sheet) {
+    // Si la hoja no existe, devolvemos un usuario invitado o error informativo
+    return {
+      email: email,
+      rol: ROLES.USER,
+      nombre: "Usuario (Requiere Configuración)",
+      needsSetup: true
+    };
+  }
+
   const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
