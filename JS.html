@@ -11,7 +11,75 @@
   $(document).ready(function() {
     toastBootstrap = bootstrap.Toast.getOrCreateInstance(document.getElementById('liveToast'));
     initApp();
+    setupGlobalErrorHandling();
+    startHeartbeat();
+    setupCharCounter();
   });
+
+  /**
+   * Contador de caracteres dinámico.
+   */
+  function setupCharCounter() {
+    $(document).on('input', '.char-limit', function() {
+      const limit = parseInt($(this).data('limit'));
+      const count = $(this).val().length;
+      const counter = $(this).next('.text-end').find('.char-count');
+
+      counter.text(count.toLocaleString());
+
+      if (count > limit) {
+        $(this).addClass('is-invalid');
+        counter.addClass('text-danger fw-bold');
+      } else {
+        $(this).removeClass('is-invalid');
+        counter.removeClass('text-danger fw-bold');
+      }
+    });
+  }
+
+  /**
+   * Manejo Global de Errores para evitar pantallas blancas.
+   */
+  function setupGlobalErrorHandling() {
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error("Error capturado:", message, error);
+      mostrarErrorCritico("Ha ocurrido un error inesperado en la interfaz. Por favor, intente recargar la página.");
+      return true;
+    };
+
+    window.addEventListener('unhandledrejection', function(event) {
+      console.error("Promesa rechazada no capturada:", event.reason);
+      mostrarErrorCritico("Error de conexión o proceso asíncrono. Verifique su internet y reintente.");
+    });
+  }
+
+  function mostrarErrorCritico(msg) {
+    const alertHtml = `
+      <div class="alert alert-danger alert-dismissible fade show shadow" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Error de Sistema:</strong> ${msg}
+        <div class="mt-2">
+          <button class="btn btn-sm btn-danger" onclick="location.reload()">Recargar Aplicación</button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    `;
+    $('#mainContainer').prepend(alertHtml);
+    showLoader(false);
+  }
+
+  /**
+   * Heartbeat para mantener la sesión viva cada 5 minutos.
+   */
+  function startHeartbeat() {
+    setInterval(function() {
+      console.log("Manteniendo sesión activa...");
+      google.script.run
+        .withSuccessHandler(() => console.log("Sesión confirmada."))
+        .withFailureHandler((err) => console.warn("Error en heartbeat:", err))
+        .getUserInfo();
+    }, 5 * 60 * 1000);
+  }
 
   function initApp() {
     console.log("Iniciando aplicación...");
@@ -75,6 +143,12 @@
   }
 
   function showLoader(show) {
+    if (show) {
+      $('#loading-overlay').css('display', 'flex').hide().fadeIn(200);
+    } else {
+      $('#loading-overlay').fadeOut(200);
+    }
+    // Mantener el loader antiguo por compatibilidad si es necesario o eliminar
     $('#loader').toggle(show);
   }
 
@@ -164,44 +238,67 @@
   }
 
   function saveNewDocument() {
-    const docData = {
-      Tipo: $('#reg_tipo').val(),
-      NombreDoc: $('#reg_nombre').val(),
-      Municipio: $('#reg_municipio').val(),
-      Coordinacion: $('#reg_coordinacion').val(),
-      Direccion: $('#reg_direccion').val(),
-      Subdireccion: $('#reg_subdireccion').val(),
-      Departamento: $('#reg_departamento').val(),
-      NR: $('#reg_nr').val(),
-      Objetivo: $('#reg_objetivo').val(),
-      Alcance: $('#reg_alcance').val(),
-      Responsabilidades: $('#reg_responsabilidades').val(),
-      MarcoLegal: $('#reg_marcolegal').val(),
-      Definiciones: $('#reg_definiciones').val(),
-      PoliticasGenerales: $('#reg_politicas_generales').val(),
-      PoliticasEspecificas: $('#reg_politicas_especificas').val(),
-      Sanciones: $('#reg_sanciones').val()
-    };
+    const tipo = $('#reg_tipo').val();
 
-    const dynamicTables = {
-      "REFERENCIA": getTableData('tablaRef'),
-      "RECURSOS": getTableData('tablaRecursos'),
-      "REGISTROS": getTableData('tablaRegistros'),
-      "CONTROL": getTableData('tablaControl')
-    };
+    if (tipo === 'F-ADM/CMC-14') {
+      // Flujo Procedimientos Especial
+      const procData = {
+        Nombre: $('#reg_nombre').val(),
+        Objetivo: $('#reg_objetivo').val(),
+        Alcance: $('#reg_alcance').val(),
+        Responsabilidades: $('#reg_responsabilidades').val(),
+        RefDoc: $('#reg_refdoc').val(),
+        Definiciones: $('#reg_definiciones').val(),
+        Recursos: $('#reg_recursos').val(),
+        Descripcion: $('#reg_descripcion').val(),
+        Registros: $('#reg_registros').val(),
+        Anexos: $('#reg_anexos').val(),
+        AnexosURL: $('#reg_anexos_url').val(),
+        ControlCambios: getTableData('tablaRef') // Usando la tabla de control de cambios
+      };
 
-    showLoader(true);
-    google.script.run
-      .withSuccessHandler(function(res) {
-        showToast('Éxito', 'Documento guardado como borrador: ' + res.codigo, 'success');
+      // Validar límites
+      let error = false;
+      $('.char-limit').each(function() {
+        if ($(this).val().length > parseInt($(this).data('limit'))) error = true;
+      });
+
+      if (error) {
+        showToast('Error de Validación', 'Uno o más campos exceden el límite de caracteres.', 'danger');
+        return;
+      }
+
+      runServer('guardarProcedimiento', [procData], function(res) {
+        showToast('Éxito', 'Procedimiento guardado correctamente.', 'success');
         showSection('seguimiento');
-        showLoader(false);
-      })
-      .withFailureHandler(function(err) {
-        showToast('Error', err.message, 'danger');
-        showLoader(false);
-      })
-      .saveDocument(docData, dynamicTables);
+      });
+
+    } else {
+      // Flujo Estándar (Politica)
+      const docData = {
+        Tipo: tipo,
+        NombreDoc: $('#reg_nombre').val(),
+        Municipio: $('#reg_municipio').val(),
+        Coordinacion: $('#reg_coordinacion').val(),
+        Direccion: $('#reg_direccion').val(),
+        Subdireccion: $('#reg_subdireccion').val(),
+        Departamento: $('#reg_departamento').val(),
+        NR: $('#reg_nr').val(),
+        Objetivo: $('#pol_objetivo').val(),
+        MarcoLegal: $('#reg_marcolegal').val(),
+        PoliticasGenerales: $('#reg_politicas_generales').val()
+      };
+
+      const dynamicTables = {
+        "REFERENCIA": getTableData('tablaRef'),
+        "CONTROL": getTableData('tablaControl')
+      };
+
+      runServer('saveDocument', [docData, dynamicTables], function(res) {
+        showToast('Éxito', 'Política guardada correctamente.', 'success');
+        showSection('seguimiento');
+      });
+    }
   }
 
   function resetWizard() {
@@ -219,24 +316,63 @@
 
   // --- SEGUIMIENTO Y LISTADO ---
 
-  function loadDocuments() {
+  /**
+   * Ejecuta una función del servidor con manejo de timeout y loader.
+   */
+  function runServer(funcName, args, onSuccess) {
     showLoader(true);
-    google.script.run
-      .withSuccessHandler(function(docs) {
-        allDocuments = docs;
-        renderDocsTable(docs);
-        showLoader(false);
-      })
-      .withFailureHandler(function(err) {
-        showToast('Error', 'No se pudieron cargar los documentos: ' + err.message, 'danger');
-        showLoader(false);
-      })
-      .getDocuments();
+    const runner = google.script.run.withFailureHandler(function(err) {
+      console.error(`Error en ${funcName}:`, err);
+      showToast('Error de Servidor', `${funcName}: ${err.message}`, 'danger');
+      showLoader(false);
+    }).withSuccessHandler(function(res) {
+      if (res === null || res === undefined) {
+        console.warn(`${funcName} retornó una respuesta vacía.`);
+      }
+      onSuccess(res);
+      showLoader(false);
+    });
+
+    // Timeout de 30 segundos
+    const timeout = setTimeout(() => {
+      showToast('Tiempo Agotado', 'La respuesta del servidor está tardando demasiado. Reintente.', 'warning');
+      showLoader(false);
+    }, 30000);
+
+    // Llamar dinámicamente
+    if (args) runner[funcName](...args);
+    else runner[funcName]();
+
+    // Limpiar timeout si termina
+    // Nota: google.script.run no devuelve una promesa real para encadenar fácilmente el clear,
+    // pero el withSuccessHandler ocultará el loader.
+  }
+
+  function loadDocuments() {
+    runServer('getDocuments', null, function(docs) {
+      allDocuments = docs || [];
+      renderDocsTable(allDocuments);
+    });
+  }
+
+  function loadDocuments() {
+    // Cargar documentos y procedimientos
+    runServer('getDocuments', null, function(docs) {
+      runServer('listarProcedimientos', null, function(procs) {
+        allDocuments = (docs || []).concat(procs || []);
+        renderDocsTable(allDocuments);
+      });
+    });
   }
 
   function renderDocsTable(docs) {
     const tbody = $('#listaDocumentos');
     tbody.empty();
+
+    if (!docs || docs.length === 0) {
+      tbody.append('<tr><td colspan="7" class="text-center p-4 text-muted">No hay registros previos. Listo para nuevo seguimiento.</td></tr>');
+      return;
+    }
 
     docs.forEach(doc => {
       const fecha = doc.FechaActualizacion ? new Date(doc.FechaActualizacion).toLocaleDateString() : '-';
@@ -280,18 +416,10 @@
 
   function viewDetail(id) {
     activeDocId = id;
-    showLoader(true);
-    google.script.run
-      .withSuccessHandler(function(data) {
-        renderDetail(data);
-        showSection('detalle');
-        showLoader(false);
-      })
-      .withFailureHandler(function(err) {
-        showToast('Error', err.message, 'danger');
-        showLoader(false);
-      })
-      .getDocumentDetail(id);
+    runServer('getDocumentDetail', [id], function(data) {
+      renderDetail(data);
+      showSection('detalle');
+    });
   }
 
   function renderDetail(data) {
@@ -567,26 +695,19 @@
   // --- ADMINISTRACIÓN ---
 
   function loadAdminData() {
-    showLoader(true);
-    google.script.run
-      .withSuccessHandler(function(stats) {
-        $('#stat_total').text(stats.total);
-        $('#stat_revision').text(stats.porEstado['En revisión'] || 0);
-        $('#stat_aprobado').text(stats.porEstado['Aprobado'] || 0);
+    runServer('getAdminStats', null, function(stats) {
+      $('#stat_total').text(stats.total);
+      $('#stat_revision').text(stats.porEstado['En revisión'] || 0);
+      $('#stat_aprobado').text(stats.porEstado['Aprobado'] || 0);
 
-        let tiposHtml = '';
-        for(let t in stats.porTipo) {
-          tiposHtml += `<div>${t}: <b>${stats.porTipo[t]}</b></div>`;
-        }
-        $('#stat_tipos').html(tiposHtml);
+      let tiposHtml = '';
+      for(let t in stats.porTipo) {
+        tiposHtml += `<div>${t}: <b>${stats.porTipo[t]}</b></div>`;
+      }
+      $('#stat_tipos').html(tiposHtml);
 
-        loadUsers();
-      })
-      .withFailureHandler(function(err) {
-        showToast('Error Admin', err.message, 'danger');
-        showLoader(false);
-      })
-      .getAdminStats();
+      loadUsers();
+    });
   }
 
   function loadUsers() {

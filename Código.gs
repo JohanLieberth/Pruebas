@@ -21,7 +21,9 @@ const SHEETS = {
   DOCUMENTOS: "Documentos",
   TABLAS: "TablasDinamicas",
   ARCHIVOS: "Archivos",
-  USUARIOS: "Usuarios"
+  USUARIOS: "Usuarios",
+  SEGUIMIENTO: "Seguimiento",
+  PROCEDIMIENTOS: "Procedimientos"
 };
 
 const ROLES = {
@@ -55,6 +57,24 @@ function onOpen() {
       .addToUi();
 }
 
+function verificarOCrearPestana(nombrePestana, headers) {
+  const ss = getSS();
+  let sheet = ss.getSheetByName(nombrePestana);
+  if (!sheet) {
+    sheet = ss.insertSheet(nombrePestana);
+    if (headers && headers.length > 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
+      sheet.setFrozenRows(1);
+      try {
+        sheet.getRange(1, 1, 1, headers.length).createFilter();
+      } catch (e) {
+        // Filtro podría fallar si la hoja está vacía o ya tiene uno
+      }
+    }
+  }
+  return sheet;
+}
+
 function setup() {
   const ss = getSS();
 
@@ -63,16 +83,13 @@ function setup() {
     { name: SHEETS.DOCUMENTOS, headers: ["ID", "Codigo", "Tipo", "Version", "Estado", "NombreDoc", "Objetivo", "Alcance", "Responsabilidades", "Definiciones", "MarcoLegal", "PoliticasGenerales", "PoliticasEspecificas", "Sanciones", "Municipio", "Coordinacion", "Direccion", "Subdireccion", "Departamento", "NR", "CreadoPor", "FechaEdicion", "FechaActualizacion", "FirmaNombre", "FirmaPuesto", "FirmaFecha"] },
     { name: SHEETS.TABLAS, headers: ["ID_Doc", "TipoTabla", "Col1", "Col2", "Col3", "Col4", "Col5", "Col6"] },
     { name: SHEETS.ARCHIVOS, headers: ["ID_Doc", "FileID", "FileName", "FileType", "FileURL"] },
-    { name: SHEETS.USUARIOS, headers: ["Email", "Rol", "Nombre"] }
+    { name: SHEETS.USUARIOS, headers: ["Email", "Rol", "Nombre"] },
+    { name: SHEETS.SEGUIMIENTO, headers: ["Timestamp", "ID", "Registrado por", "Estado", "Observaciones", "Fecha de seguimiento"] },
+    { name: SHEETS.PROCEDIMIENTOS, headers: ["ID", "Fecha", "CreadoPor", "Nombre", "Objetivo", "Alcance", "Responsabilidades", "RefDoc", "Definiciones", "Recursos", "DescP1", "DescP2", "DescP3", "Registros", "Anexos", "AnexosURL", "ControlCambiosJSON", "Estado"] }
   ];
 
   requiredSheets.forEach(sheetDef => {
-    let sheet = ss.getSheetByName(sheetDef.name);
-    if (!sheet) {
-      sheet = ss.insertSheet(sheetDef.name);
-    }
-    sheet.getRange(1, 1, 1, sheetDef.headers.length).setValues([sheetDef.headers]).setFontWeight("bold");
-    sheet.setFrozenRows(1);
+    verificarOCrearPestana(sheetDef.name, sheetDef.headers);
   });
 
   // 2. Crear carpeta raíz en Drive si no existe
@@ -505,6 +522,156 @@ function addUser(userData) {
     sheet.appendRow([userData.email, userData.rol, userData.nombre]);
   }
   return { success: true };
+}
+
+// --- MÓDULO PROCEDIMIENTOS (REQUERIMIENTOS ESPECÍFICOS) ---
+
+/**
+ * Guarda un Procedimiento con fragmentación del campo Descripción si es necesario.
+ */
+function guardarProcedimiento(datos) {
+  const user = getUserInfo();
+  const sheet = verificarOCrearPestana(SHEETS.PROCEDIMIENTOS, [
+    "ID", "Fecha", "CreadoPor", "Nombre", "Objetivo", "Alcance", "Responsabilidades",
+    "RefDoc", "Definiciones", "Recursos", "DescP1", "DescP2", "DescP3",
+    "Registros", "Anexos", "AnexosURL", "ControlCambiosJSON", "Estado"
+  ]);
+
+  const id = datos.ID || Utilities.getUuid();
+  const fecha = datos.Fecha || new Date();
+  const creador = user.email;
+
+  // Fragmentar descripción (Límite 50,000 por celda)
+  const desc = datos.Descripcion || "";
+  const descParts = [
+    desc.substring(0, 50000),
+    desc.substring(50000, 100000),
+    desc.substring(100000, 150000)
+  ];
+
+  const rowData = [
+    id,
+    fecha,
+    creador,
+    datos.Nombre,
+    datos.Objetivo,
+    datos.Alcance,
+    datos.Responsabilidades,
+    datos.RefDoc,
+    datos.Definiciones,
+    datos.Recursos,
+    descParts[0],
+    descParts[1],
+    descParts[2],
+    datos.Registros,
+    datos.Anexos,
+    datos.AnexosURL,
+    JSON.stringify(datos.ControlCambios || []),
+    datos.Estado || "Borrador"
+  ];
+
+  const data = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (rowIndex !== -1) {
+    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+
+  return { success: true, id: id };
+}
+
+/**
+ * Obtiene un Procedimiento reconstruyendo la descripción.
+ */
+function obtenerProcedimiento(id) {
+  const sheet = verificarOCrearPestana(SHEETS.PROCEDIMIENTOS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      const row = data[i];
+      const proc = {};
+      headers.forEach((h, j) => proc[h] = row[j]);
+
+      // Reconstruir descripción
+      proc.Descripcion = (proc.DescP1 || "") + (proc.DescP2 || "") + (proc.DescP3 || "");
+      proc.ControlCambios = JSON.parse(proc.ControlCambiosJSON || "[]");
+
+      return proc;
+    }
+  }
+  throw new Error("Procedimiento no encontrado");
+}
+
+/**
+ * Lista procedimientos para el dashboard.
+ */
+function listarProcedimientos() {
+  const sheet = verificarOCrearPestana(SHEETS.PROCEDIMIENTOS);
+  const data = sheet.getDataRange().getValues();
+  const procs = [];
+
+  for (let i = 1; i < data.length; i++) {
+    procs.push({
+      ID: data[i][0],
+      Fecha: data[i][1],
+      Nombre: data[i][3],
+      Objetivo: data[i][4].substring(0, 100) + "...",
+      Estado: data[i][17],
+      CreadoPor: data[i][2]
+    });
+  }
+  return procs;
+}
+
+/**
+ * Registra una acción de seguimiento.
+ */
+function registrarSeguimiento(datos) {
+  const user = getUserInfo();
+  const sheet = verificarOCrearPestana(SHEETS.SEGUIMIENTO, ["Timestamp", "ID", "Registrado por", "Estado", "Observaciones", "Fecha de seguimiento"]);
+
+  sheet.appendRow([
+    new Date(),
+    datos.ID,
+    user.email,
+    datos.Estado,
+    datos.Observaciones,
+    datos.FechaSeguimiento
+  ]);
+
+  return { success: true };
+}
+
+/**
+ * Obtiene el historial de seguimiento para un ID.
+ */
+function obtenerSeguimiento(id) {
+  const sheet = verificarOCrearPestana(SHEETS.SEGUIMIENTO);
+  const data = sheet.getDataRange().getValues();
+  const filtered = [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === id) {
+      filtered.push({
+        timestamp: data[i][0],
+        registradoPor: data[i][2],
+        estado: data[i][3],
+        observaciones: data[i][4],
+        fechaSeguimiento: data[i][5]
+      });
+    }
+  }
+  return filtered;
 }
 
 /**
