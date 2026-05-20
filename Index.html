@@ -4,7 +4,7 @@
     <base target="_top">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mujeres Seguras - Gestión Documental</title>
+    <title>Gestión Documental - Mérida</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -13,10 +13,10 @@
   </head>
   <body>
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-mujeres sticky-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-merida sticky-top">
       <div class="container">
         <a class="navbar-brand" href="javascript:void(0)" onclick="showSection('inicio')">
-          <i class="bi bi-shield-lock-fill me-2"></i>Mujeres Seguras
+          <i class="bi bi-file-earmark-text-fill me-2"></i>Mérida Digital
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
@@ -53,15 +53,15 @@
       <div id="inicio" class="section">
         <div class="row align-items-center">
           <div class="col-md-7">
-            <h1 class="display-4 fw-bold text-mujeres">Plataforma de Control Documental</h1>
-            <p class="lead">Sistema centralizado para el registro, revisión y gestión de expedientes digitales de la iniciativa Mujeres Seguras.</p>
+            <h1 class="display-4 fw-bold text-merida">Gestión de Procedimientos y Políticas</h1>
+            <p class="lead">Sistema institucional para el control normativo, seguimiento de revisiones y archivo digital del Municipio de Mérida.</p>
             <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
-              <button class="btn btn-mujeres btn-lg px-4 me-md-2 shadow" onclick="showSection('gestion_documental')">Nuevo Documento</button>
-              <button class="btn btn-outline-secondary btn-lg px-4" onclick="showSection('seguimiento')">Panel de Seguimiento</button>
+              <button class="btn btn-merida btn-lg px-4 me-md-2 shadow" onclick="showSection('gestion_documental')">Nuevo Registro</button>
+              <button class="btn btn-outline-secondary btn-lg px-4" onclick="showSection('seguimiento')">Panel de Control</button>
             </div>
           </div>
           <div class="col-md-5 text-center d-none d-md-block">
-            <i class="bi bi-folder-check display-1 text-mujeres opacity-25"></i>
+            <img src="https://www.merida.gob.mx/municipio/portal/img/logo_merida.png" alt="Mérida" class="img-fluid opacity-75" style="max-height: 200px;">
           </div>
         </div>
       </div>
@@ -86,8 +86,8 @@
     <!-- Overlay de Carga Global -->
     <div id="loading-overlay" class="loading-overlay">
       <div class="text-center">
-        <div class="spinner-border text-mujeres" role="status" style="width: 3rem; height: 3rem;"></div>
-        <p class="mt-3 fw-bold text-mujeres" id="loading-text">Procesando solicitud...</p>
+        <div class="spinner-border text-merida" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3 fw-bold text-merida" id="loading-text">Procesando solicitud...</p>
       </div>
     </div>
 

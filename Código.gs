@@ -1,10 +1,10 @@
 /**
- * Proyecto: Mujeres Seguras - Gestión Documental
+ * Proyecto: Gestión de Procedimientos y Políticas - Mérida
  * @author Jules
  */
 
 // --- CONFIGURACIÓN Y CONSTANTES ---
-const FOLDER_ROOT_NAME = "MujeresSeguras_Anexos";
+const FOLDER_ROOT_NAME = "Gestión_Documental_Mérida";
 
 function getSS() {
   try {
@@ -38,7 +38,7 @@ const ESTADOS = {
 function doGet(e) {
   return HtmlService.createTemplateFromFile('Index')
       .evaluate()
-      .setTitle('Mujeres Seguras - Gestión Documental')
+      .setTitle('Gestión Documental - Mérida')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -89,7 +89,7 @@ function verificarOCrearPestana(nombre, headers) {
  * Auditoría de usuario.
  */
 function getUserInfo() {
-  const email = Session.getActiveUser().getEmail() || "invitado@mujeresseguras.mx";
+  const email = Session.getActiveUser().getEmail() || "invitado@merida.gob.mx";
   const ss = getSS();
   const sheet = ss.getSheetByName(SHEETS.USUARIOS);
   if (!sheet) return { email: email, rol: "USER", nombre: "Usuario Externo" };
