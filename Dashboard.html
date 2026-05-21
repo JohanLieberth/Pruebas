@@ -1,0 +1,74 @@
+<div class="row">
+  <div class="col-12 mb-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body bg-light rounded">
+        <h4 class="fw-bold text-merida mb-3"><i class="bi bi-speedometer2"></i> Mi Panel de Control</h4>
+        <div class="row g-3 admin-only" style="display:none;">
+          <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm">
+              <div class="card-body">
+                <h6 class="text-muted">Total Documentos</h6>
+                <h3 id="statTotal" class="fw-bold">0</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm border-start border-warning border-4">
+              <div class="card-body">
+                <h6 class="text-muted">Pendientes Revisión</h6>
+                <h3 id="statPending" class="fw-bold text-warning">0</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm border-start border-success border-4">
+              <div class="card-body">
+                <h6 class="text-muted">Aprobados Mes</h6>
+                <h3 id="statApproved" class="fw-bold text-success">0</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center border-0 shadow-sm border-start border-danger border-4">
+              <div class="card-body">
+                <h6 class="text-muted">Observados</h6>
+                <h3 id="statObserved" class="fw-bold text-danger">0</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-files me-2"></i>Documentos Registrados</h5>
+        <div class="d-flex">
+          <input type="text" id="searchDoc" class="form-control form-control-sm me-2" placeholder="Buscar por código..." onkeyup="filterDocs()">
+          <button class="btn btn-sm btn-merida" onclick="showView('editor')"><i class="bi bi-plus-lg"></i> Nuevo</button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="tableDocs">
+            <thead class="table-light">
+              <tr>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Fecha Creación</th>
+                <th>Estado Global</th>
+                <th>Progreso Revisión</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tableDocsBody">
+              <!-- Cargado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

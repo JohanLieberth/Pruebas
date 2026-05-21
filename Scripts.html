@@ -1,0 +1,358 @@
+<script>
+  /**
+   * Variables Globales
+   */
+  let currentUser = null;
+  let currentDoc = null;
+  let currentSections = [];
+  let currentStep = 0;
+  let availableSections = [];
+
+  /**
+   * Navegación SPA
+   */
+  function showView(viewId, params = null) {
+    $('.section-view').hide();
+    $(`#view-${viewId}`).show();
+
+    if (viewId === 'dashboard') loadDashboard();
+    if (viewId === 'editor') initEditor(params);
+    if (viewId === 'revision') initRevision(params);
+  }
+
+  function showLoader(show) {
+    $('#loading-overlay').toggle(show);
+  }
+
+  /**
+   * Inicialización
+   */
+  $(document).ready(function() {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(info) {
+        currentUser = info;
+        $('#userName').text(info.nombre);
+        $('#userRole').text(info.rol);
+        if (info.rol === 'administrador') $('.admin-only').show();
+        showView('dashboard');
+        showLoader(false);
+      })
+      .getUserInfo();
+  });
+
+  /**
+   * DASHBOARD
+   */
+  let allDocs = [];
+
+  function loadDashboard() {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(docs) {
+        allDocs = docs;
+        renderDocsTable(docs);
+        updateStats(docs);
+        showLoader(false);
+      })
+      .getDocuments();
+  }
+
+  function renderDocsTable(docs) {
+    const tbody = $('#tableDocsBody');
+    tbody.empty();
+
+    docs.forEach(doc => {
+      const badgeClass = `badge-${doc.estado}`;
+      const row = `
+        <tr>
+          <td><span class="fw-bold">${doc.codigo}</span></td>
+          <td>${doc.tipo}</td>
+          <td>${new Date(doc.fecha).toLocaleDateString()}</td>
+          <td><span class="badge ${badgeClass}">${doc.estado.replace('_', ' ')}</span></td>
+          <td>
+            <div class="progress" style="height: 5px;">
+              <div class="progress-bar bg-success" style="width: ${calculateProgressPercent(doc.progreso)}%"></div>
+            </div>
+            <small>${doc.progreso}</small>
+          </td>
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-primary" onclick="showView('editor', '${doc.id}')" title="Ver/Editar">
+              ${(doc.estado === 'En_Edición' || doc.estado === 'Observado') ? '<i class="bi bi-pencil"></i>' : '<i class="bi bi-eye"></i>'}
+            </button>
+            ${doc.estado === 'En_Edición' || doc.estado === 'Observado' ?
+              `<button class="btn btn-sm btn-outline-warning ms-1" onclick="sendToReview('${doc.id}')" title="Enviar a Revisión"><i class="bi bi-send"></i></button>` : ''}
+            ${currentUser.rol === 'administrador' && doc.estado === 'En_Revision' ?
+              `<button class="btn btn-sm btn-merida ms-1" onclick="showView('revision', '${doc.id}')" title="Revisar"><i class="bi bi-shield-check"></i></button>` : ''}
+          </td>
+        </tr>
+      `;
+      tbody.append(row);
+    });
+  }
+
+  function filterDocs() {
+    const term = $('#searchDoc').val().toLowerCase();
+    const filtered = allDocs.filter(d => d.codigo.toLowerCase().includes(term) || d.tipo.toLowerCase().includes(term));
+    renderDocsTable(filtered);
+  }
+
+  function updateStats(docs) {
+    if (currentUser.rol !== 'administrador') return;
+
+    const stats = {
+      total: docs.length,
+      pending: docs.filter(d => d.estado === 'En_Revision').length,
+      observed: docs.filter(d => d.estado === 'Observado').length,
+      approved: docs.filter(d => d.estado === 'Aprobado').length
+    };
+
+    $('#statTotal').text(stats.total);
+    $('#statPending').text(stats.pending);
+    $('#statObserved').text(stats.observed);
+    $('#statApproved').text(stats.approved);
+  }
+
+  function calculateProgressPercent(progreso) {
+    const parts = progreso.split(' de ');
+    return (parseInt(parts[0]) / parseInt(parts[1])) * 100;
+  }
+
+  /**
+   * EDITOR (Wizard)
+   */
+  function loadCatalogs() {
+    return new Promise((resolve) => {
+      google.script.run
+        .withSuccessHandler(function(cats) {
+          fillSelect('doc_coord', cats.coords);
+          fillSelect('doc_dir', cats.dirs);
+          fillSelect('doc_sub', cats.subs);
+          fillSelect('doc_dept', cats.depts);
+          resolve();
+        })
+        .getCatalogs();
+    });
+  }
+
+  function fillSelect(id, items) {
+    const sel = $(`#${id}`);
+    sel.empty().append('<option value="">Seleccionar...</option>');
+    items.forEach(item => sel.append(`<option value="${item}">${item}</option>`));
+  }
+
+  async function initEditor(docId = null) {
+    currentStep = 0;
+    $('#formEditorHeader')[0].reset();
+    $('#editorDocId').val(docId || '');
+
+    await loadCatalogs();
+
+    if (docId) {
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(data) {
+          currentDoc = data.doc;
+          currentSections = data.sections;
+
+          // Llenar encabezado
+          $('#doc_coord').val(currentDoc.coordinacion);
+          $('#doc_dir').val(currentDoc.direccion);
+          $('#doc_sub').val(currentDoc.subdireccion);
+          $('#doc_dept').val(currentDoc.departamento);
+          $('#doc_rev').val(currentDoc.revision);
+          $(`input[name="doc_tipo"][value="${currentDoc.tipo}"]`).prop('checked', true);
+
+          $('#codePreview').text(currentDoc.codigo);
+
+          renderWizard();
+          showLoader(false);
+        })
+        .getDocumentDetail(docId);
+    } else {
+      currentDoc = null;
+      currentSections = [];
+      $('#codePreview').text('CÓDIGO-AUTOGENERADO');
+      $('#wizardContainer').empty();
+    }
+  }
+
+  function renderWizard() {
+    const tipo = $('input[name="doc_tipo"]:checked').val();
+    if (!tipo) return;
+
+    availableSections = tipo === 'Política' ?
+      ["OBJETIVO", "ALCANCE", "MARCO LEGAL", "DEFINICIONES", "POLÍTICAS GENERALES", "POLÍTICAS ESPECÍFICAS", "ANEXOS", "SANCIONES", "CONTROL DE CAMBIOS"] :
+      ["OBJETIVO", "ALCANCE", "RESPONSABILIDADES", "DOCUMENTOS DE REFERENCIA", "DEFINICIONES", "RECURSOS A UTILIZAR", "DESCRIPCIÓN DEL PROCEDIMIENTO", "REGISTROS QUE GENERA EL PROCEDIMIENTO", "ANEXOS", "CONTROL DE CAMBIOS"];
+
+    const container = $('#wizardContainer');
+    container.empty();
+
+    availableSections.forEach((secName, index) => {
+      const sectionData = currentSections.find(s => s.nombre === secName) || { contenido: '', estado: 'Pendiente' };
+      const isLocked = sectionData.estado === 'Visto_Bueno' && currentUser.rol !== 'administrador';
+      const isObserved = sectionData.estado === 'Observado';
+
+      const card = `
+        <div class="card section-card ${index === 0 ? 'active' : ''}" id="step-${index}">
+          <div class="card-header card-header-merida d-flex justify-content-between">
+            <span>${index + 1}. ${secName}</span>
+            ${sectionData.estado === 'Visto_Bueno' ? '<span class="section-approved-marker"><i class="bi bi-check-circle-fill"></i> APROBADA</span>' : ''}
+            ${sectionData.estado === 'Observado' ? '<span class="section-observed-marker"><i class="bi bi-exclamation-triangle-fill"></i> OBSERVADA</span>' : ''}
+          </div>
+          <div class="card-body">
+            ${isObserved ? `<div class="alert alert-danger py-2 mb-2 small"><i class="bi bi-info-circle"></i> <b>Observaciones:</b> ${sectionData.observaciones}</div>` : ''}
+            <textarea class="form-control section-content ${isLocked ? 'section-locked' : ''}"
+                      id="content-${index}" rows="10"
+                      onkeyup="updateCharCount(${index})">${sectionData.contenido}</textarea>
+            <div class="char-counter"><span id="count-${index}">${sectionData.contenido.length}</span> caracteres</div>
+          </div>
+        </div>
+      `;
+      container.append(card);
+    });
+
+    updateWizardUI();
+  }
+
+  function updateWizardUI() {
+    const percent = ((currentStep + 1) / availableSections.length) * 100;
+    $('#wizardProgressBar').css('width', `${percent}%`);
+    $('#btnPrev').prop('disabled', currentStep === 0);
+    $('#btnNext').toggle(currentStep < availableSections.length - 1);
+    $('#btnSave').toggle(currentStep === availableSections.length - 1);
+  }
+
+  function moveStep(dir) {
+    $(`#step-${currentStep}`).removeClass('active');
+    currentStep += dir;
+    $(`#step-${currentStep}`).addClass('active');
+    updateWizardUI();
+  }
+
+  function updateCharCount(index) {
+    const len = $(`#content-${index}`).val().length;
+    $(`#count-${index}`).text(len);
+  }
+
+  function saveDocument() {
+    // Validaciones
+    let isValid = true;
+    const sections = [];
+
+    availableSections.forEach((name, index) => {
+      const content = $(`#content-${index}`).val();
+      if (content.length < 100) {
+        isValid = false;
+        alert(`La sección ${name} debe tener al menos 100 caracteres.`);
+        return false;
+      }
+      sections.push({ nombre: name, contenido: content });
+    });
+
+    if (!isValid) return;
+
+    const docData = {
+      ID_Documento: $('#editorDocId').val(),
+      coordinacion: $('#doc_coord').val(),
+      direccion: $('#doc_dir').val(),
+      subdireccion: $('#doc_sub').val(),
+      departamento: $('#doc_dept').val(),
+      Número_Revisión: $('#doc_rev').val(),
+      tipo: $('input[name="doc_tipo"]:checked').val()
+    };
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        alert('Documento guardado con éxito. Código: ' + res.codigo);
+        showView('dashboard');
+        showLoader(false);
+      })
+      .saveDocument(docData, sections);
+  }
+
+  /**
+   * REVISION (Admin)
+   */
+  function initRevision(docId) {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(data) {
+        currentDoc = data.doc;
+        currentSections = data.sections;
+
+        $('#revDocCode').text(currentDoc.codigo);
+        $('#revDocUser').text(currentDoc.creador);
+
+        const container = $('#revisionSectionsContainer');
+        container.empty();
+
+        currentSections.forEach((sec, index) => {
+          const card = `
+            <div class="card mb-3 border-merida shadow-sm">
+              <div class="card-header bg-light fw-bold">${sec.nombre}</div>
+              <div class="card-body">
+                <p class="border p-2 bg-white" style="white-space: pre-wrap;">${sec.contenido}</p>
+                <div class="row align-items-center">
+                  <div class="col-md-8">
+                    <textarea class="form-control form-control-sm" id="obs-rev-${index}" placeholder="Observaciones si es necesario...">${sec.observaciones || ''}</textarea>
+                  </div>
+                  <div class="col-md-4 text-end">
+                    <div class="btn-group">
+                      <button class="btn btn-sm btn-success ${sec.estado === 'Visto_Bueno' ? 'active' : ''}"
+                              onclick="submitReview('${index}', '${sec.nombre}', 'aprobar')">
+                        <i class="bi bi-check-lg"></i> Visto Bueno
+                      </button>
+                      <button class="btn btn-sm btn-danger ${sec.estado === 'Observado' ? 'active' : ''}"
+                              onclick="submitReview('${index}', '${sec.nombre}', 'observar')">
+                        <i class="bi bi-x-lg"></i> Observar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+          container.append(card);
+        });
+        showLoader(false);
+      })
+      .getDocumentDetail(docId);
+  }
+
+  function submitReview(index, secName, decision) {
+    const idDoc = currentDoc.id;
+    const obs = $(`#obs-rev-${index}`).val();
+
+    if (decision === 'observar' && !obs) {
+      alert('Es obligatorio indicar observaciones para observar una sección.');
+      return;
+    }
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function() {
+        alert(`Sección ${secName} revisada correctamente.`);
+        // Recargar para ver si cambió el estado global
+        initRevision(idDoc);
+      })
+      .reviewSection(idDoc, secName, decision, obs);
+  }
+
+  function finalizeReview() {
+    showView('dashboard');
+  }
+
+  function sendToReview(idDoc) {
+    if (!confirm('¿Desea enviar este documento a revisión formal? Se notificará al administrador.')) return;
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function() {
+        alert('Documento enviado a revisión.');
+        loadDashboard();
+      })
+      .sendToReview(idDoc);
+  }
+</script>

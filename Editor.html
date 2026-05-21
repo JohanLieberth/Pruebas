@@ -1,0 +1,77 @@
+<div class="row">
+  <!-- Sidebar de Navegación del Documento -->
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header card-header-merida">Encabezado</div>
+      <div class="card-body">
+        <form id="formEditorHeader">
+          <input type="hidden" id="editorDocId">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Coordinación</label>
+            <select class="form-select form-select-sm" id="doc_coord" required></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Dirección</label>
+            <select class="form-select form-select-sm" id="doc_dir" required></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Subdirección</label>
+            <select class="form-select form-select-sm" id="doc_sub" required></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Departamento</label>
+            <select class="form-select form-select-sm" id="doc_dept" required></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Número Revisión</label>
+            <input type="number" class="form-control form-control-sm" id="doc_rev" value="0" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold d-block">Tipo Documento</label>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="doc_tipo" id="tipoPol" value="Política" checked onclick="renderWizard()">
+              <label class="form-check-label small" for="tipoPol">Política</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="doc_tipo" id="tipoProc" value="Proceso" onclick="renderWizard()">
+              <label class="form-check-label small" for="tipoProc">Proceso</label>
+            </div>
+          </div>
+          <hr>
+          <div class="text-center">
+            <div class="small text-muted mb-1">Código Sugerido:</div>
+            <div id="codePreview" class="badge bg-light text-dark border p-2 w-100">CÓDIGO-AUTOGENERADO</div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido de Secciones (Wizard) -->
+  <div class="col-md-9">
+    <div class="progress wizard-progress shadow-sm bg-white">
+      <div class="progress-bar bg-primary" id="wizardProgressBar" role="progressbar" style="width: 0%"></div>
+    </div>
+
+    <div id="wizardContainer">
+      <!-- Secciones dinámicas -->
+    </div>
+
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-body d-flex justify-content-between">
+        <button class="btn btn-outline-secondary" id="btnPrev" onclick="moveStep(-1)">
+          <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <div>
+          <button class="btn btn-outline-danger me-2" onclick="showView('dashboard')">Cancelar</button>
+          <button class="btn btn-merida" id="btnNext" onclick="moveStep(1)">
+            Siguiente <i class="bi bi-chevron-right"></i>
+          </button>
+          <button class="btn btn-success" id="btnSave" style="display:none;" onclick="saveDocument()">
+            <i class="bi bi-save"></i> Guardar Borrador
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

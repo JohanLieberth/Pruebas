@@ -1,0 +1,34 @@
+<div class="row">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-shield-check"></i> Panel de Revisión Administrativa</h5>
+        <button class="btn btn-sm btn-outline-light" onclick="finalizeReview()">Volver</button>
+      </div>
+      <div class="card-body bg-light">
+        <div class="row">
+          <div class="col-md-6">
+            <p class="mb-1 text-muted small">Documento:</p>
+            <h5 id="revDocCode" class="fw-bold">CÓDIGO</h5>
+          </div>
+          <div class="col-md-6 text-md-end">
+            <p class="mb-1 text-muted small">Creado por:</p>
+            <div id="revDocUser" class="fw-bold">usuario@ejemplo.com</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div id="revisionSectionsContainer">
+      <!-- Secciones para revisión -->
+    </div>
+  </div>
+
+  <div class="col-12 text-center mt-4 mb-5">
+    <button class="btn btn-lg btn-success px-5 shadow" onclick="finalizeReview()">
+      Finalizar Revisión de Documento
+    </button>
+  </div>
+</div>
