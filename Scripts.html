@@ -7,6 +7,7 @@
   let currentSections = [];
   let currentStep = 0;
   let availableSections = [];
+  let modalUser = null;
 
   /**
    * Navegación SPA
@@ -18,6 +19,7 @@
     if (viewId === 'dashboard') loadDashboard();
     if (viewId === 'editor') initEditor(params);
     if (viewId === 'revision') initRevision(params);
+    if (viewId === 'admin') loadAdminData();
   }
 
   function showLoader(show) {
@@ -353,5 +355,86 @@
         loadDashboard();
       })
       .sendToReview(idDoc);
+  }
+
+  /**
+   * ADMINISTRACIÓN DE USUARIOS
+   */
+  function loadAdminData() {
+    if (!modalUser) modalUser = new bootstrap.Modal(document.getElementById('modalUser'));
+
+    runServer('getUsersList', null, function(users) {
+      const tbody = $('#usersTableBody');
+      tbody.empty();
+
+      users.forEach(u => {
+        const row = `
+          <tr>
+            <td><div class="fw-bold">${u.nombre}</div></td>
+            <td><small>${u.email}</small></td>
+            <td><span class="badge bg-dark">${u.rol}</span></td>
+            <td><small class="text-muted">${u.coordinacion} / ${u.direccion}</small></td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteUser('${u.email}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+        tbody.append(row);
+      });
+    });
+  }
+
+  function openUserModal() {
+    $('#formUser')[0].reset();
+    modalUser.show();
+  }
+
+  function saveUser() {
+    const userData = {
+      nombre: $('#u_nombre').val(),
+      email: $('#u_email').val(),
+      rol: $('#u_rol').val(),
+      coordinacion: $('#u_coord').val(),
+      direccion: $('#u_dir').val()
+    };
+
+    if (!userData.nombre || !userData.email) {
+      alert('Nombre y Correo son obligatorios.');
+      return;
+    }
+
+    runServer('saveUser', [userData], function() {
+      alert('Usuario registrado correctamente.');
+      modalUser.hide();
+      loadAdminData();
+    });
+  }
+
+  function confirmDeleteUser(email) {
+    if (confirm(`¿Está seguro de eliminar el acceso para ${email}?`)) {
+      runServer('deleteUser', [email], function() {
+        alert('Usuario removido del sistema.');
+        loadAdminData();
+      });
+    }
+  }
+
+  /**
+   * Helper para llamadas seguras al servidor
+   */
+  function runServer(funcName, args, onSuccess) {
+    showLoader(true);
+    const runner = google.script.run.withFailureHandler(function(err) {
+      alert("Error: " + err.message);
+      showLoader(false);
+    }).withSuccessHandler(function(res) {
+      onSuccess(res);
+      showLoader(false);
+    });
+
+    if (args) runner[funcName](...args);
+    else runner[funcName]();
   }
 </script>

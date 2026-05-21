@@ -67,7 +67,93 @@ function setup() {
     sheet.setFrozenRows(1);
   });
 
-  return "Sistema configurado exitosamente.";
+  // Auto-registro del primer administrador
+  const userSheet = ss.getSheetByName(SHEETS.USUARIOS);
+  if (userSheet.getLastRow() === 1) {
+    const adminEmail = Session.getActiveUser().getEmail();
+    userSheet.appendRow([Utilities.getUuid(), "Administrador Inicial", adminEmail, "administrador", "N/A", "N/A", "N/A", "N/A"]);
+  }
+
+  return "Sistema configurado exitosamente. Se ha registrado al usuario actual como administrador.";
+}
+
+/**
+ * Agrega o actualiza un usuario en la base de datos.
+ */
+function saveUser(userData) {
+  const admin = getUserInfo();
+  if (admin.rol !== "administrador") throw new Error("Acceso denegado.");
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.USUARIOS);
+  const data = sheet.getDataRange().getValues();
+
+  let rowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][2] === userData.email) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  const row = [
+    userData.id || Utilities.getUuid(),
+    userData.nombre,
+    userData.email,
+    userData.rol,
+    userData.coordinacion || "N/A",
+    userData.direccion || "N/A",
+    userData.subdireccion || "N/A",
+    userData.departamento || "N/A"
+  ];
+
+  if (rowIndex !== -1) {
+    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+  return { success: true };
+}
+
+/**
+ * Elimina un usuario por su email.
+ */
+function deleteUser(email) {
+  const admin = getUserInfo();
+  if (admin.rol !== "administrador") throw new Error("Acceso denegado.");
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.USUARIOS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (data[i][2] === email) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  return { success: true };
+}
+
+/**
+ * Lista todos los usuarios (Solo Admin).
+ */
+function getUsersList() {
+  const admin = getUserInfo();
+  if (admin.rol !== "administrador") throw new Error("Acceso denegado.");
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.USUARIOS);
+  const data = sheet.getDataRange().getValues();
+
+  return data.slice(1).map(row => ({
+    nombre: row[1],
+    email: row[2],
+    rol: row[3],
+    coordinacion: row[4],
+    direccion: row[5],
+    subdireccion: row[6],
+    departamento: row[7]
+  }));
 }
 
 function onOpen() {

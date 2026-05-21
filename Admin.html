@@ -1,24 +1,73 @@
-<div id="admin" class="section">
-  <div class="card shadow-sm">
-    <div class="card-header bg-dark text-white">
-      <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Administración de Usuarios</h5>
+<div id="admin" class="section-view" style="display:none;">
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Gestión de Usuarios y Roles</h5>
+      <button class="btn btn-sm btn-merida" onclick="openUserModal()">
+        <i class="bi bi-person-plus me-1"></i>Nuevo Usuario
+      </button>
     </div>
     <div class="card-body">
-       <p class="text-muted">Módulo de administración básica para el control de acceso.</p>
-       <div class="table-responsive">
-         <table class="table table-sm">
-           <thead>
-             <tr>
-               <th>Email</th>
-               <th>Nombre</th>
-               <th>Rol</th>
-             </tr>
-           </thead>
-           <tbody id="lista-usuarios-admin">
-             <tr><td colspan="3" class="text-center">Cargando...</td></tr>
-           </tbody>
-         </table>
-       </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th>Correo Electrónico</th>
+              <th>Rol</th>
+              <th>Estructura Org.</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <!-- Cargado vía JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Registro Usuario -->
+<div class="modal fade" id="modalUser" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-merida text-white">
+        <h5 class="modal-title fw-bold">Registro de Usuario</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="formUser">
+          <div class="mb-3">
+            <label class="form-label fw-bold small">Nombre Completo</label>
+            <input type="text" class="form-control" id="u_nombre" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold small">Correo Institucional (Gmail)</label>
+            <input type="email" class="form-control" id="u_email" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold small">Rol en el Sistema</label>
+            <select class="form-select" id="u_rol" required>
+              <option value="usuario">Usuario (Editor)</option>
+              <option value="administrador">Administrador (Revisor)</option>
+            </select>
+          </div>
+          <div class="row g-2">
+            <div class="col-6 mb-3">
+              <label class="form-label fw-bold small">Coordinación</label>
+              <input type="text" class="form-control" id="u_coord">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label fw-bold small">Dirección</label>
+              <input type="text" class="form-control" id="u_dir">
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-merida btn-sm px-4" onclick="saveUser()">Guardar Usuario</button>
+      </div>
     </div>
   </div>
 </div>
