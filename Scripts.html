@@ -22,7 +22,8 @@
     if (viewId === 'admin') loadAdminData();
   }
 
-  function showLoader(show) {
+  function showLoader(show, text = "Procesando...") {
+    $('#loading-overlay .mt-2').text(text);
     $('#loading-overlay').toggle(show);
   }
 
@@ -30,8 +31,12 @@
    * Inicialización
    */
   $(document).ready(function() {
-    showLoader(true);
+    showLoader(true, "Iniciando sesión...");
     google.script.run
+      .withFailureHandler(function(err) {
+        alert("Fallo al cargar aplicación: " + err.message);
+        showLoader(false);
+      })
       .withSuccessHandler(function(info) {
         currentUser = info;
         $('#userName').text(info.nombre);
