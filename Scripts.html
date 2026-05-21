@@ -64,12 +64,16 @@
     const tbody = $('#tableDocsBody');
     tbody.empty();
 
+    const isAdmin = currentUser.rol === 'administrador';
+    $('#headerCreador').toggle(isAdmin);
+
     docs.forEach(doc => {
       const badgeClass = `badge-${doc.estado}`;
       const row = `
         <tr>
           <td><span class="fw-bold">${doc.codigo}</span></td>
           <td>${doc.tipo}</td>
+          ${isAdmin ? `<td><small>${doc.usuario}</small></td>` : ''}
           <td>${new Date(doc.fecha).toLocaleDateString()}</td>
           <td><span class="badge ${badgeClass}">${doc.estado.replace('_', ' ')}</span></td>
           <td>
@@ -183,8 +187,8 @@
     if (!tipo) return;
 
     availableSections = tipo === 'Política' ?
-      ["OBJETIVO", "ALCANCE", "MARCO LEGAL", "DEFINICIONES", "POLÍTICAS GENERALES", "POLÍTICAS ESPECÍFICAS", "ANEXOS", "SANCIONES", "CONTROL DE CAMBIOS"] :
-      ["OBJETIVO", "ALCANCE", "RESPONSABILIDADES", "DOCUMENTOS DE REFERENCIA", "DEFINICIONES", "RECURSOS A UTILIZAR", "DESCRIPCIÓN DEL PROCEDIMIENTO", "REGISTROS QUE GENERA EL PROCEDIMIENTO", "ANEXOS", "CONTROL DE CAMBIOS"];
+      ["OBJETIVO", "ALCANCE", "MARCO LEGAL", "DEFINICIONES", "POLÍTICAS GENERALES", "POLÍTICAS ESPECÍFICAS", "ANEXOS", "SANCIONES", "CONTROL DE CAMBIOS", "ANEXO DOCUMENTAL"] :
+      ["OBJETIVO", "ALCANCE", "RESPONSABILIDADES", "DOCUMENTOS DE REFERENCIA", "DEFINICIONES", "RECURSOS A UTILIZAR", "DESCRIPCIÓN DEL PROCEDIMIENTO", "REGISTROS QUE GENERA EL PROCEDIMIENTO", "ANEXOS", "CONTROL DE CAMBIOS", "ANEXO DOCUMENTAL"];
 
     const container = $('#wizardContainer');
     container.empty();
@@ -194,6 +198,37 @@
       const isLocked = sectionData.estado === 'Visto_Bueno' && currentUser.rol !== 'administrador';
       const isObserved = sectionData.estado === 'Observado';
 
+      let contentHtml = '';
+      if (secName === 'ANEXO DOCUMENTAL') {
+        let anexosData = [];
+        try { anexosData = JSON.parse(sectionData.contenido || "[]"); } catch(e) {}
+
+        contentHtml = `
+          <div class="alert alert-info py-2 mb-3 small"><i class="bi bi-info-circle"></i> Ingrese hasta 3 anexos documentales (Opcional).</div>
+          <div id="anexosContainer">
+            ${[0, 1, 2].map(i => `
+              <div class="row g-2 mb-3 border-bottom pb-2">
+                <div class="col-md-4">
+                  <input type="text" class="form-control form-control-sm anexo-nombre" placeholder="Nombre del Anexo ${i+1}" value="${anexosData[i]?.nombre || ''}">
+                </div>
+                <div class="col-md-8">
+                  <input type="text" class="form-control form-control-sm anexo-detalle" placeholder="Detalle / Enlace / Referencia" value="${anexosData[i]?.detalle || ''}">
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <input type="hidden" id="content-${index}" class="anexo-json-input">
+        `;
+      } else {
+        contentHtml = `
+          ${isObserved ? `<div class="alert alert-danger py-2 mb-2 small"><i class="bi bi-info-circle"></i> <b>Observaciones:</b> ${sectionData.observaciones}</div>` : ''}
+          <textarea class="form-control section-content ${isLocked ? 'section-locked' : ''}"
+                    id="content-${index}" rows="10"
+                    onkeyup="updateCharCount(${index})">${sectionData.contenido}</textarea>
+          <div class="char-counter"><span id="count-${index}">${sectionData.contenido.length}</span> caracteres</div>
+        `;
+      }
+
       const card = `
         <div class="card section-card ${index === 0 ? 'active' : ''}" id="step-${index}">
           <div class="card-header card-header-merida d-flex justify-content-between">
@@ -202,11 +237,7 @@
             ${sectionData.estado === 'Observado' ? '<span class="section-observed-marker"><i class="bi bi-exclamation-triangle-fill"></i> OBSERVADA</span>' : ''}
           </div>
           <div class="card-body">
-            ${isObserved ? `<div class="alert alert-danger py-2 mb-2 small"><i class="bi bi-info-circle"></i> <b>Observaciones:</b> ${sectionData.observaciones}</div>` : ''}
-            <textarea class="form-control section-content ${isLocked ? 'section-locked' : ''}"
-                      id="content-${index}" rows="10"
-                      onkeyup="updateCharCount(${index})">${sectionData.contenido}</textarea>
-            <div class="char-counter"><span id="count-${index}">${sectionData.contenido.length}</span> caracteres</div>
+            ${contentHtml}
           </div>
         </div>
       `;
@@ -237,13 +268,25 @@
   }
 
   function saveDocument() {
+    // Preparar Anexos JSON si existen
+    const anexosIdx = availableSections.indexOf('ANEXO DOCUMENTAL');
+    if (anexosIdx !== -1) {
+      const anexos = [];
+      $('#anexosContainer .row').each(function() {
+        const nombre = $(this).find('.anexo-nombre').val();
+        const detalle = $(this).find('.anexo-detalle').val();
+        if (nombre) anexos.push({ nombre, detalle });
+      });
+      $(`#content-${anexosIdx}`).val(JSON.stringify(anexos));
+    }
+
     // Validaciones
     let isValid = true;
     const sections = [];
 
     availableSections.forEach((name, index) => {
       const content = $(`#content-${index}`).val();
-      if (content.length < 100) {
+      if (name !== 'ANEXO DOCUMENTAL' && content.length < 100) {
         isValid = false;
         alert(`La sección ${name} debe tener al menos 100 caracteres.`);
         return false;
@@ -290,11 +333,33 @@
         container.empty();
 
         currentSections.forEach((sec, index) => {
+          let displayContent = `<p class="border p-2 bg-white" style="white-space: pre-wrap;">${sec.contenido}</p>`;
+
+          if (sec.nombre === 'ANEXO DOCUMENTAL') {
+            try {
+              const anexos = JSON.parse(sec.contenido || "[]");
+              if (anexos.length > 0) {
+                displayContent = `
+                  <div class="list-group mb-2">
+                    ${anexos.map(a => `
+                      <div class="list-group-item">
+                        <div class="fw-bold">${a.nombre}</div>
+                        <div class="small">${a.detalle}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                `;
+              } else {
+                displayContent = '<p class="text-muted italic">Sin anexos registrados.</p>';
+              }
+            } catch(e) {}
+          }
+
           const card = `
             <div class="card mb-3 border-merida shadow-sm">
               <div class="card-header bg-light fw-bold">${sec.nombre}</div>
               <div class="card-body">
-                <p class="border p-2 bg-white" style="white-space: pre-wrap;">${sec.contenido}</p>
+                ${displayContent}
                 <div class="row align-items-center">
                   <div class="col-md-8">
                     <textarea class="form-control form-control-sm" id="obs-rev-${index}" placeholder="Observaciones si es necesario...">${sec.observaciones || ''}</textarea>
