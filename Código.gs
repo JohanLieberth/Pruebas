@@ -302,6 +302,8 @@ function getDocuments() {
   const results = [];
   for (let i = 1; i < docsData.length; i++) {
     const doc = docsData[i];
+    if (!doc[0]) continue; // Saltar filas vacías o sin ID
+
     // Filtro por usuario si no es admin
     if (user.rol !== "administrador" && doc[8] !== user.email) continue;
 
@@ -309,16 +311,22 @@ function getDocuments() {
     const docId = doc[0];
     const docSections = sectionsData.filter(s => s[1] === docId);
     const approved = docSections.filter(s => s[4] === ESTADOS_SECCION.VISTO_BUENO).length;
-    const total = SECCIONES_TIPO[doc[2].toUpperCase().replace("Ó", "O")].length;
+
+    // Normalización robusta del tipo para acceder a SECCIONES_TIPO
+    const tipoStr = doc[2] || "PROCESO";
+    const tipoNormalizado = tipoStr.toUpperCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const total = (SECCIONES_TIPO[tipoNormalizado] || []).length || 1;
 
     results.push({
       id: docId,
-      codigo: doc[1],
-      tipo: doc[2],
-      fecha: doc[9],
-      estado: doc[10],
+      codigo: doc[1] || "S/C",
+      tipo: tipoStr,
+      fecha: doc[9] || new Date(),
+      estado: doc[10] || "En_Edición",
       progreso: `${approved} de ${total}`,
-      usuario: doc[8]
+      usuario: doc[8] || "Desconocido"
     });
   }
   return results;

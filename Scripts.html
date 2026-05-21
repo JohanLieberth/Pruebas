@@ -51,10 +51,14 @@
   function loadDashboard() {
     showLoader(true);
     google.script.run
+      .withFailureHandler(function(err) {
+        alert("Error al cargar documentos: " + err.message);
+        showLoader(false);
+      })
       .withSuccessHandler(function(docs) {
-        allDocs = docs;
-        renderDocsTable(docs);
-        updateStats(docs);
+        allDocs = docs || [];
+        renderDocsTable(allDocs);
+        updateStats(allDocs);
         showLoader(false);
       })
       .getDocuments();
@@ -64,18 +68,27 @@
     const tbody = $('#tableDocsBody');
     tbody.empty();
 
+    if (!docs || docs.length === 0) {
+      tbody.append('<tr><td colspan="7" class="text-center p-4 text-muted">No se encontraron documentos registrados.</td></tr>');
+      return;
+    }
+
     const isAdmin = currentUser.rol === 'administrador';
     $('#headerCreador').toggle(isAdmin);
 
     docs.forEach(doc => {
-      const badgeClass = `badge-${doc.estado}`;
+      const estadoDisplay = (doc.estado || 'En_Edición').replace('_', ' ');
+      const badgeClass = `badge-${doc.estado || 'En_Edición'}`;
+      const fechaObj = doc.fecha ? new Date(doc.fecha) : new Date();
+      const fechaDisplay = isNaN(fechaObj.getTime()) ? '-' : fechaObj.toLocaleDateString();
+
       const row = `
         <tr>
-          <td><span class="fw-bold">${doc.codigo}</span></td>
-          <td>${doc.tipo}</td>
-          ${isAdmin ? `<td><small>${doc.usuario}</small></td>` : ''}
-          <td>${new Date(doc.fecha).toLocaleDateString()}</td>
-          <td><span class="badge ${badgeClass}">${doc.estado.replace('_', ' ')}</span></td>
+          <td><span class="fw-bold">${doc.codigo || 'S/C'}</span></td>
+          <td>${doc.tipo || 'Proceso'}</td>
+          ${isAdmin ? `<td><small>${doc.usuario || '-'}</small></td>` : ''}
+          <td>${fechaDisplay}</td>
+          <td><span class="badge ${badgeClass}">${estadoDisplay}</span></td>
           <td>
             <div class="progress" style="height: 5px;">
               <div class="progress-bar bg-success" style="width: ${calculateProgressPercent(doc.progreso)}%"></div>
@@ -120,8 +133,11 @@
   }
 
   function calculateProgressPercent(progreso) {
+    if (!progreso) return 0;
     const parts = progreso.split(' de ');
-    return (parseInt(parts[0]) / parseInt(parts[1])) * 100;
+    if (parts.length < 2) return 0;
+    const den = parseInt(parts[1]);
+    return den === 0 ? 0 : (parseInt(parts[0]) / den) * 100;
   }
 
   /**
