@@ -17,6 +17,17 @@
     cargarCatalogoPublico();
   }
 
+  function transformGoogleDriveLink(url) {
+    if (!url) return url;
+    if (url.indexOf('drive.google.com/file/d/') !== -1) {
+      return url.replace('drive.google.com/file/d/', 'drive.google.com/uc?export=view&id=').split('/view')[0];
+    }
+    if (url.indexOf('drive.google.com/open?id=') !== -1) {
+      return url.replace('drive.google.com/open?id=', 'drive.google.com/uc?export=view&id=');
+    }
+    return url;
+  }
+
   function cargarCatalogoPublico() {
     var catalogDiv = document.getElementById('public-catalog');
     if (!catalogDiv) return;
@@ -34,14 +45,15 @@
 
         // Cargar insignia de configuración si existe
         google.script.run.withSuccessHandler(function(insigniaUrl) {
+          var finalInsigniaUrl = transformGoogleDriveLink(insigniaUrl);
           var html = "";
           for (var i = 0; i < sucursales.length; i++) {
             var suc = sucursales[i];
             var hasInsignia = (suc.estatus === "Con insignia");
             var insigniaHtml = "";
             if (hasInsignia) {
-              if (insigniaUrl) {
-                insigniaHtml = '<img src="' + insigniaUrl + '" class="badge-icon" title="Espacio con Insignia">';
+              if (finalInsigniaUrl) {
+                insigniaHtml = '<img src="' + finalInsigniaUrl + '" class="badge-icon" title="Espacio con Insignia" onerror="this.style.display=\'none\'">';
               } else {
                 insigniaHtml = '<span class="badge-icon" title="Espacio con Insignia" style="font-size: 24px; line-height: 1;">🏅</span>';
               }
@@ -84,9 +96,11 @@
     google.script.run
       .withSuccessHandler(function(logoUrl) {
         if (logoUrl) {
+          var finalLogoUrl = transformGoogleDriveLink(logoUrl);
           var logoImg = document.getElementById('app-logo');
-          logoImg.src = logoUrl;
-          logoImg.style.display = 'inline-block';
+          logoImg.onload = function() { logoImg.style.display = 'inline-block'; };
+          logoImg.onerror = function() { console.error("Error al cargar logo:", finalLogoUrl); };
+          logoImg.src = finalLogoUrl;
         }
       })
       .getConfigValue('link_logo');
