@@ -47,20 +47,30 @@
   function cargarConfiguracionGeneral() {
     google.script.run
       .withSuccessHandler(function(videoUrl) {
-        if (videoUrl) {
-          // Convertir link de YouTube normal a embed si es necesario
-          let embedUrl = videoUrl;
-          if (videoUrl.includes('watch?v=')) {
-            embedUrl = videoUrl.replace('watch?v=', 'embed/');
-          } else if (videoUrl.includes('youtu.be/')) {
-            embedUrl = videoUrl.replace('youtu.be/', 'youtube.com/embed/');
-          }
-
-          document.getElementById('youtube-video').src = embedUrl;
-          document.getElementById('video-container').style.display = 'block';
+        if (!videoUrl) {
+          // Si no encuentra 'link_video', intentar con '1' (como reportó el usuario)
+          google.script.run
+            .withSuccessHandler(procesarVideo)
+            .getConfigValue('1');
+        } else {
+          procesarVideo(videoUrl);
         }
       })
       .getConfigValue('link_video');
+  }
+
+  function procesarVideo(videoUrl) {
+    if (videoUrl) {
+      let videoId = "";
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = videoUrl.match(regExp);
+      if (match && match[2].length == 11) {
+        videoId = match[2];
+        const embedUrl = "https://www.youtube.com/embed/" + videoId;
+        document.getElementById('youtube-video').src = embedUrl;
+        document.getElementById('video-container').style.display = 'block';
+      }
+    }
   }
 
   // Cargar catálogo y configuración al inicio
@@ -164,9 +174,8 @@
           <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <input type="text" class="branch-coords" placeholder="Ej: 19.4326, -99.1332"
                    oninput="updateMapPreview(this)" required style="flex: 1;">
-            <button type="button" class="btn btn-outline" onclick="window.open('https://www.google.com/maps', '_blank')" style="padding: 8px 15px; font-size: 14px;">Abrir Google Maps</button>
           </div>
-          <div class="map-preview" id="preview-${branchCount}">Vista previa del mapa</div>
+          <button type="button" class="btn btn-outline btn-map-external" onclick="window.open('https://www.google.com/maps', '_blank')" style="width: 100%; margin-top: 5px;">Abrir Google Maps</button>
         </div>
 
         <div class="form-group">
@@ -228,12 +237,18 @@
 
   function updateMapPreview(input) {
     const card = input.closest('.branch-card');
-    const previewDiv = card.querySelector('.map-preview');
+    const mapBtn = card.querySelector('.btn-map-external');
     const coords = parseCoordinates(input.value);
     if (coords) {
-      previewDiv.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0" src="https://www.google.com/maps?q=${coords.lat},${coords.lng}&z=15&output=embed"></iframe>`;
+      mapBtn.onclick = function() {
+        window.open(`https://www.google.com/maps?q=${coords.lat},${coords.lng}`, '_blank');
+      };
+      mapBtn.classList.add('btn-primary');
+      mapBtn.classList.remove('btn-outline');
     } else {
-      previewDiv.innerHTML = "Formato no reconocido.";
+      mapBtn.onclick = function() { window.open('https://www.google.com/maps', '_blank'); };
+      mapBtn.classList.remove('btn-primary');
+      mapBtn.classList.add('btn-outline');
     }
   }
 
