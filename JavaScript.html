@@ -31,27 +31,41 @@
           catalogDiv.innerHTML = '<p style="color: #999;">Aún no hay sucursales certificadas aprobadas.</p>';
           return;
         }
-        var html = "";
-        for (var i = 0; i < sucursales.length; i++) {
-          var suc = sucursales[i];
-          var hasInsignia = (suc.estatus === "Con insignia");
-          html += '<div class="catalog-card">' +
-                    '<div style="display: flex; justify-content: space-between; align-items: flex-start;">' +
-                      '<small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase;">' + (suc.empresa || '') + '</small>' +
-                      (hasInsignia ? '<span class="badge-icon" title="Espacio con Insignia">🏅</span>' : '') +
-                    '</div>' +
+
+        // Cargar insignia de configuración si existe
+        google.script.run.withSuccessHandler(function(insigniaUrl) {
+          var html = "";
+          for (var i = 0; i < sucursales.length; i++) {
+            var suc = sucursales[i];
+            var hasInsignia = (suc.estatus === "Con insignia");
+            var insigniaHtml = "";
+            if (hasInsignia) {
+              if (insigniaUrl) {
+                insigniaHtml = '<img src="' + insigniaUrl + '" class="badge-icon" title="Espacio con Insignia">';
+              } else {
+                insigniaHtml = '<span class="badge-icon" title="Espacio con Insignia" style="font-size: 24px; line-height: 1;">🏅</span>';
+              }
+            }
+
+            html += '<div class="catalog-card">' +
+                      '<div style="display: flex; justify-content: space-between; align-items: flex-start;">' +
+                        '<small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase;">' + (suc.empresa || '') + '</small>' +
+                        insigniaHtml +
+                      '</div>' +
                     '<h4 style="margin-top: 5px;">' + suc.nombre + '</h4>' +
                     '<p>📍 ' + suc.direccion + '</p>' +
                     (suc.telefono ? '<p>📞 ' + suc.telefono + '</p>' : '') +
                     (suc.urlMaps ? '<div style="margin-top:10px;"><button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="window.open(\'' + suc.urlMaps + '\', \'_blank\')">Ver en Google Maps</button></div>' : '') +
                   '</div>';
-        }
-        catalogDiv.innerHTML = html;
+          }
+          catalogDiv.innerHTML = html;
+        }).getConfigValue('link_insignia');
       })
       .getSucursalesCertificadas();
   }
 
   function cargarConfiguracionGeneral() {
+    // Cargar Video
     google.script.run
       .withFailureHandler(function(err) { console.error("Error al buscar link_video:", err); })
       .withSuccessHandler(function(videoUrl) {
@@ -65,6 +79,17 @@
         }
       })
       .getConfigValue('link_video');
+
+    // Cargar Logo
+    google.script.run
+      .withSuccessHandler(function(logoUrl) {
+        if (logoUrl) {
+          var logoImg = document.getElementById('app-logo');
+          logoImg.src = logoUrl;
+          logoImg.style.display = 'inline-block';
+        }
+      })
+      .getConfigValue('link_logo');
   }
 
   function procesarVideo(videoUrl) {

@@ -1,6 +1,6 @@
 <style>
   :root {
-    --primary-color: #6B2C91; /* Morado */
+    --primary-color: #DE007B; /* Rosa Mexicano */
     --secondary-color: #F47C20; /* Naranja */
     --bg-color: #f8f9fa;
     --text-color: #333;
@@ -27,11 +27,17 @@
     border-bottom: 4px solid var(--primary-color);
   }
 
+  .header-logo {
+    max-height: 80px;
+    margin-bottom: 10px;
+  }
+
   .header h1 {
     color: var(--primary-color);
     margin: 0;
     text-transform: uppercase;
     letter-spacing: 2px;
+    font-size: 24px;
   }
 
   .container {
@@ -117,9 +123,11 @@
   }
 
   .badge-icon {
-    font-size: 24px;
+    width: 32px;
+    height: 32px;
     margin-left: 10px;
     filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+    object-fit: contain;
   }
 
   /* Video Wrapper */
