@@ -19,11 +19,20 @@
 
   function transformGoogleDriveLink(url) {
     if (!url) return url;
-    if (url.indexOf('drive.google.com/file/d/') !== -1) {
-      return url.replace('drive.google.com/file/d/', 'drive.google.com/uc?export=view&id=').split('/view')[0];
+    var id = "";
+    // Extraer ID de formato /d/ID/view o /d/ID
+    var dMatch = url.match(/\/d\/([^\/?#]+)/);
+    if (dMatch) {
+      id = dMatch[1];
+    } else {
+      // Extraer ID de formato ?id=ID
+      var idMatch = url.match(/[?&]id=([^&?#]+)/);
+      if (idMatch) id = idMatch[1];
     }
-    if (url.indexOf('drive.google.com/open?id=') !== -1) {
-      return url.replace('drive.google.com/open?id=', 'drive.google.com/uc?export=view&id=');
+
+    if (id) {
+      // El endpoint uc?export=view es el más estándar para incrustar imágenes de Drive
+      return "https://drive.google.com/uc?export=view&id=" + id;
     }
     return url;
   }
