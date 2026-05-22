@@ -420,7 +420,8 @@ function getConfigValue(key) {
     var sheet = getSheetSafe("Config_General");
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
-      if (data[i][0] === key) return data[i][1];
+      // Comparación flexible para claves que puedan ser numéricas en el Sheet
+      if (String(data[i][0]).trim() === String(key).trim()) return data[i][1];
     }
     return null;
   } catch (e) {
