@@ -1,0 +1,641 @@
+<script>
+  let branchCount = 0;
+  let currentUser = null;
+
+  // --- Navegación ---
+  function showSection(id) {
+    document.querySelectorAll('.step-section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function showWelcome() {
+    showSection('welcome-section');
+    cargarCatalogoPublico();
+  }
+
+  function cargarCatalogoPublico() {
+    const catalogDiv = document.getElementById('public-catalog');
+    google.script.run
+      .withSuccessHandler(function(sucursales) {
+        if (sucursales.length === 0) {
+          catalogDiv.innerHTML = '<p style="color: #999;">Aún no hay sucursales certificadas aprobadas.</p>';
+          return;
+        }
+        catalogDiv.innerHTML = sucursales.map(suc => {
+          const hasInsignia = (suc.estatus === "Con insignia");
+          return `
+            <div class="catalog-card">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase;">${suc.empresa || ''}</small>
+                ${hasInsignia ? '<span class="badge-icon" title="Espacio con Insignia">🏅</span>' : ''}
+              </div>
+              <h4 style="margin-top: 5px;">${suc.nombre}</h4>
+              <p>📍 ${suc.direccion}</p>
+              ${suc.telefono ? `<p>📞 ${suc.telefono}</p>` : ''}
+              ${suc.urlMaps ? `
+                <div style="margin-top:10px;">
+                  <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="window.open('${suc.urlMaps}', '_blank')">Ver en Google Maps</button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      })
+      .getSucursalesCertificadas();
+  }
+
+  function cargarConfiguracionGeneral() {
+    google.script.run
+      .withSuccessHandler(function(videoUrl) {
+        if (videoUrl) {
+          // Convertir link de YouTube normal a embed si es necesario
+          let embedUrl = videoUrl;
+          if (videoUrl.includes('watch?v=')) {
+            embedUrl = videoUrl.replace('watch?v=', 'embed/');
+          } else if (videoUrl.includes('youtu.be/')) {
+            embedUrl = videoUrl.replace('youtu.be/', 'youtube.com/embed/');
+          }
+
+          document.getElementById('youtube-video').src = embedUrl;
+          document.getElementById('video-container').style.display = 'block';
+        }
+      })
+      .getConfigValue('link_video');
+  }
+
+  // Cargar catálogo y configuración al inicio
+  window.addEventListener('load', () => {
+    cargarCatalogoPublico();
+    cargarConfiguracionGeneral();
+  });
+  function showLogin() { showSection('login-section'); }
+  function showWizard() {
+    showSection('wizard-section');
+    transitionToStep(1);
+    if (branchCount === 0) addBranch();
+  }
+
+  function resetApp() {
+    branchCount = 0;
+    currentUser = null;
+    window.idPlanActualizar = null;
+    document.getElementById('registroForm').reset();
+    document.getElementById('login-rfc').value = '';
+    document.getElementById('plan-detalle').value = '';
+    document.getElementById('plan-archivo').value = '';
+    document.getElementById('sucursales-container').innerHTML = '';
+    document.getElementById('lista-planes').innerHTML = '';
+    document.getElementById('nueva-sucursal-form').style.display = 'none';
+    document.getElementById('plan-id-ubicacion').disabled = false;
+    document.getElementById('comprobante-termino-container').style.display = 'none';
+    transitionToStep(1);
+    showWelcome();
+  }
+
+  function nextStep(current) {
+    if (!validateStep(current)) return;
+
+    if (current === 1) {
+      const rfc = document.getElementById('reg-rfc').value;
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(exists) {
+          showLoader(false);
+          if (exists) {
+            alert('Este RFC ya está registrado. Si desea actualizar datos, use la opción "Continuar Registro".');
+          } else {
+            transitionToStep(2);
+          }
+        })
+        .withFailureHandler(function(err) {
+          showLoader(false);
+          alert("Error de conexión: " + err);
+        })
+        .validarRFCExistente(rfc);
+    } else if (current === 3) {
+      cargarCalendario();
+      transitionToStep(4);
+    } else if (current === 4) {
+      mostrarResumen();
+      transitionToStep(5);
+    } else {
+      transitionToStep(current + 1);
+    }
+  }
+
+  function prevStep(current) {
+    transitionToStep(current - 1);
+  }
+
+  function transitionToStep(n) {
+    document.querySelectorAll('.step-content').forEach(s => s.style.display = 'none');
+    document.getElementById('step-' + n).style.display = 'block';
+
+    document.querySelectorAll('.progress-step').forEach((s, idx) => {
+      s.classList.remove('active', 'completed');
+      // Step 6 is hidden from the bar
+      if (idx < 5) {
+        if (idx + 1 < n) s.classList.add('completed');
+        if (idx + 1 === n) s.classList.add('active');
+      }
+    });
+  }
+
+  // --- Manejo de Sucursales ---
+  function addBranch(containerId = 'sucursales-container') {
+    branchCount++;
+    const container = document.getElementById(containerId);
+    const isWizard = containerId === 'sucursales-container';
+
+    const branchHtml = `
+      <div class="branch-card" id="branch-${branchCount}">
+        ${isWizard ? `<span class="remove-branch" onclick="removeBranch(${branchCount})">&times;</span>` : ''}
+        <h3>Sucursal ${isWizard ? '#' + branchCount : ''}</h3>
+        <div class="form-group">
+          <label>Nombre de la Sucursal:</label>
+          <input type="text" class="branch-nombre" required>
+        </div>
+        <div class="form-group">
+          <label>Dirección completa:</label>
+          <input type="text" class="branch-direccion" required>
+        </div>
+        <div class="form-group">
+          <label>Coordenadas GPS (Latitud, Longitud):</label>
+          <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <input type="text" class="branch-coords" placeholder="Ej: 19.4326, -99.1332"
+                   oninput="updateMapPreview(this)" required style="flex: 1;">
+            <button type="button" class="btn btn-outline" onclick="window.open('https://www.google.com/maps', '_blank')" style="padding: 8px 15px; font-size: 14px;">Abrir Google Maps</button>
+          </div>
+          <div class="map-preview" id="preview-${branchCount}">Vista previa del mapa</div>
+        </div>
+
+        <div class="form-group">
+          <label>Horario de atención:</label>
+          <input type="text" class="branch-horario" placeholder="Ej: Lun-Vie 9:00 - 18:00" required>
+        </div>
+
+        <div class="form-group">
+          <label>Teléfono local:</label>
+          <input type="tel" class="branch-telefono" required>
+        </div>
+
+        <div class="form-group">
+          <label>Nombre del Responsable del Local:</label>
+          <input type="text" class="branch-responsable" required>
+        </div>
+        <div class="form-group">
+          <label>Cargo del responsable:</label>
+          <input type="text" class="branch-cargo" required>
+        </div>
+
+        <div class="form-group">
+          <label>Compromisos específicos para esta sucursal (Opcional):</label>
+          <div class="checkbox-group" style="background: #fff; border: 1px solid #ddd; padding: 10px;">
+            <div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Personal capacitado en protocolos de género</label></div>
+            <div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Botón de pánico instalado y funcional</label></div>
+          </div>
+        </div>
+      </div>
+    `;
+    container.insertAdjacentHTML('beforeend', branchHtml);
+  }
+
+  function removeBranch(id) {
+    if (document.querySelectorAll('#sucursales-container .branch-card').length > 1) {
+      document.getElementById('branch-' + id).remove();
+    } else {
+      alert("Debe registrar al menos una sucursal.");
+    }
+  }
+
+  function parseCoordinates(input) {
+    const decimalMatch = input.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+    if (decimalMatch) return { lat: decimalMatch[1], lng: decimalMatch[2] };
+    const dmsMatch = input.match(/(\d+)°(\d+)'([\d.]+)"([NS])\s+(\d+)°(\d+)'([\d.]+)"([EW])/);
+    if (dmsMatch) {
+      const convert = (d, m, s, dir) => {
+        let res = parseFloat(d) + parseFloat(m)/60 + parseFloat(s)/3600;
+        if (dir === 'S' || dir === 'W') res *= -1;
+        return res.toFixed(6);
+      };
+      return {
+        lat: convert(dmsMatch[1], dmsMatch[2], dmsMatch[3], dmsMatch[4]),
+        lng: convert(dmsMatch[5], dmsMatch[6], dmsMatch[7], dmsMatch[8])
+      };
+    }
+    return null;
+  }
+
+  function updateMapPreview(input) {
+    const card = input.closest('.branch-card');
+    const previewDiv = card.querySelector('.map-preview');
+    const coords = parseCoordinates(input.value);
+    if (coords) {
+      previewDiv.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0" src="https://www.google.com/maps?q=${coords.lat},${coords.lng}&z=15&output=embed"></iframe>`;
+    } else {
+      previewDiv.innerHTML = "Formato no reconocido.";
+    }
+  }
+
+  // --- Dashboard Nueva Sucursal ---
+  function toggleNuevaSucursal() {
+    const div = document.getElementById('nueva-sucursal-form');
+    if (div.style.display === 'none') {
+      div.style.display = 'block';
+      div.innerHTML = `
+        <h3>Registrar Nueva Sucursal</h3>
+        <div id="new-branch-hook"></div>
+        <div style="margin-top:20px; border-top: 1px solid #ddd; padding-top:15px;">
+           <label style="font-weight:bold;">Seleccione la Capacitación Obligatoria:</label>
+           <div id="new-branch-calendar" class="calendar-container"></div>
+           <input type="hidden" id="new-branch-course-id">
+        </div>
+        <div class="button-group">
+          <button class="btn btn-outline" onclick="document.getElementById('nueva-sucursal-form').style.display='none'">Cancelar</button>
+          <button class="btn btn-primary" onclick="enviarNuevaSucursal()">Guardar Sucursal y Capacitación</button>
+        </div>
+      `;
+      addBranch('new-branch-hook');
+      cargarCalendario('new-branch-calendar', 'new-branch-course-id');
+    } else {
+      div.style.display = 'none';
+    }
+  }
+
+  function enviarNuevaSucursal() {
+    const card = document.querySelector('#new-branch-hook .branch-card');
+    const cursoId = document.getElementById('new-branch-course-id').value;
+    const coords = parseCoordinates(card.querySelector('.branch-coords').value);
+
+    if (!coords) return alert("Coordenadas inválidas.");
+    if (!cursoId) return alert("Debe seleccionar una capacitación para la sucursal.");
+
+    const compromisos = [];
+    card.querySelectorAll('.branch-comp:checked').forEach(c => {
+      compromisos.push(c.nextElementSibling.innerText);
+    });
+
+    const data = {
+      rfc: currentUser.rfc,
+      nombre: card.querySelector('.branch-nombre').value,
+      direccion: card.querySelector('.branch-direccion').value,
+      coordenadas: `${coords.lat}, ${coords.lng}`,
+      horario: card.querySelector('.branch-horario').value,
+      telefono: card.querySelector('.branch-telefono').value,
+      responsable: card.querySelector('.branch-responsable').value,
+      cargo: card.querySelector('.branch-cargo').value,
+      compromisos: compromisos,
+      capacitacion: {
+        idCurso: cursoId,
+        hora: window.selectedCourseInfo ? window.selectedCourseInfo.hora : "-",
+        sede: window.selectedCourseInfo ? window.selectedCourseInfo.sede : "-"
+      }
+    };
+
+    if (!data.nombre || !data.direccion) return alert("Complete los campos obligatorios.");
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showLoader(false);
+        if (res.success) {
+          alert("Sucursal agregada y capacitación programada.");
+          document.getElementById('nueva-sucursal-form').style.display = 'none';
+          accederPorRFC();
+        } else {
+          alert("Error: " + res.error);
+        }
+      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
+      .agregarNuevaSucursal(data);
+  }
+
+  // --- Validaciones y Envío Registro ---
+  function validateStep(n) {
+    if (n === 4) {
+      if (!document.getElementById('selected-course-id').value) {
+        alert("Debe seleccionar un curso del calendario.");
+        return false;
+      }
+      return true;
+    }
+    const stepDiv = document.getElementById('step-' + n);
+    const inputs = stepDiv.querySelectorAll('input[required]');
+    for (let input of inputs) {
+      if (!input.value.trim()) {
+        alert("Por favor complete todos los campos obligatorios.");
+        input.focus();
+        return false;
+      }
+    }
+    if (n === 1) {
+      const rfc = document.getElementById('reg-rfc').value;
+      const rfcRegex = /^[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/;
+      if (!rfcRegex.test(rfc.toUpperCase())) {
+        alert("RFC inválido.");
+        return false;
+      }
+    }
+    if (n === 2) {
+      const coordInputs = document.querySelectorAll('.branch-coords');
+      for (let inp of coordInputs) {
+        if (!parseCoordinates(inp.value)) {
+          alert("Formato de coordenadas inválido.");
+          inp.focus();
+          return false;
+        }
+      }
+    }
+    if (n === 3) {
+      if (document.querySelectorAll('.compromiso:checked').length < 5) {
+        alert("Debe aceptar todos los compromisos generales.");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function mostrarResumen() {
+    const rfc = document.getElementById('reg-rfc').value;
+    const nombre = document.querySelector('input[name="nombreEmpresa"]').value;
+    const sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
+    const curso = window.selectedCourseInfo ? window.selectedCourseInfo.nombre : 'No seleccionado';
+    const fecha = window.selectedCourseInfo ? window.selectedCourseInfo.fecha : '-';
+    const hora = window.selectedCourseInfo ? window.selectedCourseInfo.hora : '-';
+    const sede = window.selectedCourseInfo ? window.selectedCourseInfo.sede : '-';
+
+    document.getElementById('resumen-registro').innerHTML = `
+      <p><strong>RFC:</strong> ${rfc}</p>
+      <p><strong>Empresa Principal:</strong> ${nombre}</p>
+      <p><strong>Sucursales a registrar:</strong> ${sucursales}</p>
+      <hr>
+      <p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada (Primera Sede):</p>
+      <p><strong>Módulo:</strong> ${curso}</p>
+      <p><strong>Fecha:</strong> ${fecha}</p>
+      <p><strong>Hora:</strong> ${hora}</p>
+      <p><strong>Sede:</strong> ${sede}</p>
+    `;
+  }
+
+  function submitRegistro() {
+    const cursoId = document.getElementById('selected-course-id').value;
+    if (!cursoId) return alert("Seleccione un curso en el Paso 4.");
+
+    showLoader(true);
+    const data = {
+      empresa: {
+        rfc: document.getElementById('reg-rfc').value.toUpperCase(),
+        nombreEmpresa: document.querySelector('input[name="nombreEmpresa"]').value,
+        telefono: document.querySelector('input[name="telefono"]').value,
+        correo: document.querySelector('input[name="correo"]').value
+      },
+      sucursales: [],
+      compromisos: []
+    };
+    document.querySelectorAll('#sucursales-container .branch-card').forEach(card => {
+      const coords = parseCoordinates(card.querySelector('.branch-coords').value);
+      const comps = [];
+      card.querySelectorAll('.branch-comp:checked').forEach(c => comps.push(c.nextElementSibling.innerText));
+      data.sucursales.push({
+        nombre: card.querySelector('.branch-nombre').value,
+        direccion: card.querySelector('.branch-direccion').value,
+        coordenadas: `${coords.lat}, ${coords.lng}`,
+        horario: card.querySelector('.branch-horario').value,
+        telefono: card.querySelector('.branch-telefono').value,
+        responsable: card.querySelector('.branch-responsable').value,
+        cargo: card.querySelector('.branch-cargo').value,
+        compromisos: comps
+      });
+    });
+    document.querySelectorAll('.compromiso:checked').forEach(c => data.compromisos.push(c.nextElementSibling.innerText));
+
+    // Proceso unificado: Registrar Empresa + Inscribir Curso
+    data.capacitacionInicial = {
+      idCurso: cursoId,
+      hora: window.selectedCourseInfo ? window.selectedCourseInfo.hora : "-",
+      sede: window.selectedCourseInfo ? window.selectedCourseInfo.sede : "-"
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showLoader(false);
+        if (res.success) {
+          const folio = res.folio;
+          currentUser = { rfc: data.empresa.rfc, folio: folio };
+
+          document.getElementById('success-folio').innerText = folio;
+          document.getElementById('comprobante-inscripcion').innerHTML = `
+            <div style="text-align: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px;">
+               <h3 style="color: #6B2C91; margin:0;">COMPROBANTE DE INSCRIPCIÓN</h3>
+               <small>Folio: ${folio}</small>
+            </div>
+            <p><strong>Organización:</strong> ${data.empresa.nombreEmpresa}</p>
+            <p><strong>Curso:</strong> ${window.selectedCourseInfo.nombre}</p>
+            <p><strong>Fecha:</strong> ${window.selectedCourseInfo.fecha}</p>
+            <p><strong>Hora:</strong> ${window.selectedCourseInfo.hora}</p>
+            <p style="margin-top:20px; padding: 10px; background: #f9f9f9; border-left: 4px solid #F47C20; font-size: 13px;">
+              <strong>Importante:</strong> Favor de presentarse 15 minutos antes con este comprobante impreso o digital.
+            </p>
+          `;
+          transitionToStep(6); // Mostrar éxito final
+
+        } else {
+          showLoader(false);
+          alert("Error: " + res.error);
+        }
+      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
+      .procesarRegistro(data);
+  }
+
+  function cargarCalendario(containerId = 'calendar-view', inputId = 'selected-course-id') {
+    showLoader(true);
+    const view = document.getElementById(containerId);
+    view.innerHTML = '<p style="text-align:center; padding: 20px; color: #666; width: 100%;">Cargando fechas disponibles...</p>';
+
+    google.script.run
+      .withSuccessHandler(function(cursos) {
+        showLoader(false);
+        if (!cursos || cursos.length === 0) {
+          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron cursos disponibles en este momento.</p>';
+          return;
+        }
+        view.innerHTML = cursos.map(c => `
+          <div class="calendar-item" data-container="${containerId}" onclick="selectCourse(this, '${c.id || ''}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha || ''}', '${c.hora || ''}', '${(c.sede || '').replace(/'/g, "\\'")}', '${inputId}')">
+            <h4>${c.nombre || 'Curso sin nombre'}</h4>
+            <p><strong>Fecha:</strong> ${c.fechaAmigable || c.fecha || 'Sin fecha'}</p>
+            <p><strong>Hora:</strong> ${c.hora || 'Sin hora'}</p>
+            <p><strong>Sede:</strong> ${c.sede || 'Sede no especificada'}</p>
+          </div>
+        `).join('');
+      })
+      .withFailureHandler(function(err) {
+        showLoader(false);
+        view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">Error al cargar el calendario: ' + err + '</p>';
+      })
+      .getCursosDisponibles();
+  }
+
+  function selectCourse(el, id, nombre, fecha, hora, sede, inputId) {
+    const containerId = el.getAttribute('data-container');
+    document.querySelectorAll(`#${containerId} .calendar-item`).forEach(i => i.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById(inputId).value = id;
+    window.selectedCourseInfo = { nombre, fecha, hora, sede };
+  }
+
+  // --- Acceso Posterior ---
+  function accederPorRFC() {
+    const rfc = document.getElementById('login-rfc').value.toUpperCase();
+    if (!rfc) return alert("Ingrese un RFC");
+    showLoader(true);
+
+    google.script.run
+      .withSuccessHandler(function(user) {
+        if (user) {
+          currentUser = user;
+          document.getElementById('dash-empresa').innerText = user.nombreEmpresa;
+          document.getElementById('dash-folio').innerText = user.folio;
+
+          cargarUbicacionesDropdown(user.rfc);
+          cargarHistorialPlanes(user.rfc);
+          cargarProgresoCapacitacion(user.rfc);
+        } else { showLoader(false); alert("RFC no encontrado."); }
+      })
+      .withFailureHandler(err => { showLoader(false); alert(err); })
+      .buscarPorRFC(rfc);
+  }
+
+  function cargarProgresoCapacitacion(rfc) {
+    google.script.run.withSuccessHandler(function(res) {
+      showLoader(false);
+      const tbody = document.getElementById('lista-capacitacion');
+      tbody.innerHTML = '';
+
+      if (res.seguimientoDetallado.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay registros de seguimiento.</td></tr>';
+        return;
+      }
+
+      res.seguimientoDetallado.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><small>${row.idSeguimiento}</small></td>
+          <td>${row.sucursalNombre}</td>
+          <td>${row.nombreCurso}</td>
+          <td>${row.fecha}</td>
+          <td>${row.hora}</td>
+          <td>${row.sede}</td>
+          <td><span class="status-badge status-${row.estatus.toLowerCase().replace(/ /g, '-')}">${row.estatus}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      showSection('user-dashboard');
+    }).getProgresoCapacitacion(rfc);
+  }
+
+  /**
+   * Carga el dropdown de sucursales para el plan de trabajo
+   */
+  function cargarUbicacionesDropdown(rfc) {
+    google.script.run
+      .withSuccessHandler(function(ubicaciones) {
+        const select = document.getElementById('plan-id-ubicacion');
+        select.innerHTML = '<option value="">Seleccione una sucursal...</option>';
+        ubicaciones.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.innerText = u.nombre;
+          select.appendChild(opt);
+        });
+
+        // Almacenar globalmente para mostrar nombres en el historial
+        window.ubicacionesMap = ubicaciones.reduce((map, u) => {
+          map[u.id] = u.nombre;
+          return map;
+        }, {});
+      })
+      .getUbicaciones(rfc);
+  }
+
+  function cargarHistorialPlanes(rfc) {
+    google.script.run
+      .withSuccessHandler(function(planes) {
+        showLoader(false);
+        const tbody = document.getElementById('lista-planes');
+        tbody.innerHTML = '';
+        planes.forEach(p => {
+          const nombreSuc = p.nombreSucursal || "No especificada";
+          const btnHtml = (p.estatus === "Observado") ?
+            `<button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="prepararActualizacion('${p.id}', '${p.idSucursal}')">Actualizar</button>` : '-';
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${nombreSuc}</td>
+            <td>${p.tipoArchivo}</td>
+            <td><span class="status-badge status-${p.estatus.toLowerCase().replace(/ /g, '-')}">${p.estatus}</span></td>
+            <td>${p.fecha}</td>
+            <td>${p.observaciones || '-'}</td>
+            <td>${btnHtml}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+        showSection('user-dashboard');
+      })
+      .withFailureHandler(err => { showLoader(false); alert(err); showSection('user-dashboard'); })
+      .getPlanesTrabajo(rfc);
+  }
+
+  function prepararActualizacion(idPlan, idSuc) {
+    window.idPlanActualizar = idPlan;
+    document.getElementById('plan-id-ubicacion').value = idSuc;
+    document.getElementById('plan-id-ubicacion').disabled = true;
+    document.getElementById('plan-detalle').placeholder = "Describa los cambios realizados...";
+    document.getElementById('plan-trabajo-section').scrollIntoView();
+  }
+
+  function enviarPlan() {
+    const idUbicacion = document.getElementById('plan-id-ubicacion').value;
+    const detalle = document.getElementById('plan-detalle').value;
+    const fileInput = document.getElementById('plan-archivo');
+
+    if (!idUbicacion) return alert("Por favor seleccione una sucursal.");
+
+    showLoader(true);
+    const payload = {
+      rfc: currentUser.rfc,
+      folio: currentUser.folio,
+      planDetalle: detalle,
+      idUbicacion: idUbicacion,
+      idPlan: window.idPlanActualizar || null
+    };
+
+    if (fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        payload.fileName = file.name;
+        payload.fileData = e.target.result;
+        google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo(payload);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(err => { showLoader(false); alert(err); }).guardarPlanTrabajo(payload);
+    }
+  }
+
+  function finalizarEnvioPlan(res) {
+    showLoader(false);
+    if (res.success) {
+      alert("Plan enviado correctamente.");
+      window.idPlanActualizar = null;
+      document.getElementById('plan-id-ubicacion').disabled = false;
+      document.getElementById('plan-detalle').placeholder = "";
+      accederPorRFC();
+    } else alert("Error: " + res.error);
+  }
+
+
+  function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
+</script>
