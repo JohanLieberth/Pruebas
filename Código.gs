@@ -421,7 +421,12 @@ function getConfigValue(key) {
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
       // Comparación flexible para claves que puedan ser numéricas en el Sheet
-      if (String(data[i][0]).trim() === String(key).trim()) return data[i][1];
+      var sheetKey = String(data[i][0] || "").trim();
+      var targetKey = String(key || "").trim();
+      if (sheetKey === targetKey) {
+        var value = data[i][1];
+        return typeof value === 'string' ? value.trim() : value;
+      }
     }
     return null;
   } catch (e) {
