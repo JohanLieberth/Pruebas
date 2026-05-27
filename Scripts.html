@@ -1,6 +1,6 @@
 <script>
   /**
-   * Variables Globales
+   * Variables Globales de la SPA
    */
   let currentUser = null;
   let currentDoc = null;
@@ -8,40 +8,71 @@
   let currentStep = 0;
   let availableSections = [];
   let modalUser = null;
+  let allDocs = [];
+  let currentTab = 'all';
+  let revisionTab = 'pending';
 
   /**
-   * Navegación SPA
+   * Navegación SPA Segura
    */
   function showView(viewId, params = null) {
+    console.log("Cambiando a vista:", viewId, params);
     $('.section-view').hide();
-    $(`#view-${viewId}`).show();
+    const target = $(`#view-${viewId}`);
 
-    if (viewId === 'dashboard') loadDashboard();
-    if (viewId === 'editor') initEditor(params);
-    if (viewId === 'revision') initRevision(params);
-    if (viewId === 'admin') loadAdminData();
+    if (target.length) {
+      target.show();
+      // Actualizar Navbar
+      $('.nav-link').removeClass('active');
+      $(`.nav-link[onclick*="${viewId}"]`).addClass('active');
+
+      if (viewId === 'dashboard') loadDashboard();
+      if (viewId === 'editor') initEditor(params);
+      if (viewId === 'revision') initRevision(params);
+      if (viewId === 'revision-list') loadRevisionQueue();
+      if (viewId === 'admin') loadAdminData();
+    } else {
+      console.error("Vista no encontrada:", viewId);
+      $('#view-dashboard').show();
+    }
   }
 
   function showLoader(show, text = "Procesando...") {
     $('#loading-overlay .mt-2').text(text);
-    $('#loading-overlay').toggle(show);
+    if (show) $('#loading-overlay').fadeIn(100);
+    else $('#loading-overlay').fadeOut(100);
   }
 
   /**
-   * Inicialización
+   * Inicialización de Aplicación
    */
   $(document).ready(function() {
-    showLoader(true, "Iniciando sesión...");
+    showLoader(true, "Iniciando sesión segura...");
+
+    // Iniciar tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+
     google.script.run
       .withFailureHandler(function(err) {
-        alert("Fallo al cargar aplicación: " + err.message);
+        console.error("Fallo crítico de inicio:", err);
+        alert("Fallo al cargar la plataforma. Reintente (F5). Detalle: " + err.message);
         showLoader(false);
       })
       .withSuccessHandler(function(info) {
+        console.log("Usuario autenticado:", info);
         currentUser = info;
         $('#userName').text(info.nombre);
         $('#userRole').text(info.rol);
-        if (info.rol === 'administrador') $('.admin-only').show();
+
+        if (info.rol === 'administrador') {
+          $('.admin-only').show();
+        } else {
+          $('.admin-only').hide();
+        }
+
         showView('dashboard');
         showLoader(false);
       })
@@ -49,21 +80,18 @@
   });
 
   /**
-   * DASHBOARD
+   * Lógica del DASHBOARD
    */
-  let allDocs = [];
-
   function loadDashboard() {
-    console.log("Solicitando documentos al servidor...");
-    showLoader(true, "Cargando registros...");
+    console.log("Sincronizando registros con el servidor...");
+    showLoader(true, "Actualizando documentos...");
     google.script.run
-      .withFailureHandler(function(err) {
-        console.error("Error Dashboard:", err);
-        alert("Error al cargar documentos: " + err.message);
+      .withFailureHandler(err => {
+        console.error("Error al obtener documentos:", err);
         showLoader(false);
       })
       .withSuccessHandler(function(docs) {
-        console.log("Documentos recibidos:", docs ? docs.length : 0);
+        console.log("Documentos sincronizados:", docs ? docs.length : 0);
         allDocs = docs || [];
         renderDocsTable(allDocs);
         updateStats(allDocs);
@@ -77,40 +105,41 @@
     tbody.empty();
 
     if (!docs || docs.length === 0) {
-      tbody.append('<tr><td colspan="7" class="text-center p-4 text-muted">No se encontraron documentos registrados.</td></tr>');
+      tbody.append('<tr><td colspan="7" class="text-center p-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i> No se encontraron documentos registrados.</td></tr>');
       return;
     }
 
-    const isAdmin = currentUser.rol === 'administrador';
+    const isAdmin = currentUser && currentUser.rol === 'administrador';
     $('#headerCreador').toggle(isAdmin);
 
     docs.forEach(doc => {
-      const estadoDisplay = (doc.estado || 'En_Edición').replace('_', ' ');
-      const badgeClass = `badge-${doc.estado || 'En_Edición'}`;
-      const fechaObj = doc.fecha ? new Date(doc.fecha) : new Date();
-      const fechaDisplay = isNaN(fechaObj.getTime()) ? '-' : fechaObj.toLocaleDateString();
+      const badgeClass = `badge-${doc.estado}`;
+      const statusText = (doc.estado || "En_Edición").replace('_', ' ');
+      const dateStr = doc.fecha ? new Date(doc.fecha).toLocaleDateString() : 'N/A';
 
       const row = `
         <tr>
-          <td><span class="fw-bold">${doc.codigo || 'S/C'}</span></td>
-          <td>${doc.tipo || 'Proceso'}</td>
-          ${isAdmin ? `<td><small>${doc.usuario || '-'}</small></td>` : ''}
-          <td>${fechaDisplay}</td>
-          <td><span class="badge ${badgeClass}">${estadoDisplay}</span></td>
+          <td><span class="badge bg-light text-dark border fw-bold shadow-sm">${doc.codigo || 'S/C'}</span></td>
+          <td><small class="fw-bold">${doc.tipo || 'PROC'}</small></td>
+          ${isAdmin ? `<td><small class="text-muted">${doc.usuario || '-'}</small></td>` : ''}
+          <td><small>${dateStr}</small></td>
+          <td><span class="badge ${badgeClass} shadow-sm">${statusText}</span></td>
           <td>
-            <div class="progress" style="height: 5px;">
+            <div class="progress" style="height: 6px;">
               <div class="progress-bar bg-success" style="width: ${calculateProgressPercent(doc.progreso)}%"></div>
             </div>
-            <small>${doc.progreso}</small>
+            <small class="x-small text-muted">${doc.progreso}</small>
           </td>
           <td class="text-end text-nowrap">
-            <button class="btn btn-sm btn-outline-primary" onclick="showView('editor', '${doc.id}')" title="Ver/Editar">
+            <button class="btn btn-sm btn-outline-primary" onclick="showView('editor', '${doc.id}')" title="Consultar/Editar">
               ${(doc.estado === 'En_Edición' || doc.estado === 'Observado') ? '<i class="bi bi-pencil"></i>' : '<i class="bi bi-eye"></i>'}
             </button>
-            ${doc.estado === 'En_Edición' || doc.estado === 'Observado' ?
+            ${(doc.estado === 'En_Edición' || doc.estado === 'Observado') ?
               `<button class="btn btn-sm btn-outline-warning ms-1" onclick="sendToReview('${doc.id}')" title="Enviar a Revisión"><i class="bi bi-send"></i></button>` : ''}
-            ${currentUser.rol === 'administrador' && doc.estado === 'En_Revision' ?
-              `<button class="btn btn-sm btn-merida ms-1" onclick="showView('revision', '${doc.id}')" title="Revisar"><i class="bi bi-shield-check"></i></button>` : ''}
+            ${isAdmin ?
+              `<button class="btn btn-sm btn-dark ms-1 shadow-sm" onclick="showView('revision', '${doc.id}')" title="Panel de Revisión">
+                <i class="bi bi-shield-fill-check"></i> Revisar
+              </button>` : ''}
           </td>
         </tr>
       `;
@@ -118,19 +147,15 @@
     });
   }
 
-  let currentTab = 'all';
-
   function filterDocs() {
     const term = $('#searchDoc').val().toLowerCase();
-
     const filtered = allDocs.filter(d => {
       const matchTerm = d.codigo.toLowerCase().includes(term) || d.tipo.toLowerCase().includes(term);
       let matchTab = true;
-      if (currentTab === 'pending') matchTab = d.estado === 'En_Revision';
+      if (currentTab === 'pending') matchTab = (d.estado === 'En_Revision' || d.estado === 'Observado');
       if (currentTab === 'approved') matchTab = d.estado === 'Aprobado';
       return matchTerm && matchTab;
     });
-
     renderDocsTable(filtered);
   }
 
@@ -144,18 +169,13 @@
   }
 
   function updateStats(docs) {
-    if (!currentUser || currentUser.rol !== 'administrador') {
-      $('.admin-only').hide();
-      return;
-    }
-
+    if (!currentUser || currentUser.rol !== 'administrador') return;
     const stats = {
       total: docs.length,
       pending: docs.filter(d => d.estado === 'En_Revision').length,
       observed: docs.filter(d => d.estado === 'Observado').length,
       approved: docs.filter(d => d.estado === 'Aprobado').length
     };
-
     $('#statTotal').text(stats.total);
     $('#statPending').text(stats.pending);
     $('#statObserved').text(stats.observed);
@@ -171,12 +191,17 @@
   }
 
   /**
-   * EDITOR (Wizard)
+   * Lógica del EDITOR (Wizard)
    */
-  function loadCatalogs() {
-    return new Promise((resolve) => {
+  async function initEditor(docId = null) {
+    currentStep = 0;
+    $('#formEditorHeader')[0].reset();
+    $('#editorDocId').val(docId || '');
+    showLoader(true, "Preparando catálogos...");
+
+    await new Promise(resolve => {
       google.script.run
-        .withSuccessHandler(function(cats) {
+        .withSuccessHandler(cats => {
           fillSelect('doc_coord', cats.coords);
           fillSelect('doc_dir', cats.dirs);
           fillSelect('doc_sub', cats.subs);
@@ -184,38 +209,20 @@
         })
         .getCatalogs();
     });
-  }
-
-  function fillSelect(id, items) {
-    const sel = $(`#${id}`);
-    sel.empty().append('<option value="">Seleccionar...</option>');
-    items.forEach(item => sel.append(`<option value="${item}">${item}</option>`));
-  }
-
-  async function initEditor(docId = null) {
-    currentStep = 0;
-    $('#formEditorHeader')[0].reset();
-    $('#editorDocId').val(docId || '');
-
-    await loadCatalogs();
 
     if (docId) {
-      showLoader(true);
+      showLoader(true, "Recuperando documento...");
       google.script.run
-        .withSuccessHandler(function(data) {
+        .withSuccessHandler(data => {
           currentDoc = data.doc;
           currentSections = data.sections;
-
-          // Llenar encabezado
           $('#doc_coord').val(currentDoc.coordinacion);
           $('#doc_dir').val(currentDoc.direccion);
           $('#doc_sub').val(currentDoc.subdireccion);
           $('#doc_dept').val(currentDoc.departamento);
           $('#doc_rev').val(currentDoc.revision);
           $(`input[name="doc_tipo"][value="${currentDoc.tipo}"]`).prop('checked', true);
-
           $('#codePreview').text(currentDoc.codigo);
-
           renderWizard();
           showLoader(false);
         })
@@ -225,13 +232,21 @@
       currentSections = [];
       $('#codePreview').text('CÓDIGO-AUTOGENERADO');
       $('#wizardContainer').empty();
+      showLoader(false);
     }
+  }
+
+  function fillSelect(id, items) {
+    const sel = $(`#${id}`);
+    sel.empty().append('<option value="">Seleccionar...</option>');
+    if (items) items.forEach(item => sel.append(`<option value="${item}">${item}</option>`));
   }
 
   function renderWizard() {
     const tipo = $('input[name="doc_tipo"]:checked').val();
     if (!tipo) return;
 
+    const abrev = tipo === 'Política' ? 'POLITICA' : 'PROCESO';
     availableSections = tipo === 'Política' ?
       ["OBJETIVO", "ALCANCE", "MARCO LEGAL", "DEFINICIONES", "POLÍTICAS GENERALES", "POLÍTICAS ESPECÍFICAS", "ANEXOS", "SANCIONES", "CONTROL DE CAMBIOS", "ANEXO DOCUMENTAL"] :
       ["OBJETIVO", "ALCANCE", "RESPONSABILIDADES", "DOCUMENTOS DE REFERENCIA", "DEFINICIONES", "RECURSOS A UTILIZAR", "DESCRIPCIÓN DEL PROCEDIMIENTO", "REGISTROS QUE GENERA EL PROCEDIMIENTO", "ANEXOS", "CONTROL DE CAMBIOS", "ANEXO DOCUMENTAL"];
@@ -241,55 +256,53 @@
 
     availableSections.forEach((secName, index) => {
       const sectionData = currentSections.find(s => s.nombre === secName) || { contenido: '', estado: 'Pendiente' };
-      const isLocked = sectionData.estado === 'Visto_Bueno' && currentUser.rol !== 'administrador';
-      const isObserved = sectionData.estado === 'Observado';
+      const isLocked = sectionData.estado === 'Visto_Bueno' && (currentUser && currentUser.rol !== 'administrador');
 
       let contentHtml = '';
       if (secName === 'ANEXO DOCUMENTAL') {
         let anexosData = [];
         try { anexosData = JSON.parse(sectionData.contenido || "[]"); } catch(e) {}
-
         contentHtml = `
-          <div class="alert alert-info py-2 mb-3 small"><i class="bi bi-info-circle"></i> Ingrese hasta 3 anexos documentales (Opcional).</div>
-          <div id="anexosContainer">
+          <div id="anexosContainer" class="p-3 bg-light rounded">
+            <label class="small fw-bold mb-3 d-block text-primary">EXPEDIENTES COMPLEMENTARIOS (Opcional):</label>
             ${[0, 1, 2].map(i => `
               <div class="row g-2 mb-3 border-bottom pb-2">
                 <div class="col-md-4">
-                  <input type="text" class="form-control form-control-sm anexo-nombre" placeholder="Nombre del Anexo ${i+1}" value="${anexosData[i]?.nombre || ''}">
+                  <input type="text" class="form-control form-control-sm anexo-nombre" placeholder="Nombre de Anexo ${i+1}" value="${anexosData[i]?.nombre || ''}">
                 </div>
                 <div class="col-md-8">
-                  <input type="text" class="form-control form-control-sm anexo-detalle" placeholder="Detalle / Enlace / Referencia" value="${anexosData[i]?.detalle || ''}">
+                  <input type="text" class="form-control form-control-sm anexo-detalle" placeholder="URL o Referencia" value="${anexosData[i]?.detalle || ''}">
                 </div>
               </div>
             `).join('')}
           </div>
-          <input type="hidden" id="content-${index}" class="anexo-json-input">
+          <input type="hidden" id="content-${index}">
         `;
       } else {
         contentHtml = `
-          ${isObserved ? `<div class="alert alert-danger py-2 mb-2 small"><i class="bi bi-info-circle"></i> <b>Observaciones:</b> ${sectionData.observaciones}</div>` : ''}
           <textarea class="form-control section-content ${isLocked ? 'section-locked' : ''}"
                     id="content-${index}" rows="10"
                     onkeyup="updateCharCount(${index})">${sectionData.contenido}</textarea>
-          <div class="char-counter"><span id="count-${index}">${sectionData.contenido.length}</span> caracteres</div>
+          <div class="char-counter text-end mt-1 small text-muted"><span id="count-${index}">${sectionData.contenido.length}</span> caracteres</div>
         `;
       }
 
-      const card = `
-        <div class="card section-card ${index === 0 ? 'active' : ''}" id="step-${index}">
-          <div class="card-header card-header-merida d-flex justify-content-between">
-            <span>${index + 1}. ${secName}</span>
-            ${sectionData.estado === 'Visto_Bueno' ? '<span class="section-approved-marker"><i class="bi bi-check-circle-fill"></i> APROBADA</span>' : ''}
-            ${sectionData.estado === 'Observado' ? '<span class="section-observed-marker"><i class="bi bi-exclamation-triangle-fill"></i> OBSERVADA</span>' : ''}
+      container.append(`
+        <div class="card section-card border-0 shadow-sm ${index === 0 ? 'active' : ''}" id="step-${index}">
+          <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold text-merida text-uppercase">${index + 1}. ${secName}</h6>
+            <div>
+              ${sectionData.estado === 'Visto_Bueno' ? '<span class="badge bg-success shadow-sm">Aprobada</span>' : ''}
+              ${sectionData.estado === 'Observado' ? '<span class="badge bg-danger shadow-sm">Observada</span>' : ''}
+            </div>
           </div>
           <div class="card-body">
+            ${sectionData.observaciones ? `<div class="alert alert-warning py-2 mb-3 small fw-bold">Revisión: ${sectionData.observaciones}</div>` : ''}
             ${contentHtml}
           </div>
         </div>
-      `;
-      container.append(card);
+      `);
     });
-
     updateWizardUI();
   }
 
@@ -314,34 +327,18 @@
   }
 
   function saveDocument() {
-    // Preparar Anexos JSON si existen
     const anexosIdx = availableSections.indexOf('ANEXO DOCUMENTAL');
     if (anexosIdx !== -1) {
       const anexos = [];
       $('#anexosContainer .row').each(function() {
-        const nombre = $(this).find('.anexo-nombre').val();
-        const detalle = $(this).find('.anexo-detalle').val();
-        if (nombre) anexos.push({ nombre, detalle });
+        const n = $(this).find('.anexo-nombre').val();
+        const d = $(this).find('.anexo-detalle').val();
+        if (n) anexos.push({ nombre: n, detalle: d });
       });
       $(`#content-${anexosIdx}`).val(JSON.stringify(anexos));
     }
 
-    // Validaciones
-    let isValid = true;
-    const sections = [];
-
-    availableSections.forEach((name, index) => {
-      const content = $(`#content-${index}`).val();
-      if (name !== 'ANEXO DOCUMENTAL' && content.length < 100) {
-        isValid = false;
-        alert(`La sección ${name} debe tener al menos 100 caracteres.`);
-        return false;
-      }
-      sections.push({ nombre: name, contenido: content });
-    });
-
-    if (!isValid) return;
-
+    const sections = availableSections.map((name, i) => ({ nombre: name, contenido: $(`#content-${i}`).val() }));
     const docData = {
       ID_Documento: $('#editorDocId').val(),
       coordinacion: $('#doc_coord').val(),
@@ -352,10 +349,11 @@
       tipo: $('input[name="doc_tipo"]:checked').val()
     };
 
-    showLoader(true);
+    showLoader(true, "Guardando expediente...");
     google.script.run
-      .withSuccessHandler(function(res) {
-        alert('Documento guardado con éxito. Código: ' + res.codigo);
+      .withFailureHandler(err => { alert("Error al guardar: " + err.message); showLoader(false); })
+      .withSuccessHandler(res => {
+        alert('Documento sincronizado correctamente. Código: ' + res.codigo);
         showView('dashboard');
         showLoader(false);
       })
@@ -363,232 +361,139 @@
   }
 
   /**
-   * REVISION (Admin)
+   * Lógica de REVISIÓN (Admin)
    */
   function initRevision(docId) {
-    showLoader(true, "Cargando panel de revisión...");
+    showLoader(true, "Accediendo al panel administrativo...");
     google.script.run
-      .withFailureHandler(err => {
-        alert("Error al cargar revisión: " + err.message);
-        showLoader(false);
-      })
       .withSuccessHandler(function(data) {
         currentDoc = data.doc;
         currentSections = data.sections;
-
         $('#revDocCode').text(currentDoc.codigo);
         $('#revDocUser').text(currentDoc.creador);
         $('#revGeneralObs').val(currentDoc.obs_generales || '');
 
         const container = $('#revisionSectionsContainer');
         container.empty();
-
-        let decidedCount = 0;
+        let count = 0;
 
         currentSections.forEach((sec, index) => {
-          let displayContent = `<p class="border p-3 bg-white shadow-sm rounded" style="white-space: pre-wrap; min-height: 100px;">${sec.contenido}</p>`;
-
+          let display = `<div class="p-3 bg-white rounded border shadow-sm" style="white-space: pre-wrap; font-size: 0.95rem;">${sec.contenido}</div>`;
           if (sec.nombre === 'ANEXO DOCUMENTAL') {
             try {
               const anexos = JSON.parse(sec.contenido || "[]");
-              if (anexos.length > 0) {
-                displayContent = `
-                  <div class="list-group mb-3 shadow-sm">
-                    ${anexos.map(a => `
-                      <div class="list-group-item bg-white">
-                        <div class="fw-bold text-merida">${a.nombre}</div>
-                        <div class="small text-muted">${a.detalle}</div>
-                      </div>
-                    `).join('')}
-                  </div>
-                `;
-              } else {
-                displayContent = '<div class="alert alert-light border italic">Sin anexos registrados.</div>';
-              }
+              display = anexos.length ? `<div class="list-group shadow-sm">${anexos.map(a => `<div class="list-group-item"><b>${a.nombre}</b><br><small>${a.detalle}</small></div>`).join('')}</div>` : '<em>Sin anexos.</em>';
             } catch(e) {}
           }
+          if (sec.estado !== 'Pendiente') count++;
 
-          if (sec.estado !== 'Pendiente') decidedCount++;
-
-          const isApproved = sec.estado === 'Visto_Bueno';
-          const isObserved = sec.estado === 'Observado';
-          const isPending = !isApproved && !isObserved;
-
-          const card = `
+          container.append(`
             <div class="card mb-4 border-0 shadow-sm overflow-hidden">
-              <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
-                <h6 class="mb-0 fw-bold text-uppercase letter-spacing-1">${sec.nombre}</h6>
-                <div id="badge-sec-${index}">
-                  ${isApproved ? '<span class="badge bg-success shadow-sm"><i class="bi bi-check-circle"></i> Visto Bueno</span>' : ''}
-                  ${isObserved ? '<span class="badge bg-danger shadow-sm"><i class="bi bi-exclamation-triangle"></i> Observada</span>' : ''}
-                  ${isPending ? '<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-clock"></i> Pendiente</span>' : ''}
+              <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase">${sec.nombre}</h6>
+                <div>
+                  ${sec.estado === 'Visto_Bueno' ? '<span class="badge bg-success">Aprobada</span>' : ''}
+                  ${sec.estado === 'Observado' ? '<span class="badge bg-danger">Observada</span>' : ''}
                 </div>
               </div>
               <div class="card-body bg-light-gray p-4">
                 <div class="row g-4">
                   <div class="col-lg-7">
-                    <label class="small text-muted mb-2 d-block fw-bold">CONTENIDO DEL DOCUMENTO:</label>
-                    ${displayContent}
+                    <label class="small text-primary mb-2 d-block fw-bold text-uppercase"><i class="bi bi-file-earmark-text"></i> Expediente Original:</label>
+                    ${display}
                   </div>
                   <div class="col-lg-5">
-                    <div class="p-3 bg-white rounded shadow-sm h-100">
-                      <label class="small text-muted mb-2 d-block fw-bold">ANOTACIONES DEL ADMINISTRADOR:</label>
-                      <textarea class="form-control form-control-sm mb-3" id="obs-rev-${index}"
-                                rows="5" placeholder="Escriba aquí sus observaciones técnicas o sugerencias...">${sec.observaciones || ''}</textarea>
+                    <div class="h-100 p-3 bg-white border-start border-4 border-warning rounded shadow-sm">
+                      <label class="small text-warning mb-2 d-block fw-bold text-uppercase"><i class="bi bi-pencil-square"></i> Bitácora de Observaciones:</label>
+                      <textarea class="form-control form-control-sm mb-3 border-0 bg-light" id="obs-rev-${index}" rows="6">${sec.observaciones || ''}</textarea>
                       <div class="d-grid gap-2">
-                        <button class="btn btn-sm ${isApproved ? 'btn-success' : 'btn-outline-success'}"
-                                onclick="submitReview('${index}', '${sec.nombre}', 'aprobar')">
-                          <i class="bi bi-check-lg"></i> Dar Visto Bueno
-                        </button>
-                        <button class="btn btn-sm ${isObserved ? 'btn-danger' : 'btn-outline-danger'}"
-                                onclick="submitReview('${index}', '${sec.nombre}', 'observar')">
-                          <i class="bi bi-eye-fill"></i> Marcar con Observación
-                        </button>
+                        <button class="btn btn-sm ${sec.estado === 'Visto_Bueno' ? 'btn-success' : 'btn-outline-success'}" onclick="submitReview('${index}', '${sec.nombre}', 'aprobar')">Dar Visto Bueno</button>
+                        <button class="btn btn-sm ${sec.estado === 'Observado' ? 'btn-danger' : 'btn-outline-danger'}" onclick="submitReview('${index}', '${sec.nombre}', 'observar')">Observar</button>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          `;
-          container.append(card);
+          `);
         });
-
-        // Actualizar barra de progreso
-        const percent = (decidedCount / currentSections.length) * 100;
-        $('#revProgressBar').css('width', `${percent}%`);
-        $('#revProgressText').text(`${decidedCount} de ${currentSections.length} secciones revisadas`);
-
+        $('#revProgressBar').css('width', `${(count / currentSections.length) * 100}%`);
+        $('#revProgressText').text(`${count} de ${currentSections.length} secciones revisadas`);
         showLoader(false);
       })
       .getDocumentDetail(docId);
   }
 
-  function submitReview(index, secName, decision) {
-    const idDoc = currentDoc.id;
+  function submitReview(index, name, decision) {
     const obs = $(`#obs-rev-${index}`).val();
-
-    if (decision === 'observar' && !obs) {
-      alert('Es obligatorio indicar observaciones para observar una sección.');
-      return;
-    }
-
-    showLoader(true);
+    if (decision === 'observar' && !obs) return alert('Observaciones obligatorias.');
+    showLoader(true, "Actualizando dictamen...");
     google.script.run
-      .withSuccessHandler(function() {
-        alert(`Sección ${secName} revisada correctamente.`);
-        // Recargar para ver si cambió el estado global
-        initRevision(idDoc);
-      })
-      .reviewSection(idDoc, secName, decision, obs);
-  }
-
-  function finalizeReview() {
-    showView('dashboard');
+      .withSuccessHandler(() => { showToast('Dictamen Guardado', 'Sección actualizada correctamente.', 'success'); initRevision(currentDoc.id); })
+      .reviewSection(currentDoc.id, name, decision, obs);
   }
 
   function saveGeneralObs() {
-    const idDoc = currentDoc.id;
-    const obs = $('#revGeneralObs').val();
-    showLoader(true, "Guardando observaciones generales...");
+    showLoader(true, "Guardando comentarios globales...");
     google.script.run
-      .withSuccessHandler(() => {
-        alert('Observaciones generales guardadas.');
-        showLoader(false);
-      })
-      .updateGeneralObs(idDoc, obs);
+      .withSuccessHandler(() => { showToast('Comentario Global', 'Observación general guardada.', 'success'); showLoader(false); })
+      .updateGeneralObs(currentDoc.id, $('#revGeneralObs').val());
   }
 
   function sendToReview(idDoc) {
-    if (!confirm('¿Desea enviar este documento a revisión formal? Se notificará al administrador.')) return;
-
-    showLoader(true);
-    google.script.run
-      .withSuccessHandler(function() {
-        alert('Documento enviado a revisión.');
-        loadDashboard();
-      })
-      .sendToReview(idDoc);
+    if (!confirm('¿Desea enviar este documento a revisión formal?')) return;
+    showLoader(true, "Enviando...");
+    google.script.run.withSuccessHandler(() => { alert('Documento en revisión.'); loadDashboard(); }).sendToReview(idDoc);
   }
+
+  function finalizeReview() { showView('dashboard'); }
 
   /**
    * ADMINISTRACIÓN DE USUARIOS
    */
   function loadAdminData() {
     if (!modalUser) modalUser = new bootstrap.Modal(document.getElementById('modalUser'));
-
     runServer('getUsersList', null, function(users) {
       const tbody = $('#usersTableBody');
       tbody.empty();
-
       users.forEach(u => {
-        const row = `
-          <tr>
-            <td><div class="fw-bold">${u.nombre}</div></td>
-            <td><small>${u.email}</small></td>
-            <td><span class="badge bg-dark">${u.rol}</span></td>
-            <td><small class="text-muted">${u.coordinacion} / ${u.direccion}</small></td>
-            <td class="text-end">
-              <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteUser('${u.email}')">
-                <i class="bi bi-trash"></i>
-              </button>
-            </td>
-          </tr>
-        `;
-        tbody.append(row);
+        tbody.append(`<tr><td><div class="fw-bold">${u.nombre}</div></td><td><small>${u.email}</small></td><td><span class="badge bg-dark">${u.rol}</span></td><td><small class="text-muted">${u.coordinacion} / ${u.direccion}</small></td><td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteUser('${u.email}')"><i class="bi bi-trash"></i></button></td></tr>`);
       });
     });
   }
 
-  function openUserModal() {
-    $('#formUser')[0].reset();
-    modalUser.show();
-  }
+  function openUserModal() { $('#formUser')[0].reset(); modalUser.show(); }
 
   function saveUser() {
-    const userData = {
-      nombre: $('#u_nombre').val(),
-      email: $('#u_email').val(),
-      rol: $('#u_rol').val(),
-      coordinacion: $('#u_coord').val(),
-      direccion: $('#u_dir').val()
-    };
-
-    if (!userData.nombre || !userData.email) {
-      alert('Nombre y Correo son obligatorios.');
-      return;
-    }
-
-    runServer('saveUser', [userData], function() {
-      alert('Usuario registrado correctamente.');
-      modalUser.hide();
-      loadAdminData();
-    });
+    const userData = { nombre: $('#u_nombre').val(), email: $('#u_email').val(), rol: $('#u_rol').val(), coordinacion: $('#u_coord').val(), direccion: $('#u_dir').val() };
+    if (!userData.nombre || !userData.email) return alert('Nombre y Correo obligatorios.');
+    runServer('saveUser', [userData], function() { alert('Usuario registrado.'); modalUser.hide(); loadAdminData(); });
   }
 
   function confirmDeleteUser(email) {
-    if (confirm(`¿Está seguro de eliminar el acceso para ${email}?`)) {
-      runServer('deleteUser', [email], function() {
-        alert('Usuario removido del sistema.');
-        loadAdminData();
-      });
-    }
+    if (confirm(`¿Eliminar acceso para ${email}?`)) runServer('deleteUser', [email], function() { alert('Usuario removido.'); loadAdminData(); });
   }
 
-  /**
-   * Helper para llamadas seguras al servidor
-   */
+  function checkDatabase() {
+    runServer('getSystemStatus', null, function(status) {
+      let msg = "Estado del Sistema:\n";
+      msg += "URL: " + status.url + "\n\n";
+      msg += "Pestañas (Registros):\n";
+      for(let s in status.sheets) msg += "- " + s + ": " + status.sheets[s] + "\n";
+      alert(msg);
+    });
+  }
+
   function runServer(funcName, args, onSuccess) {
     showLoader(true);
-    const runner = google.script.run.withFailureHandler(function(err) {
-      alert("Error: " + err.message);
+    const runner = google.script.run.withFailureHandler(err => {
+      console.error("Runner Fail:", funcName, err);
+      alert("Error en " + funcName + ": " + err.message);
       showLoader(false);
-    }).withSuccessHandler(function(res) {
+    }).withSuccessHandler(res => {
       onSuccess(res);
       showLoader(false);
     });
-
-    if (args) runner[funcName](...args);
-    else runner[funcName]();
+    if (args) runner[funcName](...args); else runner[funcName]();
   }
 </script>

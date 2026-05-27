@@ -35,5 +35,12 @@ function runTests() {
     console.error("❌ Error en prueba getCatalogs:", e);
   }
 
+  try {
+    const docs = getDocuments();
+    console.log("✅ Prueba getDocuments exitosa. Total recuperado:", docs.length);
+  } catch (e) {
+    console.error("❌ Error en prueba getDocuments:", e);
+  }
+
   console.log("--- Pruebas Finalizadas ---");
 }
