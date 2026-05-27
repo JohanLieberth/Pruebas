@@ -54,13 +54,16 @@
   let allDocs = [];
 
   function loadDashboard() {
-    showLoader(true);
+    console.log("Solicitando documentos al servidor...");
+    showLoader(true, "Cargando registros...");
     google.script.run
       .withFailureHandler(function(err) {
+        console.error("Error Dashboard:", err);
         alert("Error al cargar documentos: " + err.message);
         showLoader(false);
       })
       .withSuccessHandler(function(docs) {
+        console.log("Documentos recibidos:", docs ? docs.length : 0);
         allDocs = docs || [];
         renderDocsTable(allDocs);
         updateStats(allDocs);
@@ -122,7 +125,10 @@
   }
 
   function updateStats(docs) {
-    if (currentUser.rol !== 'administrador') return;
+    if (!currentUser || currentUser.rol !== 'administrador') {
+      $('.admin-only').hide();
+      return;
+    }
 
     const stats = {
       total: docs.length,

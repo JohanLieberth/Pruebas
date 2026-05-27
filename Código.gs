@@ -96,10 +96,13 @@ function onOpen() {
 }
 
 /**
- * Obtiene información del usuario logueado.
+ * Obtiene información del usuario logueado con mayor robustez.
  */
 function getUserInfo() {
-  const email = Session.getActiveUser().getEmail().toLowerCase();
+  let email = Session.getActiveUser().getEmail();
+  if (!email) email = Session.getEffectiveUser().getEmail();
+  email = email.toLowerCase().trim();
+
   const sheet = getSheet(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
 
@@ -301,16 +304,19 @@ function getDocuments() {
   const secSheet = getSheet(SHEETS.SECCIONES);
 
   const docsData = docSheet.getDataRange().getValues();
+  if (docsData.length <= 1) return []; // Hoja vacía
+
   const sectionsData = secSheet.getDataRange().getValues();
-  const userEmail = user.email.toLowerCase();
+  const userEmail = (user.email || "").toLowerCase().trim();
+  const isAdmin = user.rol === "administrador";
 
   const results = [];
   for (let i = 1; i < docsData.length; i++) {
     const doc = docsData[i];
-    if (!doc[0]) continue;
+    if (!doc[0] || !doc[1]) continue; // ID o Código vacíos
 
-    const ownerEmail = doc[8].toString().toLowerCase();
-    if (user.rol !== "administrador" && ownerEmail !== userEmail) continue;
+    const ownerEmail = (doc[8] || "").toString().toLowerCase().trim();
+    if (!isAdmin && ownerEmail !== userEmail) continue;
 
     const docId = doc[0];
     const docSections = sectionsData.filter(s => s[1] === docId);
