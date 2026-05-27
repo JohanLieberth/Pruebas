@@ -31,6 +31,7 @@
       if (viewId === 'revision') initRevision(params);
       if (viewId === 'revision-list') loadRevisionQueue();
       if (viewId === 'admin') loadAdminData();
+      if (viewId === 'firmado') initFirmado(params);
     } else {
       console.error("Vista no encontrada:", viewId);
       $('#view-dashboard').show();
@@ -62,7 +63,7 @@
         showLoader(false);
       })
       .withSuccessHandler(function(info) {
-        console.log("Usuario autenticado:", info);
+        console.log("Sesión Iniciada:", info);
         currentUser = info;
         $('#userName').text(info.nombre);
         $('#userRole').text(info.rol);
@@ -71,6 +72,10 @@
           $('.admin-only').show();
         } else {
           $('.admin-only').hide();
+        }
+
+        if (info.nombre === 'Invitado') {
+          console.warn("ADVERTENCIA: El usuario no está registrado o el correo no fue detectado. Usando modo lectura/invitado.");
         }
 
         showView('dashboard');
@@ -136,6 +141,8 @@
             </button>
             ${(doc.estado === 'En_Edición' || doc.estado === 'Observado') ?
               `<button class="btn btn-sm btn-outline-warning ms-1" onclick="sendToReview('${doc.id}')" title="Enviar a Revisión"><i class="bi bi-send"></i></button>` : ''}
+            ${doc.estado === 'Aprobado' ?
+              `<button class="btn btn-sm btn-outline-success ms-1" onclick="showView('firmado', '${doc.id}')" title="Subir Firmado"><i class="bi bi-pen"></i></button>` : ''}
             ${isAdmin ?
               `<button class="btn btn-sm btn-dark ms-1 shadow-sm" onclick="showView('revision', '${doc.id}')" title="Panel de Revisión">
                 <i class="bi bi-shield-fill-check"></i> Revisar
@@ -197,6 +204,8 @@
     currentStep = 0;
     $('#formEditorHeader')[0].reset();
     $('#editorDocId').val(docId || '');
+    $('#editorAnexosCard').hide();
+    $('#editorFilesList').empty();
     showLoader(true, "Preparando catálogos...");
 
     await new Promise(resolve => {
@@ -224,6 +233,8 @@
           $(`input[name="doc_tipo"][value="${currentDoc.tipo}"]`).prop('checked', true);
           $('#codePreview').text(currentDoc.codigo);
           renderWizard();
+          loadEditorFiles(docId);
+          $('#editorAnexosCard').show();
           showLoader(false);
         })
         .getDocumentDetail(docId);
@@ -327,17 +338,6 @@
   }
 
   function saveDocument() {
-    const anexosIdx = availableSections.indexOf('ANEXO DOCUMENTAL');
-    if (anexosIdx !== -1) {
-      const anexos = [];
-      $('#anexosContainer .row').each(function() {
-        const n = $(this).find('.anexo-nombre').val();
-        const d = $(this).find('.anexo-detalle').val();
-        if (n) anexos.push({ nombre: n, detalle: d });
-      });
-      $(`#content-${anexosIdx}`).val(JSON.stringify(anexos));
-    }
-
     const sections = availableSections.map((name, i) => ({ nombre: name, contenido: $(`#content-${i}`).val() }));
     const docData = {
       ID_Documento: $('#editorDocId').val(),
@@ -353,11 +353,78 @@
     google.script.run
       .withFailureHandler(err => { alert("Error al guardar: " + err.message); showLoader(false); })
       .withSuccessHandler(res => {
-        alert('Documento sincronizado correctamente. Código: ' + res.codigo);
-        showView('dashboard');
+        $('#editorDocId').val(res.idDoc);
+        $('#editorAnexosCard').fadeIn();
+        showToast('Éxito', 'Documento guardado. Ahora puede subir anexos.', 'success');
         showLoader(false);
       })
       .saveDocument(docData, sections);
+  }
+
+  /**
+   * Gestión de Archivos (Frontend)
+   */
+  function loadEditorFiles(docId) {
+    google.script.run
+      .withSuccessHandler(files => {
+        const list = $('#editorFilesList');
+        list.empty();
+        if (files.length === 0) list.append('<div class="p-3 text-center text-muted small">No hay archivos adjuntos.</div>');
+        files.forEach(f => {
+          list.append(`
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div><i class="bi bi-file-earmark-text me-2"></i>${f.nombre}</div>
+              <div>
+                <a href="${f.url}" target="_blank" class="btn btn-sm btn-outline-secondary me-1"><i class="bi bi-eye"></i></a>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteFile('${f.id}')"><i class="bi bi-trash"></i></button>
+              </div>
+            </div>
+          `);
+        });
+      })
+      .getAttachedFiles(docId);
+  }
+
+  function handleFileUpload(input) {
+    const docId = $('#editorDocId').val();
+    if (!docId) return alert("Debe guardar el documento al menos una vez antes de subir archivos.");
+
+    const file = input.files[0];
+    if (!file) return;
+
+    showLoader(true, "Leyendo archivo...");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result;
+      showLoader(true, "Subiendo a Drive...");
+      google.script.run
+        .withSuccessHandler(() => {
+          showToast('Carga Exitosa', 'Archivo subido correctamente.', 'success');
+          loadEditorFiles(docId);
+          showLoader(false);
+        })
+        .uploadFileToDrive(docId, base64Data, file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function deleteFile(idAnexo) {
+    if (!confirm('¿Eliminar este archivo de forma permanente?')) return;
+    showLoader(true, "Eliminando...");
+    google.script.run
+      .withSuccessHandler(() => {
+        loadEditorFiles($('#editorDocId').val());
+        showLoader(false);
+      })
+      .deleteAttachedFile(idAnexo);
+  }
+
+  function showToast(title, msg, type = 'primary') {
+    $('#toastTitle').text(title);
+    $('#toastMessage').text(msg);
+    $('#liveToast').removeClass('bg-merida bg-success bg-danger').addClass(type === 'success' ? 'bg-success' : (type === 'danger' ? 'bg-danger' : 'bg-merida'));
+    const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+    toast.show();
   }
 
   /**
@@ -447,6 +514,93 @@
   }
 
   function finalizeReview() { showView('dashboard'); }
+
+  /**
+   * Lógica de DOCUMENTO FIRMADO
+   */
+  function initFirmado(docId) {
+    if (!docId) return showView('dashboard');
+    showLoader(true, "Recuperando datos...");
+    $('#firmadoDocId').val(docId);
+    google.script.run
+      .withSuccessHandler(data => {
+        $('#firmadoDocCode').text(data.doc.codigo);
+        showLoader(false);
+      })
+      .getDocumentDetail(docId);
+  }
+
+  function uploadFirmado() {
+    const docId = $('#firmadoDocId').val();
+    const fileInput = document.getElementById('firmadoFile');
+    const file = fileInput.files[0];
+    if (!file) return alert("Seleccione un archivo.");
+
+    showLoader(true, "Procesando documento firmado...");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result;
+      google.script.run
+        .withSuccessHandler(() => {
+          showToast('Éxito', 'Documento firmado cargado. Estado actualizado a Aprobado.', 'success');
+          showView('dashboard');
+          showLoader(false);
+        })
+        .uploadFileToDrive(docId, base64Data, "FIRMADO_" + file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Lógica de REVISIONES (Lista)
+   */
+  function loadRevisionQueue() {
+    showLoader(true, "Cargando cola de revisiones...");
+    google.script.run
+      .withSuccessHandler(function(docs) {
+        allDocs = docs || [];
+        filterRevisionList(revisionTab);
+        showLoader(false);
+      })
+      .getDocuments();
+  }
+
+  function filterRevisionList(tab) {
+    revisionTab = tab;
+    $('#btnRevPending, #btnRevDone').removeClass('active');
+    if (tab === 'pending') $('#btnRevPending').addClass('active');
+    else $('#btnRevDone').addClass('active');
+
+    const filtered = allDocs.filter(d => {
+      if (tab === 'pending') return d.estado === 'En_Revision';
+      return d.estado === 'Aprobado' || d.estado === 'Observado';
+    });
+
+    const tbody = $('#revisionListBody');
+    tbody.empty();
+
+    if (filtered.length === 0) {
+      tbody.append('<tr><td colspan="6" class="text-center p-4">No hay documentos en esta categoría.</td></tr>');
+      return;
+    }
+
+    filtered.forEach(doc => {
+      tbody.append(`
+        <tr>
+          <td class="ps-3"><span class="badge bg-light text-dark border">${doc.codigo}</span></td>
+          <td><small>${doc.tipo}</small></td>
+          <td><small>${doc.usuario}</small></td>
+          <td><small>${new Date(doc.fecha).toLocaleDateString()}</small></td>
+          <td><small>${doc.progreso}</small></td>
+          <td class="text-end pe-3">
+            <button class="btn btn-sm btn-merida" onclick="showView('revision', '${doc.id}')">
+              <i class="bi bi-shield-check"></i> Revisar
+            </button>
+          </td>
+        </tr>
+      `);
+    });
+  }
 
   /**
    * ADMINISTRACIÓN DE USUARIOS

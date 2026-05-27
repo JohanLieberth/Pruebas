@@ -75,11 +75,25 @@ function include(filename) {
 function setup() {
   Object.keys(SHEETS).forEach(key => getSheet(SHEETS[key]));
   const userSheet = getSheet(SHEETS.USUARIOS);
-  if (userSheet.getLastRow() === 1) {
-    const email = Session.getActiveUser().getEmail().toLowerCase().trim();
-    userSheet.appendRow([Utilities.getUuid(), "Administrador", email, "administrador", "N/A", "N/A", "N/A", "N/A"]);
-    SpreadsheetApp.flush();
+  const ownerEmail = Session.getEffectiveUser().getEmail().toLowerCase().trim();
+
+  const data = userSheet.getDataRange().getValues();
+  let found = false;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][2] && data[i][2].toString().toLowerCase().trim() === ownerEmail) {
+      found = true;
+      if (data[i][3] !== "administrador") {
+        userSheet.getRange(i + 1, 4).setValue("administrador");
+      }
+      break;
+    }
   }
+
+  if (!found) {
+    userSheet.appendRow([Utilities.getUuid(), "Administrador Principal", ownerEmail, "administrador", "N/A", "N/A", "N/A", "N/A"]);
+  }
+
+  SpreadsheetApp.flush();
   return "OK";
 }
 
@@ -88,13 +102,32 @@ function onOpen() {
 }
 
 function getUserInfo() {
-  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
+  let email = Session.getActiveUser().getEmail();
+  if (!email) email = Session.getEffectiveUser().getEmail();
+
+  email = (email || "desconocido@merida.gob.mx").toLowerCase().trim();
+  console.log("Identificando usuario:", email);
+
   const data = getSheet(SHEETS.USUARIOS).getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][2] && data[i][2].toString().toLowerCase().trim() === email) {
-      return { id: data[i][0], nombre: data[i][1], email: email, rol: data[i][3] };
+    const userEmail = (data[i][2] || "").toString().toLowerCase().trim();
+    if (userEmail === email && email !== "") {
+      return {
+        id: data[i][0],
+        nombre: data[i][1],
+        email: email,
+        rol: (data[i][3] || "usuario").toLowerCase().trim(),
+        coord: data[i][4],
+        dir: data[i][5]
+      };
     }
   }
+
+  // Si es el primer usuario o no existe, pero es el propietario del script, darle admin temporal para configuración
+  if (email === Session.getEffectiveUser().getEmail().toLowerCase().trim()) {
+     return { email: email, rol: "administrador", nombre: "Admin (Propietario)" };
+  }
+
   return { email: email, rol: "usuario", nombre: "Invitado" };
 }
 
@@ -111,9 +144,13 @@ function getSystemStatus() {
 function getDocuments() {
   try {
     const user = getUserInfo();
-    const docsData = getSheet(SHEETS.DOCUMENTOS).getDataRange().getValues();
+    const docsSheet = getSheet(SHEETS.DOCUMENTOS);
+    const docsData = docsSheet.getDataRange().getValues();
     const sectionsData = getSheet(SHEETS.SECCIONES).getDataRange().getValues();
-    const userEmail = user.email;
+    const isAdmin = user.rol === "administrador";
+    const userEmail = user.email.toLowerCase().trim();
+
+    console.log("Cargando documentos para:", userEmail, "Es Admin:", isAdmin);
 
     if (docsData.length <= 1) return [];
 
@@ -123,7 +160,9 @@ function getDocuments() {
       if (!row[0] || row[0].toString().trim() === "") continue;
 
       const owner = (row[8] || "").toString().toLowerCase().trim();
-      if (user.rol !== "administrador" && owner !== userEmail) continue;
+
+      // Filtro de visibilidad
+      if (!isAdmin && owner !== userEmail) continue;
 
       const docId = row[0];
       const docSections = sectionsData.filter(s => s[1] === docId);
@@ -160,6 +199,13 @@ function saveDocument(docData, sections) {
   let idDoc = docData.ID_Documento;
   const isNew = !idDoc;
 
+  if (!isNew) {
+    const docMeta = docSheet.getDataRange().getValues().find(r => r[0] === idDoc);
+    if (docMeta && docMeta[10] === ESTADOS_GLOBAL.APROBADO && user.rol !== "administrador") {
+      throw new Error("El documento está aprobado y bloqueado para edición.");
+    }
+  }
+
   if (isNew) {
     idDoc = Utilities.getUuid();
     docData.Código = generateDocCode(docData);
@@ -177,29 +223,27 @@ function saveDocument(docData, sections) {
   }
 
   sections.forEach(sec => {
-    if (sec.nombre === 'ANEXO DOCUMENTAL') {
-      try {
-        const anexos = JSON.parse(sec.contenido || "[]");
-        const aData = anexoSheet.getDataRange().getValues();
-        for(let k=aData.length-1; k>=1; k--) if(aData[k][1] === idDoc) anexoSheet.deleteRow(k+1);
-        anexos.forEach(a => { if(a.nombre) anexoSheet.appendRow([Utilities.getUuid(), idDoc, a.nombre, a.detalle]); });
-      } catch(e) { console.error("Anexo err:", e); }
-    }
+    // Lógica de fragmentación para campos largos (> 45,000 caracteres)
+    const content = sec.contenido || "";
+    const fragments = content.match(/.{1,45000}/g) || [""];
 
+    // Limpiar secciones anteriores con el mismo nombre para este documento
     const sData = secSheet.getDataRange().getValues();
-    let sIdx = -1;
-    for(let j=1; j<sData.length; j++) if(sData[j][1] === idDoc && sData[j][2] === sec.nombre) { sIdx = j+1; break; }
-
-    if (sIdx !== -1) {
-      secSheet.getRange(sIdx, 4).setValue(sec.contenido);
-      if (user.rol !== "administrador") secSheet.getRange(sIdx, 5).setValue(ESTADOS_SECCION.PENDIENTE);
-    } else {
-      secSheet.appendRow([Utilities.getUuid(), idDoc, sec.nombre, sec.contenido, ESTADOS_SECCION.PENDIENTE, "", "", ""]);
+    for (let j = sData.length - 1; j >= 1; j--) {
+      if (sData[j][1] === idDoc && sData[j][2] === sec.nombre) {
+        secSheet.deleteRow(j + 1);
+      }
     }
+
+    // Insertar fragmentos
+    fragments.forEach((frag, idx) => {
+      const nombreFinal = idx === 0 ? sec.nombre : `${sec.nombre}_PART_${idx}`;
+      secSheet.appendRow([Utilities.getUuid(), idDoc, nombreFinal, frag, ESTADOS_SECCION.PENDIENTE, "", "", ""]);
+    });
   });
 
   SpreadsheetApp.flush();
-  return { success: true, codigo: docData.Código || "OK" };
+  return { success: true, idDoc: idDoc, codigo: docData.Código || "OK" };
 }
 
 function generateDocCode(data) {
@@ -207,30 +251,109 @@ function generateDocCode(data) {
   const year = new Date().getFullYear();
   const abrev = data.tipo === "Proceso" ? "PRO" : "POL";
   let count = 1;
-  docs.forEach(r => { if(r[1] && r[1].includes(`${abrev}-${year}`)) { const n = parseInt(r[1].split("-").pop()); if(!isNaN(n) && n >= count) count = n + 1; } });
-  return `${(data.coordinacion||"COR").substring(0,3).toUpperCase()}-${(data.direccion||"DIR").substring(0,3).toUpperCase()}-${abrev}-${year}-${count.toString().padStart(3, '0')}`;
+  docs.forEach(r => {
+    if(r[1] && r[1].includes(`${abrev}-${year}`)) {
+      const parts = r[1].split("-");
+      const n = parseInt(parts[parts.length - 1]);
+      if(!isNaN(n) && n >= count) count = n + 1;
+    }
+  });
+
+  const c = (data.coordinacion||"COR").substring(0,3).toUpperCase();
+  const d = (data.direccion||"DIR").substring(0,3).toUpperCase();
+  const s = (data.subdireccion||"SUB").substring(0,3).toUpperCase();
+  const dep = (data.departamento||"DEP").substring(0,3).toUpperCase();
+
+  return `${c}-${d}-${s}-${dep}-${abrev}-${year}-${count.toString().padStart(3, '0')}`;
 }
 
 function getDocumentDetail(idDoc) {
   const doc = getSheet(SHEETS.DOCUMENTOS).getDataRange().getValues().find(r => r[0] === idDoc);
   if (!doc) throw new Error("No encontrado");
-  const sections = getSheet(SHEETS.SECCIONES).getDataRange().getValues().filter(r => r[1] === idDoc);
-  const anexos = getSheet(SHEETS.ANEXOS).getDataRange().getValues().filter(r => r[1] === idDoc);
 
-  const mapped = sections.map(s => {
+  const allSections = getSheet(SHEETS.SECCIONES).getDataRange().getValues().filter(r => r[1] === idDoc);
+  const baseSections = allSections.filter(s => !s[2].includes("_PART_"));
+
+  const mapped = baseSections.map(s => {
     let content = s[3];
-    if (s[2] === 'ANEXO DOCUMENTAL' && anexos.length > 0) content = JSON.stringify(anexos.map(a => ({ nombre: a[2], detalle: a[3] })));
-    return { id: s[0], nombre: s[2], contenido: content, estado: s[4], observaciones: s[5] };
-  });
+    const baseName = s[2];
 
-  if (!mapped.find(s => s.nombre === 'ANEXO DOCUMENTAL')) {
-    mapped.push({ id: 'sim', nombre: 'ANEXO DOCUMENTAL', contenido: JSON.stringify(anexos.map(a => ({ nombre: a[2], detalle: a[3] }))), estado: 'Pendiente', observaciones: '' });
-  }
+    // Recomponer fragmentos
+    const parts = allSections.filter(p => p[2].startsWith(`${baseName}_PART_`))
+                             .sort((a, b) => a[2].localeCompare(b[2]));
+    parts.forEach(p => content += p[3]);
+
+    return { id: s[0], nombre: baseName, contenido: content, estado: s[4], observaciones: s[5] };
+  });
 
   return {
     doc: { id: doc[0], codigo: doc[1], tipo: doc[2], coordinacion: doc[3], direccion: doc[4], subdireccion: doc[5], departamento: doc[6], revision: doc[7], creador: doc[8], estado: doc[10], obs_generales: doc[11] },
     sections: mapped
   };
+}
+
+/**
+ * Gestión de Archivos en Drive
+ */
+function uploadFileToDrive(idDoc, base64Data, fileName, mimeType) {
+  const user = getUserInfo();
+  const doc = getSheet(SHEETS.DOCUMENTOS).getDataRange().getValues().find(r => r[0] === idDoc);
+  if (!doc) throw new Error("Documento no encontrado.");
+
+  const folderName = `DOC_${doc[1].replace(/\//g, '_')}`;
+  let rootFolder;
+  const folders = DriveApp.getFoldersByName("GESTION_DOCUMENTAL_MERIDA");
+  if (folders.hasNext()) rootFolder = folders.next();
+  else rootFolder = DriveApp.createFolder("GESTION_DOCUMENTAL_MERIDA");
+
+  let docFolder;
+  const subFolders = rootFolder.getFoldersByName(folderName);
+  if (subFolders.hasNext()) docFolder = subFolders.next();
+  else docFolder = rootFolder.createFolder(folderName);
+
+  const decoded = Utilities.base64Decode(base64Data.split(",")[1]);
+  const blob = Utilities.newBlob(decoded, mimeType, fileName);
+  const file = docFolder.createFile(blob);
+
+  const anexoSheet = getSheet(SHEETS.ANEXOS);
+  anexoSheet.appendRow([Utilities.getUuid(), idDoc, fileName, file.getUrl()]);
+
+  // Si es un "Documento Firmado", cambiar estado a APROBADO
+  if (fileName.toLowerCase().includes("firmado")) {
+    const docSheet = getSheet(SHEETS.DOCUMENTOS);
+    const data = docSheet.getDataRange().getValues();
+    for(let i=1; i<data.length; i++) {
+      if (data[i][0] === idDoc) {
+        docSheet.getRange(i+1, 11).setValue(ESTADOS_GLOBAL.APROBADO);
+        break;
+      }
+    }
+  }
+
+  return { success: true, url: file.getUrl() };
+}
+
+function getAttachedFiles(idDoc) {
+  return getSheet(SHEETS.ANEXOS).getDataRange().getValues()
+    .filter(r => r[1] === idDoc)
+    .map(r => ({ id: r[0], nombre: r[2], url: r[3] }));
+}
+
+function deleteAttachedFile(idAnexo) {
+  const sheet = getSheet(SHEETS.ANEXOS);
+  const data = sheet.getDataRange().getValues();
+  for(let i=1; i<data.length; i++) {
+    if (data[i][0] === idAnexo) {
+      // Intentar borrar de Drive si es URL de Drive
+      try {
+        const fileId = data[i][3].split("id=")[1] || data[i][3].split("/d/")[1].split("/")[0];
+        DriveApp.getFileById(fileId).setTrashed(true);
+      } catch(e) {}
+      sheet.deleteRow(i + 1);
+      break;
+    }
+  }
+  return true;
 }
 
 function reviewSection(idDoc, nombreSec, decision, obs) {
