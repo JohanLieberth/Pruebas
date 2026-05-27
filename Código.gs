@@ -298,6 +298,26 @@ function logChange(idDoc, idSec, accion, usuario, detalle) {
 /**
  * Obtiene lista de documentos para el dashboard con robustez ante errores.
  */
+/**
+ * Actualiza las observaciones generales de un documento.
+ */
+function updateGeneralObs(idDoc, obs) {
+  const user = getUserInfo();
+  if (user.rol !== "administrador") throw new Error("Acceso denegado.");
+
+  const sheet = getSheet(SHEETS.DOCUMENTOS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === idDoc) {
+      sheet.getRange(i + 1, 12).setValue(obs);
+      break;
+    }
+  }
+  SpreadsheetApp.flush();
+  return true;
+}
+
 function getDocuments() {
   const user = getUserInfo();
   const docSheet = getSheet(SHEETS.DOCUMENTOS);

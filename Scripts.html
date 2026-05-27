@@ -118,10 +118,29 @@
     });
   }
 
+  let currentTab = 'all';
+
   function filterDocs() {
     const term = $('#searchDoc').val().toLowerCase();
-    const filtered = allDocs.filter(d => d.codigo.toLowerCase().includes(term) || d.tipo.toLowerCase().includes(term));
+
+    const filtered = allDocs.filter(d => {
+      const matchTerm = d.codigo.toLowerCase().includes(term) || d.tipo.toLowerCase().includes(term);
+      let matchTab = true;
+      if (currentTab === 'pending') matchTab = d.estado === 'En_Revision';
+      if (currentTab === 'approved') matchTab = d.estado === 'Aprobado';
+      return matchTerm && matchTab;
+    });
+
     renderDocsTable(filtered);
+  }
+
+  function filterByTab(tab) {
+    currentTab = tab;
+    $('.btn-group .btn').removeClass('active');
+    if (tab === 'all') $('#btnTabAll').addClass('active');
+    if (tab === 'pending') $('#btnTabPending').addClass('active');
+    if (tab === 'approved') $('#btnTabApproved').addClass('active');
+    filterDocs();
   }
 
   function updateStats(docs) {
@@ -347,60 +366,85 @@
    * REVISION (Admin)
    */
   function initRevision(docId) {
-    showLoader(true);
+    showLoader(true, "Cargando panel de revisión...");
     google.script.run
+      .withFailureHandler(err => {
+        alert("Error al cargar revisión: " + err.message);
+        showLoader(false);
+      })
       .withSuccessHandler(function(data) {
         currentDoc = data.doc;
         currentSections = data.sections;
 
         $('#revDocCode').text(currentDoc.codigo);
         $('#revDocUser').text(currentDoc.creador);
+        $('#revGeneralObs').val(currentDoc.obs_generales || '');
 
         const container = $('#revisionSectionsContainer');
         container.empty();
 
+        let decidedCount = 0;
+
         currentSections.forEach((sec, index) => {
-          let displayContent = `<p class="border p-2 bg-white" style="white-space: pre-wrap;">${sec.contenido}</p>`;
+          let displayContent = `<p class="border p-3 bg-white shadow-sm rounded" style="white-space: pre-wrap; min-height: 100px;">${sec.contenido}</p>`;
 
           if (sec.nombre === 'ANEXO DOCUMENTAL') {
             try {
               const anexos = JSON.parse(sec.contenido || "[]");
               if (anexos.length > 0) {
                 displayContent = `
-                  <div class="list-group mb-2">
+                  <div class="list-group mb-3 shadow-sm">
                     ${anexos.map(a => `
-                      <div class="list-group-item">
-                        <div class="fw-bold">${a.nombre}</div>
-                        <div class="small">${a.detalle}</div>
+                      <div class="list-group-item bg-white">
+                        <div class="fw-bold text-merida">${a.nombre}</div>
+                        <div class="small text-muted">${a.detalle}</div>
                       </div>
                     `).join('')}
                   </div>
                 `;
               } else {
-                displayContent = '<p class="text-muted italic">Sin anexos registrados.</p>';
+                displayContent = '<div class="alert alert-light border italic">Sin anexos registrados.</div>';
               }
             } catch(e) {}
           }
 
+          if (sec.estado !== 'Pendiente') decidedCount++;
+
+          const isApproved = sec.estado === 'Visto_Bueno';
+          const isObserved = sec.estado === 'Observado';
+          const isPending = !isApproved && !isObserved;
+
           const card = `
-            <div class="card mb-3 border-merida shadow-sm">
-              <div class="card-header bg-light fw-bold">${sec.nombre}</div>
-              <div class="card-body">
-                ${displayContent}
-                <div class="row align-items-center">
-                  <div class="col-md-8">
-                    <textarea class="form-control form-control-sm" id="obs-rev-${index}" placeholder="Observaciones si es necesario...">${sec.observaciones || ''}</textarea>
+            <div class="card mb-4 border-0 shadow-sm overflow-hidden">
+              <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                <h6 class="mb-0 fw-bold text-uppercase letter-spacing-1">${sec.nombre}</h6>
+                <div id="badge-sec-${index}">
+                  ${isApproved ? '<span class="badge bg-success shadow-sm"><i class="bi bi-check-circle"></i> Visto Bueno</span>' : ''}
+                  ${isObserved ? '<span class="badge bg-danger shadow-sm"><i class="bi bi-exclamation-triangle"></i> Observada</span>' : ''}
+                  ${isPending ? '<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-clock"></i> Pendiente</span>' : ''}
+                </div>
+              </div>
+              <div class="card-body bg-light-gray p-4">
+                <div class="row g-4">
+                  <div class="col-lg-7">
+                    <label class="small text-muted mb-2 d-block fw-bold">CONTENIDO DEL DOCUMENTO:</label>
+                    ${displayContent}
                   </div>
-                  <div class="col-md-4 text-end">
-                    <div class="btn-group">
-                      <button class="btn btn-sm btn-success ${sec.estado === 'Visto_Bueno' ? 'active' : ''}"
-                              onclick="submitReview('${index}', '${sec.nombre}', 'aprobar')">
-                        <i class="bi bi-check-lg"></i> Visto Bueno
-                      </button>
-                      <button class="btn btn-sm btn-danger ${sec.estado === 'Observado' ? 'active' : ''}"
-                              onclick="submitReview('${index}', '${sec.nombre}', 'observar')">
-                        <i class="bi bi-x-lg"></i> Observar
-                      </button>
+                  <div class="col-lg-5">
+                    <div class="p-3 bg-white rounded shadow-sm h-100">
+                      <label class="small text-muted mb-2 d-block fw-bold">ANOTACIONES DEL ADMINISTRADOR:</label>
+                      <textarea class="form-control form-control-sm mb-3" id="obs-rev-${index}"
+                                rows="5" placeholder="Escriba aquí sus observaciones técnicas o sugerencias...">${sec.observaciones || ''}</textarea>
+                      <div class="d-grid gap-2">
+                        <button class="btn btn-sm ${isApproved ? 'btn-success' : 'btn-outline-success'}"
+                                onclick="submitReview('${index}', '${sec.nombre}', 'aprobar')">
+                          <i class="bi bi-check-lg"></i> Dar Visto Bueno
+                        </button>
+                        <button class="btn btn-sm ${isObserved ? 'btn-danger' : 'btn-outline-danger'}"
+                                onclick="submitReview('${index}', '${sec.nombre}', 'observar')">
+                          <i class="bi bi-eye-fill"></i> Marcar con Observación
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -409,6 +453,12 @@
           `;
           container.append(card);
         });
+
+        // Actualizar barra de progreso
+        const percent = (decidedCount / currentSections.length) * 100;
+        $('#revProgressBar').css('width', `${percent}%`);
+        $('#revProgressText').text(`${decidedCount} de ${currentSections.length} secciones revisadas`);
+
         showLoader(false);
       })
       .getDocumentDetail(docId);
@@ -435,6 +485,18 @@
 
   function finalizeReview() {
     showView('dashboard');
+  }
+
+  function saveGeneralObs() {
+    const idDoc = currentDoc.id;
+    const obs = $('#revGeneralObs').val();
+    showLoader(true, "Guardando observaciones generales...");
+    google.script.run
+      .withSuccessHandler(() => {
+        alert('Observaciones generales guardadas.');
+        showLoader(false);
+      })
+      .updateGeneralObs(idDoc, obs);
   }
 
   function sendToReview(idDoc) {

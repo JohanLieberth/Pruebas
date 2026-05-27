@@ -6,14 +6,21 @@
         <button class="btn btn-sm btn-outline-light" onclick="finalizeReview()">Volver</button>
       </div>
       <div class="card-body bg-light">
-        <div class="row">
-          <div class="col-md-6">
+        <div class="row align-items-center">
+          <div class="col-md-4">
             <p class="mb-1 text-muted small">Documento:</p>
             <h5 id="revDocCode" class="fw-bold">CÓDIGO</h5>
           </div>
-          <div class="col-md-6 text-md-end">
+          <div class="col-md-4">
             <p class="mb-1 text-muted small">Creado por:</p>
             <div id="revDocUser" class="fw-bold">usuario@ejemplo.com</div>
+          </div>
+          <div class="col-md-4 text-md-end">
+            <p class="mb-1 text-muted small">Avance de Revisión:</p>
+            <div class="progress" style="height: 10px;">
+              <div id="revProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+            </div>
+            <small id="revProgressText">0 de 0 secciones decididas</small>
           </div>
         </div>
       </div>
@@ -23,6 +30,21 @@
   <div class="col-12">
     <div id="revisionSectionsContainer">
       <!-- Secciones para revisión -->
+    </div>
+  </div>
+
+  <!-- Observaciones Generales del Documento -->
+  <div class="col-12 mb-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-dark text-white fw-bold">
+        <i class="bi bi-chat-left-text me-2"></i>Observaciones Generales (Documento completo)
+      </div>
+      <div class="card-body">
+        <textarea class="form-control" id="revGeneralObs" rows="3" placeholder="Comentarios globales sobre el documento..."></textarea>
+        <div class="text-end mt-2">
+          <button class="btn btn-sm btn-dark" onclick="saveGeneralObs()">Guardar Observación General</button>
+        </div>
+      </div>
     </div>
   </div>
 
