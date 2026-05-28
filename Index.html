@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiniela Mundial 2026</title>
+  <style>
+    :root {
+      --fifa-gold: #c19b33;
+      --fifa-green: #006437;
+      --fifa-white: #ffffff;
+      --fifa-dark: #1a1a1a;
+      --fifa-gray: #f4f4f4;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: var(--fifa-gray);
+      color: var(--fifa-dark);
+    }
+
+    header {
+      background-color: var(--fifa-green);
+      color: var(--fifa-white);
+      padding: 1rem;
+      text-align: center;
+      border-bottom: 5px solid var(--fifa-gold);
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 20px auto;
+      padding: 0 15px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    nav button {
+      padding: 10px 20px;
+      cursor: pointer;
+      border: none;
+      background-color: var(--fifa-gold);
+      color: white;
+      font-weight: bold;
+      border-radius: 5px;
+      transition: opacity 0.3s;
+    }
+
+    nav button:hover {
+      opacity: 0.8;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      color: var(--fifa-green);
+      border-bottom: 2px solid var(--fifa-gold);
+      padding-bottom: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background-color: var(--fifa-green);
+      color: white;
+    }
+
+    .medal { font-size: 1.2rem; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .btn-submit {
+      background-color: var(--fifa-green);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 1rem;
+    }
+
+    .prediction-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .score-input {
+      width: 40px;
+      text-align: center;
+      padding: 5px;
+    }
+
+    .progress-container {
+      background-color: #ddd;
+      border-radius: 20px;
+      margin: 10px 0;
+      height: 20px;
+      width: 100%;
+    }
+
+    .progress-bar {
+      background-color: var(--fifa-green);
+      height: 100%;
+      border-radius: 20px;
+      text-align: center;
+      color: white;
+      font-size: 12px;
+      line-height: 20px;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+    }
+
+    .badge-jugado { background-color: #d4edda; color: #155724; }
+    .badge-pendiente { background-color: #fff3cd; color: #856404; }
+
+    @media (max-width: 600px) {
+      .prediction-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .score-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      }
+    }
+
+    #loading-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay">Cargando...</div>
+
+<header>
+  <h1>⚽ QUINIELA MUNDIAL 2026</h1>
+</header>
+
+<div class="container">
+  <nav>
+    <button onclick="showView('v-ranking')">Ranking</button>
+    <button onclick="showView('v-partidos')">Partidos</button>
+    <button onclick="showView('v-registro')">Mi Perfil</button>
+  </nav>
+
+  <!-- VISTA RANKING -->
+  <div id="v-ranking" class="view active">
+    <div class="card">
+      <h2>🏆 Ranking de Participantes</h2>
+      <div class="progress-container">
+        <div id="progress-bar" class="progress-bar" style="width: 0%">0%</div>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="table-ranking">
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Alias</th>
+              <th>Puntos</th>
+              <th>Dif. Líder</th>
+              <th>Exactos</th>
+              <th>Ganadores</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- VISTA PARTIDOS -->
+  <div id="v-partidos" class="view">
+    <div class="card">
+      <h2>📅 Fixture y Pronósticos</h2>
+      <div class="form-group">
+        <label for="user-email-pred">Ingresa tu Email para guardar/ver pronósticos:</label>
+        <input type="email" id="user-email-pred" placeholder="email@ejemplo.com">
+      </div>
+
+      <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 150px;">
+          <label for="filter-fase">Filtrar por Fase/Grupo:</label>
+          <select id="filter-fase" onchange="renderFilteredPartidos()" style="width: 100%; padding: 8px;">
+            <option value="Todos">Todos</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="lista-partidos"></div>
+    </div>
+  </div>
+
+  <!-- VISTA REGISTRO -->
+  <div id="v-registro" class="view">
+    <div class="card">
+      <h2>📝 Registro de Nuevo Participante</h2>
+      <div class="form-group">
+        <label for="reg-nombre">Nombre Completo:</label>
+        <input type="text" id="reg-nombre">
+      </div>
+      <div class="form-group">
+        <label for="reg-alias">Alias (máx 15 chars):</label>
+        <input type="text" id="reg-alias" maxlength="15">
+      </div>
+      <div class="form-group">
+        <label for="reg-email">Email:</label>
+        <input type="email" id="reg-email">
+      </div>
+      <button class="btn-submit" onclick="registrar()">Registrarme</button>
+    </div>
+
+    <div class="card" id="mis-stats" style="display:none;">
+      <h2>📊 Mis Estadísticas</h2>
+      <div id="stats-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /**
+   * Lógica del Lado del Cliente (JavaScript)
+   */
+  let currentEmail = '';
+
+  // Muestra u oculta el overlay de carga
+  function showLoading(show) {
+    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+  }
+
+  // Cambia entre las diferentes vistas de la SPA
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    // Si entramos a ranking o partidos, refrescamos los datos
+    if (viewId === 'v-ranking' || viewId === 'v-partidos') refreshData();
+  }
+
+  // Solicita datos actualizados al servidor GAS
+  let lastData = null;
+
+  function refreshData() {
+    showLoading(true);
+    const email = document.getElementById('user-email-pred').value;
+    google.script.run
+      .withSuccessHandler(data => {
+        lastData = data;
+        renderRanking(data.ranking);
+        populateFilters(data.partidos);
+        renderFilteredPartidos();
+        updateProgressBar(data.partidos);
+        showLoading(false);
+      })
+      .getDashboardData(email);
+  }
+
+  function populateFilters(partidos) {
+    const filter = document.getElementById('filter-fase');
+    const currentVal = filter.value;
+    const fases = [...new Set(partidos.map(p => p[3]))].sort();
+
+    filter.innerHTML = '<option value="Todos">Todos</option>';
+    fases.forEach(f => {
+      filter.innerHTML += `<option value="${f}">${f}</option>`;
+    });
+    filter.value = fases.includes(currentVal) ? currentVal : 'Todos';
+  }
+
+  function renderFilteredPartidos() {
+    if (!lastData) return;
+    const filterVal = document.getElementById('filter-fase').value;
+    const filtered = filterVal === 'Todos' ?
+      lastData.partidos :
+      lastData.partidos.filter(p => p[3] === filterVal);
+
+    renderPartidos(filtered, lastData.misPronosticos);
+  }
+
+  function renderRanking(data) {
+    const tbody = document.querySelector('#table-ranking tbody');
+    tbody.innerHTML = '';
+    const maxPuntos = data.length > 0 ? data[0][2] : 0;
+
+    data.forEach(row => {
+      let medal = '';
+      if (row[0] == 1) medal = '🥇';
+      else if (row[0] == 2) medal = '🥈';
+      else if (row[0] == 3) medal = '🥉';
+
+      const dif = row[2] - maxPuntos;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${row[0]} ${medal}</td>
+        <td>${row[1]}</td>
+        <td><strong>${row[2]}</strong></td>
+        <td>${dif === 0 ? '-' : dif}</td>
+        <td>${row[3]}</td>
+        <td>${row[4]}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderPartidos(partidos, misPronosticos) {
+    const container = document.getElementById('lista-partidos');
+    container.innerHTML = '';
+
+    const pronMap = {};
+    misPronosticos.forEach(p => pronMap[p[2]] = p);
+
+    partidos.forEach(p => {
+      const id = p[0];
+      const pron = pronMap[id] || ['', '', '', '', ''];
+      const statusClass = p[8] === 'Jugado' ? 'badge-jugado' : 'badge-pendiente';
+
+      const div = document.createElement('div');
+      div.className = 'prediction-grid';
+      div.innerHTML = `
+        <div style="text-align:right;">
+          ${p[4]}
+          <span style="font-weight:bold; margin-left:10px;">${p[6] !== '' ? p[6] : '-'}</span>
+        </div>
+        <div class="score-container">
+          <input type="number" class="score-input" id="gl-${id}" value="${pron[3]}" ${p[8] === 'Jugado' ? 'disabled' : ''}>
+          -
+          <input type="number" class="score-input" id="gv-${id}" value="${pron[4]}" ${p[8] === 'Jugado' ? 'disabled' : ''}>
+          ${p[8] !== 'Jugado' ? `<button onclick="guardar('${id}')" style="margin-left:5px; cursor:pointer;">💾</button>` : ''}
+        </div>
+        <div style="text-align:left;">
+          <span style="font-weight:bold; margin-right:10px;">${p[7] !== '' ? p[7] : '-'}</span>
+          ${p[5]}
+          <br><small class="badge ${statusClass}">${p[8]} | ${p[3]}</small>
+          ${pron[6] ? `<br><small style="color:blue;">Puntos: ${pron[6]}</small>` : ''}
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  function updateProgressBar(partidos) {
+    const jugados = partidos.filter(p => p[8] === 'Jugado').length;
+    const total = partidos.length;
+    const pct = total > 0 ? Math.round((jugados / total) * 100) : 0;
+    const bar = document.getElementById('progress-bar');
+    bar.style.width = pct + '%';
+    bar.innerText = pct + '% Jugados';
+  }
+
+  // Envía los datos de registro al servidor
+  function registrar() {
+    const nombre = document.getElementById('reg-nombre').value;
+    const alias = document.getElementById('reg-alias').value;
+    const email = document.getElementById('reg-email').value;
+
+    if (!nombre || !alias || !email) {
+      alert('Todos los campos son obligatorios.');
+      return;
+    }
+
+    showLoading(true);
+    google.script.run
+      .withSuccessHandler(res => {
+        showLoading(false);
+        alert(res.msg);
+        if (res.success) {
+          // Si el registro es exitoso, logueamos al usuario automáticamente
+          document.getElementById('user-email-pred').value = email;
+          showView('v-ranking');
+        }
+      })
+      .registrarParticipante(nombre, alias, email);
+  }
+
+  function guardar(idPartido) {
+    const email = document.getElementById('user-email-pred').value;
+    if (!email) {
+      alert('Por favor ingresa tu email primero.');
+      return;
+    }
+
+    const gl = document.getElementById(`gl-${idPartido}`).value;
+    const gv = document.getElementById(`gv-${idPartido}`).value;
+
+    if (gl === '' || gv === '') {
+      alert('Debes ingresar ambos goles.');
+      return;
+    }
+
+    showLoading(true);
+    google.script.run
+      .withSuccessHandler(res => {
+        showLoading(false);
+        alert(res.msg);
+        if (res.success) refreshData();
+      })
+      .guardarPronostico(idPartido, parseInt(gl), parseInt(gv), email);
+  }
+
+  // Auto-refresh cada 5 minutos
+  setInterval(refreshData, 5 * 60 * 1000);
+
+  // Inicializar
+  window.onload = refreshData;
+</script>
+
+</body>
+</html>
