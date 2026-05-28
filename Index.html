@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏆 Quiniela Mundial 2026</title>
+  <style>
+    :root {
+      --fifa-gold: #C9A227;
+      --fifa-green: #107C10;
+      --fifa-white: #FFFFFF;
+      --fifa-gray: #F5F5F5;
+      --fifa-dark: #333333;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: var(--fifa-white);
+      color: var(--fifa-dark);
+    }
+
+    header {
+      background-color: var(--fifa-green);
+      color: var(--fifa-white);
+      padding: 15px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      padding-bottom: 80px;
+    }
+
+    #app-status {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #333;
+      color: #aaa;
+      font-size: 10px;
+      padding: 5px 10px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 1900;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      background: var(--fifa-gold);
+      padding: 5px;
+      overflow-x: auto;
+      position: sticky;
+      top: 60px;
+      z-index: 900;
+    }
+
+    nav button {
+      padding: 10px 15px;
+      background: none;
+      border: none;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+      border-radius: 5px;
+    }
+
+    nav button.active {
+      background: rgba(255,255,255,0.2);
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .fase-header {
+      background: var(--fifa-gold);
+      color: white;
+      padding: 12px;
+      text-align: center;
+      font-weight: bold;
+      margin-top: 30px;
+      border-radius: 5px 5px 0 0;
+      text-transform: uppercase;
+    }
+
+    .prediction-grid {
+      display: grid;
+      grid-template-columns: 1fr 120px 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .team-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-transform: uppercase;
+      font-weight: bold;
+      color: #333;
+      font-size: 0.95rem;
+    }
+
+    .team-left { justify-content: flex-end; text-align: right; }
+    .team-right { justify-content: flex-start; text-align: left; }
+
+    .flag-circular {
+      width: 35px;
+      height: 35px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f0f0;
+      font-size: 24px;
+    }
+
+    .score-input-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .score-input {
+      width: 45px;
+      height: 45px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .score-input:focus { border-color: var(--fifa-gold); outline: none; }
+
+    .btn-save-container {
+      position: fixed;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      z-index: 1500;
+      pointer-events: none;
+    }
+
+    .btn-save {
+      background: var(--fifa-gold);
+      color: white;
+      border: none;
+      padding: 15px 50px;
+      border-radius: 30px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      pointer-events: auto;
+    }
+
+    #loading-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      display: none;
+    }
+
+    #loading-msg {
+      margin-top: 15px;
+      font-weight: bold;
+      color: var(--fifa-green);
+    }
+
+    #btn-close-loading {
+      margin-top: 20px;
+      padding: 5px 10px;
+      background: #ddd;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--fifa-green);
+      color: white;
+      border: none;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--fifa-gold); color: white; padding: 12px; text-align: left; }
+    td { padding: 12px; border-bottom: 1px solid #ddd; }
+
+    @media (max-width: 600px) {
+      .prediction-grid { grid-template-columns: 1fr; padding: 15px; }
+      .team-left { justify-content: center; text-align: center; }
+      .team-right { justify-content: center; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div style="font-size: 40px;" class="spinner">⚽</div>
+  <div id="loading-msg">Iniciando sistema...</div>
+  <button id="btn-close-loading" onclick="showLoading(false)">Cancelar / Cerrar</button>
+</div>
+
+<header>
+  <h1>🏆 QUINIELA MUNDIAL 2026</h1>
+</header>
+
+<nav id="main-nav" style="display:none;">
+  <button onclick="showView('v-pronosticos')" id="btn-v-pronosticos">Mis Pronósticos</button>
+  <button onclick="showView('v-ranking')" id="btn-v-ranking">Ranking</button>
+  <button onclick="showView('v-resultados')" id="btn-v-resultados">Resultados</button>
+  <button onclick="showView('v-perfil')" id="btn-v-perfil">Mi Perfil</button>
+  <button id="btn-admin" style="display:none;" onclick="showView('v-admin')">Admin</button>
+</nav>
+
+<div id="app-status">
+  <span id="status-text">Listo.</span>
+  <span id="status-email">No identificado</span>
+</div>
+
+<div class="container">
+
+  <div id="v-registro" class="view active">
+    <div class="card">
+      <h2>📝 Registro de Participante</h2>
+      <input type="email" id="reg-email" placeholder="Email" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
+      <input type="text" id="reg-nombre" placeholder="Nombre Completo" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
+      <input type="text" id="reg-alias" placeholder="Alias (máx 15 chars)" maxlength="15" style="width:100%; padding:12px; margin-bottom:20px; border:1px solid #ddd; border-radius:8px;">
+      <button class="btn-submit" onclick="registrar()" id="btn-reg-submit">Comenzar a Jugar</button>
+      <p style="text-align:center; margin-top:15px;"><a href="javascript:void(0)" onclick="showView('v-login')">¿Ya tienes cuenta? Ingresa aquí</a></p>
+      <hr>
+      <button onclick="localStorage.clear(); location.reload();" style="width:100%; background:#f0f0f0; border:none; padding:10px; color:#666; font-size:10px;">Limpiar Estado / Reiniciar App</button>
+    </div>
+  </div>
+
+  <div id="v-login" class="view">
+    <div class="card">
+      <h2>🔑 Ingresar</h2>
+      <input type="email" id="login-email" placeholder="Ingresa tu email registrado" style="width:100%; padding:12px; margin-bottom:20px; border:1px solid #ddd; border-radius:8px;">
+      <button class="btn-submit" onclick="login()">Ingresar</button>
+      <p style="text-align:center; margin-top:15px;"><a href="#" onclick="showView('v-registro')">Volver al Registro</a></p>
+    </div>
+  </div>
+
+  <div id="v-pronosticos" class="view">
+    <h3 style="text-align:center; color:#666; text-transform:uppercase;">Predecir Resultados de los Cruces</h3>
+    <div class="card" style="margin-bottom:10px; padding:10px;">
+      <select id="filtro-fase-pron" onchange="renderPronosticos(lastData)" style="width:100%; padding:10px; border-radius:5px;">
+        <option value="">Todas las Fases</option>
+        <option value="FASE DE GRUPOS">Fase de Grupos</option>
+        <option value="ELIMINATORIA">Eliminatorias (Finales)</option>
+      </select>
+    </div>
+    <div id="lista-partidos-container"></div>
+  </div>
+
+  <div id="v-ranking" class="view">
+    <div class="card">
+      <h2>📊 Clasificación General</h2>
+      <div style="margin-bottom:15px; display:flex; gap:10px;">
+        <input type="text" id="search-ranking" placeholder="Buscar Alias o Email..." onkeyup="filterRanking()" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="table-ranking">
+          <thead><tr><th>Pos</th><th>Alias</th><th>Puntos</th><th>Ex.</th><th>Gan.</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="v-resultados" class="view">
+    <div class="card">
+      <h2>🗓️ Resultados Reales</h2>
+      <div class="card" style="margin-bottom:10px; padding:10px; background:#f9f9f9;">
+        <input type="text" id="search-resultados" placeholder="Buscar equipo..." onkeyup="renderResultados(lastData.partidos)" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+      </div>
+      <div id="fixture-container"></div>
+    </div>
+  </div>
+
+  <div id="v-perfil" class="view">
+    <div class="card">
+      <h2>👤 Mi Perfil / Buscar Usuario</h2>
+      <div style="display:flex; gap:10px; margin-bottom:20px;">
+        <input type="email" id="search-user-email" placeholder="Email del participante..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px;">
+        <button class="btn-submit" style="width:auto; padding:10px 20px;" onclick="buscarUsuario()">Buscar</button>
+      </div>
+      <div id="user-stats-content"></div>
+    </div>
+  </div>
+
+  <div id="v-admin" class="view">
+    <div class="card">
+      <h2>⚙️ Panel Admin</h2>
+      <button class="btn-submit" style="background:var(--fifa-gold); margin-bottom:10px;" onclick="seedBase()">Reiniciar y Cargar Calendario Base</button>
+      <hr>
+      <p>Importar desde Excel (ID, Fecha, Hora, Fase, Local, Visita):</p>
+      <textarea id="import-data" style="width:100%; height:100px;"></textarea>
+      <button class="btn-submit" onclick="importExcel()">Importar</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /**
+   * Manejo de Errores Global
+   */
+  window.onerror = function(msg, url, line, col, error) {
+    console.error("Error detectado:", msg, error);
+    alert("Ocurrió un error en la interfaz. Por favor recargue la página. Detalle: " + msg);
+    showLoading(false);
+    return false;
+  };
+
+  let currentUserEmail = '';
+  let lastData = null;
+  let currentVisibleIds = [];
+  let loadingTimeout = null;
+
+  function logStatus(msg) {
+    const el = document.getElementById('status-text');
+    if (el) el.innerText = msg;
+    console.log("[APP STATUS]:", msg);
+  }
+
+  function showLoading(show, msg) {
+    const loader = document.getElementById('loading-overlay');
+    const msgEl = document.getElementById('loading-msg');
+    if (loader) {
+      if (show && msg) logStatus(msg);
+      if (msg && msgEl) msgEl.innerText = msg;
+      loader.style.display = show ? 'flex' : 'none';
+      if (show) {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+        loadingTimeout = setTimeout(() => {
+          loader.style.display = 'none';
+        }, 20000); // 20 segundos de gracia
+      } else {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+      }
+    }
+  }
+
+  function showView(viewId, skipRefresh) {
+    try {
+      console.log("Cambiando a vista:", viewId);
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const targetView = document.getElementById(viewId);
+      if (targetView) targetView.classList.add('active');
+
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-' + viewId);
+      if (btn) btn.classList.add('active');
+
+      // Solo refrescar si no es login/registro y tenemos email
+      if (currentUserEmail && !skipRefresh && viewId !== 'v-login' && viewId !== 'v-registro') {
+        refreshData();
+      }
+    } catch (e) {
+      console.error("Error al cambiar de vista:", e);
+    }
+  }
+
+  function registrar() {
+    const e = document.getElementById('reg-email').value;
+    const n = document.getElementById('reg-nombre').value;
+    const a = document.getElementById('reg-alias').value;
+    if(!e || !n || !a) return alert('Completa todo.');
+    showLoading(true);
+    google.script.run
+      .withFailureHandler(err => {
+        showLoading(false);
+        alert("Error al registrar: " + err.message);
+      })
+      .withSuccessHandler(res => {
+        showLoading(false);
+        if(res.success) {
+          currentUserEmail = e;
+          refreshData();
+        } else {
+          alert(res.msg);
+        }
+      }).registrarParticipante(e, n, a);
+  }
+
+  function login() {
+    const e = document.getElementById('login-email').value || currentUserEmail;
+    if(!e) return alert('Introduce tu email.');
+    currentUserEmail = e;
+    refreshData("Iniciando sesión...");
+  }
+
+  function refreshData(msg) {
+    if (!currentUserEmail) {
+      showLoading(false);
+      return;
+    }
+
+    document.getElementById('status-email').innerText = currentUserEmail;
+    showLoading(true, msg || "Actualizando datos...");
+    google.script.run
+      .withFailureHandler(err => {
+        console.error("Error del Servidor:", err);
+        alert("Error de Conexión: " + (err.message || "No se pudo contactar con el servidor."));
+        showLoading(false);
+      })
+      .withSuccessHandler(data => {
+        try {
+          if (!data || !data.success) {
+            if (data && data.needsInit) {
+              alert(data.msg);
+            } else {
+              const errorMsg = (data && data.msg) ? data.msg : "El servidor devolvió una respuesta no válida.";
+              alert("Error: " + errorMsg);
+            }
+            showLoading(false);
+            return;
+          }
+
+          lastData = data;
+
+          if(data.userData) {
+            document.getElementById('main-nav').style.display = 'flex';
+            const btnAdmin = document.getElementById('btn-admin');
+            if (btnAdmin) btnAdmin.style.display = data.esAdmin ? 'block' : 'none';
+
+            renderPronosticos(data);
+            renderRanking(data.ranking || []);
+            renderResultados(data.partidos || []);
+            renderPerfil(data.userData);
+
+            // Navegación automática si el usuario existe
+            const activeView = document.querySelector('.view.active');
+            const currentViewId = activeView ? activeView.id : '';
+            if (currentViewId === 'v-login' || currentViewId === 'v-registro' || !currentViewId) {
+              showView('v-pronosticos', true);
+            }
+          } else {
+            // El usuario no existe o el email no es válido
+            console.log("Usuario no registrado aún.");
+            document.getElementById('main-nav').style.display = 'none';
+            // Si el usuario intentó login y no existe, mandarlo a registro
+            if (currentUserEmail && !data.needsInit) {
+               alert("El email no está registrado. Por favor regístrate.");
+               showView('v-registro', true);
+               currentUserEmail = '';
+            }
+          }
+        } catch (e) {
+          console.error("Error al procesar datos:", e);
+        } finally {
+          showLoading(false);
+        }
+      })
+      .getDashboardData(currentUserEmail);
+  }
+
+  function renderPronosticos(data) {
+    if(!data || !data.partidos) return;
+    const cont = document.getElementById('lista-partidos-container');
+    const filtroFase = document.getElementById('filtro-fase-pron').value;
+    cont.innerHTML = '';
+    currentVisibleIds = [];
+    let currentFase = '';
+    let currentWrapper = null;
+    const pronMap = {};
+    data.misPronosticos.forEach(p => pronMap[p[2]] = p);
+
+    data.partidos.forEach(p => {
+      const fasePartido = p[1];
+      if (filtroFase) {
+        if (filtroFase === 'ELIMINATORIA' && fasePartido === 'FASE DE GRUPOS') return;
+        if (filtroFase === 'FASE DE GRUPOS' && fasePartido !== 'FASE DE GRUPOS') return;
+      }
+
+      if(p[1] !== currentFase) {
+        currentFase = p[1];
+        const h = document.createElement('div'); h.className = 'fase-header'; h.innerText = currentFase;
+        cont.appendChild(h);
+        currentWrapper = document.createElement('div');
+        currentWrapper.style.border = "1px solid #ddd"; currentWrapper.style.borderRadius = "0 0 8px 8px";
+        currentWrapper.style.overflow = "hidden"; currentWrapper.style.marginBottom = "20px";
+        cont.appendChild(currentWrapper);
+      }
+      const id = p[0];
+      const pron = pronMap[id] || ['', '', '', '', ''];
+      const isClosed = new Date() > new Date(p[13]);
+      if(!isClosed && p[12] !== 'Jugado') currentVisibleIds.push(id);
+
+      const div = document.createElement('div'); div.className = 'prediction-grid';
+      div.innerHTML = `
+        <div class="team-container team-left">${p[6]} <span class="flag-circular">${p[7]}</span></div>
+        <div class="score-input-container">
+          <input type="number" class="score-input" id="gl-${id}" value="${pron[3]}" ${isClosed ? 'disabled' : ''}>
+          -
+          <input type="number" class="score-input" id="gv-${id}" value="${pron[4]}" ${isClosed ? 'disabled' : ''}>
+        </div>
+        <div class="team-container team-right"><span class="flag-circular">${p[9]}</span> ${p[8]}</div>
+      `;
+      currentWrapper.appendChild(div);
+    });
+
+    if(currentVisibleIds.length > 0) {
+      const btn = document.createElement('div');
+      btn.className = 'btn-save-container';
+      btn.innerHTML = `<button class="btn-save" onclick="guardarTodo()">GUARDAR PRONÓSTICOS</button>`;
+      cont.appendChild(btn);
+    }
+  }
+
+  function guardarTodo() {
+    const pronArray = [];
+    currentVisibleIds.forEach(id => {
+      const gl = document.getElementById(`gl-${id}`).value;
+      const gv = document.getElementById(`gv-${id}`).value;
+      if(gl !== '' && gv !== '') pronArray.push({id:id, gl:parseInt(gl), gv:parseInt(gv)});
+    });
+    if(pronArray.length === 0) return alert('Ingresa marcadores.');
+    showLoading(true);
+    google.script.run
+      .withFailureHandler(err => {
+        showLoading(false);
+        alert("Error al guardar: " + err.message);
+      })
+      .withSuccessHandler(res => {
+        showLoading(false);
+        alert(res.msg);
+        refreshData();
+      }).guardarPronosticos(currentUserEmail, pronArray);
+  }
+
+  function filterRanking() {
+    const q = document.getElementById('search-ranking').value.toLowerCase();
+    const rows = document.querySelectorAll('#table-ranking tbody tr');
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(q) ? '' : 'none';
+    });
+  }
+
+  function renderRanking(ranking) {
+    const tbody = document.querySelector('#table-ranking tbody');
+    tbody.innerHTML = ranking.map((r, i) => `<tr><td>${r.posicion || (i+1)}</td><td>${r.alias}</td><td>${r.puntos}</td><td>${r.exactos}</td><td>${r.ganadores}</td></tr>`).join('');
+  }
+
+  function renderResultados(partidos) {
+    if(!partidos) return;
+    const q = document.getElementById('search-resultados').value.toLowerCase();
+    const cont = document.getElementById('fixture-container');
+    const filtered = partidos.filter(p => (p[6]||'').toLowerCase().includes(q) || (p[8]||'').toLowerCase().includes(q));
+
+    cont.innerHTML = filtered.map(p => `
+      <div class="prediction-grid">
+        <div class="team-container team-left">${p[6]} <span>${p[7]}</span></div>
+        <div style="text-align:center; font-weight:bold;">
+          <div style="font-size:0.7rem; color:#888;">${p[1]}</div>
+          ${p[12]==='Jugado'?p[10]+'-'+p[11]:'vs'}
+        </div>
+        <div class="team-container team-right"><span>${p[9]}</span> ${p[8]}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderPerfil(u) {
+    const statsHtml = `
+      <div class="card" style="background:#f0f7ff; border:1px solid #cce5ff;">
+        <h3>${u.alias}</h3>
+        <p><strong>Puntos Totales:</strong> ${u.puntos}</p>
+        <p><strong>Posición Ranking:</strong> #${u.posicion}</p>
+        <hr>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; text-align:center; gap:5px;">
+          <div style="background:#d4edda; padding:10px; border-radius:5px;">✅<br>${u.exactos}<br><small>Exactos</small></div>
+          <div style="background:#fff3cd; padding:10px; border-radius:5px;">↗️<br>${u.ganadores}<br><small>Ganador</small></div>
+          <div style="background:#f8d7da; padding:10px; border-radius:5px;">❌<br>${u.errores}<br><small>Errores</small></div>
+        </div>
+      </div>
+    `;
+    document.getElementById('user-stats-content').innerHTML = statsHtml;
+  }
+
+  function buscarUsuario() {
+    const email = document.getElementById('search-user-email').value.trim();
+    if(!email) return alert("Ingresa un email.");
+    showLoading(true, "Buscando estadísticas...");
+    google.script.run
+      .withFailureHandler(err => { showLoading(false); alert(err.message); })
+      .withSuccessHandler(data => {
+        showLoading(false);
+        if(data.userData) {
+          renderPerfil(data.userData);
+        } else {
+          alert("Usuario no encontrado.");
+        }
+      })
+      .getDashboardData(email);
+  }
+
+  function seedBase() {
+    if(!confirm("¿Estás seguro? Se borrarán los partidos actuales.")) return;
+    showLoading(true);
+    google.script.run
+      .withFailureHandler(err => { showLoading(false); alert(err.message); })
+      .withSuccessHandler(res => { alert(res.msg); refreshData(); })
+      .seedPartidos();
+  }
+
+  function importExcel() {
+    const d = document.getElementById('import-data').value;
+    if(!d) return alert("Pega los datos primero.");
+    showLoading(true);
+    google.script.run
+      .withFailureHandler(err => { showLoading(false); alert(err.message); })
+      .withSuccessHandler(res => { alert(res.msg); refreshData(); })
+      .importarPartidosMasivo(d, 'excel');
+  }
+
+  // Inicio automático
+  window.addEventListener('load', function() {
+    console.log("Iniciando aplicación...");
+    try {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withFailureHandler(err => {
+            console.log("No se pudo obtener email automático:", err);
+          })
+          .withSuccessHandler(email => {
+            if (email) {
+              console.log("Email detectado:", email);
+              currentUserEmail = email;
+              refreshData(); // Intentar cargar datos directamente
+            }
+          })
+          .getUserEmail();
+      }
+    } catch (e) {
+      console.error("Error en inicio:", e);
+    }
+  });
+
+</script>
+
+</body>
+</html>
