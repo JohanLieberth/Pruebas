@@ -495,6 +495,7 @@
   }
 
   function renderPronosticos(data) {
+    if(!data || !data.partidos) return;
     const cont = document.getElementById('lista-partidos-container');
     const filtroFase = document.getElementById('filtro-fase-pron').value;
     cont.innerHTML = '';
@@ -582,9 +583,10 @@
   }
 
   function renderResultados(partidos) {
+    if(!partidos) return;
     const q = document.getElementById('search-resultados').value.toLowerCase();
     const cont = document.getElementById('fixture-container');
-    const filtered = partidos.filter(p => p[6].toLowerCase().includes(q) || p[8].toLowerCase().includes(q));
+    const filtered = partidos.filter(p => (p[6]||'').toLowerCase().includes(q) || (p[8]||'').toLowerCase().includes(q));
 
     cont.innerHTML = filtered.map(p => `
       <div class="prediction-grid">

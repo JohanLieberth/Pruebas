@@ -173,7 +173,13 @@ function getDashboardData(email) {
       return row;
     });
 
-    const userPronosticos = pronosticos.filter(p => String(p[1] || "").toLowerCase() === email.toLowerCase());
+    const userPronosticosRaw = pronosticos.filter(p => String(p[1] || "").toLowerCase() === email.toLowerCase());
+    const userPronosticos = userPronosticosRaw.map(p => {
+      const row = [...p];
+      if (row[5] instanceof Date) row[5] = row[5].toISOString();
+      return row;
+    });
+
     const userData = participantes.find(p => String(p[0] || "").toLowerCase() === email.toLowerCase());
 
     const ranking = participantes
