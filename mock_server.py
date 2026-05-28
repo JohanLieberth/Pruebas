@@ -14,7 +14,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             with open(HTML_FILE, 'rb') as f:
                 content = f.read().decode('utf-8')
-                # Inject mock google.script.run
+                # Inject mock google.script.run for local testing
                 mock_script = """
                 <script>
                 window.google = {
@@ -25,7 +25,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                           getDashboardData: function(email) {
                             setTimeout(() => {
                               callback({
-                                ranking: [[1, 'Juanito26', 10, 2, 0], [2, 'MariGol', 8, 1, 1]],
+                                ranking: [[1, 'Juanito26', 10, 0, 2, 0], [2, 'MariGol', 8, -2, 1, 1]],
                                 partidos: [
                                   ['P-001', '2026-06-11', '15:00', 'Grupo A', 'México', 'Argentina', 2, 1, 'Jugado', 'Manual'],
                                   ['P-002', '2026-06-12', '18:00', 'Grupo B', 'España', 'Brasil', '', '', 'Pendiente', '']
@@ -38,10 +38,10 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                             }, 500);
                           },
                           registrarParticipante: function(n, a, e) {
-                            setTimeout(() => callback({success: true, msg: 'Registro exitoso mock'}), 500);
+                            setTimeout(() => callback({success: true, msg: 'Registro exitoso (Mock)'}), 500);
                           },
                           guardarPronostico: function(id, gl, gv, e) {
-                            setTimeout(() => callback({success: true, msg: 'Pronóstico guardado mock'}), 500);
+                            setTimeout(() => callback({success: true, msg: 'Pronóstico guardado (Mock)'}), 500);
                           }
                         };
                       }
@@ -55,6 +55,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             super().do_GET()
 
-with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
-    print(f"Serving at port {PORT}")
-    httpd.serve_forever()
+if __name__ == "__main__":
+    with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
+        print(f"Servidor de pruebas corriendo en http://localhost:{PORT}")
+        print("Presiona Ctrl+C para detener.")
+        httpd.serve_forever()
