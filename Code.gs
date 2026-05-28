@@ -147,11 +147,22 @@ function getDashboardData(email) {
     const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
     const sParticipantes = ss.getSheetByName(SHEETS.PARTICIPANTES);
     const sPronosticos = ss.getSheetByName(SHEETS.PRONOSTICOS);
-    const sRanking = ss.getSheetByName(SHEETS.PARTICIPANTES); // Usamos Participantes para el ranking
 
-    const partidos = sPartidos.getDataRange().getValues().slice(1);
+    if (!sPartidos || !sParticipantes || !sPronosticos) {
+      throw new Error("Sistema no inicializado.");
+    }
+
+    const partidosRaw = sPartidos.getDataRange().getValues().slice(1);
     const participantes = sParticipantes.getDataRange().getValues().slice(1);
     const pronosticos = sPronosticos.getDataRange().getValues().slice(1);
+
+    // Procesar partidos para asegurar fechas serializables
+    const partidos = partidosRaw.map(p => {
+      const row = [...p];
+      if (row[4] instanceof Date) row[4] = row[4].toISOString();
+      if (row[13] instanceof Date) row[13] = row[13].toISOString();
+      return row;
+    });
 
     const userPronosticos = pronosticos.filter(p => p[1].toLowerCase() === email.toLowerCase());
     const userData = participantes.find(p => p[0].toLowerCase() === email.toLowerCase());
@@ -181,7 +192,7 @@ function getDashboardData(email) {
         posicion: ranking.findIndex(r => r.email.toLowerCase() === email.toLowerCase()) + 1
       } : null,
       ranking: ranking,
-      isAdmin: email.toLowerCase() === config.ADMIN_EMAIL.toLowerCase()
+      esAdmin: email.toLowerCase() === config.ADMIN_EMAIL.toLowerCase()
     };
   } catch (e) {
     logError('getDashboardData', e.toString());
@@ -311,7 +322,7 @@ function recalcularTodosLosPuntos() {
 
       let pts = 0;
       if (real) {
-        const esEliminatoria = real.fase !== 'Fase de Grupos';
+        const esEliminatoria = real.fase.toUpperCase() !== 'FASE DE GRUPOS';
         const res = calcularPuntos(real.gl, real.gv, pronosticos[j][3], pronosticos[j][4], esEliminatoria);
         pts = res.puntos;
 
@@ -356,59 +367,57 @@ function seedPartidos() {
   const sEquipos = ss.getSheetByName(SHEETS.EQUIPOS);
   const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
 
-  sEquipos.clear();
-  sEquipos.appendRow(['ID_Equipo', 'Nombre_Equipo', 'Bandera', 'Grupo']);
+  sEquipos.getRange(2, 1, sEquipos.getLastRow(), 4).clearContent();
 
   const equipos = [
-    [1, 'Ecuador', '🇪🇨', 'A'], [2, 'Países Bajos', '🇳🇱', 'A'], [3, 'Qatar', '🇶🇦', 'A'], [4, 'Senegal', '🇸🇳', 'A'],
-    [5, 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'B'], [6, 'Estados Unidos', '🇺🇸', 'B'], [7, 'Irán', '🇮🇷', 'B'], [8, 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'B'],
-    [9, 'Argentina', '🇦🇷', 'C'], [10, 'México', '🇲🇽', 'C'], [11, 'Arabia Saudita', '🇸🇦', 'C'], [12, 'Polonia', '🇵🇱', 'C'],
-    [13, 'Francia', '🇫🇷', 'D'], [14, 'Dinamarca', '🇩🇰', 'D'], [15, 'Australia', '🇦🇺', 'D'], [16, 'Túnez', '🇹🇳', 'D'],
-    [17, 'España', '🇪🇸', 'E'], [18, 'Alemania', '🇩🇪', 'E'], [19, 'Costa Rica', '🇨🇷', 'E'], [20, 'Japón', '🇯🇵', 'E'],
-    [21, 'Bélgica', '🇧🇪', 'F'], [22, 'Marruecos', '🇲🇦', 'F'], [23, 'Canadá', '🇨🇦', 'F'], [24, 'Croacia', '🇭🇷', 'F'],
-    [25, 'Brasil', '🇧🇷', 'G'], [26, 'Suiza', '🇨🇭', 'G'], [27, 'Serbia', '🇷🇸', 'G'], [28, 'Camerún', '🇨🇲', 'G'],
-    [29, 'Portugal', '🇵🇹', 'H'], [30, 'Uruguay', '🇺🇾', 'H'], [31, 'Ghana', '🇬🇭', 'H'], [32, 'Corea del Sur', '🇰🇷', 'H']
+    [1, 'México', '🇲🇽', 'A'], [2, 'Estados Unidos', '🇺🇸', 'A'], [3, 'Canadá', '🇨🇦', 'A'], [4, 'Argentina', '🇦🇷', 'B'],
+    [5, 'Brasil', '🇧🇷', 'B'], [6, 'España', '🇪🇸', 'C'], [7, 'Francia', '🇫🇷', 'C'], [8, 'Alemania', '🇩🇪', 'D'],
+    [9, 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'D'], [10, 'Italia', '🇮🇹', 'E'], [11, 'Portugal', '🇵🇹', 'E'], [12, 'Países Bajos', '🇳🇱', 'F'],
+    [13, 'Bélgica', '🇧🇪', 'F'], [14, 'Uruguay', '🇺🇾', 'G'], [15, 'Colombia', '🇨🇴', 'G'], [16, 'Croacia', '🇭🇷', 'H'],
+    [17, 'Marruecos', '🇲🇦', 'H'], [18, 'Japón', '🇯🇵', 'I'], [19, 'Senegal', '🇸🇳', 'I'], [20, 'Ecuador', '🇪🇨', 'J'],
+    [21, 'Suiza', '🇨🇭', 'J'], [22, 'Dinamarca', '🇩🇰', 'K'], [23, 'Corea del Sur', '🇰🇷', 'K'], [24, 'Australia', '🇦🇺', 'L'],
+    [25, 'Arabia Saudita', '🇸🇦', 'L'], [26, 'Chile', '🇨🇱', 'G'], [27, 'Perú', '🇵🇪', 'B'], [28, 'Nigeria', '🇳🇬', 'D']
   ];
   sEquipos.getRange(2, 1, equipos.length, 4).setValues(equipos);
 
-  sPartidos.clear();
-  sPartidos.appendRow(['ID_Partido', 'Fase', 'Grupo', 'Matchday', 'Fecha', 'Hora', 'Equipo_Local', 'Bandera_Local', 'Equipo_Visita', 'Bandera_Visita', 'Gol_Local_Real', 'Gol_Visita_Real', 'Estado', 'Fecha_Cierre', 'Llave']);
+  sPartidos.getRange(2, 1, sPartidos.getLastRow(), 15).clearContent();
 
   const groupMatches = [
     // Grupo A
-    ['G-A1', 'FASE DE GRUPOS', 'A', 1, '2026-06-11', '14:00', 'Ecuador', '🇪🇨', 'Qatar', '🇶🇦'],
-    ['G-A2', 'FASE DE GRUPOS', 'A', 1, '2026-06-12', '10:00', 'Países Bajos', '🇳🇱', 'Senegal', '🇸🇳'],
-    ['G-A3', 'FASE DE GRUPOS', 'A', 2, '2026-06-16', '14:00', 'Ecuador', '🇪🇨', 'Senegal', '🇸🇳'],
-    ['G-A4', 'FASE DE GRUPOS', 'A', 2, '2026-06-16', '17:00', 'Países Bajos', '🇳🇱', 'Qatar', '🇶🇦'],
-    ['G-A5', 'FASE DE GRUPOS', 'A', 3, '2026-06-21', '14:00', 'Senegal', '🇸🇳', 'Ecuador', '🇪🇨'],
-    ['G-A6', 'FASE DE GRUPOS', 'A', 3, '2026-06-21', '14:00', 'Qatar', '🇶🇦', 'Países Bajos', '🇳🇱'],
+    ['G-A1', 'FASE DE GRUPOS', 'A', 1, '2026-06-11', '14:00', 'México', '🇲🇽', 'Estados Unidos', '🇺🇸'],
+    ['G-A2', 'FASE DE GRUPOS', 'A', 1, '2026-06-12', '10:00', 'Canadá', '🇨🇦', 'TBD', '⚽'],
     // Grupo B
-    ['G-B1', 'FASE DE GRUPOS', 'B', 1, '2026-06-12', '14:00', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Estados Unidos', '🇺🇸'],
-    ['G-B2', 'FASE DE GRUPOS', 'B', 1, '2026-06-12', '17:00', 'Irán', '🇮🇷', 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿'],
-    ['G-B3', 'FASE DE GRUPOS', 'B', 2, '2026-06-17', '14:00', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿'],
-    ['G-B4', 'FASE DE GRUPOS', 'B', 2, '2026-06-17', '17:00', 'Irán', '🇮🇷', 'Estados Unidos', '🇺🇸'],
-    ['G-B5', 'FASE DE GRUPOS', 'B', 3, '2026-06-22', '14:00', 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿'],
-    ['G-B6', 'FASE DE GRUPOS', 'B', 3, '2026-06-22', '14:00', 'Estados Unidos', '🇺🇸', 'Irán', '🇮🇷'],
+    ['G-B1', 'FASE DE GRUPOS', 'B', 1, '2026-06-12', '14:00', 'Argentina', '🇦🇷', 'Brasil', '🇧🇷'],
+    ['G-B2', 'FASE DE GRUPOS', 'B', 1, '2026-06-12', '18:00', 'Perú', '🇵🇪', 'TBD', '⚽'],
     // Grupo C
-    ['G-C1', 'FASE DE GRUPOS', 'C', 1, '2026-06-13', '14:00', 'Argentina', '🇦🇷', 'México', '🇲🇽'],
-    ['G-C2', 'FASE DE GRUPOS', 'C', 1, '2026-06-13', '17:00', 'Arabia Saudita', '🇸🇦', 'Polonia', '🇵🇱'],
-    ['G-C3', 'FASE DE GRUPOS', 'C', 2, '2026-06-18', '20:00', 'Argentina', '🇦🇷', 'Polonia', '🇵🇱'],
-    ['G-C4', 'FASE DE GRUPOS', 'C', 2, '2026-06-18', '17:00', 'Arabia Saudita', '🇸🇦', 'México', '🇲🇽'],
-    ['G-C5', 'FASE DE GRUPOS', 'C', 3, '2026-06-23', '14:00', 'Polonia', '🇵🇱', 'Argentina', '🇦🇷'],
-    ['G-C6', 'FASE DE GRUPOS', 'C', 3, '2026-06-23', '14:00', 'México', '🇲🇽', 'Arabia Saudita', '🇸🇦']
+    ['G-C1', 'FASE DE GRUPOS', 'C', 1, '2026-06-13', '12:00', 'España', '🇪🇸', 'Francia', '🇫🇷'],
+    // Grupo D
+    ['G-D1', 'FASE DE GRUPOS', 'D', 1, '2026-06-13', '15:00', 'Alemania', '🇩🇪', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿'],
+    // Grupo E
+    ['G-E1', 'FASE DE GRUPOS', 'E', 1, '2026-06-14', '12:00', 'Italia', '🇮🇹', 'Portugal', '🇵🇹'],
+    // Grupo F
+    ['G-F1', 'FASE DE GRUPOS', 'F', 1, '2026-06-14', '15:00', 'Países Bajos', '🇳🇱', 'Bélgica', '🇧🇪'],
+    // Grupos G-L representados
+    ['G-G1', 'FASE DE GRUPOS', 'G', 1, '2026-06-15', '12:00', 'Uruguay', '🇺🇾', 'Colombia', '🇨🇴'],
+    ['G-H1', 'FASE DE GRUPOS', 'H', 1, '2026-06-15', '15:00', 'Croacia', '🇭🇷', 'Marruecos', '🇲🇦'],
+    ['G-I1', 'FASE DE GRUPOS', 'I', 1, '2026-06-16', '12:00', 'Japón', '🇯🇵', 'Senegal', '🇸🇳'],
+    ['G-J1', 'FASE DE GRUPOS', 'J', 1, '2026-06-16', '15:00', 'Ecuador', '🇪🇨', 'Suiza', '🇨🇭'],
+    ['G-K1', 'FASE DE GRUPOS', 'K', 1, '2026-06-17', '12:00', 'Dinamarca', '🇩🇰', 'Corea del Sur', '🇰🇷'],
+    ['G-L1', 'FASE DE GRUPOS', 'L', 1, '2026-06-17', '15:00', 'Australia', '🇦🇺', 'Arabia Saudita', '🇸🇦']
   ];
 
-  // Fase Eliminatoria - Octavos (Ejemplo)
   const knockoutMatches = [
-    ['KO-1', 'OCTAVOS DE FINAL', '-', '-', '2026-06-28', '14:00', '1A', '⚽', '2B', '⚽'],
-    ['KO-2', 'OCTAVOS DE FINAL', '-', '-', '2026-06-28', '18:00', '1C', '⚽', '2D', '⚽'],
-    ['KO-FIN', 'GRAN FINAL', '-', '-', '2026-07-19', '14:00', 'Ganador Semifinal 1', '🏆', 'Ganador Semifinal 2', '🏆']
+    ['KO-32', '32AVOS DE FINAL', '-', '-', '2026-06-25', '14:00', 'TBD', '⚽', 'TBD', '⚽'],
+    ['KO-16', 'OCTAVOS DE FINAL', '-', '-', '2026-06-30', '14:00', 'TBD', '⚽', 'TBD', '⚽'],
+    ['KO-8', 'CUARTOS DE FINAL', '-', '-', '2026-07-05', '14:00', 'TBD', '⚽', 'TBD', '⚽'],
+    ['KO-4', 'SEMIFINAL', '-', '-', '2026-07-10', '14:00', 'TBD', '⚽', 'TBD', '⚽'],
+    ['KO-3', 'TERCER PUESTO', '-', '-', '2026-07-18', '14:00', 'TBD', '⚽', 'TBD', '⚽'],
+    ['KO-FIN', 'GRAN FINAL', '-', '-', '2026-07-19', '14:00', 'TBD', '🏆', 'TBD', '🏆']
   ];
 
   const allMatches = [...groupMatches, ...knockoutMatches];
 
   const rows = allMatches.map(m => {
-    // Manejo robusto de fechas para Apps Script
     const dateParts = m[4].split('-');
     const timeParts = m[5].split(':');
     const matchDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1]);
@@ -421,7 +430,7 @@ function seedPartidos() {
   });
 
   sPartidos.getRange(2, 1, rows.length, 15).setValues(rows);
-  SpreadsheetApp.getUi().alert('Datos semilla cargados con éxito (Grupos A-C y KO base).');
+  return { success: true, msg: 'Datos semilla cargados con éxito.' };
 }
 
 /**
@@ -488,7 +497,7 @@ function actualizarResultadosAPI() {
 
 function actualizarResultadoManual(idPartido, golLocal, golVisita) {
   const config = getConfig();
-  if (Session.getEffectiveUser().getEmail() !== config.ADMIN_EMAIL) {
+  if (Session.getEffectiveUser().getEmail() !== config.ADMIN_EMAIL.toLowerCase()) {
     throw new Error("Acceso denegado: Solo administrador");
   }
 
@@ -503,4 +512,54 @@ function actualizarResultadoManual(idPartido, golLocal, golVisita) {
     }
   }
   return { success: false, msg: "Partido no encontrado." };
+}
+
+/**
+ * Importa partidos desde texto (TSV) copiado de Excel.
+ */
+function importarPartidosMasivo(dataString, format) {
+  try {
+    const config = getConfig();
+    if (Session.getEffectiveUser().getEmail() !== config.ADMIN_EMAIL.toLowerCase()) {
+      return { success: false, msg: "No autorizado." };
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.PARTIDOS);
+    const lines = dataString.trim().split('\n');
+    const rows = [];
+    const horasCierre = config.HORAS_CIERRE_PRONOSTICO || 1;
+
+    lines.forEach(line => {
+      const cols = line.split('\t');
+      if (cols.length >= 6) {
+        const id = cols[0].trim();
+        const fase = cols[1].trim();
+        const grupo = cols[2].trim();
+        const fecha = cols[4].trim(); // YYYY-MM-DD
+        const hora = cols[5].trim();  // HH:mm
+
+        const dateParts = fecha.split('-');
+        const timeParts = hora.split(':');
+        const matchDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1]);
+        const closureDate = new Date(matchDate.getTime() - (horasCierre * 60 * 60 * 1000));
+
+        // [ID, Fase, Grupo, Matchday, Fecha, Hora, Local, Band_L, Visita, Band_V, GLR, GVR, Estado, Cierre, Llave]
+        rows.push([
+          id, fase, grupo, '', fecha, hora,
+          cols[6] || 'TBD', '⚽', cols[7] || 'TBD', '⚽',
+          '', '', 'Pendiente', closureDate, ''
+        ]);
+      }
+    });
+
+    if (rows.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 15).setValues(rows);
+    }
+
+    return { success: true, msg: `${rows.length} partidos importados.` };
+  } catch (e) {
+    logError('importarPartidosMasivo', e.toString());
+    return { success: false, msg: "Error al importar." };
+  }
 }
