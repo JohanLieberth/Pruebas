@@ -130,22 +130,65 @@
 
     .prediction-grid {
       display: grid;
-      grid-template-columns: 1fr auto 1fr;
+      grid-template-columns: 1fr 120px 1fr;
       align-items: center;
       gap: 10px;
-      padding: 15px;
-      border-bottom: 1px solid #eee;
+      padding: 12px 20px;
+      border-bottom: 1px solid #ddd;
       transition: background 0.2s;
     }
 
+    .prediction-grid:last-child {
+      border-bottom: none;
+    }
+
     .prediction-grid:hover {
-      background-color: #f9f9f9;
+      background-color: #fcfcfc;
+    }
+
+    .team-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-transform: uppercase;
+      font-weight: bold;
+      color: #333;
+      font-size: 0.95rem;
+    }
+
+    .team-left { justify-content: flex-end; text-align: right; }
+    .team-right { justify-content: flex-start; text-align: left; }
+
+    .flag-circular {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid #eee;
+    }
+
+    .score-input-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
 
     .score-input {
-      width: 40px;
+      width: 45px;
+      height: 45px;
       text-align: center;
-      padding: 5px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      color: #333;
+      padding: 0;
+    }
+
+    .score-input:focus {
+      border-color: var(--fifa-gold);
+      outline: none;
     }
 
     .progress-container {
@@ -243,7 +286,8 @@
   <!-- VISTA PARTIDOS -->
   <div id="v-partidos" class="view">
     <div class="card">
-      <h2>📅 Fixture y Pronósticos</h2>
+      <h3 style="text-align:center; color:#666; text-transform:uppercase; margin-bottom:20px; font-weight:bold; border:none;">Predecir Resultados de los Cruces</h3>
+
       <div class="form-group">
         <label for="user-email-pred">Ingresa tu Email para guardar/ver pronósticos:</label>
         <input type="email" id="user-email-pred" placeholder="email@ejemplo.com">
@@ -452,9 +496,12 @@
     });
   }
 
+  let currentVisibleIds = [];
+
   function renderPartidos(partidos, misPronosticos) {
     const container = document.getElementById('lista-partidos');
     container.innerHTML = '';
+    currentVisibleIds = [];
 
     const pronMap = {};
     misPronosticos.forEach(p => pronMap[p[2]] = p);
@@ -464,6 +511,11 @@
       return;
     }
 
+    const wrapper = document.createElement('div');
+    wrapper.style.border = "1px solid #ddd";
+    wrapper.style.borderRadius = "8px";
+    wrapper.style.overflow = "hidden";
+
     partidos.forEach(p => {
       const id = p[0];
       const pron = pronMap[id] || ['', '', '', '', ''];
@@ -471,32 +523,68 @@
       const flagL = p[10] || '';
       const flagV = p[11] || '';
 
+      if (p[8] !== 'Jugado') currentVisibleIds.push(id);
+
       const div = document.createElement('div');
       div.className = 'prediction-grid';
       div.innerHTML = `
-        <div style="text-align:right; font-weight: 500;">
-          <img src="${flagL}" width="25" height="15" style="vertical-align:middle; margin-right:8px; border:1px solid #ddd; object-fit: cover;">
+        <div class="team-container team-left">
           ${p[4]}
-          <span style="display:block; font-size:1.2rem; font-weight:bold; color:var(--fifa-green);">${p[6] !== '' ? p[6] : '-'}</span>
+          <img src="${flagL}" class="flag-circular">
         </div>
-        <div class="score-container" style="display:flex; flex-direction:column; align-items:center;">
-          <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;">
-            <input type="number" min="0" class="score-input" id="gl-${id}" value="${pron[3]}" ${p[8] === 'Jugado' ? 'disabled' : ''} style="font-size:1.1rem; padding:8px; width:50px; border: 2px solid var(--fifa-gold); border-radius:5px;">
-            <span style="font-weight:bold;">:</span>
-            <input type="number" min="0" class="score-input" id="gv-${id}" value="${pron[4]}" ${p[8] === 'Jugado' ? 'disabled' : ''} style="font-size:1.1rem; padding:8px; width:50px; border: 2px solid var(--fifa-gold); border-radius:5px;">
-          </div>
-          ${p[8] !== 'Jugado' ? `<button class="btn-submit" onclick="guardar('${id}')" style="padding:5px 15px; font-size:0.8rem; width:auto;">Guardar Pronóstico</button>` : ''}
+        <div class="score-input-container">
+          <input type="number" min="0" class="score-input" id="gl-${id}" value="${pron[3]}" ${p[8] === 'Jugado' ? 'disabled' : ''}>
+          <span style="color:#999;">-</span>
+          <input type="number" min="0" class="score-input" id="gv-${id}" value="${pron[4]}" ${p[8] === 'Jugado' ? 'disabled' : ''}>
         </div>
-        <div style="text-align:left; font-weight: 500;">
-          <span style="display:block; font-size:1.2rem; font-weight:bold; color:var(--fifa-green); text-align:right;">${p[7] !== '' ? p[7] : '-'}</span>
-          <img src="${flagV}" width="25" height="15" style="vertical-align:middle; margin-left:8px; border:1px solid #ddd; object-fit: cover;">
+        <div class="team-container team-right">
+          <img src="${flagV}" class="flag-circular">
           ${p[5]}
-          <br><small class="badge ${statusClass}" style="margin-top:5px; display:inline-block;">${p[8]} | ${p[3]}</small>
-          ${pron[6] !== undefined && pron[6] !== '' && p[8] === 'Jugado' ? `<br><small style="color:var(--fifa-gold); font-weight:bold;">✨ Puntos Ganados: ${pron[6]}</small>` : ''}
+          ${p[8] === 'Jugado' ? `<span style="margin-left:auto; color:var(--fifa-green); font-size:1.1rem;">${p[6]}-${p[7]}</span>` : ''}
         </div>
       `;
-      container.appendChild(div);
+      wrapper.appendChild(div);
     });
+
+    container.appendChild(wrapper);
+
+    // Botón para guardar todos los pronósticos visibles
+    if (currentVisibleIds.length > 0) {
+      const btnSaveAll = document.createElement('button');
+      btnSaveAll.className = 'btn-submit';
+      btnSaveAll.style.marginTop = '20px';
+      btnSaveAll.innerText = 'GUARDAR TODOS LOS PRONÓSTICOS';
+      btnSaveAll.onclick = guardarTodos;
+      container.appendChild(btnSaveAll);
+    }
+  }
+
+  function guardarTodos() {
+    const email = document.getElementById('user-email-pred').value;
+    if (!email) return alert('Por favor ingresa tu email primero.');
+
+    const pronosticos = currentVisibleIds.map(id => {
+      return {
+        id: id,
+        gl: document.getElementById(`gl-${id}`).value,
+        gv: document.getElementById(`gv-${id}`).value
+      };
+    }).filter(p => p.gl !== '' && p.gv !== '');
+
+    if (pronosticos.length === 0) return alert('No hay pronósticos nuevos para guardar.');
+
+    showLoading(true);
+    google.script.run
+      .withFailureHandler(err => {
+        alert("Error: " + err.message);
+        showLoading(false);
+      })
+      .withSuccessHandler(res => {
+        showLoading(false);
+        alert(res.msg);
+        refreshData();
+      })
+      .guardarMultiplesPronosticos(pronosticos, email);
   }
 
   function updateProgressBar(partidos) {

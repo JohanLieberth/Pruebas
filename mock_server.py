@@ -20,31 +20,42 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 window.google = {
                   script: {
                     run: {
-                      withSuccessHandler: function(callback) {
-                        return {
-                          getDashboardData: function(email) {
-                            setTimeout(() => {
-                              callback({
-                                ranking: [[1, 'Juanito26', 10, 0, 2, 0], [2, 'MariGol', 8, -2, 1, 1]],
-                                partidos: [
-                                  ['P-001', '2026-06-11', '15:00', 'Grupo A', 'México', 'Argentina', 2, 1, 'Jugado', 'Manual', 'https://flagcdn.com/w40/mx.png', 'https://flagcdn.com/w40/ar.png'],
-                                  ['P-002', '2026-06-12', '18:00', 'Grupo B', 'España', 'Brasil', '', '', 'Pendiente', '', 'https://flagcdn.com/w40/es.png', 'https://flagcdn.com/w40/br.png']
-                                ],
-                                misPronosticos: [
-                                  ['PRON-001', 'test@test.com', 'P-001', 2, 1, '2026-06-11', 5]
-                                ],
-                                participante: ['test@test.com', 'Test User', 'Tester', 5, 1, '2026-06-11'],
-                                esAdmin: true
-                              });
-                            }, 500);
-                          },
-                          registrarParticipante: function(n, a, e) {
-                            setTimeout(() => callback({success: true, msg: 'Registro exitoso (Mock)'}), 500);
-                          },
-                          guardarPronostico: function(id, gl, gv, e) {
-                            setTimeout(() => callback({success: true, msg: 'Pronóstico guardado (Mock)'}), 500);
+                      withFailureHandler: function(failCallback) {
+                        this._fail = failCallback;
+                        return this;
+                      },
+                      withSuccessHandler: function(successCallback) {
+                        this._success = successCallback;
+                        return this;
+                      },
+                      getDashboardData: function(email) {
+                        console.log("Mock getDashboardData called");
+                        const self = this;
+                        setTimeout(() => {
+                          if (self._success) {
+                            self._success({
+                              ranking: [[1, 'Juanito26', 10, 0, 2, 0], [2, 'MariGol', 8, -2, 1, 1]],
+                              partidos: [
+                                ['P-001', '2026-06-11', '15:00', 'Fase de Grupos', 'México', 'Argentina', 2, 1, 'Jugado', 'Manual', 'https://flagcdn.com/w40/mx.png', 'https://flagcdn.com/w40/ar.png'],
+                                ['P-002', '2026-06-12', '18:00', 'Fase de Grupos', 'España', 'Brasil', '', '', 'Pendiente', '', 'https://flagcdn.com/w40/es.png', 'https://flagcdn.com/w40/br.png'],
+                                ['P-003', '2026-06-13', '20:00', 'Fase de Grupos', 'Corea del Sur', 'República Checa', '', '', 'Pendiente', '', 'https://flagcdn.com/w40/kr.png', 'https://flagcdn.com/w40/cz.png']
+                              ],
+                              misPronosticos: [
+                                ['PRON-001', 'test@test.com', 'P-001', 2, 1, '2026-06-11', 5]
+                              ],
+                              participante: ['test@test.com', 'Test User', 'Tester', 5, 1, '2026-06-11'],
+                              esAdmin: true
+                            });
                           }
-                        };
+                        }, 500);
+                      },
+                      guardarMultiplesPronosticos: function(p, e) {
+                        const self = this;
+                        setTimeout(() => { if(self._success) self._success({success:true, msg: 'Guardado mock'}); }, 500);
+                      },
+                      registrarParticipante: function(n, a, e) {
+                        const self = this;
+                        setTimeout(() => { if(self._success) self._success({success: true, msg: 'Registro exitoso mock'}); }, 500);
                       }
                     }
                   }
@@ -58,6 +69,4 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
-        print(f"Servidor de pruebas corriendo en http://localhost:{PORT}")
-        print("Presiona Ctrl+C para detener.")
         httpd.serve_forever()

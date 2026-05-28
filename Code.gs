@@ -305,6 +305,51 @@ function registrarParticipante(nombre, alias, email) {
 /**
  * Guarda o actualiza un pronóstico.
  */
+function guardarMultiplesPronosticos(pronosticos, email) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const partidosSheet = ss.getSheetByName(SHEETS.PARTIDOS);
+  const pronosticosSheet = ss.getSheetByName(SHEETS.PRONOSTICOS);
+
+  const partidosData = partidosSheet.getDataRange().getValues();
+  const partidosMap = {};
+  partidosData.forEach(p => partidosMap[p[0]] = p);
+
+  const pronosticosExistentes = pronosticosSheet.getDataRange().getValues();
+  const existingMap = {};
+  for (let i = 1; i < pronosticosExistentes.length; i++) {
+    existingMap[pronosticosExistentes[i][1] + "_" + pronosticosExistentes[i][2]] = i + 1;
+  }
+
+  const ahora = new Date();
+  let count = 0;
+
+  pronosticos.forEach(p => {
+    const partido = partidosMap[p.id];
+    if (!partido) return;
+
+    // Validar cierre
+    const fechaPartido = new Date(partido[1]);
+    const horaArr = partido[2].toString().split(':');
+    if (horaArr.length >= 2) {
+      fechaPartido.setHours(parseInt(horaArr[0]), parseInt(horaArr[1]), 0);
+    }
+    const limite = new Date(fechaPartido.getTime() - (60 * 60 * 1000));
+
+    if (ahora > limite) return;
+
+    const rowIdx = existingMap[email + "_" + p.id];
+    if (rowIdx) {
+      pronosticosSheet.getRange(rowIdx, 4, 1, 3).setValues([[p.gl, p.gv, ahora]]);
+    } else {
+      const newId = 'PRON-' + Utilities.getUuid().substring(0, 8);
+      pronosticosSheet.appendRow([newId, email, p.id, p.gl, p.gv, ahora, 0]);
+    }
+    count++;
+  });
+
+  return { success: true, msg: `${count} pronósticos guardados.` };
+}
+
 function guardarPronostico(idPartido, golL, golV, email) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const partidosSheet = ss.getSheetByName(SHEETS.PARTIDOS);
@@ -441,7 +486,8 @@ function getFlagUrl(pais) {
     'EEUU': 'us', 'USA': 'us', 'Italia': 'it', 'Francia': 'fr',
     'Japón': 'jp', 'Alemania': 'de', 'Marruecos': 'ma', 'Canadá': 'ca',
     'Inglaterra': 'gb-eng', 'Portugal': 'pt', 'Bélgica': 'be', 'Uruguay': 'uy',
-    'Croacia': 'hr', 'Países Bajos': 'nl', 'Ecuador': 'ec', 'Colombia': 'co'
+    'Croacia': 'hr', 'Países Bajos': 'nl', 'Ecuador': 'ec', 'Colombia': 'co',
+    'Corea del Sur': 'kr', 'República Checa': 'cz', 'Sudáfrica': 'za'
   };
   const code = flags[pais] || 'un'; // 'un' para desconocido
   return `https://flagcdn.com/w40/${code}.png`;
