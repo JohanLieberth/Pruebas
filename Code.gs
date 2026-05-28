@@ -148,6 +148,8 @@ function registrarParticipante(email, nombre, alias) {
  */
 function getDashboardData(email) {
   try {
+    if (!email) return { success: false, msg: "Email no proporcionado." };
+
     const config = getConfig();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -452,7 +454,11 @@ function logError(funcion, detalle) {
 }
 
 function getUserEmail() {
-  return Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+  // Session.getActiveUser().getEmail() es preferible para identificar al usuario que accede.
+  // Session.getEffectiveUser().getEmail() siempre retorna el email del desarrollador en despliegues "Ejecutar como Yo".
+  // Solo retornamos email si no está vacío para evitar problemas en accesos anónimos.
+  const email = Session.getActiveUser().getEmail();
+  return email || "";
 }
 
 function crearBackup() {

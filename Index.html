@@ -281,12 +281,22 @@
 
   <div id="v-pronosticos" class="view">
     <h3 style="text-align:center; color:#666; text-transform:uppercase;">Predecir Resultados de los Cruces</h3>
+    <div class="card" style="margin-bottom:10px; padding:10px;">
+      <select id="filtro-fase-pron" onchange="renderPronosticos(lastData)" style="width:100%; padding:10px; border-radius:5px;">
+        <option value="">Todas las Fases</option>
+        <option value="FASE DE GRUPOS">Fase de Grupos</option>
+        <option value="ELIMINATORIA">Eliminatorias (Finales)</option>
+      </select>
+    </div>
     <div id="lista-partidos-container"></div>
   </div>
 
   <div id="v-ranking" class="view">
     <div class="card">
       <h2>📊 Clasificación General</h2>
+      <div style="margin-bottom:15px; display:flex; gap:10px;">
+        <input type="text" id="search-ranking" placeholder="Buscar Alias o Email..." onkeyup="filterRanking()" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
+      </div>
       <div style="overflow-x:auto;">
         <table id="table-ranking">
           <thead><tr><th>Pos</th><th>Alias</th><th>Puntos</th><th>Ex.</th><th>Gan.</th></tr></thead>
@@ -299,13 +309,20 @@
   <div id="v-resultados" class="view">
     <div class="card">
       <h2>🗓️ Resultados Reales</h2>
+      <div class="card" style="margin-bottom:10px; padding:10px; background:#f9f9f9;">
+        <input type="text" id="search-resultados" placeholder="Buscar equipo..." onkeyup="renderResultados(lastData.partidos)" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+      </div>
       <div id="fixture-container"></div>
     </div>
   </div>
 
   <div id="v-perfil" class="view">
     <div class="card">
-      <h2>👤 Mi Perfil</h2>
+      <h2>👤 Mi Perfil / Buscar Usuario</h2>
+      <div style="display:flex; gap:10px; margin-bottom:20px;">
+        <input type="email" id="search-user-email" placeholder="Email del participante..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px;">
+        <button class="btn-submit" style="width:auto; padding:10px 20px;" onclick="buscarUsuario()">Buscar</button>
+      </div>
       <div id="user-stats-content"></div>
     </div>
   </div>
@@ -423,7 +440,7 @@
     google.script.run
       .withFailureHandler(err => {
         console.error("Error del Servidor:", err);
-        alert("Error al obtener datos: " + err.message);
+        alert("Error de Conexión: " + (err.message || "No se pudo contactar con el servidor."));
         showLoading(false);
       })
       .withSuccessHandler(data => {
@@ -432,7 +449,8 @@
             if (data && data.needsInit) {
               alert(data.msg);
             } else {
-              alert("Error: El servidor no respondió correctamente.");
+              const errorMsg = (data && data.msg) ? data.msg : "El servidor devolvió una respuesta no válida.";
+              alert("Error: " + errorMsg);
             }
             showLoading(false);
             return;
@@ -478,6 +496,7 @@
 
   function renderPronosticos(data) {
     const cont = document.getElementById('lista-partidos-container');
+    const filtroFase = document.getElementById('filtro-fase-pron').value;
     cont.innerHTML = '';
     currentVisibleIds = [];
     let currentFase = '';
@@ -486,6 +505,12 @@
     data.misPronosticos.forEach(p => pronMap[p[2]] = p);
 
     data.partidos.forEach(p => {
+      const fasePartido = p[1];
+      if (filtroFase) {
+        if (filtroFase === 'ELIMINATORIA' && fasePartido === 'FASE DE GRUPOS') return;
+        if (filtroFase === 'FASE DE GRUPOS' && fasePartido !== 'FASE DE GRUPOS') return;
+      }
+
       if(p[1] !== currentFase) {
         currentFase = p[1];
         const h = document.createElement('div'); h.className = 'fase-header'; h.innerText = currentFase;
@@ -542,24 +567,69 @@
       }).guardarPronosticos(currentUserEmail, pronArray);
   }
 
+  function filterRanking() {
+    const q = document.getElementById('search-ranking').value.toLowerCase();
+    const rows = document.querySelectorAll('#table-ranking tbody tr');
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(q) ? '' : 'none';
+    });
+  }
+
   function renderRanking(ranking) {
     const tbody = document.querySelector('#table-ranking tbody');
-    tbody.innerHTML = ranking.map((r, i) => `<tr><td>${i+1}</td><td>${r.alias}</td><td>${r.puntos}</td><td>${r.exactos}</td><td>${r.ganadores}</td></tr>`).join('');
+    tbody.innerHTML = ranking.map((r, i) => `<tr><td>${r.posicion || (i+1)}</td><td>${r.alias}</td><td>${r.puntos}</td><td>${r.exactos}</td><td>${r.ganadores}</td></tr>`).join('');
   }
 
   function renderResultados(partidos) {
+    const q = document.getElementById('search-resultados').value.toLowerCase();
     const cont = document.getElementById('fixture-container');
-    cont.innerHTML = partidos.map(p => `
+    const filtered = partidos.filter(p => p[6].toLowerCase().includes(q) || p[8].toLowerCase().includes(q));
+
+    cont.innerHTML = filtered.map(p => `
       <div class="prediction-grid">
         <div class="team-container team-left">${p[6]} <span>${p[7]}</span></div>
-        <div style="text-align:center; font-weight:bold;">${p[12]==='Jugado'?p[10]+'-'+p[11]:'vs'}</div>
+        <div style="text-align:center; font-weight:bold;">
+          <div style="font-size:0.7rem; color:#888;">${p[1]}</div>
+          ${p[12]==='Jugado'?p[10]+'-'+p[11]:'vs'}
+        </div>
         <div class="team-container team-right"><span>${p[9]}</span> ${p[8]}</div>
       </div>
     `).join('');
   }
 
   function renderPerfil(u) {
-    document.getElementById('user-stats-content').innerHTML = `<h3>Hola ${u.alias}!</h3><p>Puntos: ${u.puntos}</p><p>Ranking: #${u.posicion}</p>`;
+    const statsHtml = `
+      <div class="card" style="background:#f0f7ff; border:1px solid #cce5ff;">
+        <h3>${u.alias}</h3>
+        <p><strong>Puntos Totales:</strong> ${u.puntos}</p>
+        <p><strong>Posición Ranking:</strong> #${u.posicion}</p>
+        <hr>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; text-align:center; gap:5px;">
+          <div style="background:#d4edda; padding:10px; border-radius:5px;">✅<br>${u.exactos}<br><small>Exactos</small></div>
+          <div style="background:#fff3cd; padding:10px; border-radius:5px;">↗️<br>${u.ganadores}<br><small>Ganador</small></div>
+          <div style="background:#f8d7da; padding:10px; border-radius:5px;">❌<br>${u.errores}<br><small>Errores</small></div>
+        </div>
+      </div>
+    `;
+    document.getElementById('user-stats-content').innerHTML = statsHtml;
+  }
+
+  function buscarUsuario() {
+    const email = document.getElementById('search-user-email').value.trim();
+    if(!email) return alert("Ingresa un email.");
+    showLoading(true, "Buscando estadísticas...");
+    google.script.run
+      .withFailureHandler(err => { showLoading(false); alert(err.message); })
+      .withSuccessHandler(data => {
+        showLoading(false);
+        if(data.userData) {
+          renderPerfil(data.userData);
+        } else {
+          alert("Usuario no encontrado.");
+        }
+      })
+      .getDashboardData(email);
   }
 
   function seedBase() {
