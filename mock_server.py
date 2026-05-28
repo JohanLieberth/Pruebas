@@ -63,6 +63,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 </script>
                 """
                 content = content.replace('<body>', '<body>' + mock_script)
+                content = content.replace('id="main-nav" style="display:none;"', 'id="main-nav" style="display:flex;"')
                 self.wfile.write(content.encode('utf-8'))
         else:
             super().do_GET()

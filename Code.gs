@@ -1,575 +1,506 @@
 /**
- * Sistema de Quiniela Mundial 2026
- * Desarrollador: Jules (AI Assistant)
- * Lenguaje: Google Apps Script
+ * SISTEMA DE QUINIELA MUNDIAL 2026 - BACKEND
+ * Desarrollado para Google Apps Script + Google Sheets
+ *
+ * Este script maneja la lógica del servidor, base de datos y API.
  */
 
-// --- CONFIGURACIÓN Y CONSTANTES ---
+// --- CONFIGURACIÓN GLOBAL ---
 const SHEETS = {
   CONFIG: 'Configuracion',
+  EQUIPOS: 'Equipos',
   PARTIDOS: 'Partidos',
-  PRONOSTICOS: 'Pronosticos',
   PARTICIPANTES: 'Participantes',
-  RANKING: 'Ranking',
+  PRONOSTICOS: 'Pronosticos',
   LOGS: 'Log_Errores'
 };
 
-const PUNTOS = {
-  EXACTO: 5,
-  TENDENCIA: 2,
-  ERROR: -1,
-  BONUS_ELIMINATORIA: 3
-};
-
 /**
- * Función inicial para crear el menú en Google Sheets.
+ * Función que se ejecuta al abrir el documento.
  */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('⚽ Quiniela 2026')
-    .addItem('Inicializar Sistema', 'validarEstructura')
+  ui.createMenu('⚽ Quiniela Mundial 2026')
+    .addItem('🌐 Abrir Web App', 'abrirWebApp')
+    .addItem('⚙️ Inicializar / Resetear Hojas', 'inicializarEstructura')
     .addSeparator()
-    .addItem('Recalcular Puntos', 'calcularPuntos')
-    .addItem('Actualizar Resultados Reales', 'actualizarResultadosReales')
+    .addItem('🔄 Actualizar Resultados API', 'actualizarResultadosAPI')
+    .addItem('📊 Recalcular Puntos', 'recalcularTodosLosPuntos')
     .addSeparator()
-    .addItem('Enviar Notificación Resultados', 'enviarNotificacionResultados')
-    .addItem('Respaldar Datos', 'backupDatos')
-    .addItem('Insertar Datos de Prueba', 'insertarDatosPrueba')
+    .addItem('🧪 Cargar Datos Iniciales (Seed)', 'seedPartidos')
+    .addItem('💾 Backup Datos', 'crearBackup')
     .addToUi();
 }
 
 /**
- * Valida que todas las hojas y columnas existan. Si no, las crea.
+ * Retorna la URL de la Web App para el menú.
  */
-function validarEstructura() {
+function abrirWebApp() {
+  const url = ScriptApp.getService().getUrl();
+  const html = `<script>window.open("${url}", "_blank");google.script.host.close();</script>`;
+  const ui = HtmlService.createHtmlOutput(html).setWidth(300).setHeight(100);
+  SpreadsheetApp.getUi().showModelessDialog(ui, "Abriendo Web App...");
+}
+
+/**
+ * Inicializa la estructura de hojas y encabezados.
+ */
+function inicializarEstructura() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const requiredSheets = [
+
+  const structure = [
     { name: SHEETS.CONFIG, headers: ['Parametro', 'Valor'] },
-    { name: SHEETS.PARTIDOS, headers: ['ID_Partido', 'Fecha', 'Hora', 'Grupo', 'Equipo_Local', 'Equipo_Visita', 'Gol_Local_Real', 'Gol_Visita_Real', 'Estado', 'Fuente_Dato'] },
-    { name: SHEETS.PRONOSTICOS, headers: ['ID_Pronostico', 'Email_Participante', 'ID_Partido', 'Gol_Local_Pronostico', 'Gol_Visita_Pronostico', 'Fecha_Registro', 'Puntos_Obtenidos'] },
-    { name: SHEETS.PARTICIPANTES, headers: ['Email', 'Nombre', 'Alias', 'Puntos_Totales', 'Posicion_Ranking', 'Fecha_Registro'] },
-    { name: SHEETS.RANKING, headers: ['Posicion', 'Alias', 'Puntos_Totales', 'Aciertos_Marcador', 'Aciertos_Ganador', 'Errores'] },
-    { name: SHEETS.LOGS, headers: ['Fecha', 'Error', 'Detalles'] }
+    { name: SHEETS.EQUIPOS, headers: ['ID_Equipo', 'Nombre_Equipo', 'Bandera', 'Grupo'] },
+    { name: SHEETS.PARTIDOS, headers: ['ID_Partido', 'Fase', 'Grupo', 'Matchday', 'Fecha', 'Hora', 'Equipo_Local', 'Bandera_Local', 'Equipo_Visita', 'Bandera_Visita', 'Gol_Local_Real', 'Gol_Visita_Real', 'Estado', 'Fecha_Cierre', 'Llave'] },
+    { name: SHEETS.PARTICIPANTES, headers: ['Email', 'Nombre', 'Alias', 'Puntos_Totales', 'Aciertos_Exactos', 'Aciertos_Ganador', 'Errores', 'Fecha_Registro'] },
+    { name: SHEETS.PRONOSTICOS, headers: ['ID_Pronostico', 'Email_Participante', 'ID_Partido', 'Gol_Local', 'Gol_Visita', 'Fecha_Registro', 'Puntos_Obtenidos', 'Calculado'] },
+    { name: SHEETS.LOGS, headers: ['Fecha', 'Funcion', 'Error', 'Detalle'] }
   ];
 
-  requiredSheets.forEach(s => {
+  structure.forEach(s => {
     let sheet = ss.getSheetByName(s.name);
     if (!sheet) {
       sheet = ss.insertSheet(s.name);
-      sheet.appendRow(s.headers);
-      sheet.getRange(1, 1, 1, s.headers.length).setFontWeight('bold').setBackground('#d9ead3');
+    } else {
+      sheet.clear();
     }
+    sheet.appendRow(s.headers);
+    sheet.getRange(1, 1, 1, s.headers.length).setFontWeight('bold').setBackground('#C9A227').setFontColor('white');
   });
 
-  // Configuración inicial por defecto
+  // Configuración inicial
   const configSheet = ss.getSheetByName(SHEETS.CONFIG);
-  if (configSheet.getLastRow() === 1) {
-    configSheet.appendRow(['Puntos_Exacto', PUNTOS.EXACTO]);
-    configSheet.appendRow(['Puntos_Tendencia', PUNTOS.TENDENCIA]);
-    configSheet.appendRow(['Puntos_Error', PUNTOS.ERROR]);
-    configSheet.appendRow(['Bonus_Eliminatoria', PUNTOS.BONUS_ELIMINATORIA]);
-    configSheet.appendRow(['API_KEY', '']);
-    configSheet.appendRow(['Zona_Horaria', 'GMT-6']);
-  }
+  const configData = [
+    ['PUNTOS_MARCADOR_EXACTO', 5],
+    ['PUNTOS_ACIERTA_GANADOR', 2],
+    ['PUNTOS_ERROR', -1],
+    ['PUNTOS_BONUS_ELIMINATORIA', 3],
+    ['HORAS_CIERRE_PRONOSTICO', 1],
+    ['ADMIN_EMAIL', Session.getEffectiveUser().getEmail()],
+    ['API_FOOTBALL_KEY', ''],
+    ['ZONA_HORARIA', 'America/Mexico_City'],
+    ['TORNEO_NOMBRE', 'Quiniela Mundial 2026']
+  ];
+  configSheet.getRange(2, 1, configData.length, 2).setValues(configData);
 
-  SpreadsheetApp.getUi().alert('Estructura validada y creada correctamente.');
+  SpreadsheetApp.getUi().alert('Estructura inicializada correctamente.');
 }
 
 /**
- * Lógica principal para calcular puntos de los pronósticos.
+ * Obtiene la configuración desde la hoja.
  */
-function calcularPuntos() {
-  if (!isAdmin()) {
-    throw new Error('No tienes permisos para ejecutar esta acción.');
-  }
-
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const partidosSheet = ss.getSheetByName(SHEETS.PARTIDOS);
-    const pronosticosSheet = ss.getSheetByName(SHEETS.PRONOSTICOS);
-    const participantesSheet = ss.getSheetByName(SHEETS.PARTICIPANTES);
-
-    const partidosData = partidosSheet.getDataRange().getValues();
-    const pronosticosData = pronosticosSheet.getDataRange().getValues();
-
-    // Mapa de partidos jugados para acceso rápido
-    const partidosJugados = {};
-    for (let i = 1; i < partidosData.length; i++) {
-      if (partidosData[i][8] === 'Jugado') {
-        partidosJugados[partidosData[i][0]] = {
-          golL: partidosData[i][6],
-          golV: partidosData[i][7],
-          fase: partidosData[i][3] // El campo "Grupo" puede indicar la fase
-        };
-      }
-    }
-
-    const puntosPorParticipante = {};
-
-    // Preparar arrays para actualizaciones masivas (batch updates)
-    const puntosPronosticosActualizados = [];
-
-    // Iteramos por cada pronóstico registrado para compararlo con los resultados reales
-    for (let j = 1; j < pronosticosData.length; j++) {
-      const idPartido = pronosticosData[j][2];
-      const real = partidosJugados[idPartido];
-      let puntos = pronosticosData[j][6] || 0;
-
-      if (real) { // Si el partido ya fue jugado y tiene resultado real
-        const pGolL = pronosticosData[j][3];
-        const pGolV = pronosticosData[j][4];
-        const email = pronosticosData[j][1];
-
-        // Lógica de puntuación
-        let esFaseEliminatoria = ['Octavos', 'Cuartos', 'Semifinal', 'Final', '32avos'].some(f => real.fase.includes(f));
-
-        if (real.golL === pGolL && real.golV === pGolV) {
-          puntos = PUNTOS.EXACTO;
-          if (esFaseEliminatoria) puntos += PUNTOS.BONUS_ELIMINATORIA;
-        } else if (
-          (real.golL > real.golV && pGolL > pGolV) ||
-          (real.golL < real.golV && pGolL < pGolV) ||
-          (real.golL === real.golV && pGolL === pGolV)
-        ) {
-          puntos = PUNTOS.TENDENCIA;
-        } else {
-          puntos = PUNTOS.ERROR;
-        }
-
-        puntosPorParticipante[email] = (puntosPorParticipante[email] || 0) + puntos;
-      }
-      puntosPronosticosActualizados.push([puntos]);
-    }
-
-    // Actualización masiva de puntos en hoja de pronósticos
-    if (puntosPronosticosActualizados.length > 0) {
-      pronosticosSheet.getRange(2, 7, puntosPronosticosActualizados.length, 1).setValues(puntosPronosticosActualizados);
-    }
-
-    // Actualizar Puntos Totales en Participantes de forma masiva
-    const participantesData = participantesSheet.getDataRange().getValues();
-    const puntosParticipantesActualizados = [];
-    for (let k = 1; k < participantesData.length; k++) {
-      const email = participantesData[k][0];
-      const totalPuntos = puntosPorParticipante[email] || 0;
-      puntosParticipantesActualizados.push([totalPuntos]);
-    }
-
-    if (puntosParticipantesActualizados.length > 0) {
-      participantesSheet.getRange(2, 4, puntosParticipantesActualizados.length, 1).setValues(puntosParticipantesActualizados);
-    }
-
-    actualizarRanking();
-    SpreadsheetApp.flush();
-    return "Puntos calculados exitosamente.";
-  } catch (e) {
-    logError('calcularPuntos', e.toString());
-    throw e;
-  }
-}
-
-/**
- * Actualiza la hoja de Ranking basada en los puntos de los participantes.
- */
-function actualizarRanking() {
+function getConfig() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const participantesSheet = ss.getSheetByName(SHEETS.PARTICIPANTES);
-  const rankingSheet = ss.getSheetByName(SHEETS.RANKING);
-  const pronosticosSheet = ss.getSheetByName(SHEETS.PRONOSTICOS);
-
-  const participantes = participantesSheet.getRange(2, 1, participantesSheet.getLastRow() - 1, 4).getValues();
-  const pronosticos = pronosticosSheet.getDataRange().getValues();
-
-  // Calcular estadísticas adicionales para el ranking
-  const stats = {};
-  participantes.forEach(p => {
-    stats[p[0]] = { alias: p[2], puntos: p[3], exactos: 0, ganadores: 0, errores: 0 };
-  });
-
-  for (let i = 1; i < pronosticos.length; i++) {
-    const email = pronosticos[i][1];
-    const puntos = pronosticos[i][6];
-    if (stats[email]) {
-      if (puntos >= 5) stats[email].exactos++;
-      else if (puntos === 2) stats[email].ganadores++;
-      else if (puntos === -1) stats[email].errores++;
-    }
+  const data = ss.getSheetByName(SHEETS.CONFIG).getDataRange().getValues();
+  const config = {};
+  for (let i = 1; i < data.length; i++) {
+    config[data[i][0]] = data[i][1];
   }
-
-  const sortedRanking = Object.values(stats).sort((a, b) => b.puntos - a.puntos);
-
-  rankingSheet.getRange(2, 1, rankingSheet.getLastRow(), 6).clearContent();
-  const rankingData = sortedRanking.map((s, index) => [
-    index + 1, s.alias, s.puntos, s.exactos, s.ganadores, s.errores
-  ]);
-
-  if (rankingData.length > 0) {
-    rankingSheet.getRange(2, 1, rankingData.length, 6).setValues(rankingData);
-  }
+  return config;
 }
 
 /**
- * Obtiene resultados reales desde una API o fallback manual.
+ * Entry point para la Web App.
  */
-function actualizarResultadosReales() {
-  if (!isAdmin()) throw new Error('No autorizado.');
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const configSheet = ss.getSheetByName(SHEETS.CONFIG);
-  const apiKey = configSheet.getRange(5, 2).getValue();
-
-  if (!apiKey) {
-    return "API Key no configurada. Por favor actualice manualmente o proporcione una clave.";
-  }
-
-  try {
-    // Ejemplo con API-Football (ficticio para 2026 por ahora)
-    const url = `https://v3.football.api-sports.io/fixtures?league=1&season=2026`;
-    const options = {
-      method: 'GET',
-      headers: {
-        'x-rapidapi-key': apiKey,
-        'x-rapidapi-host': 'v3.football.api-sports.io'
-      }
-    };
-
-    const response = UrlFetchApp.fetch(url, options);
-    const resData = JSON.parse(response.getContentText());
-
-    // Si la API retorna datos de partidos
-    if (resData.response && resData.response.length > 0) {
-      const partidosSheet = ss.getSheetByName(SHEETS.PARTIDOS);
-      const data = partidosSheet.getDataRange().getValues();
-
-      resData.response.forEach(fix => {
-        const idExt = fix.fixture.id; // ID del partido en la API
-        const golL = fix.goals.home;
-        const golV = fix.goals.away;
-        const status = fix.fixture.status.short;
-
-        if (status === 'FT') { // 'FT' significa partido finalizado
-          for (let i = 1; i < data.length; i++) {
-            // Buscamos coincidencia por ID y que el estado local sea 'Pendiente'
-            if (data[i][0] == idExt && data[i][8] === 'Pendiente') {
-              partidosSheet.getRange(i + 1, 7).setValue(golL);
-              partidosSheet.getRange(i + 1, 8).setValue(golV);
-              partidosSheet.getRange(i + 1, 9).setValue('Jugado');
-              partidosSheet.getRange(i + 1, 10).setValue('API-Football');
-            }
-          }
-        }
-      });
-      return "Resultados actualizados desde la API.";
-    }
-  } catch (e) {
-    logError('actualizarResultadosReales', e.toString());
-    return "Error al conectar con la API: " + e.toString();
-  }
-}
-
-/**
- * Web App Entry Points
- */
-function doGet(e) {
+function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('Quiniela Mundial 2026')
+    .setTitle('🏆 Quiniela Mundial 2026')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 /**
- * Registra un nuevo participante.
+ * Maneja el registro de participantes.
  */
-function registrarParticipante(nombre, alias, email) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEETS.PARTICIPANTES);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === email) return { success: false, msg: 'El email ya está registrado.' };
-  }
-
-  sheet.appendRow([email, nombre, alias.substring(0, 15), 0, '', new Date()]);
-
+function registrarParticipante(email, nombre, alias) {
   try {
-    MailApp.sendEmail(email, '⚽ Registro Exitoso - Quiniela Mundial 2026',
-      `¡Hola ${nombre}!\n\nTe has registrado correctamente con el alias: ${alias}.\n¡Mucha suerte en tus pronósticos!`);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.PARTICIPANTES);
+    const data = sheet.getDataRange().getValues();
+
+    // Normalizar email
+    email = email.trim().toLowerCase();
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toLowerCase() === email) {
+        return { success: false, msg: 'El email ya está registrado.' };
+      }
+    }
+
+    sheet.appendRow([email, nombre, alias.substring(0, 15), 0, 0, 0, 0, new Date()]);
+    return { success: true, msg: 'Registro exitoso.', email: email };
   } catch (e) {
-    logError('MailApp', 'Error enviando correo a ' + email);
+    logError('registrarParticipante', e.toString());
+    return { success: false, msg: 'Error en el servidor.' };
   }
-
-  return { success: true, msg: 'Registro exitoso.' };
 }
 
 /**
- * Guarda o actualiza un pronóstico.
- */
-function guardarMultiplesPronosticos(pronosticos, email) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const partidosSheet = ss.getSheetByName(SHEETS.PARTIDOS);
-  const pronosticosSheet = ss.getSheetByName(SHEETS.PRONOSTICOS);
-
-  const partidosData = partidosSheet.getDataRange().getValues();
-  const partidosMap = {};
-  partidosData.forEach(p => partidosMap[p[0]] = p);
-
-  const pronosticosExistentes = pronosticosSheet.getDataRange().getValues();
-  const existingMap = {};
-  for (let i = 1; i < pronosticosExistentes.length; i++) {
-    existingMap[pronosticosExistentes[i][1] + "_" + pronosticosExistentes[i][2]] = i + 1;
-  }
-
-  const ahora = new Date();
-  let count = 0;
-
-  pronosticos.forEach(p => {
-    const partido = partidosMap[p.id];
-    if (!partido) return;
-
-    // Validar cierre
-    const fechaPartido = new Date(partido[1]);
-    const horaArr = partido[2].toString().split(':');
-    if (horaArr.length >= 2) {
-      fechaPartido.setHours(parseInt(horaArr[0]), parseInt(horaArr[1]), 0);
-    }
-    const limite = new Date(fechaPartido.getTime() - (60 * 60 * 1000));
-
-    if (ahora > limite) return;
-
-    const rowIdx = existingMap[email + "_" + p.id];
-    if (rowIdx) {
-      pronosticosSheet.getRange(rowIdx, 4, 1, 3).setValues([[p.gl, p.gv, ahora]]);
-    } else {
-      const newId = 'PRON-' + Utilities.getUuid().substring(0, 8);
-      pronosticosSheet.appendRow([newId, email, p.id, p.gl, p.gv, ahora, 0]);
-    }
-    count++;
-  });
-
-  return { success: true, msg: `${count} pronósticos guardados.` };
-}
-
-function guardarPronostico(idPartido, golL, golV, email) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const partidosSheet = ss.getSheetByName(SHEETS.PARTIDOS);
-  const pronosticosSheet = ss.getSheetByName(SHEETS.PRONOSTICOS);
-
-  // Validar cierre de pronósticos (1 hora antes)
-  const partidosData = partidosSheet.getDataRange().getValues();
-  let partido = null;
-  for (let i = 1; i < partidosData.length; i++) {
-    if (partidosData[i][0] == idPartido) {
-      partido = partidosData[i];
-      break;
-    }
-  }
-
-  if (!partido) return { success: false, msg: 'Partido no encontrado.' };
-
-  const fechaPartido = new Date(partido[1]);
-  // Asumiendo que la hora está en la columna 2 y es un objeto Date o string HH:mm
-  const horaArr = partido[2].toString().split(':');
-  if (horaArr.length >= 2) {
-    fechaPartido.setHours(parseInt(horaArr[0]), parseInt(horaArr[1]), 0);
-  }
-
-  const ahora = new Date();
-  const limite = new Date(fechaPartido.getTime() - (60 * 60 * 1000));
-
-  if (ahora > limite) {
-    return { success: false, msg: 'El tiempo para este pronóstico ha cerrado (1h antes del partido).' };
-  }
-
-  // Buscar si ya existe para actualizar o insertar
-  const pronosticosData = pronosticosSheet.getDataRange().getValues();
-  for (let j = 1; j < pronosticosData.length; j++) {
-    if (pronosticosData[j][1] === email && pronosticosData[j][2] == idPartido) {
-      pronosticosSheet.getRange(j + 1, 4).setValue(golL);
-      pronosticosSheet.getRange(j + 1, 5).setValue(golV);
-      pronosticosSheet.getRange(j + 1, 6).setValue(new Date());
-      return { success: true, msg: 'Pronóstico actualizado.' };
-    }
-  }
-
-  const newId = 'PRON-' + Utilities.getUuid().substring(0, 8);
-  pronosticosSheet.appendRow([newId, email, idPartido, golL, golV, new Date(), 0]);
-  return { success: true, msg: 'Pronóstico guardado.' };
-}
-
-/**
- * Obtiene datos para el dashboard.
+ * Obtiene datos para el Dashboard.
  */
 function getDashboardData(email) {
   try {
+    const config = getConfig();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // Verificar que las hojas existan
     const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
-    const sRanking = ss.getSheetByName(SHEETS.RANKING);
-
-    if (!sPartidos || !sRanking) {
-      throw new Error("El sistema no ha sido inicializado. El administrador debe ejecutar 'Inicializar Sistema' desde el menú de la hoja de cálculo.");
-    }
+    const sParticipantes = ss.getSheetByName(SHEETS.PARTICIPANTES);
+    const sPronosticos = ss.getSheetByName(SHEETS.PRONOSTICOS);
+    const sRanking = ss.getSheetByName(SHEETS.PARTICIPANTES); // Usamos Participantes para el ranking
 
     const partidos = sPartidos.getDataRange().getValues().slice(1);
+    const participantes = sParticipantes.getDataRange().getValues().slice(1);
+    const pronosticos = sPronosticos.getDataRange().getValues().slice(1);
 
-    // Enriquecer partidos con URLs de banderas
-    const partidosConBanderas = partidos.map(p => {
-      return [...p, getFlagUrl(p[4]), getFlagUrl(p[5])];
-    });
+    const userPronosticos = pronosticos.filter(p => p[1].toLowerCase() === email.toLowerCase());
+    const userData = participantes.find(p => p[0].toLowerCase() === email.toLowerCase());
 
-    const ranking = sRanking.getDataRange().getValues().slice(1);
-    const pronosticosData = ss.getSheetByName(SHEETS.PRONOSTICOS).getDataRange().getValues();
-    const participantesData = ss.getSheetByName(SHEETS.PARTICIPANTES).getDataRange().getValues();
+    const ranking = participantes
+      .map(p => ({
+        email: p[0],
+        alias: p[2],
+        puntos: p[3],
+        exactos: p[4],
+        ganadores: p[5],
+        errores: p[6]
+      }))
+      .sort((a, b) => b.puntos - a.puntos || b.exactos - a.exactos);
 
     return {
+      success: true,
+      config: config,
+      partidos: partidos,
+      misPronosticos: userPronosticos,
+      userData: userData ? {
+        alias: userData[2],
+        puntos: userData[3],
+        exactos: userData[4],
+        ganadores: userData[5],
+        errores: userData[6],
+        posicion: ranking.findIndex(r => r.email.toLowerCase() === email.toLowerCase()) + 1
+      } : null,
       ranking: ranking,
-      partidos: partidosConBanderas,
-      misPronosticos: email ? pronosticosData.filter(row => row[1] === email) : [],
-      participante: email ? participantesData.find(row => row[0] === email) : null,
-      esAdmin: isAdmin()
+      isAdmin: email.toLowerCase() === config.ADMIN_EMAIL.toLowerCase()
     };
   } catch (e) {
-    throw new Error("Error al obtener datos: " + e.toString());
+    logError('getDashboardData', e.toString());
+    throw e;
   }
 }
 
 /**
- * Funciones de utilidad y seguridad
+ * Guarda pronósticos masivamente.
  */
-function isAdmin() {
-  const adminEmail = Session.getEffectiveUser().getEmail();
-  const userEmail = Session.getActiveUser().getEmail();
+function guardarPronosticos(email, pronArray) {
+  try {
+    const config = getConfig();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
+    const sPronosticos = ss.getSheetByName(SHEETS.PRONOSTICOS);
 
-  // Si el usuario es el dueño del script, es admin.
-  if (userEmail === adminEmail) return true;
+    const partidosData = sPartidos.getDataRange().getValues();
+    const partidosMap = {};
+    for (let i = 1; i < partidosData.length; i++) {
+      partidosMap[partidosData[i][0]] = partidosData[i];
+    }
 
-  // También verificar en la hoja de Participantes si tiene algún rol (opcional, por ahora solo dueño)
-  return false;
+    const pronExistentes = sPronosticos.getDataRange().getValues();
+    const existingMap = {};
+    for (let j = 1; j < pronExistentes.length; j++) {
+      existingMap[pronExistentes[j][1] + "_" + pronExistentes[j][2]] = j + 1;
+    }
+
+    const ahora = new Date();
+    const horasCierre = config.HORAS_CIERRE_PRONOSTICO || 1;
+    let count = 0;
+
+    pronArray.forEach(p => {
+      const partido = partidosMap[p.id];
+      if (!partido) return;
+
+      // Validar cierre (Fecha_Cierre es col 13, índice 13)
+      const fechaCierre = new Date(partido[13]);
+      if (ahora > fechaCierre) return;
+
+      const key = email + "_" + p.id;
+      if (existingMap[key]) {
+        const rowIdx = existingMap[key];
+        sPronosticos.getRange(rowIdx, 4, 1, 3).setValues([[p.gl, p.gv, ahora]]);
+      } else {
+        const newId = 'PRON-' + Utilities.getUuid().substring(0, 8);
+        sPronosticos.appendRow([newId, email, p.id, p.gl, p.gv, ahora, 0, 'No']);
+      }
+      count++;
+    });
+
+    return { success: true, msg: `${count} pronósticos actualizados.` };
+  } catch (e) {
+    logError('guardarPronosticos', e.toString());
+    return { success: false, msg: 'Error al guardar.' };
+  }
 }
 
+/**
+ * Lógica de puntuación.
+ */
+function calcularPuntos(gLR, gVR, gLP, gVP, esEliminatoria) {
+  const config = getConfig();
+  let puntos = 0;
+  let tipo = "";
+
+  // 1. Marcador exacto
+  if (gLR == gLP && gVR == gVP) {
+    puntos = Number(config.PUNTOS_MARCADOR_EXACTO); // 5
+    tipo = "EXACTO";
+    if (esEliminatoria) puntos += Number(config.PUNTOS_BONUS_ELIMINATORIA); // +3
+  }
+  // 2. Acierta ganador o empate (pero no exacto)
+  else if (
+    (gLR > gVR && gLP > gVP) ||   // Gana local
+    (gLR < gVR && gLP < gVP) ||   // Gana visita
+    (gLR == gVR && gLP == gVP)    // Empate
+  ) {
+    puntos = Number(config.PUNTOS_ACIERTA_GANADOR); // 2
+    tipo = "GANADOR";
+  }
+  // 3. Error total
+  else {
+    puntos = Number(config.PUNTOS_ERROR); // -1
+    tipo = "ERROR";
+  }
+
+  return { puntos, tipo };
+}
+
+/**
+ * Recalcula todos los puntos.
+ */
+function recalcularTodosLosPuntos() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
+    const sPronosticos = ss.getSheetByName(SHEETS.PRONOSTICOS);
+    const sParticipantes = ss.getSheetByName(SHEETS.PARTICIPANTES);
+
+    const partidos = sPartidos.getDataRange().getValues().slice(1);
+    const pronosticos = sPronosticos.getDataRange().getValues();
+    const participantes = sParticipantes.getDataRange().getValues();
+
+    const partidosJugados = {};
+    partidos.forEach(p => {
+      if (p[12] === 'Jugado') {
+        partidosJugados[p[0]] = {
+          gl: p[10],
+          gv: p[11],
+          fase: p[1]
+        };
+      }
+    });
+
+    const userStats = {};
+    for (let i = 1; i < participantes.length; i++) {
+      userStats[participantes[i][0]] = { puntos: 0, exactos: 0, ganadores: 0, errores: 0 };
+    }
+
+    const pronUpdates = [];
+    for (let j = 1; j < pronosticos.length; j++) {
+      const idPartido = pronosticos[j][2];
+      const email = pronosticos[j][1];
+      const real = partidosJugados[idPartido];
+
+      let pts = 0;
+      if (real) {
+        const esEliminatoria = real.fase !== 'Fase de Grupos';
+        const res = calcularPuntos(real.gl, real.gv, pronosticos[j][3], pronosticos[j][4], esEliminatoria);
+        pts = res.puntos;
+
+        if (userStats[email]) {
+          userStats[email].puntos += pts;
+          if (res.tipo === 'EXACTO') userStats[email].exactos++;
+          else if (res.tipo === 'GANADOR') userStats[email].ganadores++;
+          else userStats[email].errores++;
+        }
+      }
+      pronUpdates.push([pts, real ? 'Sí' : 'No']);
+    }
+
+    if (pronUpdates.length > 0) {
+      sPronosticos.getRange(2, 7, pronUpdates.length, 2).setValues(pronUpdates);
+    }
+
+    const partUpdates = [];
+    for (let k = 1; k < participantes.length; k++) {
+      const email = participantes[k][0];
+      const s = userStats[email] || { puntos: 0, exactos: 0, ganadores: 0, errores: 0 };
+      partUpdates.push([s.puntos, s.exactos, s.ganadores, s.errores]);
+    }
+
+    if (partUpdates.length > 0) {
+      sParticipantes.getRange(2, 4, partUpdates.length, 4).setValues(partUpdates);
+    }
+
+    SpreadsheetApp.flush();
+    return "Puntos recalculados exitosamente.";
+  } catch (e) {
+    logError('recalcularTodosLosPuntos', e.toString());
+    throw e;
+  }
+}
+
+/**
+ * Seed inicial de equipos y partidos.
+ */
+function seedPartidos() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sEquipos = ss.getSheetByName(SHEETS.EQUIPOS);
+  const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
+
+  sEquipos.clear();
+  sEquipos.appendRow(['ID_Equipo', 'Nombre_Equipo', 'Bandera', 'Grupo']);
+
+  const equipos = [
+    [1, 'Ecuador', '🇪🇨', 'A'], [2, 'Países Bajos', '🇳🇱', 'A'], [3, 'Qatar', '🇶🇦', 'A'], [4, 'Senegal', '🇸🇳', 'A'],
+    [5, 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'B'], [6, 'Estados Unidos', '🇺🇸', 'B'], [7, 'Irán', '🇮🇷', 'B'], [8, 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'B'],
+    [9, 'Argentina', '🇦🇷', 'C'], [10, 'México', '🇲🇽', 'C'], [11, 'Arabia Saudita', '🇸🇦', 'C'], [12, 'Polonia', '🇵🇱', 'C'],
+    [13, 'Francia', '🇫🇷', 'D'], [14, 'Dinamarca', '🇩🇰', 'D'], [15, 'Australia', '🇦🇺', 'D'], [16, 'Túnez', '🇹🇳', 'D'],
+    [17, 'España', '🇪🇸', 'E'], [18, 'Alemania', '🇩🇪', 'E'], [19, 'Costa Rica', '🇨🇷', 'E'], [20, 'Japón', '🇯🇵', 'E'],
+    [21, 'Bélgica', '🇧🇪', 'F'], [22, 'Marruecos', '🇲🇦', 'F'], [23, 'Canadá', '🇨🇦', 'F'], [24, 'Croacia', '🇭🇷', 'F'],
+    [25, 'Brasil', '🇧🇷', 'G'], [26, 'Suiza', '🇨🇭', 'G'], [27, 'Serbia', '🇷🇸', 'G'], [28, 'Camerún', '🇨🇲', 'G'],
+    [29, 'Portugal', '🇵🇹', 'H'], [30, 'Uruguay', '🇺🇾', 'H'], [31, 'Ghana', '🇬🇭', 'H'], [32, 'Corea del Sur', '🇰🇷', 'H']
+  ];
+  sEquipos.getRange(2, 1, equipos.length, 4).setValues(equipos);
+
+  sPartidos.clear();
+  sPartidos.appendRow(['ID_Partido', 'Fase', 'Grupo', 'Matchday', 'Fecha', 'Hora', 'Equipo_Local', 'Bandera_Local', 'Equipo_Visita', 'Bandera_Visita', 'Gol_Local_Real', 'Gol_Visita_Real', 'Estado', 'Fecha_Cierre', 'Llave']);
+
+  const groupMatches = [
+    // Grupo A
+    ['G-A1', 'FASE DE GRUPOS', 'A', 1, '2026-06-11', '14:00', 'Ecuador', '🇪🇨', 'Qatar', '🇶🇦'],
+    ['G-A2', 'FASE DE GRUPOS', 'A', 1, '2026-06-12', '10:00', 'Países Bajos', '🇳🇱', 'Senegal', '🇸🇳'],
+    ['G-A3', 'FASE DE GRUPOS', 'A', 2, '2026-06-16', '14:00', 'Ecuador', '🇪🇨', 'Senegal', '🇸🇳'],
+    ['G-A4', 'FASE DE GRUPOS', 'A', 2, '2026-06-16', '17:00', 'Países Bajos', '🇳🇱', 'Qatar', '🇶🇦'],
+    ['G-A5', 'FASE DE GRUPOS', 'A', 3, '2026-06-21', '14:00', 'Senegal', '🇸🇳', 'Ecuador', '🇪🇨'],
+    ['G-A6', 'FASE DE GRUPOS', 'A', 3, '2026-06-21', '14:00', 'Qatar', '🇶🇦', 'Países Bajos', '🇳🇱'],
+    // Grupo B
+    ['G-B1', 'FASE DE GRUPOS', 'B', 1, '2026-06-12', '14:00', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Estados Unidos', '🇺🇸'],
+    ['G-B2', 'FASE DE GRUPOS', 'B', 1, '2026-06-12', '17:00', 'Irán', '🇮🇷', 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿'],
+    ['G-B3', 'FASE DE GRUPOS', 'B', 2, '2026-06-17', '14:00', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿'],
+    ['G-B4', 'FASE DE GRUPOS', 'B', 2, '2026-06-17', '17:00', 'Irán', '🇮🇷', 'Estados Unidos', '🇺🇸'],
+    ['G-B5', 'FASE DE GRUPOS', 'B', 3, '2026-06-22', '14:00', 'Gales', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Inglaterra', '🏴󠁧󠁢󠁥󠁮󠁧󠁿'],
+    ['G-B6', 'FASE DE GRUPOS', 'B', 3, '2026-06-22', '14:00', 'Estados Unidos', '🇺🇸', 'Irán', '🇮🇷'],
+    // Grupo C
+    ['G-C1', 'FASE DE GRUPOS', 'C', 1, '2026-06-13', '14:00', 'Argentina', '🇦🇷', 'México', '🇲🇽'],
+    ['G-C2', 'FASE DE GRUPOS', 'C', 1, '2026-06-13', '17:00', 'Arabia Saudita', '🇸🇦', 'Polonia', '🇵🇱'],
+    ['G-C3', 'FASE DE GRUPOS', 'C', 2, '2026-06-18', '20:00', 'Argentina', '🇦🇷', 'Polonia', '🇵🇱'],
+    ['G-C4', 'FASE DE GRUPOS', 'C', 2, '2026-06-18', '17:00', 'Arabia Saudita', '🇸🇦', 'México', '🇲🇽'],
+    ['G-C5', 'FASE DE GRUPOS', 'C', 3, '2026-06-23', '14:00', 'Polonia', '🇵🇱', 'Argentina', '🇦🇷'],
+    ['G-C6', 'FASE DE GRUPOS', 'C', 3, '2026-06-23', '14:00', 'México', '🇲🇽', 'Arabia Saudita', '🇸🇦']
+  ];
+
+  // Fase Eliminatoria - Octavos (Ejemplo)
+  const knockoutMatches = [
+    ['KO-1', 'OCTAVOS DE FINAL', '-', '-', '2026-06-28', '14:00', '1A', '⚽', '2B', '⚽'],
+    ['KO-2', 'OCTAVOS DE FINAL', '-', '-', '2026-06-28', '18:00', '1C', '⚽', '2D', '⚽'],
+    ['KO-FIN', 'GRAN FINAL', '-', '-', '2026-07-19', '14:00', 'Ganador Semifinal 1', '🏆', 'Ganador Semifinal 2', '🏆']
+  ];
+
+  const allMatches = [...groupMatches, ...knockoutMatches];
+
+  const rows = allMatches.map(m => {
+    // Manejo robusto de fechas para Apps Script
+    const dateParts = m[4].split('-');
+    const timeParts = m[5].split(':');
+    const matchDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1]);
+
+    const config = getConfig();
+    const horasCierre = config.HORAS_CIERRE_PRONOSTICO || 1;
+    const closureDate = new Date(matchDate.getTime() - (horasCierre * 60 * 60 * 1000));
+
+    return [...m, '', '', 'Pendiente', closureDate, ''];
+  });
+
+  sPartidos.getRange(2, 1, rows.length, 15).setValues(rows);
+  SpreadsheetApp.getUi().alert('Datos semilla cargados con éxito (Grupos A-C y KO base).');
+}
+
+/**
+ * Registro de errores.
+ */
 function logError(funcion, detalle) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEETS.LOGS);
-  sheet.appendRow([new Date(), funcion, detalle]);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.LOGS);
+    sheet.appendRow([new Date(), funcion, 'ERROR', detalle]);
+  } catch (e) {}
 }
 
-function backupDatos() {
+function crearBackup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const folder = DriveApp.getRootFolder();
-  const copy = DriveApp.getFileById(ss.getId()).makeCopy('Backup_Quiniela_' + Utilities.formatDate(new Date(), "GMT-6", "yyyy-MM-dd_HHmm"));
+  const name = "Backup_Quiniela_" + Utilities.formatDate(new Date(), "GMT-6", "yyyyMMdd_HHmm");
+  const copy = DriveApp.getFileById(ss.getId()).makeCopy(name);
   return "Backup creado: " + copy.getName();
 }
 
-function enviarNotificacionResultados() {
-  // Envía un resumen de puntos ganados a los participantes activos
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const participantes = ss.getSheetByName(SHEETS.PARTICIPANTES).getDataRange().getValues().slice(1);
+function actualizarResultadosAPI() {
+  const config = getConfig();
+  if (Session.getEffectiveUser().getEmail() !== config.ADMIN_EMAIL) {
+    throw new Error("Acceso denegado: Solo administrador");
+  }
 
-  participantes.forEach(p => {
-    const email = p[0];
-    const puntos = p[3];
-    MailApp.sendEmail(email, '⚽ Actualización de Puntos - Quiniela 2026',
-      `Hola ${p[2]},\n\nLos resultados se han actualizado. Actualmente tienes ${puntos} puntos totales.\n\nRevisa el dashboard para ver el detalle.`);
-  });
-  return "Notificaciones enviadas.";
-}
-
-/**
- * Mapeo de países a códigos ISO para banderas.
- * Se puede expandir según sea necesario.
- */
-function getFlagUrl(pais) {
-  const flags = {
-    'México': 'mx', 'Argentina': 'ar', 'España': 'es', 'Brasil': 'br',
-    'EEUU': 'us', 'USA': 'us', 'Italia': 'it', 'Francia': 'fr',
-    'Japón': 'jp', 'Alemania': 'de', 'Marruecos': 'ma', 'Canadá': 'ca',
-    'Inglaterra': 'gb-eng', 'Portugal': 'pt', 'Bélgica': 'be', 'Uruguay': 'uy',
-    'Croacia': 'hr', 'Países Bajos': 'nl', 'Ecuador': 'ec', 'Colombia': 'co',
-    'Corea del Sur': 'kr', 'República Checa': 'cz', 'Sudáfrica': 'za'
-  };
-  const code = flags[pais] || 'un'; // 'un' para desconocido
-  return `https://flagcdn.com/w40/${code}.png`;
-}
-
-/**
- * Importa partidos de forma masiva desde texto (CSV, TSV o JSON).
- */
-function importarPartidosMasivo(datosStr, formato) {
-  if (!isAdmin()) throw new Error('Solo administradores.');
+  const apiKey = config.API_FOOTBALL_KEY;
+  if (!apiKey) return "API Key no configurada.";
 
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEETS.PARTIDOS);
-    let rows = [];
+    const url = "https://v3.football.api-sports.io/fixtures?league=1&season=2026";
+    const response = UrlFetchApp.fetch(url, {
+      headers: { "x-apisports-key": apiKey }
+    });
+    const resData = JSON.parse(response.getContentText());
 
-    if (formato === 'json') {
-      const data = JSON.parse(datosStr);
-      rows = data.map(p => [
-        p.id || 'P-' + Math.floor(Math.random()*10000),
-        p.fecha, p.hora, p.fase || p.grupo, p.local, p.visita,
-        '', '', 'Pendiente', 'JSON Import'
-      ]);
-    } else {
-      // Separar por tabuladores (Excel) o comas
-      const delimiter = formato === 'excel' ? '\t' : ',';
-      const lines = datosStr.split('\n').filter(l => l.trim() !== '');
-      rows = lines.map(line => {
-        const cols = line.split(delimiter).map(c => c.trim());
-        // Esperamos: ID | Fecha | Hora | Fase | Local | Visita
-        return [
-          cols[0] || 'P-' + Math.floor(Math.random()*10000),
-          cols[1] || '',
-          cols[2] || '',
-          cols[3] || '',
-          cols[4] || '',
-          cols[5] || '',
-          '', '', 'Pendiente', 'Excel Import'
-        ];
+    if (resData.response && resData.response.length > 0) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(SHEETS.PARTIDOS);
+      const data = sheet.getDataRange().getValues();
+
+      resData.response.forEach(fix => {
+        const idExt = fix.fixture.id;
+        const status = fix.fixture.status.short;
+        const golL = fix.goals.home;
+        const golV = fix.goals.away;
+
+        if (status === 'FT') {
+          for (let i = 1; i < data.length; i++) {
+            if (data[i][0] == idExt && data[i][12] !== 'Jugado') {
+              sheet.getRange(i + 1, 11, 1, 3).setValues([[golL, golV, 'Jugado']]);
+            }
+          }
+        }
       });
+      return "Resultados actualizados desde API.";
     }
-
-    if (rows.length > 0) {
-      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
-    }
-    return { success: true, msg: `${rows.length} partidos importados correctamente.` };
+    return "No se encontraron nuevos resultados.";
   } catch (e) {
-    return { success: false, msg: 'Error al importar: ' + e.toString() };
+    logError('actualizarResultadosAPI', e.toString());
+    return "Error al conectar con API.";
   }
 }
 
-/**
- * Inserta datos de prueba para validación inicial.
- */
-function insertarDatosPrueba() {
+function actualizarResultadoManual(idPartido, golLocal, golVisita) {
+  const config = getConfig();
+  if (Session.getEffectiveUser().getEmail() !== config.ADMIN_EMAIL) {
+    throw new Error("Acceso denegado: Solo administrador");
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.PARTIDOS);
+  const data = sheet.getDataRange().getValues();
 
-  // 1. Participantes
-  const partSheet = ss.getSheetByName(SHEETS.PARTICIPANTES);
-  partSheet.appendRow(['usuario1@test.com', 'Juan Perez', 'Juanito26', 0, '', new Date()]);
-  partSheet.appendRow(['usuario2@test.com', 'Maria Garcia', 'MariGol', 0, '', new Date()]);
-  partSheet.appendRow(['usuario3@test.com', 'Pedro Luis', 'ElProfe', 0, '', new Date()]);
-
-  // 2. Partidos
-  const partDataSheet = ss.getSheetByName(SHEETS.PARTIDOS);
-  const p1Id = 'P-001';
-  const p2Id = 'P-002';
-  partDataSheet.appendRow([p1Id, '2026-06-11', '15:00', 'Grupo A', 'México', 'Argentina', 2, 1, 'Jugado', 'Manual']);
-  partDataSheet.appendRow([p2Id, '2026-06-12', '18:00', 'Grupo B', 'España', 'Brasil', 1, 1, 'Jugado', 'Manual']);
-  partDataSheet.appendRow(['P-003', '2026-06-13', '12:00', 'Grupo C', 'EEUU', 'Italia', '', '', 'Pendiente', '']);
-  partDataSheet.appendRow(['P-004', '2026-06-14', '20:00', 'Grupo D', 'Francia', 'Japón', '', '', 'Pendiente', '']);
-  partDataSheet.appendRow(['P-005', '2026-06-15', '10:00', 'Grupo E', 'Alemania', 'Marruecos', '', '', 'Pendiente', '']);
-
-  // 3. Pronósticos de prueba
-  const pronSheet = ss.getSheetByName(SHEETS.PRONOSTICOS);
-  // Juanito: Acertó exacto P1 (2-1), Falló P2 (0-3)
-  pronSheet.appendRow(['PRON-001', 'usuario1@test.com', p1Id, 2, 1, new Date(), 0]);
-  pronSheet.appendRow(['PRON-002', 'usuario1@test.com', p2Id, 0, 3, new Date(), 0]);
-
-  // MariGol: Acertó tendencia P1 (1-0), Acertó exacto P2 (1-1)
-  pronSheet.appendRow(['PRON-003', 'usuario2@test.com', p1Id, 1, 0, new Date(), 0]);
-  pronSheet.appendRow(['PRON-004', 'usuario2@test.com', p2Id, 1, 1, new Date(), 0]);
-
-  SpreadsheetApp.getUi().alert('Datos de prueba insertados. Ejecute "Recalcular Puntos" para ver resultados.');
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === idPartido) {
+      sheet.getRange(i + 1, 11, 1, 3).setValues([[golLocal, golVisita, 'Jugado']]);
+      return { success: true, msg: "Resultado actualizado." };
+    }
+  }
+  return { success: false, msg: "Partido no encontrado." };
 }

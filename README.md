@@ -1,68 +1,57 @@
-# ⚽ Manual de Instalación - Quiniela Mundial 2026
+# 🏆 Quiniela Mundial FIFA 2026 - Guía de Instalación
 
-Este sistema permite gestionar una quiniela deportiva para el Mundial 2026 utilizando **Google Sheets** como base de datos y **Google Apps Script** para la lógica del servidor y la interfaz web.
+Este proyecto es un sistema de pronósticos deportivos (quiniela) robusto, escalable y con una interfaz moderna, diseñado para ejecutarse en **Google Apps Script** utilizando **Google Sheets** como base de datos.
 
 ## 🚀 Pasos para la Instalación
 
-### 1. Preparar la Hoja de Google
+### 1. Crear la Hoja de Cálculo
 1. Crea una nueva hoja de cálculo en [Google Sheets](https://sheets.new).
 2. Ve a **Extensiones > Apps Script**.
-3. Borra el código que aparezca por defecto en `Código.gs`.
+3. Cambia el nombre del proyecto a `Quiniela Mundial 2026`.
 
 ### 2. Copiar el Código
-1. Copia el contenido del archivo `Code.gs` de este repositorio y pégalo en el editor de Apps Script.
-2. Crea un nuevo archivo HTML en el editor de Apps Script haciendo clic en el botón `+` (Añadir un archivo) > **HTML**.
-3. Ponle de nombre `Index` (el editor añadirá automáticamente `.html`).
-4. Borra el contenido por defecto de `Index.html` y pega el contenido del archivo `Index.html` de este repositorio.
+1. En el editor de Apps Script, abre el archivo `Código.gs` y pega el contenido del archivo `Code.gs` de este repositorio.
+2. Crea un nuevo archivo haciendo clic en el icono `+` y selecciona **HTML**. Ponle de nombre `Index`.
+3. Pega el contenido del archivo `Index.html` de este repositorio en el nuevo archivo `Index.html`.
 
-### 3. Inicializar el Sistema
-1. En la hoja de cálculo, recarga la página. Debería aparecer un nuevo menú llamado **⚽ Quiniela 2026**.
-2. Haz clic en **⚽ Quiniela 2026 > Inicializar Sistema**.
-   - Google te pedirá permisos. Acéptalos (es posible que debas hacer clic en "Configuración avanzada" e "Ir a [Nombre del Proyecto] (no seguro)").
-3. La función creará automáticamente todas las pestañas necesarias (`Configuracion`, `Partidos`, `Participantes`, etc.) con sus encabezados.
+### 3. Configuración Inicial
+1. Regresa a tu Hoja de Cálculo y **recarga la página**.
+2. Verás un nuevo menú: **⚽ Quiniela Mundial 2026**.
+3. Haz clic en **⚙️ Inicializar / Resetear Hojas**. Google te pedirá autorizar permisos. Acéptalos.
+   - *Nota:* Si aparece un aviso de "App no verificada", haz clic en *Configuración avanzada* e *Ir a Quiniela Mundial 2026 (no seguro)*.
+4. Una vez inicializadas las hojas, ve de nuevo al menú y haz clic en **🧪 Cargar Datos Iniciales (Seed)** para cargar los primeros equipos y partidos.
 
-### 4. Desplegar la Web App
+### 4. Despliegue de la Aplicación Web
 1. En el editor de Apps Script, haz clic en el botón azul **Desplegar > Nueva implementación**.
-2. Selecciona el tipo: **Aplicación web**.
-3. Configuración recomendada:
-   - **Descripción:** Quiniela 2026 v1
-   - **Ejecutar como:** Yo (tu correo)
-   - **Quién tiene acceso:** Cualquier persona (incluso anónima - para el dashboard público).
-4. Haz clic en **Implementar**.
-5. Copia la **URL de la aplicación web**. Esta es la dirección que compartirás con los participantes.
-
-## ⚙️ Configuración Administrativa
-
-- **Hoja `Configuracion`:**
-  - Puedes ajustar los puntos por acierto.
-  - Para resultados automáticos, obtén una API Key en [api-football.com](https://www.api-football.com/) y pégala en la fila correspondiente.
-- **Hoja `Partidos`:**
-  - Puedes añadir los 104 partidos manualmente o mediante la función de prueba.
-  - El campo `ID_Partido` debe ser único.
-- **Menú de la Hoja:**
-  - **Insertar Datos de Prueba:** Úsalo para ver el sistema funcionando con datos ficticios.
-  - **Recalcular Puntos:** Ejecútalo después de que los partidos se marquen como "Jugado" con goles reales.
-  - **Respaldar Datos:** Crea una copia de seguridad en tu Drive.
-
-- **Nuevas Funciones en Web App:**
-  - **Banderas:** Los países ahora muestran su bandera automáticamente.
-  - **Carga Masiva (Admin):** Los administradores pueden cargar partidos pegando un JSON en la nueva pestaña "Admin" de la Web App.
-  - **Filtros Avanzados:** Navegación mejorada por fase y grupo.
-
-## 🧪 Notas Técnicas
-- **Banderas:** Se utiliza el servicio de `flagcdn.com`. Asegúrate de que los nombres de los países coincidan con el mapeo en `Code.gs`.
-- **Cierre de Pronósticos:** Los usuarios no pueden guardar ni editar pronósticos si falta menos de 1 hora para el inicio del partido.
-- **Seguridad:** Las funciones administrativas solo pueden ser ejecutadas por el propietario del script.
-- **Rendimiento:** El sistema está optimizado para procesar grandes volúmenes de datos mediante operaciones por lotes (`setValues`).
-
-## 🛠️ Pruebas Locales (Opcional)
-
-Si deseas probar la interfaz (`Index.html`) en tu computadora sin depender de Google Apps Script, puedes usar el servidor de pruebas incluido:
-
-1. **Requisitos:** Tener instalado Python 3.
-2. **Ejecución:** Corre el comando `python3 mock_server.py` en tu terminal.
-3. **Acceso:** Abre `http://localhost:8000` en tu navegador.
-4. **Nota:** Este servidor usa datos "ficticios" (moteados) definidos dentro de `mock_server.py` para simular las respuestas de Google Sheets. Es ideal para ajustar el diseño CSS rápidamente.
+2. Selecciona el tipo **Aplicación web**.
+3. Configura lo siguiente:
+   - **Descripción:** Versión 1.0
+   - **Ejecutar como:** Yo (tu-email@gmail.com)
+   - **Quién tiene acceso:** Cualquier persona (incluso anónima) - *Esto permite que los usuarios se registren.*
+4. Haz clic en **Implementar** y copia la **URL de la aplicación web**.
 
 ---
-*Desarrollado con ❤️ para el Mundial 2026.*
+
+## 📊 Sistema de Puntuación
+El sistema aplica las siguientes reglas automáticamente al ejecutarse "Recalcular Puntos":
+
+| Acierto | Puntos | Descripción |
+| :--- | :---: | :--- |
+| **Marcador Exacto** | +5 | Aciertas los goles exactos de ambos equipos. |
+| **Knockout Bonus** | +3 | Si aciertas el marcador exacto en fase eliminatoria (Total +8). |
+| **Ganador / Empate** | +2 | Aciertas quién gana o si empatan, pero no los goles exactos. |
+| **Error Total** | -1 | No aciertas ni el ganador ni el empate. |
+
+---
+
+## 🛠️ Herramientas de Administrador
+Desde el menú de la hoja de cálculo puedes:
+- **Actualizar Resultados API:** Obtiene resultados reales automáticamente (Requiere API Key en la hoja `Configuracion`).
+- **Recalcular Puntos:** Procesa todos los pronósticos contra los resultados reales.
+- **Backup Datos:** Crea una copia de seguridad de la base de datos en tu Google Drive.
+
+## 📱 Uso en Móvil
+La aplicación es 100% responsiva. Se recomienda añadir la URL de la Web App a la pantalla de inicio del celular para una experiencia similar a una app nativa.
+
+---
+*Desarrollado por Jules (AI Assistant)*
