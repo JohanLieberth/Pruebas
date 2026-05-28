@@ -356,21 +356,38 @@ function guardarPronostico(idPartido, golL, golV, email) {
  * Obtiene datos para el dashboard.
  */
 function getDashboardData(email) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const partidos = ss.getSheetByName(SHEETS.PARTIDOS).getDataRange().getValues().slice(1);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // Enriquecer partidos con URLs de banderas
-  const partidosConBanderas = partidos.map(p => {
-    return [...p, getFlagUrl(p[4]), getFlagUrl(p[5])];
-  });
+    // Verificar que las hojas existan
+    const sPartidos = ss.getSheetByName(SHEETS.PARTIDOS);
+    const sRanking = ss.getSheetByName(SHEETS.RANKING);
 
-  return {
-    ranking: ss.getSheetByName(SHEETS.RANKING).getDataRange().getValues().slice(1),
-    partidos: partidosConBanderas,
-    misPronosticos: email ? ss.getSheetByName(SHEETS.PRONOSTICOS).getDataRange().getValues().filter(row => row[1] === email) : [],
-    participante: email ? ss.getSheetByName(SHEETS.PARTICIPANTES).getDataRange().getValues().find(row => row[0] === email) : null,
-    esAdmin: isAdmin()
-  };
+    if (!sPartidos || !sRanking) {
+      throw new Error("El sistema no ha sido inicializado. El administrador debe ejecutar 'Inicializar Sistema' desde el menú de la hoja de cálculo.");
+    }
+
+    const partidos = sPartidos.getDataRange().getValues().slice(1);
+
+    // Enriquecer partidos con URLs de banderas
+    const partidosConBanderas = partidos.map(p => {
+      return [...p, getFlagUrl(p[4]), getFlagUrl(p[5])];
+    });
+
+    const ranking = sRanking.getDataRange().getValues().slice(1);
+    const pronosticosData = ss.getSheetByName(SHEETS.PRONOSTICOS).getDataRange().getValues();
+    const participantesData = ss.getSheetByName(SHEETS.PARTICIPANTES).getDataRange().getValues();
+
+    return {
+      ranking: ranking,
+      partidos: partidosConBanderas,
+      misPronosticos: email ? pronosticosData.filter(row => row[1] === email) : [],
+      participante: email ? participantesData.find(row => row[0] === email) : null,
+      esAdmin: isAdmin()
+    };
+  } catch (e) {
+    throw new Error("Error al obtener datos: " + e.toString());
+  }
 }
 
 /**

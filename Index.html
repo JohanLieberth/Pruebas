@@ -317,14 +317,24 @@
     showLoading(true);
     const email = document.getElementById('user-email-pred').value;
     google.script.run
-      .withSuccessHandler(data => {
-        lastData = data;
-        if (data.esAdmin) document.getElementById('btn-admin').style.display = 'block';
-        renderRanking(data.ranking);
-        populateFilters(data.partidos);
-        renderFilteredPartidos();
-        updateProgressBar(data.partidos);
+      .withFailureHandler(err => {
+        console.error("Error en el servidor:", err);
+        alert("Error al cargar datos: " + err.message);
         showLoading(false);
+      })
+      .withSuccessHandler(data => {
+        try {
+          lastData = data;
+          if (data.esAdmin) document.getElementById('btn-admin').style.display = 'block';
+          renderRanking(data.ranking);
+          populateFilters(data.partidos);
+          renderFilteredPartidos();
+          updateProgressBar(data.partidos);
+        } catch (e) {
+          console.error("Error renderizando:", e);
+        } finally {
+          showLoading(false);
+        }
       })
       .getDashboardData(email);
   }
@@ -347,25 +357,29 @@
   }
 
   function populateFilters(partidos) {
+    if (!partidos) return;
     const filter = document.getElementById('filter-fase');
     const currentVal = filter.value;
-    const fases = [...new Set(partidos.map(p => p[3]))].sort();
+    const fases = [...new Set(partidos.map(p => p[3] || 'Sin Fase'))].sort();
 
     filter.innerHTML = '<option value="Todos">Todos</option>';
     fases.forEach(f => {
       filter.innerHTML += `<option value="${f}">${f}</option>`;
     });
-    filter.value = fases.includes(currentVal) ? currentVal : 'Todos';
+    filter.value = (currentVal && fases.includes(currentVal)) ? currentVal : 'Todos';
   }
 
   function renderFilteredPartidos() {
-    if (!lastData) return;
+    if (!lastData || !lastData.partidos) {
+      document.getElementById('lista-partidos').innerHTML = '<p>No hay partidos cargados.</p>';
+      return;
+    }
     const filterVal = document.getElementById('filter-fase').value;
     const filtered = filterVal === 'Todos' ?
       lastData.partidos :
       lastData.partidos.filter(p => p[3] === filterVal);
 
-    renderPartidos(filtered, lastData.misPronosticos);
+    renderPartidos(filtered, lastData.misPronosticos || []);
   }
 
   function renderRanking(data) {
