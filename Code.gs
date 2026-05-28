@@ -152,7 +152,7 @@ function calcularPuntos() {
     for (let k = 1; k < participantesData.length; k++) {
       const email = participantesData[k][0];
       const totalPuntos = puntosPorParticipante[email] || 0;
-      puntosParticipantesActualizados.appendRow ? null : puntosParticipantesActualizados.push([totalPuntos]);
+      puntosParticipantesActualizados.push([totalPuntos]);
     }
 
     if (puntosParticipantesActualizados.length > 0) {
@@ -394,7 +394,14 @@ function getDashboardData(email) {
  * Funciones de utilidad y seguridad
  */
 function isAdmin() {
-  return Session.getEffectiveUser().getEmail() === Session.getActiveUser().getEmail();
+  const adminEmail = Session.getEffectiveUser().getEmail();
+  const userEmail = Session.getActiveUser().getEmail();
+
+  // Si el usuario es el dueño del script, es admin.
+  if (userEmail === adminEmail) return true;
+
+  // También verificar en la hoja de Participantes si tiene algún rol (opcional, por ahora solo dueño)
+  return false;
 }
 
 function logError(funcion, detalle) {
@@ -441,32 +448,46 @@ function getFlagUrl(pais) {
 }
 
 /**
- * Importa partidos de forma masiva desde una lista (CSV o JSON).
+ * Importa partidos de forma masiva desde texto (CSV, TSV o JSON).
  */
-function importarPartidosMasivo(datosStr) {
+function importarPartidosMasivo(datosStr, formato) {
   if (!isAdmin()) throw new Error('Solo administradores.');
 
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEETS.PARTIDOS);
-    const data = JSON.parse(datosStr); // Esperamos un array de arrays o de objetos
+    let rows = [];
 
-    if (!Array.isArray(data)) throw new Error('Formato inválido. Debe ser un array.');
-
-    const rows = data.map(p => [
-      p.id || 'P-' + Math.floor(Math.random()*10000),
-      p.fecha,
-      p.hora,
-      p.fase || p.grupo,
-      p.local,
-      p.visita,
-      '', '', 'Pendiente', 'Importado'
-    ]);
+    if (formato === 'json') {
+      const data = JSON.parse(datosStr);
+      rows = data.map(p => [
+        p.id || 'P-' + Math.floor(Math.random()*10000),
+        p.fecha, p.hora, p.fase || p.grupo, p.local, p.visita,
+        '', '', 'Pendiente', 'JSON Import'
+      ]);
+    } else {
+      // Separar por tabuladores (Excel) o comas
+      const delimiter = formato === 'excel' ? '\t' : ',';
+      const lines = datosStr.split('\n').filter(l => l.trim() !== '');
+      rows = lines.map(line => {
+        const cols = line.split(delimiter).map(c => c.trim());
+        // Esperamos: ID | Fecha | Hora | Fase | Local | Visita
+        return [
+          cols[0] || 'P-' + Math.floor(Math.random()*10000),
+          cols[1] || '',
+          cols[2] || '',
+          cols[3] || '',
+          cols[4] || '',
+          cols[5] || '',
+          '', '', 'Pendiente', 'Excel Import'
+        ];
+      });
+    }
 
     if (rows.length > 0) {
       sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
     }
-    return { success: true, msg: `${rows.length} partidos importados.` };
+    return { success: true, msg: `${rows.length} partidos importados correctamente.` };
   } catch (e) {
     return { success: false, msg: 'Error al importar: ' + e.toString() };
   }
