@@ -27,13 +27,14 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                               callback({
                                 ranking: [[1, 'Juanito26', 10, 0, 2, 0], [2, 'MariGol', 8, -2, 1, 1]],
                                 partidos: [
-                                  ['P-001', '2026-06-11', '15:00', 'Grupo A', 'México', 'Argentina', 2, 1, 'Jugado', 'Manual'],
-                                  ['P-002', '2026-06-12', '18:00', 'Grupo B', 'España', 'Brasil', '', '', 'Pendiente', '']
+                                  ['P-001', '2026-06-11', '15:00', 'Grupo A', 'México', 'Argentina', 2, 1, 'Jugado', 'Manual', 'https://flagcdn.com/w40/mx.png', 'https://flagcdn.com/w40/ar.png'],
+                                  ['P-002', '2026-06-12', '18:00', 'Grupo B', 'España', 'Brasil', '', '', 'Pendiente', '', 'https://flagcdn.com/w40/es.png', 'https://flagcdn.com/w40/br.png']
                                 ],
                                 misPronosticos: [
                                   ['PRON-001', 'test@test.com', 'P-001', 2, 1, '2026-06-11', 5]
                                 ],
-                                participante: ['test@test.com', 'Test User', 'Tester', 5, 1, '2026-06-11']
+                                participante: ['test@test.com', 'Test User', 'Tester', 5, 1, '2026-06-11'],
+                                esAdmin: true
                               });
                             }, 500);
                           },

@@ -44,7 +44,13 @@ Este sistema permite gestionar una quiniela deportiva para el Mundial 2026 utili
   - **Recalcular Puntos:** Ejecútalo después de que los partidos se marquen como "Jugado" con goles reales.
   - **Respaldar Datos:** Crea una copia de seguridad en tu Drive.
 
+- **Nuevas Funciones en Web App:**
+  - **Banderas:** Los países ahora muestran su bandera automáticamente.
+  - **Carga Masiva (Admin):** Los administradores pueden cargar partidos pegando un JSON en la nueva pestaña "Admin" de la Web App.
+  - **Filtros Avanzados:** Navegación mejorada por fase y grupo.
+
 ## 🧪 Notas Técnicas
+- **Banderas:** Se utiliza el servicio de `flagcdn.com`. Asegúrate de que los nombres de los países coincidan con el mapeo en `Code.gs`.
 - **Cierre de Pronósticos:** Los usuarios no pueden guardar ni editar pronósticos si falta menos de 1 hora para el inicio del partido.
 - **Seguridad:** Las funciones administrativas solo pueden ser ejecutadas por el propietario del script.
 - **Rendimiento:** El sistema está optimizado para procesar grandes volúmenes de datos mediante operaciones por lotes (`setValues`).

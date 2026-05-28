@@ -201,6 +201,7 @@
     <button onclick="showView('v-ranking')">Ranking</button>
     <button onclick="showView('v-partidos')">Partidos</button>
     <button onclick="showView('v-registro')">Mi Perfil</button>
+    <button id="btn-admin" style="display:none;" onclick="showView('v-admin')">Admin</button>
   </nav>
 
   <!-- VISTA RANKING -->
@@ -237,11 +238,11 @@
         <input type="email" id="user-email-pred" placeholder="email@ejemplo.com">
       </div>
 
-      <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap; background: #e9f7ef; padding: 10px; border-radius: 5px; border-left: 5px solid var(--fifa-green);">
         <div style="flex: 1; min-width: 150px;">
-          <label for="filter-fase">Filtrar por Fase/Grupo:</label>
-          <select id="filter-fase" onchange="renderFilteredPartidos()" style="width: 100%; padding: 8px;">
-            <option value="Todos">Todos</option>
+          <label for="filter-fase" style="font-weight:bold; color: var(--fifa-green);">🏆 Seleccionar Fase o Grupo:</label>
+          <select id="filter-fase" onchange="renderFilteredPartidos()" style="width: 100%; padding: 10px; border: 2px solid var(--fifa-gold); border-radius: 5px; font-size: 1rem;">
+            <option value="Todos">Mostrar Todos los Partidos</option>
           </select>
         </div>
       </div>
@@ -274,6 +275,20 @@
       <div id="stats-content"></div>
     </div>
   </div>
+
+  <!-- VISTA ADMIN -->
+  <div id="v-admin" class="view">
+    <div class="card">
+      <h2>⚙️ Administración de Partidos</h2>
+      <p>Carga masiva de partidos (formato JSON):</p>
+      <textarea id="json-import" style="width:100%; height:150px; font-family:monospace;" placeholder='[
+  {"id":"P101", "fecha":"2026-06-11", "hora":"14:00", "fase":"Grupo A", "local":"México", "visita":"Argentina"},
+  {"id":"P102", "fecha":"2026-06-12", "hora":"17:00", "fase":"Grupo B", "local":"España", "visita":"Brasil"}
+]'></textarea>
+      <button class="btn-submit" style="margin-top:10px;" onclick="importarPartidos()">Importar Partidos</button>
+      <p><small>Nota: Use el formato JSON sugerido para cargar múltiples partidos a la vez.</small></p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -304,6 +319,7 @@
     google.script.run
       .withSuccessHandler(data => {
         lastData = data;
+        if (data.esAdmin) document.getElementById('btn-admin').style.display = 'block';
         renderRanking(data.ranking);
         populateFilters(data.partidos);
         renderFilteredPartidos();
@@ -311,6 +327,23 @@
         showLoading(false);
       })
       .getDashboardData(email);
+  }
+
+  function importarPartidos() {
+    const jsonStr = document.getElementById('json-import').value;
+    if (!jsonStr) return alert('Pega el JSON de los partidos.');
+
+    showLoading(true);
+    google.script.run
+      .withSuccessHandler(res => {
+        showLoading(false);
+        alert(res.msg);
+        if (res.success) {
+          document.getElementById('json-import').value = '';
+          refreshData();
+        }
+      })
+      .importarPartidosMasivo(jsonStr);
   }
 
   function populateFilters(partidos) {
@@ -372,11 +405,14 @@
       const id = p[0];
       const pron = pronMap[id] || ['', '', '', '', ''];
       const statusClass = p[8] === 'Jugado' ? 'badge-jugado' : 'badge-pendiente';
+      const flagL = p[10] || '';
+      const flagV = p[11] || '';
 
       const div = document.createElement('div');
       div.className = 'prediction-grid';
       div.innerHTML = `
         <div style="text-align:right;">
+          <img src="${flagL}" width="25" style="vertical-align:middle; margin-right:5px; border:1px solid #eee;">
           ${p[4]}
           <span style="font-weight:bold; margin-left:10px;">${p[6] !== '' ? p[6] : '-'}</span>
         </div>
@@ -389,6 +425,7 @@
         <div style="text-align:left;">
           <span style="font-weight:bold; margin-right:10px;">${p[7] !== '' ? p[7] : '-'}</span>
           ${p[5]}
+          <img src="${flagV}" width="25" style="vertical-align:middle; margin-left:5px; border:1px solid #eee;">
           <br><small class="badge ${statusClass}">${p[8]} | ${p[3]}</small>
           ${pron[6] ? `<br><small style="color:blue;">Puntos: ${pron[6]}</small>` : ''}
         </div>

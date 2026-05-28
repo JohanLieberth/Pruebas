@@ -357,11 +357,19 @@ function guardarPronostico(idPartido, golL, golV, email) {
  */
 function getDashboardData(email) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const partidos = ss.getSheetByName(SHEETS.PARTIDOS).getDataRange().getValues().slice(1);
+
+  // Enriquecer partidos con URLs de banderas
+  const partidosConBanderas = partidos.map(p => {
+    return [...p, getFlagUrl(p[4]), getFlagUrl(p[5])];
+  });
+
   return {
     ranking: ss.getSheetByName(SHEETS.RANKING).getDataRange().getValues().slice(1),
-    partidos: ss.getSheetByName(SHEETS.PARTIDOS).getDataRange().getValues().slice(1),
+    partidos: partidosConBanderas,
     misPronosticos: email ? ss.getSheetByName(SHEETS.PRONOSTICOS).getDataRange().getValues().filter(row => row[1] === email) : [],
-    participante: email ? ss.getSheetByName(SHEETS.PARTICIPANTES).getDataRange().getValues().find(row => row[0] === email) : null
+    participante: email ? ss.getSheetByName(SHEETS.PARTICIPANTES).getDataRange().getValues().find(row => row[0] === email) : null,
+    esAdmin: isAdmin()
   };
 }
 
@@ -397,6 +405,54 @@ function enviarNotificacionResultados() {
       `Hola ${p[2]},\n\nLos resultados se han actualizado. Actualmente tienes ${puntos} puntos totales.\n\nRevisa el dashboard para ver el detalle.`);
   });
   return "Notificaciones enviadas.";
+}
+
+/**
+ * Mapeo de países a códigos ISO para banderas.
+ * Se puede expandir según sea necesario.
+ */
+function getFlagUrl(pais) {
+  const flags = {
+    'México': 'mx', 'Argentina': 'ar', 'España': 'es', 'Brasil': 'br',
+    'EEUU': 'us', 'USA': 'us', 'Italia': 'it', 'Francia': 'fr',
+    'Japón': 'jp', 'Alemania': 'de', 'Marruecos': 'ma', 'Canadá': 'ca',
+    'Inglaterra': 'gb-eng', 'Portugal': 'pt', 'Bélgica': 'be', 'Uruguay': 'uy',
+    'Croacia': 'hr', 'Países Bajos': 'nl', 'Ecuador': 'ec', 'Colombia': 'co'
+  };
+  const code = flags[pais] || 'un'; // 'un' para desconocido
+  return `https://flagcdn.com/w40/${code}.png`;
+}
+
+/**
+ * Importa partidos de forma masiva desde una lista (CSV o JSON).
+ */
+function importarPartidosMasivo(datosStr) {
+  if (!isAdmin()) throw new Error('Solo administradores.');
+
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.PARTIDOS);
+    const data = JSON.parse(datosStr); // Esperamos un array de arrays o de objetos
+
+    if (!Array.isArray(data)) throw new Error('Formato inválido. Debe ser un array.');
+
+    const rows = data.map(p => [
+      p.id || 'P-' + Math.floor(Math.random()*10000),
+      p.fecha,
+      p.hora,
+      p.fase || p.grupo,
+      p.local,
+      p.visita,
+      '', '', 'Pendiente', 'Importado'
+    ]);
+
+    if (rows.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
+    }
+    return { success: true, msg: `${rows.length} partidos importados.` };
+  } catch (e) {
+    return { success: false, msg: 'Error al importar: ' + e.toString() };
+  }
 }
 
 /**
