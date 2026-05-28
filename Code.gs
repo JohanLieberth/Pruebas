@@ -129,7 +129,8 @@ function registrarParticipante(email, nombre, alias) {
     email = email.trim().toLowerCase();
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0].toLowerCase() === email) {
+      const cellEmail = String(data[i][0] || "").trim().toLowerCase();
+      if (cellEmail === email) {
         return { success: false, msg: 'El email ya está registrado.' };
       }
     }
@@ -170,17 +171,17 @@ function getDashboardData(email) {
       return row;
     });
 
-    const userPronosticos = pronosticos.filter(p => p[1].toLowerCase() === email.toLowerCase());
-    const userData = participantes.find(p => p[0].toLowerCase() === email.toLowerCase());
+    const userPronosticos = pronosticos.filter(p => String(p[1] || "").toLowerCase() === email.toLowerCase());
+    const userData = participantes.find(p => String(p[0] || "").toLowerCase() === email.toLowerCase());
 
     const ranking = participantes
       .map(p => ({
-        email: p[0],
-        alias: p[2],
-        puntos: p[3],
-        exactos: p[4],
-        ganadores: p[5],
-        errores: p[6]
+        email: String(p[0] || ""),
+        alias: String(p[2] || "Anónimo"),
+        puntos: Number(p[3] || 0),
+        exactos: Number(p[4] || 0),
+        ganadores: Number(p[5] || 0),
+        errores: Number(p[6] || 0)
       }))
       .sort((a, b) => b.puntos - a.puntos || b.exactos - a.exactos);
 
@@ -190,15 +191,15 @@ function getDashboardData(email) {
       partidos: partidos,
       misPronosticos: userPronosticos,
       userData: userData ? {
-        alias: userData[2],
-        puntos: userData[3],
-        exactos: userData[4],
-        ganadores: userData[5],
-        errores: userData[6],
+        alias: String(userData[2] || ""),
+        puntos: Number(userData[3] || 0),
+        exactos: Number(userData[4] || 0),
+        ganadores: Number(userData[5] || 0),
+        errores: Number(userData[6] || 0),
         posicion: ranking.findIndex(r => r.email.toLowerCase() === email.toLowerCase()) + 1
       } : null,
       ranking: ranking,
-      esAdmin: email.toLowerCase() === config.ADMIN_EMAIL.toLowerCase()
+      esAdmin: email.toLowerCase() === String(config.ADMIN_EMAIL || "").toLowerCase()
     };
   } catch (e) {
     logError('getDashboardData', e.toString());
