@@ -90,13 +90,19 @@ function inicializarEstructura() {
  * Obtiene la configuración desde la hoja.
  */
 function getConfig() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const data = ss.getSheetByName(SHEETS.CONFIG).getDataRange().getValues();
-  const config = {};
-  for (let i = 1; i < data.length; i++) {
-    config[data[i][0]] = data[i][1];
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.CONFIG);
+    if (!sheet) return null;
+    const data = sheet.getDataRange().getValues();
+    const config = {};
+    for (let i = 1; i < data.length; i++) {
+      config[data[i][0]] = data[i][1];
+    }
+    return config;
+  } catch (e) {
+    return null;
   }
-  return config;
 }
 
 /**
@@ -148,8 +154,8 @@ function getDashboardData(email) {
     const sParticipantes = ss.getSheetByName(SHEETS.PARTICIPANTES);
     const sPronosticos = ss.getSheetByName(SHEETS.PRONOSTICOS);
 
-    if (!sPartidos || !sParticipantes || !sPronosticos) {
-      throw new Error("Sistema no inicializado.");
+    if (!sPartidos || !sParticipantes || !sPronosticos || !config) {
+      return { success: false, needsInit: true, msg: "El sistema no ha sido inicializado por el administrador." };
     }
 
     const partidosRaw = sPartidos.getDataRange().getValues().slice(1);
@@ -442,6 +448,10 @@ function logError(funcion, detalle) {
     const sheet = ss.getSheetByName(SHEETS.LOGS);
     sheet.appendRow([new Date(), funcion, 'ERROR', detalle]);
   } catch (e) {}
+}
+
+function getUserEmail() {
+  return Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
 }
 
 function crearBackup() {

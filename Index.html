@@ -294,14 +294,27 @@
   let currentUserEmail = '';
   let lastData = null;
   let currentVisibleIds = [];
+  let loadingTimeout = null;
 
   function showLoading(show) {
     const loader = document.getElementById('loading-overlay');
-    if (loader) loader.style.display = show ? 'flex' : 'none';
+    if (loader) {
+      loader.style.display = show ? 'flex' : 'none';
+      if (show) {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+        // Seguro de vida: quitar el cargando después de 15 segundos pase lo que pase
+        loadingTimeout = setTimeout(() => {
+          loader.style.display = 'none';
+        }, 15000);
+      } else {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+      }
+    }
   }
 
-  function showView(viewId) {
+  function showView(viewId, skipRefresh) {
     try {
+      console.log("Cambiando a vista:", viewId);
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       const targetView = document.getElementById(viewId);
       if (targetView) targetView.classList.add('active');
@@ -310,7 +323,10 @@
       const btn = document.getElementById('btn-' + viewId);
       if (btn) btn.classList.add('active');
 
-      if (currentUserEmail) refreshData();
+      // Solo refrescar si no es login/registro y tenemos email
+      if (currentUserEmail && !skipRefresh && viewId !== 'v-login' && viewId !== 'v-registro') {
+        refreshData();
+      }
     } catch (e) {
       console.error("Error al cambiar de vista:", e);
     }
@@ -322,11 +338,20 @@
     const a = document.getElementById('reg-alias').value;
     if(!e || !n || !a) return alert('Completa todo.');
     showLoading(true);
-    google.script.run.withSuccessHandler(res => {
-      showLoading(false);
-      if(res.success) { currentUserEmail = res.email; login(); }
-      else alert(res.msg);
-    }).registrarParticipante(e, n, a);
+    google.script.run
+      .withFailureHandler(err => {
+        showLoading(false);
+        alert("Error al registrar: " + err.message);
+      })
+      .withSuccessHandler(res => {
+        showLoading(false);
+        if(res.success) {
+          currentUserEmail = e;
+          refreshData();
+        } else {
+          alert(res.msg);
+        }
+      }).registrarParticipante(e, n, a);
   }
 
   function login() {
@@ -338,7 +363,10 @@
   }
 
   function refreshData() {
-    if (!currentUserEmail) return;
+    if (!currentUserEmail) {
+      showLoading(false);
+      return;
+    }
 
     showLoading(true);
     google.script.run
@@ -350,7 +378,11 @@
       .withSuccessHandler(data => {
         try {
           if (!data || !data.success) {
-            alert("Error: El servidor no respondió correctamente.");
+            if (data && data.needsInit) {
+              alert(data.msg);
+            } else {
+              alert("Error: El servidor no respondió correctamente.");
+            }
             showLoading(false);
             return;
           }
@@ -359,24 +391,23 @@
 
           if(data.userData) {
             document.getElementById('main-nav').style.display = 'flex';
-            if(data.esAdmin) {
-              const btnAdmin = document.getElementById('btn-admin');
-              if (btnAdmin) btnAdmin.style.display = 'block';
-            }
+            const btnAdmin = document.getElementById('btn-admin');
+            if (btnAdmin) btnAdmin.style.display = data.esAdmin ? 'block' : 'none';
 
             renderPronosticos(data);
             renderRanking(data.ranking || []);
             renderResultados(data.partidos || []);
             renderPerfil(data.userData);
 
-            // Si estamos en login o registro, pasar a pronósticos
+            // Navegación automática si el usuario existe
             const currentView = document.querySelector('.view.active').id;
             if (currentView === 'v-login' || currentView === 'v-registro') {
-              showView('v-pronosticos');
+              showView('v-pronosticos', true);
             }
           } else {
-            alert('Usuario no encontrado o sesión expirada.');
-            showView('v-login');
+            // El usuario no existe, dejarlo en registro/login
+            console.log("Usuario no registrado aún.");
+            document.getElementById('main-nav').style.display = 'none';
           }
         } catch (e) {
           console.error("Error al procesar datos:", e);
@@ -441,9 +472,16 @@
     });
     if(pronArray.length === 0) return alert('Ingresa marcadores.');
     showLoading(true);
-    google.script.run.withSuccessHandler(res => {
-      alert(res.msg); refreshData();
-    }).guardarPronosticos(currentUserEmail, pronArray);
+    google.script.run
+      .withFailureHandler(err => {
+        showLoading(false);
+        alert("Error al guardar: " + err.message);
+      })
+      .withSuccessHandler(res => {
+        showLoading(false);
+        alert(res.msg);
+        refreshData();
+      }).guardarPronosticos(currentUserEmail, pronArray);
   }
 
   function renderRanking(ranking) {
@@ -467,15 +505,46 @@
   }
 
   function seedBase() {
+    if(!confirm("¿Estás seguro? Se borrarán los partidos actuales.")) return;
     showLoading(true);
-    google.script.run.withSuccessHandler(res => { alert(res.msg); refreshData(); }).seedPartidos();
+    google.script.run
+      .withFailureHandler(err => { showLoading(false); alert(err.message); })
+      .withSuccessHandler(res => { alert(res.msg); refreshData(); })
+      .seedPartidos();
   }
 
   function importExcel() {
     const d = document.getElementById('import-data').value;
+    if(!d) return alert("Pega los datos primero.");
     showLoading(true);
-    google.script.run.withSuccessHandler(res => { alert(res.msg); refreshData(); }).importarPartidosMasivo(d, 'excel');
+    google.script.run
+      .withFailureHandler(err => { showLoading(false); alert(err.message); })
+      .withSuccessHandler(res => { alert(res.msg); refreshData(); })
+      .importarPartidosMasivo(d, 'excel');
   }
+
+  // Inicio automático
+  window.addEventListener('load', function() {
+    console.log("Iniciando aplicación...");
+    try {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withFailureHandler(err => {
+            console.log("No se pudo obtener email automático:", err);
+          })
+          .withSuccessHandler(email => {
+            if (email) {
+              console.log("Email detectado:", email);
+              currentUserEmail = email;
+              refreshData(); // Intentar cargar datos directamente
+            }
+          })
+          .getUserEmail();
+      }
+    } catch (e) {
+      console.error("Error en inicio:", e);
+    }
+  });
 
 </script>
 
