@@ -71,10 +71,11 @@ function getInitialData() {
 
   const states = [
     "Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas",
-    "Chihuahua", "Ciudad de México", "Coahuila", "Colima", "Durango", "Estado de México",
-    "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "Michoacán", "Morelos", "Nayarit",
-    "Nuevo León", "Oaxaca", "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí",
-    "Sinaloa", "Sonora", "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas"
+    "Chihuahua", "Coahuila de Zaragoza", "Colima", "Ciudad de México", "Durango",
+    "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "México (Estado de México)",
+    "Michoacán de Ocampo", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla",
+    "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco",
+    "Tamaulipas", "Tlaxcala", "Veracruz de Ignacio de la Llave", "Yucatán", "Zacatecas"
   ];
 
   return {
