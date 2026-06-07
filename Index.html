@@ -428,6 +428,13 @@
 
     function populateStates(states) {
       const select = document.getElementById('estadoSelect');
+      if (!states || states.length === 0) {
+        const opt = document.createElement('option');
+        opt.textContent = "Error: No se cargaron estados";
+        opt.disabled = true;
+        select.appendChild(opt);
+        return;
+      }
       states.forEach(state => {
         const opt = document.createElement('option');
         opt.value = state;

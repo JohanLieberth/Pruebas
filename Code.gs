@@ -4,7 +4,7 @@
  */
 
 const CONFIG = {
-  SPREADSHEET_ID: SpreadsheetApp.getActiveSpreadsheet().getId(),
+  // We'll get the ID dynamically inside functions to be safer
   SHEET_REGISTROS: 'Registros',
   SHEET_CONFIG: 'Config',
   SHEET_HORARIOS: 'Horarios',
@@ -50,8 +50,15 @@ function include(filename) {
 /**
  * Gets initial data for the registration form.
  */
+/**
+ * Helper to get the active spreadsheet safely.
+ */
+function getSS() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
 function getInitialData() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = getSS();
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
   const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
   const estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
@@ -83,7 +90,11 @@ function getInitialData() {
   }
 
   // Get states from sheet
-  const states = estadosSheet.getRange(2, 1, estadosSheet.getLastRow() - 1, 1).getValues().flat();
+  let states = [];
+  const lastRowStates = estadosSheet.getLastRow();
+  if (lastRowStates > 1) {
+    states = estadosSheet.getRange(2, 1, lastRowStates - 1, 1).getValues().flat().filter(s => s && String(s).trim() !== "");
+  }
 
   return {
     schedules: schedules,
@@ -96,7 +107,7 @@ function getInitialData() {
  * Processes the registration form.
  */
 function processRegistration(formData) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = getSS();
   const registrosSheet = ss.getSheetByName(CONFIG.SHEET_REGISTROS);
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
   const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
@@ -277,7 +288,7 @@ function sendConfirmationEmail(data, folio) {
  */
 
 function checkPassword(password) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = getSS();
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
   const configData = configSheet.getDataRange().getValues();
 
@@ -297,7 +308,7 @@ function getAdminData(password) {
     throw new Error('No autorizado');
   }
 
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = getSS();
   const registrosSheet = ss.getSheetByName(CONFIG.SHEET_REGISTROS);
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
 
@@ -333,7 +344,7 @@ function exportToCSV(password) {
     throw new Error('No autorizado');
   }
 
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = getSS();
   const sheet = ss.getSheetByName(CONFIG.SHEET_REGISTROS);
   const data = sheet.getDataRange().getValues();
 
