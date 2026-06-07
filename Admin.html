@@ -104,12 +104,15 @@
   </div>
 
   <script>
+    let currentPassword = "";
+
     function login() {
       const pass = document.getElementById('adminPassword').value;
       showLoading(true);
       google.script.run
         .withSuccessHandler(function(isValid) {
           if (isValid) {
+            currentPassword = pass;
             loadAdminData();
           } else {
             showLoading(false);
@@ -126,6 +129,11 @@
     function loadAdminData() {
       google.script.run
         .withSuccessHandler(function(data) {
+          if (!data) {
+            showLoading(false);
+            alert('Error: No se recibieron datos.');
+            return;
+          }
           document.getElementById('login-container').style.display = 'none';
           document.getElementById('admin-content').style.display = 'block';
 
@@ -159,7 +167,7 @@
           showLoading(false);
           alert('Error al cargar datos: ' + err.message);
         })
-        .getAdminData();
+        .getAdminData(currentPassword);
     }
 
     function downloadCSV() {
@@ -172,7 +180,7 @@
           link.download = 'registros_xplore_2026.csv';
           link.click();
         })
-        .exportToCSV();
+        .exportToCSV(currentPassword);
     }
 
     function showLoading(show) {

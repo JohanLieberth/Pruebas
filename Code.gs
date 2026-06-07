@@ -16,20 +16,27 @@ const CONFIG = {
  * Serves the web application.
  */
 function doGet(e) {
-  const page = e.parameter.p || 'index';
-  if (page === 'admin') {
-    return HtmlService.createTemplateFromFile('Admin')
+  // Handle case where e might be undefined (e.g. running from editor)
+  const parameter = (e && e.parameter) ? e.parameter : {};
+  const page = parameter.p || 'index';
+
+  try {
+    if (page === 'admin') {
+      return HtmlService.createTemplateFromFile('Admin')
+          .evaluate()
+          .setTitle('Admin Panel - Xplore 2026')
+          .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    }
+
+    return HtmlService.createTemplateFromFile('Index')
         .evaluate()
-        .setTitle('Admin Panel - Xplore 2026')
+        .setTitle('Registro Xplore 2026')
         .addMetaTag('viewport', 'width=device-width, initial-scale=1')
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (error) {
+    return HtmlService.createHtmlOutput('Error al cargar la página: ' + error.message);
   }
-
-  return HtmlService.createTemplateFromFile('Index')
-      .evaluate()
-      .setTitle('Registro Xplore 2026')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 /**
@@ -46,6 +53,10 @@ function getInitialData() {
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
   const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
+
+  if (!configSheet || !horariosSheet) {
+    return { needsInit: true };
+  }
 
   // Get schedules and availability
   const horariosData = horariosSheet.getDataRange().getValues();
@@ -285,7 +296,11 @@ function checkPassword(password) {
   return password === String(correctPassword);
 }
 
-function getAdminData() {
+function getAdminData(password) {
+  if (!checkPassword(password)) {
+    throw new Error('No autorizado');
+  }
+
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const registrosSheet = ss.getSheetByName(CONFIG.SHEET_REGISTROS);
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
@@ -317,7 +332,11 @@ function getAdminData() {
   };
 }
 
-function exportToCSV() {
+function exportToCSV(password) {
+  if (!checkPassword(password)) {
+    throw new Error('No autorizado');
+  }
+
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const sheet = ss.getSheetByName(CONFIG.SHEET_REGISTROS);
   const data = sheet.getDataRange().getValues();
@@ -331,7 +350,7 @@ function exportToCSV() {
     csvContent += rowContent + "\r\n";
   });
 
-  return Utilities.base64EncodeWebSafe(csvContent);
+  return Utilities.base64Encode(csvContent);
 }
 
 /**

@@ -398,6 +398,18 @@
       showLoading(true);
       google.script.run
         .withSuccessHandler(function(data) {
+          if (!data) {
+            showLoading(false);
+            alert('Error: No se recibieron datos del servidor.');
+            return;
+          }
+
+          if (data.needsInit) {
+            showLoading(false);
+            alert('El sistema no ha sido inicializado. Por favor, contacta al administrador.');
+            return;
+          }
+
           initialData = data;
           populateStates(data.states);
           populateSchedules(data.schedules);
