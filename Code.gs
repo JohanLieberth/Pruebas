@@ -91,9 +91,10 @@ function getInitialData() {
 
   // Get states from sheet
   let states = [];
-  const lastRowStates = estadosSheet.getLastRow();
-  if (lastRowStates > 1) {
-    states = estadosSheet.getRange(2, 1, lastRowStates - 1, 1).getValues().flat().filter(s => s && String(s).trim() !== "");
+  const statesData = estadosSheet.getDataRange().getValues();
+  if (statesData.length > 1) {
+    // Skip header and filter empty values
+    states = statesData.slice(1).map(row => row[0]).filter(s => s && String(s).trim() !== "");
   }
 
   return {
@@ -420,10 +421,12 @@ function initializeSystem() {
 
   // 4. Sheet "Estados"
   let estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
-  if (!estadosSheet) {
-    estadosSheet = ss.insertSheet(CONFIG.SHEET_ESTADOS);
+  if (!estadosSheet || estadosSheet.getLastRow() <= 1) {
+    if (!estadosSheet) {
+      estadosSheet = ss.insertSheet(CONFIG.SHEET_ESTADOS);
+    }
     const headers = [['Estado']];
-    const states = [
+    const statesList = [
       ["Aguascalientes"], ["Baja California"], ["Baja California Sur"], ["Campeche"], ["Chiapas"],
       ["Chihuahua"], ["Coahuila de Zaragoza"], ["Colima"], ["Ciudad de México"], ["Durango"],
       ["Guanajuato"], ["Guerrero"], ["Hidalgo"], ["Jalisco"], ["México (Estado de México)"],
@@ -431,9 +434,10 @@ function initializeSystem() {
       ["Querétaro"], ["Quintana Roo"], ["San Luis Potosí"], ["Sinaloa"], ["Sonora"], ["Tabasco"],
       ["Tamaulipas"], ["Tlaxcala"], ["Veracruz de Ignacio de la Llave"], ["Yucatán"], ["Zacatecas"]
     ];
+    estadosSheet.clear();
     estadosSheet.getRange(1, 1, 1, 1).setValues(headers)
       .setBackground('#4CAF50').setFontColor('white').setFontWeight('bold');
-    estadosSheet.getRange(2, 1, states.length, 1).setValues(states);
+    estadosSheet.getRange(2, 1, statesList.length, 1).setValues(statesList);
   }
 
   return "Sistema inicializado correctamente.";
