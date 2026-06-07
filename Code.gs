@@ -8,6 +8,7 @@ const CONFIG = {
   SHEET_REGISTROS: 'Registros',
   SHEET_CONFIG: 'Config',
   SHEET_HORARIOS: 'Horarios',
+  SHEET_ESTADOS: 'Estados',
   FOLIO_PREFIX: 'XPL2026-',
   MAX_ATTEMPTS: 3
 };
@@ -53,8 +54,9 @@ function getInitialData() {
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
   const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
+  const estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
 
-  if (!configSheet || !horariosSheet) {
+  if (!configSheet || !horariosSheet || !estadosSheet) {
     return { needsInit: true };
   }
 
@@ -80,14 +82,8 @@ function getInitialData() {
     }
   }
 
-  const states = [
-    "Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas",
-    "Chihuahua", "Coahuila de Zaragoza", "Colima", "Ciudad de México", "Durango",
-    "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "México (Estado de México)",
-    "Michoacán de Ocampo", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla",
-    "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco",
-    "Tamaulipas", "Tlaxcala", "Veracruz de Ignacio de la Llave", "Yucatán", "Zacatecas"
-  ];
+  // Get states from sheet
+  const states = estadosSheet.getRange(2, 1, estadosSheet.getLastRow() - 1, 1).getValues().flat();
 
   return {
     schedules: schedules,
@@ -409,6 +405,24 @@ function initializeSystem() {
       // Formula for "Disponibles"
       horariosSheet.getRange(row, 4).setFormula(`=B${row} - C${row}`);
     }
+  }
+
+  // 4. Sheet "Estados"
+  let estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
+  if (!estadosSheet) {
+    estadosSheet = ss.insertSheet(CONFIG.SHEET_ESTADOS);
+    const headers = [['Estado']];
+    const states = [
+      ["Aguascalientes"], ["Baja California"], ["Baja California Sur"], ["Campeche"], ["Chiapas"],
+      ["Chihuahua"], ["Coahuila de Zaragoza"], ["Colima"], ["Ciudad de México"], ["Durango"],
+      ["Guanajuato"], ["Guerrero"], ["Hidalgo"], ["Jalisco"], ["México (Estado de México)"],
+      ["Michoacán de Ocampo"], ["Morelos"], ["Nayarit"], ["Nuevo León"], ["Oaxaca"], ["Puebla"],
+      ["Querétaro"], ["Quintana Roo"], ["San Luis Potosí"], ["Sinaloa"], ["Sonora"], ["Tabasco"],
+      ["Tamaulipas"], ["Tlaxcala"], ["Veracruz de Ignacio de la Llave"], ["Yucatán"], ["Zacatecas"]
+    ];
+    estadosSheet.getRange(1, 1, 1, 1).setValues(headers)
+      .setBackground('#4CAF50').setFontColor('white').setFontWeight('bold');
+    estadosSheet.getRange(2, 1, states.length, 1).setValues(states);
   }
 
   return "Sistema inicializado correctamente.";
