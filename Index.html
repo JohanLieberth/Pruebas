@@ -400,13 +400,19 @@
         .withSuccessHandler(function(data) {
           if (!data) {
             showLoading(false);
-            alert('Error: No se recibieron datos del servidor.');
+            alert('Error crítico: La respuesta del servidor es nula.');
+            return;
+          }
+
+          if (data.error) {
+            showLoading(false);
+            alert('Error en el servidor: ' + data.error);
             return;
           }
 
           if (data.needsInit) {
             showLoading(false);
-            alert('El sistema no ha sido inicializado. Por favor, contacta al administrador.');
+            alert('El sistema no ha sido inicializado. Por favor, usa el menú "Xplore 2026 > Inicializar Sistema" en el Sheet.');
             return;
           }
 

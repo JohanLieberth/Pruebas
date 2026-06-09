@@ -58,50 +58,57 @@ function getSS() {
 }
 
 function getInitialData() {
-  const ss = getSS();
-  const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
-  const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
-  const estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
+  try {
+    const ss = getSS();
+    const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
+    const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
+    const estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
 
-  if (!configSheet || !horariosSheet || !estadosSheet) {
-    return { needsInit: true };
-  }
-
-  // Get schedules and availability
-  const horariosData = horariosSheet.getDataRange().getValues();
-  const schedules = [];
-  for (let i = 1; i < horariosData.length; i++) {
-    schedules.push({
-      time: horariosData[i][0],
-      total: horariosData[i][1],
-      registered: horariosData[i][2],
-      available: horariosData[i][3]
-    });
-  }
-
-  // Get registration status
-  const configData = configSheet.getDataRange().getValues();
-  let registrationOpen = true;
-  for (let i = 0; i < configData.length; i++) {
-    if (configData[i][0] === 'Estado de inscripciones') {
-      registrationOpen = configData[i][1] === 'Abierto';
-      break;
+    if (!configSheet || !horariosSheet || !estadosSheet) {
+      return { needsInit: true };
     }
-  }
 
-  // Get states from sheet
-  let states = [];
-  const statesData = estadosSheet.getDataRange().getValues();
-  if (statesData.length > 1) {
-    // Skip header and filter empty values
-    states = statesData.slice(1).map(row => row[0]).filter(s => s && String(s).trim() !== "");
-  }
+    // Get schedules and availability
+    const horariosData = horariosSheet.getDataRange().getDisplayValues(); // Use DisplayValues for safe serialization
+    const schedules = [];
+    for (let i = 1; i < horariosData.length; i++) {
+      schedules.push({
+        time: String(horariosData[i][0]),
+        total: Number(horariosData[i][1]) || 0,
+        registered: Number(horariosData[i][2]) || 0,
+        available: Number(horariosData[i][3]) || 0
+      });
+    }
 
-  return {
-    schedules: schedules,
-    registrationOpen: registrationOpen,
-    states: states
-  };
+    // Get registration status
+    const configData = configSheet.getDataRange().getValues();
+    let registrationOpen = true;
+    for (let i = 0; i < configData.length; i++) {
+      if (configData[i][0] === 'Estado de inscripciones') {
+        registrationOpen = configData[i][1] === 'Abierto';
+        break;
+      }
+    }
+
+    // Get states from sheet
+    let states = [];
+    const statesData = estadosSheet.getDataRange().getDisplayValues();
+    if (statesData.length > 1) {
+      // Skip header and filter empty values
+      states = statesData.slice(1)
+        .map(row => String(row[0]).trim())
+        .filter(s => s !== "");
+    }
+
+    return {
+      schedules: schedules,
+      registrationOpen: registrationOpen,
+      states: states
+    };
+  } catch (error) {
+    console.error('Error in getInitialData: ' + error.message);
+    return { error: error.message };
+  }
 }
 
 /**
