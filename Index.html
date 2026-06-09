@@ -368,7 +368,7 @@
               <p>Tu folio de participación es:</p>
               <h2 class="text-orange fw-bold" id="resultFolio" style="color: var(--xplor-orange);"></h2>
               <p class="text-muted mt-3">Hemos enviado un correo de confirmación a tu bandeja de entrada.</p>
-              <button class="btn btn-xplor mt-3" onclick="window.location.reload()">Nuevo Registro</button>
+              <button class="btn btn-xplor mt-3" onclick="resetForm()">Nuevo Registro</button>
             </div>
 
           </div>
@@ -394,7 +394,9 @@
     let initialData = null;
 
     // Initialize Page
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', initApp);
+
+    function initApp() {
       showLoading(true);
       google.script.run
         .withSuccessHandler(function(data) {
@@ -430,7 +432,30 @@
           alert('Error al cargar datos: ' + err.message);
         })
         .getInitialData();
-    });
+    }
+
+    function resetForm() {
+      // 1. Reset Form visibility and values
+      const form = document.getElementById('registrationForm');
+      form.reset();
+      form.style.display = 'block';
+
+      // 2. Hide success message
+      document.getElementById('successMessage').style.display = 'none';
+
+      // 3. Reset Steps
+      document.querySelectorAll('.form-step').forEach(el => el.classList.remove('active'));
+      document.getElementById('step1').classList.add('active');
+
+      document.querySelectorAll('.step').forEach(el => {
+        el.classList.remove('active', 'completed');
+      });
+      document.getElementById('step1-dot').classList.add('active');
+      document.querySelector('.step-indicator').style.display = 'flex';
+
+      // 4. Reload data (availability)
+      initApp();
+    }
 
     function populateStates(states) {
       const select = document.getElementById('estadoSelect');
@@ -551,8 +576,22 @@
         .processRegistration(formData);
     });
 
+    let loadingTimeout = null;
     function showLoading(show) {
-      document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+      const overlay = document.getElementById('loading-overlay');
+      overlay.style.display = show ? 'flex' : 'none';
+
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
+
+      if (show) {
+        // Safety timeout (15 seconds) to hide loader if call hangs
+        loadingTimeout = setTimeout(() => {
+          overlay.style.display = 'none';
+        }, 15000);
+      }
     }
   </script>
 </body>
