@@ -168,16 +168,15 @@ function processRegistration(formData) {
   }
 
   // 4. Check schedule availability
-  const horariosData = horariosSheet.getDataRange().getValues();
+  const horariosData = horariosSheet.getDataRange().getDisplayValues(); // Use DisplayValues for reliable string comparison
   let scheduleFound = false;
   let availableSlots = 0;
-  let rowIndex = -1;
 
   for (let i = 1; i < horariosData.length; i++) {
-    if (horariosData[i][0] == formData.horarioPrincipal) {
+    // Trim and compare as strings to avoid Date object issues
+    if (String(horariosData[i][0]).trim() === String(formData.horarioPrincipal).trim()) {
       scheduleFound = true;
-      availableSlots = horariosData[i][3];
-      rowIndex = i + 1;
+      availableSlots = parseInt(horariosData[i][3]) || 0;
       break;
     }
   }
@@ -415,6 +414,9 @@ function initializeSystem() {
 
     horariosSheet.getRange(1, 1, 1, 4).setValues([headers])
       .setBackground('#4CAF50').setFontColor('white').setFontWeight('bold');
+
+    // Set time column as plain text to avoid Date conversion
+    horariosSheet.getRange(1, 1, timeSlots.length + 1, 1).setNumberFormat('@');
 
     for (let i = 0; i < timeSlots.length; i++) {
       const row = i + 2;
