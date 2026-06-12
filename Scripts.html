@@ -213,7 +213,6 @@
       google.script.run
         .withSuccessHandler(cats => {
           catalogTree = cats.tree;
-          fillSelect('doc_coord', cats.coords);
           fillSelect('doc_dir', Object.keys(cats.tree));
           resolve();
         })
@@ -226,7 +225,6 @@
         .withSuccessHandler(data => {
           currentDoc = data.doc;
           currentSections = data.sections;
-          $('#doc_coord').val(currentDoc.coordinacion);
           $('#doc_dir').val(currentDoc.direccion);
           onDirectionChange(currentDoc.subdireccion);
           onSubdirectionChange(currentDoc.departamento);
@@ -379,10 +377,26 @@
   }
 
   function saveDocument() {
-    const sections = availableSections.map((name, i) => ({ nombre: name, contenido: $(`#content-${i}`).val() }));
+    const sections = availableSections.map((name, i) => {
+      let content = $(`#content-${i}`).val();
+
+      // Caso especial: Anexo Documental (UI custom)
+      if (name === 'ANEXO DOCUMENTAL') {
+        const anexos = [];
+        $('#anexosContainer .row').each(function() {
+          const n = $(this).find('.anexo-nombre').val();
+          const d = $(this).find('.anexo-detalle').val();
+          if (n) anexos.push({ nombre: n, detalle: d });
+        });
+        content = JSON.stringify(anexos);
+      }
+
+      return { nombre: name, contenido: content };
+    });
+
     const docData = {
       ID_Documento: $('#editorDocId').val(),
-      coordinacion: $('#doc_coord').val(),
+      coordinacion: "", // Removido de la UI
       direccion: $('#doc_dir').val(),
       subdireccion: $('#doc_sub').val(),
       departamento: $('#doc_dept').val(),

@@ -238,15 +238,36 @@ function saveDocument(docData, sections) {
     if (rIdx !== -1) docSheet.getRange(rIdx, 8).setValue(docData.Número_Revisión);
   }
 
+  const existingSections = secSheet.getDataRange().getValues()
+      .filter(r => r[1] === idDoc && !r[2].includes("_PART_"));
+
   sections.forEach(sec => {
-    // Lógica de fragmentación para campos largos (> 45,000 caracteres)
+    // Preservar estado si ya existía
+    const prev = existingSections.find(ex => ex[2] === sec.nombre);
+    let finalEstado = ESTADOS_SECCION.PENDIENTE;
+    let finalObs = "";
+    let finalFecha = "";
+    let finalUser = "";
+
+    if (prev) {
+      // Si la sección ya estaba aprobada (Visto Bueno), mantenemos el estado
+      // a menos que sea el Administrador quien la esté modificando intencionalmente
+      if (prev[4] === ESTADOS_SECCION.VISTO_BUENO && user.rol !== "administrador") {
+        finalEstado = ESTADOS_SECCION.VISTO_BUENO;
+        finalObs = prev[5];
+        finalFecha = prev[6];
+        finalUser = prev[7];
+      }
+    }
+
     const content = sec.contenido || "";
     const fragments = content.match(/.{1,45000}/g) || [""];
 
-    // Limpiar secciones anteriores con el mismo nombre para este documento
+    // Limpiar secciones anteriores
     const sData = secSheet.getDataRange().getValues();
     for (let j = sData.length - 1; j >= 1; j--) {
-      if (sData[j][1] === idDoc && sData[j][2] === sec.nombre) {
+      const currentName = sData[j][2] || "";
+      if (sData[j][1] === idDoc && (currentName === sec.nombre || currentName.startsWith(sec.nombre + "_PART_"))) {
         secSheet.deleteRow(j + 1);
       }
     }
@@ -254,7 +275,12 @@ function saveDocument(docData, sections) {
     // Insertar fragmentos
     fragments.forEach((frag, idx) => {
       const nombreFinal = idx === 0 ? sec.nombre : `${sec.nombre}_PART_${idx}`;
-      secSheet.appendRow([Utilities.getUuid(), idDoc, nombreFinal, frag, ESTADOS_SECCION.PENDIENTE, "", "", ""]);
+      // El estado y metadatos de revisión solo se ponen en la fila base (idx 0)
+      if (idx === 0) {
+        secSheet.appendRow([Utilities.getUuid(), idDoc, nombreFinal, frag, finalEstado, finalObs, finalFecha, finalUser]);
+      } else {
+        secSheet.appendRow([Utilities.getUuid(), idDoc, nombreFinal, frag, "", "", "", ""]);
+      }
     });
   });
 
@@ -483,8 +509,7 @@ function getCatalogs() {
   }
 
   return {
-    tree: tree,
-    coords: ["Coordinación General de Buen Gobierno", "Coordinación General de Justicia Social y Desarrollo Humano", "Coordinación General de Desarrollo Ordenado y Gestión de la Ciudad", "AYUNTAMIENTO", "Organismos Paramunicipales"]
+    tree: tree
   };
 }
 

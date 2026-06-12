@@ -7,10 +7,6 @@
         <form id="formEditorHeader">
           <input type="hidden" id="editorDocId">
           <div class="mb-3">
-            <label class="form-label small fw-bold">Coordinación</label>
-            <select class="form-select form-select-sm" id="doc_coord" required></select>
-          </div>
-          <div class="mb-3">
             <label class="form-label small fw-bold">Dirección</label>
             <select class="form-select form-select-sm" id="doc_dir" required onchange="onDirectionChange()"></select>
           </div>
@@ -33,17 +29,8 @@
           <div class="mb-3">
             <label class="form-label small fw-bold d-block">Tipo Documento</label>
             <select class="form-select form-select-sm" id="doc_tipo_select" name="doc_tipo" onchange="renderWizard()">
-              <option value="Política">Política</option>
-              <option value="Proceso" selected>Procedimiento</option>
-              <option value="Instructivo">Instructivo</option>
-              <option value="Descriptiva de Puesto">Descriptiva de Puesto</option>
-              <option value="Formato">Formato</option>
-              <option value="Documento">Documento</option>
-              <option value="Especificación Técnica">Especificación Técnica</option>
-              <option value="Mapa de Proceso">Mapa de Proceso</option>
-              <option value="Macroprocesos">Macroprocesos</option>
-              <option value="Manual de Calidad">Manual de Calidad</option>
-              <option value="Plan de Calidad">Plan de Calidad</option>
+              <option value="Política">Políticas</option>
+              <option value="Proceso" selected>Procesos</option>
             </select>
           </div>
           <hr>
