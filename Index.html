@@ -8,34 +8,35 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --xplor-green: #4CAF50;
-      --xplor-dark-green: #2E7D32;
-      --xplor-orange: #FF9800;
-      --xplor-light: #F1F8E9;
+      --xplore-red: #e2411f;
+      --xplore-dark-red: #af3319;
+      --xplore-black: #190909;
+      --xplore-cream: #fff4ea;
     }
 
     body {
       font-family: 'Montserrat', sans-serif;
-      background-color: var(--xplor-light);
-      color: #333;
+      background-color: var(--xplore-cream);
+      color: var(--xplore-black);
     }
 
     .navbar {
-      background-color: var(--xplor-green);
-      border-bottom: 4px solid var(--xplor-orange);
+      background-color: var(--xplore-red);
+      border-bottom: 4px solid var(--xplore-black);
     }
 
     .navbar-brand {
       font-weight: 700;
-      color: white !important;
+      color: var(--xplore-cream) !important;
       text-transform: uppercase;
       letter-spacing: 2px;
     }
 
     .card {
-      border: none;
+      border: 1px solid rgba(25, 9, 9, 0.1);
       border-radius: 15px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      box-shadow: 0 10px 30px rgba(25, 9, 9, 0.1);
+      background-color: white;
     }
 
     .card-header {
@@ -46,8 +47,8 @@
     }
 
     .btn-xplor {
-      background-color: var(--xplor-green);
-      color: white;
+      background-color: var(--xplore-red);
+      color: var(--xplore-cream);
       border: none;
       padding: 10px 25px;
       border-radius: 30px;
@@ -56,20 +57,20 @@
     }
 
     .btn-xplor:hover {
-      background-color: var(--xplor-dark-green);
+      background-color: var(--xplore-dark-red);
       color: white;
       transform: translateY(-2px);
     }
 
     .btn-outline-xplor {
-      border: 2px solid var(--xplor-green);
-      color: var(--xplor-green);
+      border: 2px solid var(--xplore-red);
+      color: var(--xplore-red);
       border-radius: 30px;
       font-weight: 600;
     }
 
     .btn-outline-xplor:hover {
-      background-color: var(--xplor-green);
+      background-color: var(--xplore-red);
       color: white;
     }
 
@@ -106,14 +107,14 @@
     }
 
     .step.active {
-      border-color: var(--xplor-green);
-      color: var(--xplor-green);
+      border-color: var(--xplore-red);
+      color: var(--xplore-red);
       transform: scale(1.2);
     }
 
     .step.completed {
-      background-color: var(--xplor-green);
-      border-color: var(--xplor-green);
+      background-color: var(--xplore-red);
+      border-color: var(--xplore-red);
       color: white;
     }
 
@@ -132,8 +133,8 @@
     }
 
     .event-details {
-      background-color: var(--xplor-dark-green);
-      color: white;
+      background-color: var(--xplore-black);
+      color: var(--xplore-cream);
       padding: 15px;
       border-radius: 10px;
       margin-bottom: 20px;
@@ -160,16 +161,36 @@
     .logo-placeholder {
       width: 100px;
       height: 100px;
-      background-color: var(--xplor-orange);
+      background-color: var(--xplore-red);
       border-radius: 50%;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: var(--xplore-cream);
       font-weight: bold;
       font-size: 1.5rem;
-      border: 5px solid white;
+      border: 5px solid var(--xplore-cream);
       box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+      height: 0;
+      overflow: hidden;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      display: none;
+    }
+
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
   </style>
 </head>
@@ -195,6 +216,8 @@
           </div>
 
           <div class="card-body px-4 pb-4">
+
+            <div id="video-wrapper" class="video-container"></div>
 
             <div class="event-details">
               <div class="row text-center">
@@ -366,7 +389,7 @@
               </div>
               <h3 class="fw-bold">¡Registro Exitoso!</h3>
               <p>Tu folio de participación es:</p>
-              <h2 class="text-orange fw-bold" id="resultFolio" style="color: var(--xplor-orange);"></h2>
+              <h2 class="text-orange fw-bold" id="resultFolio" style="color: var(--xplore-red);"></h2>
               <p class="text-muted mt-3">Hemos enviado un correo de confirmación a tu bandeja de entrada.</p>
               <button class="btn btn-xplor mt-3" onclick="resetForm()">Nuevo Registro</button>
             </div>
@@ -421,6 +444,7 @@
           initialData = data;
           populateStates(data.states);
           populateSchedules(data.schedules);
+          setupVideo(data.videoUrl);
           if (!data.registrationOpen) {
             alert('Lo sentimos, las inscripciones para Xplore 2026 se encuentran cerradas en este momento.');
             document.getElementById('submitBtn').disabled = true;
@@ -455,6 +479,33 @@
 
       // 4. Reload data (availability)
       initApp();
+    }
+
+    function setupVideo(url) {
+      if (!url) return;
+
+      let videoId = "";
+      // Extract video ID from common YouTube URL formats
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+
+      if (match && match[2].length == 11) {
+        videoId = match[2];
+      } else {
+        return;
+      }
+
+      const wrapper = document.getElementById('video-wrapper');
+      // Autoplay requires mute in most browsers
+      wrapper.innerHTML = `
+        <iframe
+          src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      `;
+      wrapper.style.display = 'block';
     }
 
     function populateStates(states) {

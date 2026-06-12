@@ -7,14 +7,18 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     :root {
-      --xplor-green: #4CAF50;
-      --xplor-orange: #FF9800;
+      --xplore-red: #e2411f;
+      --xplore-dark-red: #af3319;
+      --xplore-black: #190909;
+      --xplore-cream: #fff4ea;
     }
-    body { background-color: #f8f9fa; }
-    .sidebar { background-color: #2c3e50; color: white; min-height: 100vh; }
-    .stats-card { border-left: 4px solid var(--xplor-green); }
+    body { background-color: var(--xplore-cream); color: var(--xplore-black); }
+    .sidebar { background-color: var(--xplore-black); color: white; min-height: 100vh; }
+    .stats-card { border-left: 4px solid var(--xplore-red); }
     .table-container { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     #login-container { max-width: 400px; margin-top: 100px; }
+    .btn-success { background-color: var(--xplore-red); border-color: var(--xplore-red); }
+    .btn-success:hover { background-color: var(--xplore-dark-red); border-color: var(--xplore-dark-red); }
   </style>
 </head>
 <body>
@@ -54,7 +58,7 @@
           </div>
         </div>
         <div class="col-md-4">
-          <div class="card stats-card shadow-sm mb-3" style="border-left-color: #2196F3;">
+          <div class="card stats-card shadow-sm mb-3" style="border-left-color: var(--xplore-black);">
             <div class="card-body text-center">
               <h6 class="text-muted">Individual</h6>
               <h2 id="stat-individual">0</h2>
@@ -62,7 +66,7 @@
           </div>
         </div>
         <div class="col-md-4">
-          <div class="card stats-card shadow-sm mb-3" style="border-left-color: var(--xplor-orange);">
+          <div class="card stats-card shadow-sm mb-3" style="border-left-color: var(--xplore-dark-red);">
             <div class="card-body text-center">
               <h6 class="text-muted">VIP</h6>
               <h2 id="stat-vip">0</h2>

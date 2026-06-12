@@ -9,6 +9,7 @@ const CONFIG = {
   SHEET_CONFIG: 'Config',
   SHEET_HORARIOS: 'Horarios',
   SHEET_ESTADOS: 'Estados',
+  SHEET_VIDEO: 'Video',
   FOLIO_PREFIX: 'XPL2026-',
   MAX_ATTEMPTS: 3
 };
@@ -63,8 +64,9 @@ function getInitialData() {
     const configSheet = ss.getSheetByName(CONFIG.SHEET_CONFIG);
     const horariosSheet = ss.getSheetByName(CONFIG.SHEET_HORARIOS);
     const estadosSheet = ss.getSheetByName(CONFIG.SHEET_ESTADOS);
+    const videoSheet = ss.getSheetByName(CONFIG.SHEET_VIDEO);
 
-    if (!configSheet || !horariosSheet || !estadosSheet) {
+    if (!configSheet || !horariosSheet || !estadosSheet || !videoSheet) {
       return { needsInit: true };
     }
 
@@ -100,10 +102,18 @@ function getInitialData() {
         .filter(s => s !== "");
     }
 
+    // Get Video Link
+    const videoData = videoSheet.getDataRange().getValues();
+    let videoUrl = "";
+    if (videoData.length > 1) {
+      videoUrl = videoData[1][0];
+    }
+
     return {
       schedules: schedules,
       registrationOpen: registrationOpen,
-      states: states
+      states: states,
+      videoUrl: videoUrl
     };
   } catch (error) {
     console.error('Error in getInitialData: ' + error.message);
@@ -447,6 +457,17 @@ function initializeSystem() {
     estadosSheet.getRange(1, 1, 1, 1).setValues(headers)
       .setBackground('#4CAF50').setFontColor('white').setFontWeight('bold');
     estadosSheet.getRange(2, 1, statesList.length, 1).setValues(statesList);
+  }
+
+  // 5. Sheet "Video"
+  let videoSheet = ss.getSheetByName(CONFIG.SHEET_VIDEO);
+  if (!videoSheet) {
+    videoSheet = ss.insertSheet(CONFIG.SHEET_VIDEO);
+    const headers = [['Link de YouTube']];
+    const defaultVideo = [['https://www.youtube.com/watch?v=dQw4w9WgXcQ']];
+    videoSheet.getRange(1, 1, 1, 1).setValues(headers)
+      .setBackground('#190909').setFontColor('white').setFontWeight('bold');
+    videoSheet.getRange(2, 1).setValues(defaultVideo);
   }
 
   return "Sistema inicializado correctamente.";
