@@ -11,6 +11,7 @@
   let allDocs = [];
   let currentTab = 'all';
   let revisionTab = 'pending';
+  let catalogTree = {};
 
   /**
    * Navegación SPA Segura
@@ -211,9 +212,9 @@
     await new Promise(resolve => {
       google.script.run
         .withSuccessHandler(cats => {
+          catalogTree = cats.tree;
           fillSelect('doc_coord', cats.coords);
-          fillSelect('doc_dir', cats.dirs);
-          fillSelect('doc_sub', cats.subs);
+          fillSelect('doc_dir', Object.keys(cats.tree));
           resolve();
         })
         .getCatalogs();
@@ -227,10 +228,10 @@
           currentSections = data.sections;
           $('#doc_coord').val(currentDoc.coordinacion);
           $('#doc_dir').val(currentDoc.direccion);
-          $('#doc_sub').val(currentDoc.subdireccion);
-          $('#doc_dept').val(currentDoc.departamento);
+          onDirectionChange(currentDoc.subdireccion);
+          onSubdirectionChange(currentDoc.departamento);
           $('#doc_rev').val(currentDoc.revision);
-          $(`input[name="doc_tipo"][value="${currentDoc.tipo}"]`).prop('checked', true);
+          $('#doc_tipo_select').val(currentDoc.tipo);
           $('#codePreview').text(currentDoc.codigo);
           renderWizard();
           loadEditorFiles(docId);
@@ -249,12 +250,52 @@
 
   function fillSelect(id, items) {
     const sel = $(`#${id}`);
+    const currentVal = sel.val();
     sel.empty().append('<option value="">Seleccionar...</option>');
     if (items) items.forEach(item => sel.append(`<option value="${item}">${item}</option>`));
+    if (currentVal && items.includes(currentVal)) sel.val(currentVal);
+  }
+
+  /**
+   * Cascada de Dependencias
+   */
+  function onDirectionChange(savedSub = null) {
+    const dir = $('#doc_dir').val();
+    const subSel = $('#doc_sub');
+    const deptSel = $('#doc_dept');
+
+    subSel.empty().append('<option value="">Seleccionar...</option>');
+    deptSel.empty().append('<option value="">Seleccionar...</option>');
+
+    if (dir && catalogTree[dir]) {
+      const subs = Object.keys(catalogTree[dir]);
+      // Si solo hay "GENERAL", ocultar subdirección o saltar a deptos
+      subs.forEach(s => { if(s !== 'GENERAL') subSel.append(`<option value="${s}">${s}</option>`); });
+
+      if (savedSub) {
+        subSel.val(savedSub);
+        onSubdirectionChange(currentDoc.departamento);
+      } else if (subs.includes('GENERAL') && subs.length === 1) {
+        onSubdirectionChange(); // Cargar deptos generales
+      }
+    }
+  }
+
+  function onSubdirectionChange(savedDept = null) {
+    const dir = $('#doc_dir').val();
+    let sub = $('#doc_sub').val() || "GENERAL";
+    const deptSel = $('#doc_dept');
+
+    deptSel.empty().append('<option value="">Seleccionar...</option>');
+
+    if (dir && catalogTree[dir] && catalogTree[dir][sub]) {
+      catalogTree[dir][sub].forEach(d => deptSel.append(`<option value="${d}">${d}</option>`));
+      if (savedDept) deptSel.val(savedDept);
+    }
   }
 
   function renderWizard() {
-    const tipo = $('input[name="doc_tipo"]:checked').val();
+    const tipo = $('#doc_tipo_select').val();
     if (!tipo) return;
 
     const abrev = tipo === 'Política' ? 'POLITICA' : 'PROCESO';
@@ -346,7 +387,7 @@
       subdireccion: $('#doc_sub').val(),
       departamento: $('#doc_dept').val(),
       Número_Revisión: $('#doc_rev').val(),
-      tipo: $('input[name="doc_tipo"]:checked').val()
+      tipo: $('#doc_tipo_select').val()
     };
 
     showLoader(true, "Guardando expediente...");

@@ -13,12 +13,23 @@ function runTests() {
   console.log("--- Iniciando Pruebas ---");
 
   try {
-    const code = generateDocCode(testData);
+    // Prueba de Siglas
+    console.log("Siglas Gobernación:", getSiglas("Gobernación")); // GOB
+    console.log("Siglas Bienestar Humano:", getSiglas("Bienestar Humano")); // BIH
+    console.log("Siglas Innovación y Gobierno Inteligente:", getSiglas("Innovación y Gobierno Inteligente")); // IGI
+    console.log("Siglas con StopWords:", getSiglas("Dirección de Administración")); // ADM
+
+    const code = generateDocCode({
+      tipo: "Política",
+      direccion: "Dirección de Administración",
+      departamento: "Departamento de Nómina"
+    });
     console.log("Código generado:", code);
-    if (code.startsWith("COOR1-DIR2-SUB3-DEP4-PRO-")) {
+    // ADM (de Administración) / NOM (de Nómina)
+    if (code.startsWith("PL-ADM/NOM-01")) {
       console.log("✅ Prueba generateDocCode exitosa.");
     } else {
-      console.error("❌ Prueba generateDocCode fallida. Código inesperado.");
+      console.error("❌ Prueba generateDocCode fallida. Código inesperado:", code);
     }
   } catch (e) {
     console.error("❌ Error en prueba generateDocCode:", e);

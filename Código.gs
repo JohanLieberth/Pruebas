@@ -9,7 +9,8 @@ const SHEETS = {
   DOCUMENTOS: "Documentos",
   SECCIONES: "Secciones_Documento",
   HISTORIAL: "Historial_Cambios",
-  ANEXOS: "Anexo_Documental"
+  ANEXOS: "Anexo_Documental",
+  DEPENDENCIAS: "Dependencias"
 };
 
 const SHEET_HEADERS = {
@@ -17,7 +18,8 @@ const SHEET_HEADERS = {
   [SHEETS.DOCUMENTOS]: ["ID_Documento", "Código", "Tipo", "Coordinación", "Dirección", "Subdirección", "Departamento", "Número_Revisión", "ID_Usuario", "Fecha_Creación", "Estado_Global", "Observaciones_Generales"],
   [SHEETS.SECCIONES]: ["ID_Seccion", "ID_Documento", "Nombre_Seccion", "Contenido_Texto", "Estado_Seccion", "Observaciones_Seccion", "Fecha_Revision", "Revisado_Por"],
   [SHEETS.HISTORIAL]: ["ID", "ID_Documento", "ID_Seccion", "Accion", "Usuario", "Fecha", "Detalle"],
-  [SHEETS.ANEXOS]: ["ID_Anexo", "ID_Documento", "Nombre_Anexo", "Detalle"]
+  [SHEETS.ANEXOS]: ["ID_Anexo", "ID_Documento", "Nombre_Anexo", "Detalle"],
+  [SHEETS.DEPENDENCIAS]: ["Direccion", "Subdireccion", "Departamento"]
 };
 
 const ESTADOS_GLOBAL = {
@@ -74,6 +76,20 @@ function include(filename) {
 
 function setup() {
   Object.keys(SHEETS).forEach(key => getSheet(SHEETS[key]));
+
+  // Poblar dependencias de ejemplo si está vacío
+  const depSheet = getSheet(SHEETS.DEPENDENCIAS);
+  if (depSheet.getLastRow() === 1) {
+    const sampleDeps = [
+      ["DIRECCIÓN DE ADMINISTRACIÓN", "SUBDIRECCIÓN DE RECURSOS HUMANOS", "DEPARTAMENTO DE NÓMINA"],
+      ["DIRECCIÓN DE ADMINISTRACIÓN", "SUBDIRECCIÓN DE RECURSOS HUMANOS", "DEPARTAMENTO DE CAPACITACIÓN"],
+      ["DIRECCIÓN DE ADMINISTRACIÓN", "SUBDIRECCIÓN DE TECNOLOGÍAS", "DEPARTAMENTO DE SOPORTE"],
+      ["DIRECCIÓN DE GOBERNACIÓN", "", "DEPARTAMENTO DE CONSEJERÍA JURÍDICA"],
+      ["DIRECCIÓN DE GOBERNACIÓN", "", "DEPARTAMENTO DE ASUNTOS JURÍDICOS"]
+    ];
+    depSheet.getRange(2, 1, sampleDeps.length, 3).setValues(sampleDeps);
+  }
+
   const userSheet = getSheet(SHEETS.USUARIOS);
   const ownerEmail = Session.getEffectiveUser().getEmail().toLowerCase().trim();
 
@@ -248,23 +264,57 @@ function saveDocument(docData, sections) {
 
 function generateDocCode(data) {
   const docs = getSheet(SHEETS.DOCUMENTOS).getDataRange().getValues();
-  const year = new Date().getFullYear();
-  const abrev = data.tipo === "Proceso" ? "PRO" : "POL";
+
+  // Claves según tipo
+  const CLAVES = {
+    "Política": "PL",
+    "Proceso": "P",
+    "Instructivo": "I",
+    "Descriptiva de Puesto": "DP",
+    "Formato": "F",
+    "Documento": "D",
+    "Especificación Técnica": "E",
+    "Mapa de Proceso": "MP",
+    "Macroprocesos": "MAC",
+    "Manual de Calidad": "MC",
+    "Plan de Calidad": "PC"
+  };
+
+  const clave = CLAVES[data.tipo] || "D";
+  const siglasDir = getSiglas(data.direccion);
+  const siglasUA = getSiglas(data.departamento || data.subdireccion || "UA");
+
+  // Cálculo de consecutivo por departamento/despacho
   let count = 1;
+  const prefix = `${clave}-${siglasDir}/${siglasUA}-`;
+
   docs.forEach(r => {
-    if(r[1] && r[1].includes(`${abrev}-${year}`)) {
+    if (r[1] && r[1].startsWith(prefix)) {
       const parts = r[1].split("-");
       const n = parseInt(parts[parts.length - 1]);
-      if(!isNaN(n) && n >= count) count = n + 1;
+      if (!isNaN(n) && n >= count) count = n + 1;
     }
   });
 
-  const c = (data.coordinacion||"COR").substring(0,3).toUpperCase();
-  const d = (data.direccion||"DIR").substring(0,3).toUpperCase();
-  const s = (data.subdireccion||"SUB").substring(0,3).toUpperCase();
-  const dep = (data.departamento||"DEP").substring(0,3).toUpperCase();
+  return `${prefix}${count.toString().padStart(2, '0')}`;
+}
 
-  return `${c}-${d}-${s}-${dep}-${abrev}-${year}-${count.toString().padStart(3, '0')}`;
+function getSiglas(texto) {
+  if (!texto) return "UA";
+
+  // Eliminar stop words institucionales
+  const stopWords = ["DIRECCIÓN", "UNIDAD", "SUBDIRECCIÓN", "DEPARTAMENTO", "COORDINACIÓN", "DE", "Y", "LA", "EL", "LOS", "LAS"];
+  let palabras = texto.toUpperCase().split(/\s+/).filter(p => !stopWords.includes(p) && p.length > 0);
+
+  if (palabras.length === 0) return texto.substring(0, 3).toUpperCase();
+
+  if (palabras.length === 1) {
+    return palabras[0].substring(0, 3);
+  } else if (palabras.length === 2) {
+    return palabras[0].substring(0, 2) + palabras[1].substring(0, 1);
+  } else {
+    return palabras[0].substring(0, 1) + palabras[1].substring(0, 1) + palabras[2].substring(0, 1);
+  }
 }
 
 function getDocumentDetail(idDoc) {
@@ -417,10 +467,24 @@ function deleteUser(email) {
 }
 
 function getCatalogs() {
+  const depSheet = getSheet(SHEETS.DEPENDENCIAS);
+  const data = depSheet.getDataRange().getValues();
+  // Formato jerárquico: { Direccion: { Subdireccion: [Deptos] } }
+  const tree = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const [dir, sub, dep] = data[i].map(v => v.toString().trim());
+    if (!dir) continue;
+
+    if (!tree[dir]) tree[dir] = {};
+    const subKey = sub || "GENERAL"; // Para direcciones sin subdirección
+    if (!tree[dir][subKey]) tree[dir][subKey] = [];
+    if (dep && !tree[dir][subKey].includes(dep)) tree[dir][subKey].push(dep);
+  }
+
   return {
-    coords: ["Coordinación General de Buen Gobierno", "Coordinación General de Justicia Social y Desarrollo Humano", "Coordinación General de Desarrollo Ordenado y Gestión de la Ciudad", "AYUNTAMIENTO", "Organismos Paramunicipales"],
-    dirs: ["Presidencia Municipal", "Oficina de Presidencia", "Secretaría Municipal", "Instituto Municipal de Planeación de Mérida", "Secretaría de Participación y Atención Ciudadana", "Unidad de Transparencia y Municipio Abierto", "Unidad de Comunicación Ciudadana", "Unidad de Contraloría Municipal", "Dirección de la Policía Municipal", "Dirección de Gobernación", "Dirección de Administración", "Dirección de Finanzas y Tesorería Municipal", "Dirección de Innovación y Gobierno Inteligente", "Secretaría Técnica de Planeación, seguimiento y evaluación", "Dirección de Desarrollo Integral de la Familia", "Dirección de Desarrollo Social y Combate a la Pobreza", "Unidad de Turismo", "Dirección de Bienestar Humano", "Dirección de Prosperidad y Bienestar Económico", "Instituto de las Mujeres", "Dirección de Cultura e Identidad", "Dirección de Desarrollo Urbano", "Dirección de Catastro Municipal", "Dirección de Obras Públicas", "Dirección de Servicios Públicos", "Unidad de Medio Ambiente y Bienestar Animal", "Secretaría Ejecutiva del Comité Permanente del Carnaval", "Reserva Cuxtal", "Central de Abastos", "Abastos de Mérida", "SERVI-LIMPIA"],
-    subs: ["01 REGIDURÍA", "02 SECRETARÍA", "03 DESPACHO DEL SÍNDICO", "04 SUBDIRECCIÓN DE LA SECRETARÍA MUNICIPAL", "01 DIRECCIÓN DE FINANZAS", "02 SUBDIRECCIÓN DE INGRESOS", "03 SUBDIRECCIÓN DE EGRESOS", "04 SUBDIRECCIÓN DE POLÍTICA TRIBUTARIA", "05 SUBDIRECCIÓN DE PRESUPUESTOS Y CONTROL DEL GASTO", "07 SUBDIRECCIÓN DE CONTABILIDAD Y ADMINISTRACIÓN", "01 DIRECCIÓN DE CONTRALORÍA MUNICIPAL", "02 SUBDIRECCIÓN DE AUDITORÍA Y SEGUIMIENTO DE ACTOS DE FISCALIZACIÓN", "03 SUBDIRECCIÓN DE NORMATIVIDAD Y RESPONSABILIDADES", "01 DIRECCIÓN DE ADMINISTRACIÓN", "03 SUBDIRECCIÓN DE ADMINISTRACIÓN y DE PROVEEDURÍA", "05 SUBDIRECCIÓN DE RECURSOS HUMANOS", "06 SUBDIRECCIÓN DE SERVICIOS INTERNOS", "08 SUBDIRECCIÓN DE MEJORA REGULATORIA", "10 SUBDIRECCIÓN DE VENTANILLAS ÚNICAS", "11 SUBDIRECCIÓN DE PATRIMONIO MUNICIPAL", "01 DIRECCIÓN DE DESARROLLO SOCIAL Y COMBATE A LA POBREZA", "02 SUBDIRECCIÓN DE PROMOCIÓN SOCIAL", "03 SUBDIRECCIÓN DE PARTICIPACIÓN CIUDADANA", "04 SUBDIRECCIÓN DE INFRAESTRUCTURA SOCIAL", "07 SUBDIRECCIÓN DE ATENCIÓN A COMISARÍAS", "08 SECRETARÍA TÉCNICA DE COMBATE A LA POBREZA", "01 DIRECCIÓN DE SERVICIOS PÚBLICOS", "02 SUBDIRECCIÓN DE VERIFICACIÓN Y GESTIÓN", "03 SUBDIRECCIÓN DE SERVICIOS GENERALES", "04 SUBDIRECCIÓN DE SERVICIOS ORIENTE", "05 SUBDIRECCIÓN DE ADMINISTRACIÓN", "08 SUBDIRECCIÓN DE SERVICIOS BÁSICOS PONIENTE", "01 OBRAS PÚBLICAS", "02 OBRAS E INFRAESTRUCTURA", "03 VÍAS TERRESTRES", "04 SUBDIRECCIÓN DE ADMINISTRACIÓN", "05 PLANEACIÓN Y ORGANIZACIÓN DE OBRAS", "01 DIRECCIÓN DE DESARROLLO URBANO", "03 SUBDIRECCIÓN DE GESTIÓN Y CONTROL DEL TERRITORIO", "04 SUBDIRECCIÓN DE PATRIMONIO CULTURAL", "05 SUBDIRECCIÓN JURÍDICA", "06 SUBDIRECCIÓN DE NUEVOS DESARROLLOS", "07 SUBDIRECCIÓN DE CALIDAD Y ATENCION CIUDADANA", "01 INSTITUTO DE LAS MUJERES", "02 SUBDIRECCIÓN DE ATENCIÓN A LAS VIOLENCIAS", "01 UNIDAD DE TRANSPARENCIA DEL MUNICIPIO DE MÉRIDA", "01 DIRECCIÓN DE INNOVACIÓN Y GOBIERNO INTELIGENTE", "02 SUBDIRECCIÓN DE INGENIERÍA DE SOFTWARE", "03 SUBDIRECCIÓN DE INFRAESTRUCTURA", "04 SUBDIRECCIÓN DE INNOVACIÓN", "01 DIRECCIÓN DE DESARROLLO INTEGRAL DE LA FAMILIA (DIF MUNICIPAL)", "02 SUBDIRECCIÓN DE DESARROLLO INTEGRAL DE LA FAMILIA (DIF MUNICIPAL)", "01 DIRECCIÓN DE GOBERNACIÓN", "02 SUBDIRECCIÓN DE CONSEJERÍA JURÍDICA", "03 SUBDIRECCIÓN DE ASUNTOS JURÍDICOS", "04 SUBDIRECCIÓN OPERATIVA", "07 SUBDIRECCIÓN DE GOBERNACIÓN", "01 DIRECCIÓN DE BIENESTAR HUMANO", "02 SUBDIRECCIÓN DE SALUD", "03 SUBDIRECCIÓN DE DEPORTES", "04 SUBDIRECCIÓN DE ADMINISTRACIÓN", "05 SUBDIRECCIÓN DE EDUCACIÓN", "01 DIRECCIÓN DE SECRETARÍA DE PARTICIPACIÓN Y ATENCIÓN CIUDADANA", "03 SUBDIRECTOR DE PARTICIPACIÓN SOCIAL", "04 UNIDAD DE ATENCIÓN CIUDADANA", "01 DIRECCIÓN DE CATASTRO", "02 SUBDIRECCIÓN DE OPERACIONES Y PROCESOS", "03 SUBDIRECCIÓN TÉCNICA", "01 DIRECCIÓN DE IDENTIDAD Y CULTURA", "02 SUBDIRECCIÓN OPERATIVA", "03 SUBDIRECCIÓN DE CONSERVACIÓN Y DIFUSIÓN PATRIMONIAL", "04 SUBDIRECCIÓN DE CULTURA", "01 DESPACHO DEL DIRECTOR", "02 SUBDIRECCIÓN DE INFRAESTRUCTURA VERDE", "03 SUBDIRECCIÓN DE BIENESTAR ANIMAL", "01 COORDINACIÓN GENERAL DE BUEN GOBIERNO", "02 SUBDIRECCIÓN DE PROYECTOS ESPECIALES", "03 SUBDIRECCIÓN DE LOGÍSTICA", "04 SUBDIRECCIÓN DE RELACIONES PÚBLICAS Y PROTOCOLO", "05 SECRETARÍA TÉCNICA DE GESTIÓN ADMINISTRATIVA", "06 SECRETARÍA TÉCNICA DE COORDINACIÓN DE ENTIDADES PARAMUNICIPALES", "07 SECRETARIA TÉCNICA DE PLANEACIÓN, SEGUIMIENTO Y EVALUACIÓN", "09 SUBDIRECCIÓN ESPECIALIZADA EN ESTABLECIMIENTOS FIJOS, SEMIFIJOS Y AMBULANTAJE", "10 SUBDIRECCIÓN DE MERCADOS PÚBLICOS", "01 COORDINACIÓN GENERAL DE JUSTICIA SOCIAL Y DESARROLLO HUMANO", "03 UNIDAD DE TURISMO", "01 COORDINACIÓN GENERAL DE DESARROLLO ORDENADO Y GESTIÓN DE LA CIUDAD", "02 SECRETARÍA TÉCNICA DE GESTIÓN INTEGRAL DE RESIDUOS MUNICIPALES", "03 SUBDIRECCIÓN DE RESIDUOS MUNICIPALES", "04 SUBDIRECCIÓN DE PLANEACIÓN Y PROYECTOS DE RESIDUOS MUNICIPALES", "01 DIRECCIÓN DE PROSPERIDAD Y BIENESTAR ECONÓMICO", "02 SUBDIRECCIÓN DE BIENESTAR ECONÓMICO", "04 SUBDIRECCIÓN DE PROSPERIDAD", "01 DESPACHO DEL DIRECTOR", "02 SUBDIRECCIÓN DE PREVENCIÓN SOCIAL DEL DELITO Y PARTICIPACIÓN CIUDADANA", "03 SUBDIRECCIÓN DE ÁREAS DE APOYO", "04 SUBDIRECCIÓN GENERAL OPERATIVA", "05 GUARDAPARQUES", "N/A"]
+    tree: tree,
+    coords: ["Coordinación General de Buen Gobierno", "Coordinación General de Justicia Social y Desarrollo Humano", "Coordinación General de Desarrollo Ordenado y Gestión de la Ciudad", "AYUNTAMIENTO", "Organismos Paramunicipales"]
   };
 }
 

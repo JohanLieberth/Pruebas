@@ -12,15 +12,19 @@
           </div>
           <div class="mb-3">
             <label class="form-label small fw-bold">Dirección</label>
-            <select class="form-select form-select-sm" id="doc_dir" required></select>
+            <select class="form-select form-select-sm" id="doc_dir" required onchange="onDirectionChange()"></select>
           </div>
           <div class="mb-3">
             <label class="form-label small fw-bold">Subdirección</label>
-            <select class="form-select form-select-sm" id="doc_sub" required></select>
+            <select class="form-select form-select-sm" id="doc_sub" onchange="onSubdirectionChange()">
+              <option value="">Seleccionar...</option>
+            </select>
           </div>
           <div class="mb-3">
             <label class="form-label small fw-bold">Departamento</label>
-            <input type="text" class="form-control form-control-sm" id="doc_dept" required>
+            <select class="form-select form-select-sm" id="doc_dept" required>
+              <option value="">Seleccionar...</option>
+            </select>
           </div>
           <div class="mb-3">
             <label class="form-label small fw-bold">Número Revisión</label>
@@ -28,14 +32,19 @@
           </div>
           <div class="mb-3">
             <label class="form-label small fw-bold d-block">Tipo Documento</label>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="doc_tipo" id="tipoPol" value="Política" checked onclick="renderWizard()">
-              <label class="form-check-label small" for="tipoPol">Política</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="doc_tipo" id="tipoProc" value="Proceso" onclick="renderWizard()">
-              <label class="form-check-label small" for="tipoProc">Proceso</label>
-            </div>
+            <select class="form-select form-select-sm" id="doc_tipo_select" name="doc_tipo" onchange="renderWizard()">
+              <option value="Política">Política</option>
+              <option value="Proceso" selected>Procedimiento</option>
+              <option value="Instructivo">Instructivo</option>
+              <option value="Descriptiva de Puesto">Descriptiva de Puesto</option>
+              <option value="Formato">Formato</option>
+              <option value="Documento">Documento</option>
+              <option value="Especificación Técnica">Especificación Técnica</option>
+              <option value="Mapa de Proceso">Mapa de Proceso</option>
+              <option value="Macroprocesos">Macroprocesos</option>
+              <option value="Manual de Calidad">Manual de Calidad</option>
+              <option value="Plan de Calidad">Plan de Calidad</option>
+            </select>
           </div>
           <hr>
           <div class="text-center">
