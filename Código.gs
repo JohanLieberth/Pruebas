@@ -503,7 +503,7 @@ function getCatalogs() {
     if (!dir) continue;
 
     if (!tree[dir]) tree[dir] = {};
-    const subKey = sub || "GENERAL"; // Para direcciones sin subdirección
+    const subKey = sub || "N/A"; // Cambiado de GENERAL a N/A
     if (!tree[dir][subKey]) tree[dir][subKey] = [];
     if (dep && !tree[dir][subKey].includes(dep)) tree[dir][subKey].push(dep);
   }

@@ -267,21 +267,20 @@
 
     if (dir && catalogTree[dir]) {
       const subs = Object.keys(catalogTree[dir]);
-      // Si solo hay "GENERAL", ocultar subdirección o saltar a deptos
-      subs.forEach(s => { if(s !== 'GENERAL') subSel.append(`<option value="${s}">${s}</option>`); });
+      subs.forEach(s => {
+        subSel.append(`<option value="${s}">${s}</option>`);
+      });
 
       if (savedSub) {
         subSel.val(savedSub);
         onSubdirectionChange(currentDoc.departamento);
-      } else if (subs.includes('GENERAL') && subs.length === 1) {
-        onSubdirectionChange(); // Cargar deptos generales
       }
     }
   }
 
   function onSubdirectionChange(savedDept = null) {
     const dir = $('#doc_dir').val();
-    let sub = $('#doc_sub').val() || "GENERAL";
+    let sub = $('#doc_sub').val() || "N/A";
     const deptSel = $('#doc_dept');
 
     deptSel.empty().append('<option value="">Seleccionar...</option>');
