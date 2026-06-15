@@ -41,12 +41,6 @@ function doGet(e) {
   }
 }
 
-/**
- * Includes HTML files within other HTML files.
- */
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
 
 /**
  * Gets initial data for the registration form.
