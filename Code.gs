@@ -47,9 +47,24 @@ function doGet(e) {
  */
 /**
  * Helper to get the active spreadsheet safely.
+ * When running as a Web App accessed by third parties, getActiveSpreadsheet()
+ * might return null if the script is not container-bound or due to security contexts.
+ * We use a fallback to openById if necessary.
  */
 function getSS() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  let ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    const ssId = PropertiesService.getScriptProperties().getProperty('SS_ID');
+    if (ssId) {
+      ss = SpreadsheetApp.openById(ssId);
+    }
+  }
+
+  if (!ss) {
+    throw new Error("No se pudo vincular la base de datos. Por favor, inicializa el sistema desde el menú del Sheet.");
+  }
+
+  return ss;
 }
 
 function getInitialData() {
@@ -376,6 +391,11 @@ function exportToCSV(password) {
  */
 function initializeSystem() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Store SS ID for third-party access fallback
+  if (ss) {
+    PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
+  }
 
   // 1. Sheet "Registros"
   let registrosSheet = ss.getSheetByName(CONFIG.SHEET_REGISTROS);
