@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <div class="container py-4">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row justify-content-center">
+        <div class="col-md-8">
+          <div class="card" id="formCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h4 class="mb-0">Registro de Servicio Técnico</h4>
+              <a href="<?= getScriptUrl() ?>" class="btn btn-sm btn-outline-light"><i class="fas fa-home"></i></a>
+            </div>
+            <div class="card-body">
+              <form id="registroForm">
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Nombre del Cliente *</label>
+                    <input type="text" name="nombre" class="form-control" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Teléfono (10 dígitos) *</label>
+                    <input type="tel" name="telefono" class="form-control" pattern="[0-9]{10}" required>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Correo Electrónico *</label>
+                  <input type="email" name="correo" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Dispositivo a recibir *</label>
+                  <input type="text" name="dispositivo" class="form-control" placeholder="Ej: PS5, Joycon Izquierdo, Nintendo Switch..." required>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Descripción de la falla *</label>
+                  <textarea name="falla" class="form-control" rows="3" required></textarea>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Estado físico del equipo *</label>
+                  <input type="text" name="estadoEquipo" class="form-control" placeholder="Ej: Rayado, le falta un tornillo, tapa suelta..." required>
+                </div>
+
+                <div class="mb-4">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="disclaimerCheck" required>
+                    <label class="form-check-label disclaimer-text" for="disclaimerCheck">
+                      <?= getDisclaimer() ?>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="d-grid">
+                  <button type="submit" class="btn btn-primary btn-lg">Registrar Servicio</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div id="successCard" class="card text-center d-none">
+            <div class="card-body py-5">
+              <i class="fas fa-check-circle fa-5x text-success mb-4"></i>
+              <h2 class="mb-3">¡Registro Exitoso!</h2>
+              <p class="lead mb-4">El folio generado es:</p>
+              <h1 class="display-3 fw-bold text-primary mb-4" id="folioDisplay">BF-00000</h1>
+              <p class="mb-5 text-muted">Se ha enviado un correo de confirmación al cliente.</p>
+
+              <div class="d-flex justify-content-center gap-3">
+                <button class="btn btn-outline-dark" onclick="imprimirTicket('completo')">
+                  <i class="fas fa-print me-2"></i>Ticket Cliente
+                </button>
+                <button class="btn btn-outline-dark" onclick="imprimirTicket('corto')">
+                  <i class="fas fa-tag me-2"></i>Etiqueta
+                </button>
+              </div>
+              <div class="mt-4">
+                <a href="<?= getScriptUrl() ?>?page=registro" class="btn btn-link">Registrar otro equipo</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <?!= include('JS'); ?>
+    <script>
+      let currentFolio = '';
+
+      document.getElementById('registroForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showLoading(true);
+
+        const formData = {
+          nombre: this.nombre.value,
+          telefono: this.telefono.value,
+          correo: this.correo.value,
+          dispositivo: this.dispositivo.value,
+          falla: this.falla.value,
+          estadoEquipo: this.estadoEquipo.value
+        };
+
+        google.script.run
+          .withSuccessHandler(function(result) {
+            showLoading(false);
+            if (result.success) {
+              currentFolio = result.folio;
+              document.getElementById('folioDisplay').innerText = result.folio;
+              document.getElementById('formCard').classList.add('d-none');
+              document.getElementById('successCard').classList.remove('d-none');
+              window.scrollTo(0,0);
+            } else {
+              showAlert('Error al registrar: ' + result.message);
+            }
+          })
+          .withFailureHandler(function(err) {
+            showLoading(false);
+            showAlert('Error de conexión: ' + err.message);
+          })
+          .registrarServicio(formData);
+      });
+
+      function imprimirTicket(tipo) {
+        const url = '<?= getScriptUrl() ?>?page=imprimir&folio=' + currentFolio + '&tipo=' + tipo;
+        window.open(url, '_blank');
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <div class="container py-5">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row justify-content-center">
+        <div class="col-md-6">
+          <div class="text-center mb-4">
+            <a href="<?= getScriptUrl() ?>" class="text-decoration-none">
+              <i class="fas fa-gamepad fa-3x text-primary mb-2"></i>
+              <h2 class="text-dark">GameService Pro</h2>
+            </a>
+            <p class="text-muted">Consulta de Estatus de Servicio</p>
+          </div>
+
+          <div id="estatusContainer">
+            <!-- Loaded via JS -->
+            <div class="card shadow-sm mb-4">
+              <div class="card-body p-4 text-center">
+                <div class="spinner-border text-secondary mb-3" role="status"></div>
+                <p>Buscando información del folio <strong id="folioUrl"><?= data.folio ?></strong>...</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-center">
+            <a href="<?= getScriptUrl() ?>" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left me-2"></i>Nueva Consulta
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <?!= include('JS'); ?>
+    <script>
+      window.addEventListener('load', function() {
+        const folio = '<?= data.folio ?>';
+        if (folio) {
+          consultarEstatus(folio);
+        } else {
+          window.top.location.href = '<?= getScriptUrl() ?>';
+        }
+      });
+
+      function consultarEstatus(folio) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            const container = document.getElementById('estatusContainer');
+            if (res) {
+              container.innerHTML = `
+                <div class="card shadow mb-4">
+                  <div class="card-header bg-primary text-white text-center py-3">
+                    <h4 class="mb-0">Folio: ${res.Folio}</h4>
+                  </div>
+                  <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                      <div class="mb-2">Estatus Actual:</div>
+                      ${formatStatus(res.Estatus).replace('status-badge', 'status-badge fs-4')}
+                    </div>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                      <div class="col-5 fw-bold">Cliente:</div>
+                      <div class="col-7">${res.Nombre}</div>
+                    </div>
+                    <div class="row mb-3">
+                      <div class="col-5 fw-bold">Dispositivo:</div>
+                      <div class="col-7">${res.Dispositivo}</div>
+                    </div>
+                    <div class="row mb-3">
+                      <div class="col-5 fw-bold">Falla:</div>
+                      <div class="col-7">${res.Falla}</div>
+                    </div>
+                    <div class="row mb-3">
+                      <div class="col-5 fw-bold">Fecha Entrega:</div>
+                      <div class="col-7 text-primary fw-bold">${res.FechaEntrega || 'Pendiente por confirmar'}</div>
+                    </div>
+
+                    ${res.Solucion ? `
+                    <div class="alert alert-success mt-4">
+                      <h6 class="alert-heading fw-bold">Solución Aplicada:</h6>
+                      <p class="mb-0 small">${res.Solucion}</p>
+                    </div>
+                    ` : ''}
+                  </div>
+                </div>
+                <div class="alert alert-light border small text-muted text-center mb-4">
+                  <i class="fas fa-info-circle me-2"></i>Los tiempos de reparación pueden variar según la disponibilidad de piezas.
+                </div>
+              `;
+            } else {
+              container.innerHTML = `
+                <div class="alert alert-danger text-center">
+                  <i class="fas fa-exclamation-triangle fa-2x mb-3 d-block"></i>
+                  <h5>Folio no encontrado</h5>
+                  <p>Verifica que el folio <strong>${folio}</strong> sea correcto.</p>
+                </div>
+              `;
+            }
+          })
+          .obtenerEstatusPorFolio(folio);
+      }
+    </script>
+  </body>
+</html>

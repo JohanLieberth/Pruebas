@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+      <div class="container">
+        <a class="navbar-brand" href="#"><i class="fas fa-gamepad me-2"></i>Mis Servicios</a>
+        <div class="ms-auto">
+          <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row mb-4">
+        <div class="col">
+          <h2 id="userName">Hola</h2>
+          <p class="text-muted">Aquí puedes ver el historial de tus equipos en nuestro taller.</p>
+        </div>
+      </div>
+
+      <div class="row g-4" id="servicesGrid">
+        <!-- Loaded via JS -->
+      </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Detalle del Servicio</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="detailsBody">
+            <!-- Content -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?!= include('JS'); ?>
+    <script>
+      let currentUser;
+      let detailsModal;
+
+      window.addEventListener('load', function() {
+        const userStr = sessionStorage.getItem('user');
+        if (!userStr) {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+          return;
+        }
+        currentUser = JSON.parse(userStr);
+        document.getElementById('userName').innerText = 'Hola, ' + currentUser.nombre;
+        detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+        cargarMisServicios();
+      });
+
+      function cargarMisServicios() {
+        showLoading(true);
+        google.script.run
+          .withSuccessHandler(function(servicios) {
+            showLoading(false);
+            const grid = document.getElementById('servicesGrid');
+            grid.innerHTML = '';
+
+            if (servicios.length === 0) {
+              grid.innerHTML = '<div class="col-12 text-center py-5"><i class="fas fa-box-open fa-3x text-muted mb-3"></i><p>No tienes servicios registrados con este correo.</p></div>';
+              return;
+            }
+
+            servicios.forEach(s => {
+              const col = document.createElement('div');
+              col.className = 'col-md-6 col-lg-4';
+              col.innerHTML = `
+                <div class="card h-100">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <span class="fw-bold text-primary">${s.Folio}</span>
+                      ${formatStatus(s["Estatus (admin)"])}
+                    </div>
+                    <h5 class="card-title">${s["Dispositivo a recibir"]}</h5>
+                    <p class="card-text small text-muted mb-3">${s["Fecha de recepción"]}</p>
+                    <div class="d-grid">
+                      <button class="btn btn-outline-primary btn-sm" onclick='verDetalle(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
+                        Ver detalles
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              grid.appendChild(col);
+            });
+          })
+          .obtenerServicios({ rol: 'cliente', correo: currentUser.email });
+      }
+
+      function verDetalle(s) {
+        const body = document.getElementById('detailsBody');
+        body.innerHTML = `
+          <div class="mb-3">
+            <label class="fw-bold small text-uppercase text-muted">Falla reportada:</label>
+            <p>${s["Descripción de la falla"]}</p>
+          </div>
+          <div class="mb-3">
+            <label class="fw-bold small text-uppercase text-muted">Estado del equipo:</label>
+            <p>${s["Estado del equipo"]}</p>
+          </div>
+          <div class="mb-3">
+            <label class="fw-bold small text-uppercase text-muted">Solución / Notas:</label>
+            <p>${s["Solución aplicada (admin)"] || 'Pendiente de revisión'}</p>
+          </div>
+          <div class="mb-3">
+            <label class="fw-bold small text-uppercase text-muted">Fecha Estimada de Entrega:</label>
+            <p>${s["Fecha de entrega (admin)"] || 'Por confirmar'}</p>
+          </div>
+        `;
+        detailsModal.show();
+      }
+
+      function logout() {
+        sessionStorage.clear();
+        window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+      }
+    </script>
+  </body>
+</html>
