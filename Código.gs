@@ -13,6 +13,9 @@ const CONFIG = {
 };
 
 function doGet(e) {
+  e = e || {};
+  e.parameter = e.parameter || {};
+
   let page = e.parameter.page || 'index';
   let folio = e.parameter.folio;
   let tipo = e.parameter.tipo;
@@ -23,6 +26,9 @@ function doGet(e) {
 
   if (page === 'imprimir' && folio) {
     const servicio = obtenerDatosCompletosServicio(folio);
+    if (!servicio) {
+      return render('Error', { mensaje: "Folio no encontrado: " + folio });
+    }
     return render('Imprimir', { servicio: servicio, tipo: tipo, scriptUrl: getScriptUrl() });
   }
 
@@ -31,6 +37,10 @@ function doGet(e) {
 
 function render(templateName, data = {}) {
   try {
+    if (!templateName || typeof templateName !== 'string') {
+      return HtmlService.createHtmlOutput("Error: Nombre de plantilla inválido.");
+    }
+
     const template = HtmlService.createTemplateFromFile(templateName);
     template.data = data;
     return template.evaluate()
@@ -38,7 +48,8 @@ function render(templateName, data = {}) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (e) {
-    return HtmlService.createHtmlOutput("Error: " + e.toString());
+    console.error("Error en render(): " + e.toString());
+    return HtmlService.createHtmlOutput("Error cargando página: " + e.toString());
   }
 }
 
@@ -57,7 +68,16 @@ function capitalize(s) {
  */
 
 function getSS() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      throw new Error("No hay una hoja de cálculo activa vinculada.");
+    }
+    return ss;
+  } catch (e) {
+    console.error("Error en getSS(): " + e.toString());
+    throw e;
+  }
 }
 
 function getSheet(name) {
@@ -91,9 +111,11 @@ function generateFolio() {
 
     if (lastRow > 1) {
       const lastFolio = sheet.getRange(lastRow, 1).getValue();
-      const match = lastFolio.match(/\d+$/);
-      if (match) {
-        nextNum = parseInt(match[0]) + 1;
+      if (lastFolio && typeof lastFolio === 'string') {
+        const match = lastFolio.match(/\d+$/);
+        if (match) {
+          nextNum = parseInt(match[0]) + 1;
+        }
       }
     }
 
@@ -122,6 +144,10 @@ function registrarUsuarioCliente(datos) {
 }
 
 function registrarServicio(datos) {
+  if (!datos || typeof datos !== 'object') {
+    return { success: false, message: "Datos de registro no proporcionados." };
+  }
+
   // Server-side validation
   if (!datos.nombre || !datos.telefono || !datos.correo || !datos.dispositivo || !datos.falla) {
     return { success: false, message: "Todos los campos obligatorios deben ser llenados." };
@@ -191,7 +217,12 @@ function registrarServicio(datos) {
 }
 
 function getScriptUrl() {
-  return ScriptApp.getService().getUrl();
+  try {
+    return ScriptApp.getService().getUrl();
+  } catch (err) {
+    console.error("Error obteniendo URL del script: " + err.toString());
+    return "";
+  }
 }
 
 function validarLogin(correo, pass) {
@@ -311,7 +342,9 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, tot
       sheet.getRange(i + 1, 9).setValue(estatus);
       sheet.getRange(i + 1, 10).setValue(solucion);
       sheet.getRange(i + 1, 11).setValue(fechaEntrega);
-      sheet.getRange(i + 1, 13).setValue(total);
+      if (total !== undefined && total !== null) {
+        sheet.getRange(i + 1, 13).setValue(total);
+      }
 
       if (estatus === "Listo" && oldStatus !== "Listo") {
         const config = getConfig();
