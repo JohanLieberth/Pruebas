@@ -88,6 +88,10 @@
                       <div class="col-5 fw-bold">Fecha Entrega:</div>
                       <div class="col-7 text-primary fw-bold">${res.FechaEntrega || 'Pendiente por confirmar'}</div>
                     </div>
+                    <div class="row mb-3">
+                      <div class="col-5 fw-bold">Total:</div>
+                      <div class="col-7 text-success fw-bold">$${res.Total || '0.00'}</div>
+                    </div>
 
                     ${res.Solucion ? `
                     <div class="alert alert-success mt-4">

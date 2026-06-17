@@ -25,7 +25,7 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
+            <li class="nav-item" id="navRegistro" style="display: none;">
               <a class="nav-link" href="<?= getScriptUrl() ?>?page=registro">Registro Nuevo</a>
             </li>
             <li class="nav-item">
@@ -49,17 +49,14 @@
           </div>
           <h1 class="display-4 mb-4" id="welcomeText">Bienvenido a GameService Pro</h1>
 
-          <div id="videoContainer" class="mb-5 d-none">
-            <video id="promoVideo" width="100%" height="auto" controls muted autoplay loop>
-              <source src="" type="video/mp4">
-              Tu navegador no soporta el elemento de video.
-            </video>
+          <div id="videoContainer" class="mb-5 d-none" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; background: #000; border-radius: 8px;">
+            <div id="videoPlayer"></div>
           </div>
 
           <p class="lead mb-5">Gestión profesional de servicios técnicos para tus consolas y accesorios.</p>
 
           <div class="row g-4">
-            <div class="col-md-6">
+            <div class="col-md-6" id="cardRegistro" style="display: none;">
               <div class="card h-100 p-4">
                 <i class="fas fa-tools fa-3x mb-3 text-primary"></i>
                 <h3>Registrar Equipo</h3>
@@ -88,7 +85,7 @@
     <script>
       window.addEventListener('load', function() {
         cargarConfig();
-        checkVideoVisibility();
+        checkAccess();
       });
 
       function cargarConfig() {
@@ -105,25 +102,39 @@
               document.getElementById('systemName').style.display = 'none';
             }
             if (config["URL_Video_Promocional"]) {
-              const userStr = sessionStorage.getItem('user');
-              const user = userStr ? JSON.parse(userStr) : null;
-              if (user && user.rol === 'cliente') {
-                document.getElementById('promoVideo').querySelector('source').src = config["URL_Video_Promocional"];
-                document.getElementById('promoVideo').load();
-                document.getElementById('videoContainer').classList.remove('d-none');
+              const videoUrl = config["URL_Video_Promocional"];
+              const videoContainer = document.getElementById('videoContainer');
+              const playerDiv = document.getElementById('videoPlayer');
+
+              videoContainer.classList.remove('d-none');
+
+              if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                let videoId = '';
+                if (videoUrl.includes('v=')) {
+                  videoId = videoUrl.split('v=')[1].split('&')[0];
+                } else if (videoUrl.includes('youtu.be/')) {
+                  videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
+                }
+                playerDiv.innerHTML = `<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+              } else {
+                videoContainer.style.paddingBottom = '0';
+                videoContainer.style.height = 'auto';
+                playerDiv.innerHTML = `<video id="promoVideo" width="100%" height="auto" controls muted autoplay loop>
+                  <source src="${videoUrl}" type="video/mp4">
+                  Tu navegador no soporta el elemento de video.
+                </video>`;
               }
             }
           })
           .getConfig();
       }
 
-      function checkVideoVisibility() {
+      function checkAccess() {
         const userStr = sessionStorage.getItem('user');
         const user = userStr ? JSON.parse(userStr) : null;
-        if (user && user.rol === 'cliente') {
-          // Video logic is handled in cargarConfig once URL is known
-        } else {
-          document.getElementById('videoContainer').classList.add('d-none');
+        if (user && (user.rol === 'Administrador' || user.rol === 'Supervisor')) {
+          document.getElementById('navRegistro').style.display = 'block';
+          document.getElementById('cardRegistro').style.display = 'block';
         }
       }
 

@@ -309,7 +309,8 @@ function obtenerEstatusPorFolio(folio) {
         Estatus: data[i][8],
         FechaEntrega: data[i][10],
         Falla: data[i][6],
-        Solucion: data[i][9]
+        Solucion: data[i][9],
+        Total: data[i][12]
       };
     }
   }
@@ -362,6 +363,7 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, tot
             <p>Hola <strong>${nombre}</strong>,</p>
             <p>Tu equipo ya está listo para ser recogido.</p>
             <p><strong>Solución aplicada:</strong> ${solucion}</p>
+            <p><strong>Total a pagar:</strong> $${total || '0.00'}</p>
             <p>Por favor, acude a nuestra sucursal en el horario de atención.</p>
             <br>
             <p style="font-size: 0.8em; color: #666;">${CONFIG.RECOLECCION_AVISO}</p>
@@ -409,7 +411,7 @@ function getDashboardStats() {
   };
 
   for (let i = 1; i < data.length; i++) {
-    const estatus = data[i][8];
+    const estatus = (data[i][8] || "").toString().trim();
     if (stats.hasOwnProperty(estatus)) {
       stats[estatus]++;
     }
