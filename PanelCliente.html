@@ -13,8 +13,12 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark mb-4">
       <div class="container">
-        <a class="navbar-brand" href="#"><i class="fas fa-gamepad me-2"></i>Mis Servicios</a>
-        <div class="ms-auto">
+        <a class="navbar-brand d-flex align-items-center" href="<?= getScriptUrl() ?>">
+          <img id="headerLogo" src="" alt="Logo" style="height: 40px; margin-right: 10px; display: none;">
+          <span id="systemName">Mis Servicios</span>
+        </a>
+        <div class="ms-auto d-flex align-items-center">
+          <a href="<?= getScriptUrl() ?>" class="btn btn-outline-light btn-sm me-2">Inicio</a>
           <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
         </div>
       </div>
@@ -57,6 +61,7 @@
       let detailsModal;
 
       window.addEventListener('load', function() {
+        cargarConfig();
         const userStr = sessionStorage.getItem('user');
         if (!userStr) {
           window.top.location.href = '<?= getScriptUrl() ?>?page=login';
@@ -68,6 +73,18 @@
         cargarMisServicios();
       });
 
+      function cargarConfig() {
+        google.script.run
+          .withSuccessHandler(function(config) {
+            if (config["Logo Pequeño"]) {
+              document.getElementById('headerLogo').src = config["Logo Pequeño"];
+              document.getElementById('headerLogo').style.display = 'inline-block';
+              document.getElementById('systemName').style.display = 'none';
+            }
+          })
+          .getConfig();
+      }
+
       function cargarMisServicios() {
         showLoading(true);
         google.script.run
@@ -75,6 +92,9 @@
             showLoading(false);
             const grid = document.getElementById('servicesGrid');
             grid.innerHTML = '';
+
+            // Fix: ensure we only show services for the logged in user
+            servicios = servicios.filter(s => s["Correo electrónico"] === currentUser.email);
 
             if (servicios.length === 0) {
               grid.innerHTML = '<div class="col-12 text-center py-5"><i class="fas fa-box-open fa-3x text-muted mb-3"></i><p>No tienes servicios registrados con este correo.</p></div>';
@@ -92,7 +112,8 @@
                       ${formatStatus(s["Estatus (admin)"])}
                     </div>
                     <h5 class="card-title">${s["Dispositivo a recibir"]}</h5>
-                    <p class="card-text small text-muted mb-3">${s["Fecha de recepción"]}</p>
+                    <p class="card-text small text-muted mb-1">${s["Fecha de recepción"]}</p>
+                    <p class="card-text fw-bold text-success mb-3">Total: $${s.Total || '0.00'}</p>
                     <div class="d-grid">
                       <button class="btn btn-outline-primary btn-sm" onclick='verDetalle(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
                         Ver detalles
@@ -125,6 +146,10 @@
           <div class="mb-3">
             <label class="fw-bold small text-uppercase text-muted">Fecha Estimada de Entrega:</label>
             <p>${s["Fecha de entrega (admin)"] || 'Por confirmar'}</p>
+          </div>
+          <div class="mb-3">
+            <label class="fw-bold small text-uppercase text-muted">Total:</label>
+            <p class="fs-5 fw-bold text-success">$${s.Total || '0.00'}</p>
           </div>
         `;
         detailsModal.show();

@@ -16,8 +16,9 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark mb-4">
       <div class="container">
-        <a class="navbar-brand" href="<?= getScriptUrl() ?>">
-          <i class="fas fa-gamepad me-2"></i>GameService Pro
+        <a class="navbar-brand d-flex align-items-center" href="<?= getScriptUrl() ?>">
+          <img id="headerLogo" src="" alt="Logo" style="height: 40px; margin-right: 10px; display: none;">
+          <span id="systemName">GameService Pro</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
@@ -43,7 +44,18 @@
 
       <div class="row justify-content-center mt-5">
         <div class="col-md-8 text-center">
-          <h1 class="display-4 mb-4">Bienvenido a GameService Pro</h1>
+          <div id="mainLogoContainer" class="mb-4">
+            <img id="mainLogo" src="" alt="Logo Principal" style="max-width: 400px; display: none;">
+          </div>
+          <h1 class="display-4 mb-4" id="welcomeText">Bienvenido a GameService Pro</h1>
+
+          <div id="videoContainer" class="mb-5 d-none">
+            <video id="promoVideo" width="100%" height="auto" controls muted autoplay loop>
+              <source src="" type="video/mp4">
+              Tu navegador no soporta el elemento de video.
+            </video>
+          </div>
+
           <p class="lead mb-5">Gestión profesional de servicios técnicos para tus consolas y accesorios.</p>
 
           <div class="row g-4">
@@ -74,6 +86,47 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?!= include('JS'); ?>
     <script>
+      window.addEventListener('load', function() {
+        cargarConfig();
+        checkVideoVisibility();
+      });
+
+      function cargarConfig() {
+        google.script.run
+          .withSuccessHandler(function(config) {
+            if (config["Logo Principal"]) {
+              document.getElementById('mainLogo').src = config["Logo Principal"];
+              document.getElementById('mainLogo').style.display = 'inline-block';
+              document.getElementById('welcomeText').style.display = 'none';
+            }
+            if (config["Logo Pequeño"]) {
+              document.getElementById('headerLogo').src = config["Logo Pequeño"];
+              document.getElementById('headerLogo').style.display = 'inline-block';
+              document.getElementById('systemName').style.display = 'none';
+            }
+            if (config["URL_Video_Promocional"]) {
+              const userStr = sessionStorage.getItem('user');
+              const user = userStr ? JSON.parse(userStr) : null;
+              if (user && user.rol === 'cliente') {
+                document.getElementById('promoVideo').querySelector('source').src = config["URL_Video_Promocional"];
+                document.getElementById('promoVideo').load();
+                document.getElementById('videoContainer').classList.remove('d-none');
+              }
+            }
+          })
+          .getConfig();
+      }
+
+      function checkVideoVisibility() {
+        const userStr = sessionStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : null;
+        if (user && user.rol === 'cliente') {
+          // Video logic is handled in cargarConfig once URL is known
+        } else {
+          document.getElementById('videoContainer').classList.add('d-none');
+        }
+      }
+
       function consultarFolio() {
         const folio = document.getElementById('folioInput').value;
         if (folio) {

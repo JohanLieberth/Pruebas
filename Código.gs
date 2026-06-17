@@ -66,9 +66,16 @@ function getSheet(name) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
     if (name === "Servicios") {
-      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro"]);
-    } else if (name === "Usuarios") {
-      sheet.appendRow(["Correo electrónico", "Nombre", "Teléfono", "Contraseña", "Rol"]);
+      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total"]);
+    } else if (name === "Usuarios_Admin") {
+      sheet.appendRow(["Email", "Contraseña", "Rol", "Nombre"]);
+    } else if (name === "Usuarios_Clientes") {
+      sheet.appendRow(["Email", "Contraseña", "Nombre", "Teléfono", "Fecha de Registro"]);
+    } else if (name === "Config") {
+      sheet.appendRow(["Parámetro", "Valor"]);
+      sheet.appendRow(["Logo Principal", ""]);
+      sheet.appendRow(["Logo Pequeño", ""]);
+      sheet.appendRow(["URL_Video_Promocional", ""]);
     }
   }
   return sheet;
@@ -94,6 +101,24 @@ function generateFolio() {
   } finally {
     lock.releaseLock();
   }
+}
+
+function registrarUsuarioCliente(datos) {
+  const sheet = getSheet("Usuarios_Clientes");
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === datos.email) {
+      return { success: false, message: "El correo ya está registrado." };
+    }
+  }
+  sheet.appendRow([
+    datos.email,
+    datos.password, // MVP: basic encryption or plain as requested
+    datos.nombre,
+    datos.telefono,
+    new Date()
+  ]);
+  return { success: true };
 }
 
 function registrarServicio(datos) {
@@ -130,10 +155,34 @@ function registrarServicio(datos) {
     timestamp
   ]);
 
-  const cuerpo = `Hola ${datos.nombre},\n\nTu servicio ha sido registrado con el folio: ${folio}.\n\nDispositivo: ${datos.dispositivo}\nFalla: ${datos.falla}\n\nPuedes consultar el estatus en: ${getScriptUrl()}?page=estatus&folio=${folio}\n\n${CONFIG.RECOLECCION_AVISO}`;
+  const config = getConfig();
+  let logoHtml = "";
+  if (config["Logo Principal"]) {
+    logoHtml = `<img src="${config["Logo Principal"]}" style="max-width: 200px; display: block; margin-bottom: 20px;">`;
+  }
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      ${logoHtml}
+      <h2>Registro de Servicio - ${folio}</h2>
+      <p>Hola <strong>${datos.nombre}</strong>,</p>
+      <p>Tu servicio ha sido registrado exitosamente.</p>
+      <ul>
+        <li><strong>Folio:</strong> ${folio}</li>
+        <li><strong>Dispositivo:</strong> ${datos.dispositivo}</li>
+        <li><strong>Falla:</strong> ${datos.falla}</li>
+      </ul>
+      <p>Puedes consultar el estatus en tiempo real aquí:</p>
+      <a href="${getScriptUrl()}?page=estatus&folio=${folio}" style="background-color: #e94560; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Consultar Estatus</a>
+      <br><br>
+      <p style="font-size: 0.8em; color: #666;">${CONFIG.RECOLECCION_AVISO}</p>
+    </div>
+  `;
 
   try {
-    GmailApp.sendEmail(datos.correo, `Registro de Servicio - ${folio}`, cuerpo);
+    GmailApp.sendEmail(datos.correo, `Registro de Servicio - ${folio}`, "", {
+      htmlBody: htmlBody
+    });
   } catch (e) {
     console.error("Error enviando correo: " + e.toString());
   }
@@ -146,20 +195,38 @@ function getScriptUrl() {
 }
 
 function validarLogin(correo, pass) {
-  const sheet = getSheet("Usuarios");
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === correo && data[i][3].toString() === pass.toString()) {
+  // Check Admins
+  const adminSheet = getSheet("Usuarios_Admin");
+  const adminData = adminSheet.getDataRange().getValues();
+  for (let i = 1; i < adminData.length; i++) {
+    if (adminData[i][0] === correo && adminData[i][1].toString() === pass.toString()) {
       return {
         success: true,
         user: {
-          email: data[i][0],
-          nombre: data[i][1],
-          rol: data[i][4]
+          email: adminData[i][0],
+          nombre: adminData[i][3],
+          rol: adminData[i][2] // 'Administrador' or 'Supervisor'
         }
       };
     }
   }
+
+  // Check Clients
+  const clientSheet = getSheet("Usuarios_Clientes");
+  const clientData = clientSheet.getDataRange().getValues();
+  for (let i = 1; i < clientData.length; i++) {
+    if (clientData[i][0] === correo && clientData[i][1].toString() === pass.toString()) {
+      return {
+        success: true,
+        user: {
+          email: clientData[i][0],
+          nombre: clientData[i][2],
+          rol: 'cliente'
+        }
+      };
+    }
+  }
+
   return { success: false, message: "Credenciales incorrectas" };
 }
 
@@ -234,7 +301,8 @@ function obtenerDatosCompletosServicio(folio) {
   return null;
 }
 
-function actualizarEstatus(folio, estatus, solucion, fechaEntrega) {
+function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, total) {
+  // Supervisor and Administrator can update, but only Admin should delete (handled on deletion function if any)
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
@@ -243,13 +311,34 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega) {
       sheet.getRange(i + 1, 9).setValue(estatus);
       sheet.getRange(i + 1, 10).setValue(solucion);
       sheet.getRange(i + 1, 11).setValue(fechaEntrega);
+      sheet.getRange(i + 1, 13).setValue(total);
 
       if (estatus === "Listo" && oldStatus !== "Listo") {
+        const config = getConfig();
         const correo = data[i][4];
         const nombre = data[i][1];
-        const cuerpo = `Hola ${nombre},\n\nTu equipo con folio ${folio} ya está LISTO para ser recogido.\n\nSolución: ${solucion}\n\n${CONFIG.RECOLECCION_AVISO}`;
+        let logoHtml = "";
+        if (config["Logo Principal"]) {
+          logoHtml = `<img src="${config["Logo Principal"]}" style="max-width: 200px; display: block; margin-bottom: 20px;">`;
+        }
+
+        const htmlBody = `
+          <div style="font-family: Arial, sans-serif; color: #333;">
+            ${logoHtml}
+            <h2 style="color: #2ecc71;">¡Equipo Listo! - ${folio}</h2>
+            <p>Hola <strong>${nombre}</strong>,</p>
+            <p>Tu equipo ya está listo para ser recogido.</p>
+            <p><strong>Solución aplicada:</strong> ${solucion}</p>
+            <p>Por favor, acude a nuestra sucursal en el horario de atención.</p>
+            <br>
+            <p style="font-size: 0.8em; color: #666;">${CONFIG.RECOLECCION_AVISO}</p>
+          </div>
+        `;
+
         try {
-          GmailApp.sendEmail(correo, `Equipo Listo - ${folio}`, cuerpo);
+          GmailApp.sendEmail(correo, `Equipo Listo - ${folio}`, "", {
+            htmlBody: htmlBody
+          });
         } catch (e) {
           console.error("Error enviando correo de listo: " + e.toString());
         }
@@ -258,6 +347,21 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega) {
     }
   }
   return { success: false, message: "Folio no encontrado" };
+}
+
+function eliminarServicio(folio, userRole) {
+  if (userRole !== 'Administrador') {
+    return { success: false, message: "No tienes permisos para eliminar registros." };
+  }
+  const sheet = getSheet("Servicios");
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === folio) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false, message: "Folio no encontrado." };
 }
 
 function getDashboardStats() {
@@ -292,4 +396,28 @@ function exportToCSV() {
 
 function getDisclaimer() {
   return CONFIG.RECOLECCION_AVISO;
+}
+
+function getConfig() {
+  const sheet = getSheet("Config");
+  const data = sheet.getDataRange().getValues();
+  let config = {};
+  for (let i = 1; i < data.length; i++) {
+    config[data[i][0]] = data[i][1];
+  }
+  return config;
+}
+
+function updateConfig(newConfig) {
+  const sheet = getSheet("Config");
+  const data = sheet.getDataRange().getValues();
+  for (let key in newConfig) {
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === key) {
+        sheet.getRange(i + 1, 2).setValue(newConfig[key]);
+        break;
+      }
+    }
+  }
+  return { success: true };
 }

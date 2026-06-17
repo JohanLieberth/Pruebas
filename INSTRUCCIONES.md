@@ -4,12 +4,13 @@ Sigue estos pasos para poner en marcha tu Sistema de Administración de Servicio
 
 ## 1. Preparar el Google Sheet
 1. Crea una nueva hoja de cálculo en Google Sheets.
-2. Cambia el nombre de la hoja actual (pestaña inferior) a `Servicios`.
-3. Crea una segunda pestaña llamada `Usuarios`.
-4. En la hoja `Usuarios`, agrega los encabezados en la fila 1:
-   - `Correo electrónico` | `Nombre` | `Teléfono` | `Contraseña` | `Rol`
-5. Agrega un usuario administrador para poder entrar al panel:
-   - Ejemplo: `admin@correo.com` | `Admin` | `1234567890` | `admin123` | `admin`
+2. Crea las siguientes pestañas (si no se crean automáticamente al primer inicio):
+   - `Servicios`: Historial de órdenes.
+   - `Usuarios_Admin`: `Email` | `Contraseña` | `Rol` | `Nombre`.
+   - `Usuarios_Clientes`: `Email` | `Contraseña` | `Nombre` | `Teléfono` | `Fecha de Registro`.
+   - `Config`: `Parámetro` | `Valor`.
+3. Agrega un usuario administrador en `Usuarios_Admin`:
+   - Ejemplo: `admin@correo.com` | `admin123` | `Administrador` | `Super Admin`
 
 ## 2. Configurar el Script
 1. En tu Google Sheet, ve a **Extensiones > Apps Script**.
@@ -42,6 +43,26 @@ La primera vez que ejecutes una función que envíe correos (o al implementar), 
 - Selecciona tu cuenta de Google.
 - Si aparece un aviso de "Google no ha verificado esta aplicación", haz clic en **Configuración avanzada** y luego en **Ir a [Nombre del Proyecto] (no seguro)**.
 - Haz clic en **Permitir**.
+
+## Configuración de Logos
+- **Logo Principal**: Tamaño recomendado 400x150 px. Se usa en el header principal y correos.
+- **Logo Pequeño**: Tamaño recomendado 150x60 px. Se usa en tickets, etiquetas y barra de navegación.
+- **Instrucciones**:
+  1. Sube tu imagen a Google Drive.
+  2. Haz clic derecho > Compartir > Cambiar a "Cualquier persona con el enlace".
+  3. Copia el ID del enlace (ej: `1A2B3C...`).
+  4. Usa el formato de enlace directo: `https://lh3.googleusercontent.com/d/TU_ID_AQUÍ`.
+  5. Pega esta URL en el Panel de Configuración dentro de la App o directamente en la hoja `Config`.
+
+## Video Promocional
+- **Formato**: MP4 recomendado.
+- **Tamaño**: Máximo 10MB sugerido para carga rápida.
+- **Resolución**: 1280x720 (HD).
+- **Instrucciones**: Al igual que los logos, sube a Drive, obtén el enlace directo al archivo MP4 y pégalo en la configuración. Solo los usuarios con rol "Cliente" verán este video en el inicio.
+
+## Roles de Administración
+- **Administrador**: Control total.
+- **Supervisor**: Puede crear y editar, pero no tiene funciones de borrado (si se implementan en el futuro, estarán restringidas).
 
 ## Notas de Seguridad y Mejoras
 - **Contraseñas**: Por simplicidad (MVP), las contraseñas se guardan en texto plano. Se recomienda en el futuro usar un sistema de hash.

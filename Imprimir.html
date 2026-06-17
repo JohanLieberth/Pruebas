@@ -4,16 +4,42 @@
     <base target="_top">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-      body { background-color: white; font-family: sans-serif; padding: 20px; }
-      .ticket { max-width: 800px; margin: auto; border: 1px solid #eee; padding: 30px; }
-      .ticket-short { max-width: 300px; border: 1px dashed #333; padding: 10px; margin: auto; font-size: 12px; }
-      .folio-big { font-size: 48px; font-weight: bold; margin: 10px 0; }
-      .qr-placeholder { background: #eee; width: 100px; height: 100px; display: flex; align-items: center; text-align: center; font-size: 10px; margin: auto; }
-      .disclaimer-small { font-size: 10px; color: #666; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; }
+      body { background-color: white; font-family: 'Courier New', Courier, monospace; padding: 0; margin: 0; }
+
+      /* Comprobante Cliente 55mm */
+      .ticket {
+        width: 55mm;
+        margin: 0;
+        padding: 2mm;
+        font-size: 8pt;
+        line-height: 1.2;
+      }
+
+      /* Etiqueta 48mm x 25mm */
+      .ticket-short {
+        width: 48mm;
+        height: 25mm;
+        margin: 0;
+        padding: 1mm;
+        font-size: 7pt;
+        border: 1px solid #000;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .folio-big { font-size: 14pt; font-weight: bold; margin: 2px 0; text-align: center; }
+      .logo-print { max-width: 100%; height: auto; display: block; margin: 0 auto 5px auto; }
+      .qr-placeholder { background: #eee; width: 60px; height: 60px; display: flex; align-items: center; text-align: center; font-size: 6pt; margin: 5px auto; }
+      .disclaimer-small { font-size: 6pt; color: #000; margin-top: 5px; border-top: 1px dashed #000; padding-top: 3px; }
+
+      hr { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
+
       @media print {
         .no-print { display: none; }
-        body { padding: 0; }
-        .ticket { border: none; }
+        body { width: auto; }
+        @page { margin: 0; }
       }
     </style>
   </head>
@@ -24,60 +50,63 @@
     </div>
 
     <? if (data.servicio) { ?>
+      <? const config = getConfig(); ?>
       <? if (data.tipo === 'corto') { ?>
+        <!-- Etiqueta 48mm x 25mm -->
         <div class="ticket-short">
-          <div style="text-align: center;">
-            <strong>GameService Pro</strong><br>
-            <span style="font-size: 20px; font-weight: bold;"><?= data.servicio.Folio ?></span><br>
-            <?= data.servicio.Nombre ?><br>
-            <?= data.servicio["Fecha de recepción"] ?>
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+             <? if (config["Logo Pequeño"]) { ?>
+               <img src="<?= config["Logo Pequeño"] ?>" style="height: 15px;">
+             <? } ?>
+             <strong><?= data.servicio.Folio ?></strong>
           </div>
-          <hr>
-          <div style="word-wrap: break-word;">
-            <strong>Equipo:</strong> <?= data.servicio["Dispositivo a recibir"] ?><br>
-            <strong>Falla:</strong> <?= data.servicio["Descripción de la falla"].substring(0, 50) ?><?= data.servicio["Descripción de la falla"].length > 50 ? '...' : '' ?>
+          <div style="font-weight: bold; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+            <?= data.servicio.Nombre ?>
+          </div>
+          <div><?= data.servicio["Fecha de recepción"] ?></div>
+          <div style="font-size: 6pt; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+            <?= data.servicio["Dispositivo a recibir"] ?>
           </div>
         </div>
       <? } else { ?>
+        <!-- Comprobante 55mm -->
         <div class="ticket">
-          <div class="row align-items-center mb-4">
-            <div class="col-8">
-              <h2>Comprobante de Servicio</h2>
-              <p class="text-muted">GameService Pro - Especialistas en Consolas</p>
-            </div>
-            <div class="col-4 text-end">
-              <div class="folio-big"><?= data.servicio.Folio ?></div>
-              <div><?= data.servicio["Fecha de recepción"] ?></div>
-            </div>
+          <div style="text-align: center; margin-bottom: 5px;">
+            <? if (config["Logo Pequeño"]) { ?>
+              <img src="<?= config["Logo Pequeño"] ?>" class="logo-print">
+            <? } else { ?>
+              <strong>GameService Pro</strong>
+            <? } ?>
           </div>
 
-          <div class="row mb-4">
-            <div class="col-6">
-              <h5>Datos del Cliente</h5>
-              <strong>Nombre:</strong> <?= data.servicio.Nombre ?><br>
-              <strong>Teléfono:</strong> <?= data.servicio["Teléfono"] ?><br>
-              <strong>Correo:</strong> <?= data.servicio["Correo electrónico"] ?>
-            </div>
-            <div class="col-6">
-              <h5>Datos del Equipo</h5>
-              <strong>Dispositivo:</strong> <?= data.servicio["Dispositivo a recibir"] ?><br>
-              <strong>Estado:</strong> <?= data.servicio["Estado del equipo"] ?>
-            </div>
-          </div>
+          <div class="folio-big">ORDEN: <?= data.servicio.Folio ?></div>
+          <div style="text-align: center;"><?= data.servicio["Fecha de recepción"] ?></div>
 
-          <div class="mb-4">
-            <h5>Falla Reportada</h5>
-            <div class="p-3 bg-light border rounded">
-              <?= data.servicio["Descripción de la falla"] ?>
-            </div>
-          </div>
+          <hr>
 
-          <div class="text-center my-4">
+          <strong>CLIENTE:</strong><br>
+          <?= data.servicio.Nombre ?><br>
+          Tel: <?= data.servicio["Teléfono"] ?><br>
+
+          <hr>
+
+          <strong>EQUIPO:</strong><br>
+          <?= data.servicio["Dispositivo a recibir"] ?><br>
+          Estado: <?= data.servicio["Estado del equipo"] ?><br>
+
+          <hr>
+
+          <strong>FALLA:</strong><br>
+          <?= data.servicio["Descripción de la falla"] ?>
+
+          <hr>
+
+          <div style="text-align: center;">
             <div class="qr-placeholder">
-              Escanea para ver estatus:<br>
-              <?= data.scriptUrl ?>?page=estatus&folio=<?= data.servicio.Folio ?>
+              Estatus:<br>
+              <?= data.servicio.Folio ?>
             </div>
-            <p class="small mt-2">Consulta el progreso de tu reparación en línea.</p>
+            <span><?= data.scriptUrl ?>?page=estatus&folio=<?= data.servicio.Folio ?></span>
           </div>
 
           <div class="disclaimer-small">

@@ -97,6 +97,9 @@
               <button class="btn btn-outline-success" onclick="exportarCSV()">
                 <i class="fas fa-file-export me-2"></i>Exportar CSV
               </button>
+              <button class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#configModal">
+                <i class="fas fa-cog me-2"></i>Configuración
+              </button>
               <button class="btn btn-primary" onclick="cargarServicios()">
                 <i class="fas fa-sync-alt me-2"></i>Actualizar
               </button>
@@ -127,6 +130,38 @@
       </div>
     </div>
 
+    <!-- Config Modal -->
+    <div class="modal fade" id="configModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Configuración del Sistema</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="configForm">
+              <div class="mb-3">
+                <label class="form-label">URL Logo Principal</label>
+                <input type="text" name="Logo Principal" class="form-control" id="configLogoPrincipal">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">URL Logo Pequeño</label>
+                <input type="text" name="Logo Pequeño" class="form-control" id="configLogoPequeno">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">URL Video Promocional (MP4)</label>
+                <input type="text" name="URL_Video_Promocional" class="form-control" id="configVideo">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarConfig()">Guardar Configuración</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Edit Modal -->
     <div class="modal fade" id="editModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
@@ -139,7 +174,7 @@
             <form id="editForm">
               <input type="hidden" id="editFolio">
               <div class="row mb-3">
-                <div class="col-md-6">
+                <div class="col-md-4">
                   <label class="form-label fw-bold">Estatus</label>
                   <select id="editEstatus" class="form-select" required>
                     <option value="Pendiente">Pendiente</option>
@@ -149,9 +184,13 @@
                     <option value="Cancelado">Cancelado</option>
                   </select>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                   <label class="form-label fw-bold">Fecha de Entrega / Promesa</label>
                   <input type="date" id="editFechaEntrega" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Total ($)</label>
+                  <input type="number" step="0.01" id="editTotal" class="form-control">
                 </div>
               </div>
               <div class="mb-3">
@@ -184,15 +223,43 @@
           return;
         }
         currentUser = JSON.parse(userStr);
-        if (currentUser.rol !== 'admin') {
+        if (currentUser.rol !== 'Administrador' && currentUser.rol !== 'Supervisor') {
           window.top.location.href = '<?= getScriptUrl() ?>?page=panelCliente';
           return;
         }
         document.getElementById('adminName').innerText = currentUser.nombre;
         editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
         cargarStats();
         cargarServicios();
+        cargarConfig();
       });
+
+      function cargarConfig() {
+        google.script.run
+          .withSuccessHandler(function(config) {
+            document.getElementById('configLogoPrincipal').value = config["Logo Principal"] || '';
+            document.getElementById('configLogoPequeno').value = config["Logo Pequeño"] || '';
+            document.getElementById('configVideo').value = config["URL_Video_Promocional"] || '';
+          })
+          .getConfig();
+      }
+
+      function guardarConfig() {
+        const config = {
+          "Logo Principal": document.getElementById('configLogoPrincipal').value,
+          "Logo Pequeño": document.getElementById('configLogoPequeno').value,
+          "URL_Video_Promocional": document.getElementById('configVideo').value
+        };
+        showLoading(true);
+        google.script.run
+          .withSuccessHandler(function() {
+            showLoading(false);
+            bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+            showAlert('Configuración guardada', 'success');
+          })
+          .updateConfig(config);
+      }
 
       function cargarStats() {
         google.script.run
@@ -241,6 +308,11 @@
                   <button class="btn btn-sm btn-outline-dark" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')">
                     <i class="fas fa-print"></i>
                   </button>
+                  ${currentUser.rol === 'Administrador' ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  ` : ''}
                 </td>
               `;
               tbody.appendChild(tr);
@@ -262,6 +334,7 @@
         document.getElementById('editFolio').value = s.Folio;
         document.getElementById('editEstatus').value = s["Estatus (admin)"];
         document.getElementById('editSolucion').value = s["Solución aplicada (admin)"];
+        document.getElementById('editTotal').value = s.Total || '';
 
         // Format date for input type=date (YYYY-MM-DD)
         if (s["Fecha de entrega (admin)"]) {
@@ -280,6 +353,7 @@
         const folio = document.getElementById('editFolio').value;
         const estatus = document.getElementById('editEstatus').value;
         const solucion = document.getElementById('editSolucion').value;
+        const total = document.getElementById('editTotal').value;
         let fecha = document.getElementById('editFechaEntrega').value;
 
         // Format back to DD/MM/YYYY
@@ -303,7 +377,25 @@
               showAlert(res.message);
             }
           })
-          .actualizarEstatus(folio, estatus, solucion, fecha);
+          .actualizarEstatus(folio, estatus, solucion, fecha, currentUser.rol, total);
+      }
+
+      function confirmarEliminar(folio) {
+        if (confirm('¿Estás seguro de que deseas eliminar permanentemente el folio ' + folio + '?')) {
+          showLoading(true);
+          google.script.run
+            .withSuccessHandler(function(res) {
+              showLoading(false);
+              if (res.success) {
+                showAlert('Registro eliminado correctamente', 'success');
+                cargarStats();
+                cargarServicios();
+              } else {
+                showAlert(res.message);
+              }
+            })
+            .eliminarServicio(folio, currentUser.rol);
+        }
       }
 
       function exportarCSV() {
