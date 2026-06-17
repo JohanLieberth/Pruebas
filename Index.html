@@ -25,14 +25,8 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
-            <li class="nav-item" id="navRegistro" style="display: none;">
-              <a class="nav-link" href="<?= getScriptUrl() ?>?page=registro">Registro Nuevo</a>
-            </li>
             <li class="nav-item">
-              <a class="nav-link" href="<?= getScriptUrl() ?>?page=login">Portal Cliente</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="<?= getScriptUrl() ?>?page=admin">Admin</a>
+              <a class="nav-link" href="<?= getScriptUrl() ?>?page=login">Acceso / Portal Cliente</a>
             </li>
           </ul>
         </div>
@@ -55,23 +49,21 @@
 
           <p class="lead mb-5">Gestión profesional de servicios técnicos para tus consolas y accesorios.</p>
 
-          <div class="row g-4">
-            <div class="col-md-6" id="cardRegistro" style="display: none;">
-              <div class="card h-100 p-4">
-                <i class="fas fa-tools fa-3x mb-3 text-primary"></i>
-                <h3>Registrar Equipo</h3>
-                <p>Si eres técnico o estás en recepción, registra un nuevo servicio aquí.</p>
-                <a href="<?= getScriptUrl() ?>?page=registro" class="btn btn-primary mt-auto">Nuevo Registro</a>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="card h-100 p-4">
-                <i class="fas fa-search fa-3x mb-3 text-secondary"></i>
-                <h3>Consultar Estatus</h3>
-                <p>¿Quieres saber cómo va tu reparación? Ingresa tu folio.</p>
-                <div class="input-group mt-auto">
-                  <input type="text" id="folioInput" class="form-control" placeholder="Ej: BF-00001">
-                  <button class="btn btn-outline-secondary" type="button" onclick="consultarFolio()">Consultar</button>
+          <div class="row justify-content-center g-4">
+            <div class="col-md-8">
+              <div class="card p-4">
+                <div class="row align-items-center">
+                  <div class="col-md-3 text-center mb-3 mb-md-0">
+                    <i class="fas fa-search fa-4x text-secondary"></i>
+                  </div>
+                  <div class="col-md-9">
+                    <h3>Consultar Estatus</h3>
+                    <p>¿Quieres saber cómo va tu reparación? Ingresa tu folio abajo.</p>
+                    <div class="input-group">
+                      <input type="text" id="folioInput" class="form-control" placeholder="Ej: BF-00001">
+                      <button class="btn btn-secondary" type="button" onclick="consultarFolio()">Consultar</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -85,7 +77,6 @@
     <script>
       window.addEventListener('load', function() {
         cargarConfig();
-        checkAccess();
       });
 
       function cargarConfig() {
@@ -129,14 +120,6 @@
           .getConfig();
       }
 
-      function checkAccess() {
-        const userStr = sessionStorage.getItem('user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (user && (user.rol === 'Administrador' || user.rol === 'Supervisor')) {
-          document.getElementById('navRegistro').style.display = 'block';
-          document.getElementById('cardRegistro').style.display = 'block';
-        }
-      }
 
       function consultarFolio() {
         const folio = document.getElementById('folioInput').value;

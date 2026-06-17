@@ -94,6 +94,9 @@
               </select>
             </div>
             <div class="col-md-5 text-end">
+              <a href="<?= getScriptUrl() ?>?page=registro" class="btn btn-outline-primary">
+                <i class="fas fa-plus me-2"></i>Registro Nuevo
+              </a>
               <button class="btn btn-outline-success" onclick="exportarCSV()">
                 <i class="fas fa-file-export me-2"></i>Exportar CSV
               </button>
@@ -266,7 +269,7 @@
           .withSuccessHandler(function(stats) {
             let total = 0;
             for (let key in stats) {
-              const id = 'stat-' + key.replace(/ /g, '-');
+              const id = 'stat-' + getStatusSlug(key);
               if (document.getElementById(id)) {
                 document.getElementById(id).innerText = stats[key];
                 total += stats[key];

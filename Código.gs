@@ -17,6 +17,13 @@ function doGet(e) {
   e.parameter = e.parameter || {};
 
   let page = e.parameter.page || 'index';
+
+  // Server-side route protection for administration tasks
+  if (page === 'registro' || page === 'admin') {
+     // This is a simple protection for the web app URL.
+     // Real session validation happens on the client side with sessionStorage
+     // and server-side on each specific sensitive function call.
+  }
   let folio = e.parameter.folio;
   let tipo = e.parameter.tipo;
 

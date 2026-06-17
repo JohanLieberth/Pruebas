@@ -26,6 +26,10 @@
     return `<span class="status-badge status-${slug}">${status}</span>`;
   }
 
+  function getStatusSlug(status) {
+    return status.toLowerCase().replace(/ /g, '-').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
   function getUrlParameter(name) {
     name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
     var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
