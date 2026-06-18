@@ -44,31 +44,31 @@
         <div class="col-6 col-md-2">
           <div class="card stat-card border-warning text-center p-3" onclick="filtrarEstatus('Pendiente')">
             <h6 class="text-warning">Pendientes</h6>
-            <h3 id="stat-Pendiente">0</h3>
+            <h3 id="stat-pendiente">0</h3>
           </div>
         </div>
         <div class="col-6 col-md-2">
           <div class="card stat-card border-primary text-center p-3" onclick="filtrarEstatus('En reparación')">
             <h6 class="text-primary">En Reparación</h6>
-            <h3 id="stat-En-reparacion">0</h3>
+            <h3 id="stat-en-reparacion">0</h3>
           </div>
         </div>
         <div class="col-6 col-md-2">
           <div class="card stat-card border-success text-center p-3" onclick="filtrarEstatus('Listo')">
             <h6 class="text-success">Listos</h6>
-            <h3 id="stat-Listo">0</h3>
+            <h3 id="stat-listo">0</h3>
           </div>
         </div>
         <div class="col-6 col-md-2">
           <div class="card stat-card border-secondary text-center p-3" onclick="filtrarEstatus('Entregado')">
             <h6 class="text-secondary">Entregados</h6>
-            <h3 id="stat-Entregado">0</h3>
+            <h3 id="stat-entregado">0</h3>
           </div>
         </div>
         <div class="col-6 col-md-2">
           <div class="card stat-card border-danger text-center p-3" onclick="filtrarEstatus('Cancelado')">
             <h6 class="text-danger">Cancelados</h6>
-            <h3 id="stat-Cancelado">0</h3>
+            <h3 id="stat-cancelado">0</h3>
           </div>
         </div>
       </div>
@@ -122,6 +122,7 @@
                 <th>Cliente</th>
                 <th>Dispositivo</th>
                 <th>Estatus</th>
+                <th>Total</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -304,6 +305,7 @@
                 </td>
                 <td>${s["Dispositivo a recibir"]}</td>
                 <td>${formatStatus(s["Estatus (admin)"])}</td>
+                <td class="fw-bold text-success">$${s.Total || '0.00'}</td>
                 <td>
                   <button class="btn btn-sm btn-outline-primary" onclick='abrirEditar(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
                     <i class="fas fa-edit"></i>
