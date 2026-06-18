@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xplore 2026 - Pre-registro</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --xplore-red: #e2411f;
+      --xplore-dark-red: #af3319;
+      --xplore-black: #190909;
+      --xplore-cream: #fff4ea;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background-color: var(--xplore-cream);
+      color: var(--xplore-black);
+    }
+
+    .navbar {
+      background-color: var(--xplore-red);
+      border-bottom: 4px solid var(--xplore-black);
+    }
+
+    .navbar-brand {
+      font-weight: 700;
+      color: var(--xplore-cream) !important;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .card {
+      border: 1px solid rgba(25, 9, 9, 0.1);
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(25, 9, 9, 0.1);
+      background-color: white;
+    }
+
+    .card-header {
+      background-color: white;
+      border-bottom: none;
+      padding-top: 2rem;
+      text-align: center;
+    }
+
+    .btn-xplor {
+      background-color: var(--xplore-red);
+      color: var(--xplore-cream);
+      border: none;
+      padding: 10px 25px;
+      border-radius: 30px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .btn-xplor:hover {
+      background-color: var(--xplore-dark-red);
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    .btn-outline-xplor {
+      border: 2px solid var(--xplore-red);
+      color: var(--xplore-red);
+      border-radius: 30px;
+      font-weight: 600;
+    }
+
+    .btn-outline-xplor:hover {
+      background-color: var(--xplore-red);
+      color: white;
+    }
+
+    .step-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      position: relative;
+    }
+
+    .step-indicator::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background-color: #ddd;
+      z-index: 1;
+    }
+
+    .step {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: white;
+      border: 2px solid #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      z-index: 2;
+      transition: all 0.3s;
+    }
+
+    .step.active {
+      border-color: var(--xplore-red);
+      color: var(--xplore-red);
+      transform: scale(1.2);
+    }
+
+    .step.completed {
+      background-color: var(--xplore-red);
+      border-color: var(--xplore-red);
+      color: white;
+    }
+
+    .form-step {
+      display: none;
+      animation: fadeIn 0.5s;
+    }
+
+    .form-step.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .event-details {
+      background-color: var(--xplore-black);
+      color: var(--xplore-cream);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+
+    #loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .logo-container {
+      margin-bottom: 20px;
+    }
+
+    .logo-placeholder {
+      width: 100px;
+      height: 100px;
+      background-color: var(--xplore-red);
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--xplore-cream);
+      font-weight: bold;
+      font-size: 1.5rem;
+      border: 5px solid var(--xplore-cream);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+      height: 0;
+      overflow: hidden;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      display: none;
+    }
+
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .category-details {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 15px;
+      font-size: 0.85rem;
+    }
+
+    .category-details ul {
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    .category-price {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--xplore-red);
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+    <div class="container">
+      <a class="navbar-brand" href="#">XPLORE 2026</a>
+    </div>
+  </nav>
+
+  <div class="container mb-5">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+
+        <div class="card">
+          <div class="card-header">
+            <div class="logo-container">
+              <div class="logo-placeholder">XP</div>
+            </div>
+            <h2 class="fw-bold">Pre-registro</h2>
+            <p class="text-muted">Asegura tu lugar en la aventura</p>
+          </div>
+
+          <div class="card-body px-4 pb-4">
+
+            <div id="video-wrapper" class="video-container"></div>
+
+            <div class="event-details">
+              <div class="row text-center">
+                <div class="col-6"><strong>📅 20 Sept 2026</strong></div>
+                <div class="col-6"><strong>📍 Parque Xplor</strong></div>
+              </div>
+            </div>
+
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+              <div class="step active" id="step1-dot">1</div>
+              <div class="step" id="step2-dot">2</div>
+              <div class="step" id="step3-dot">3</div>
+            </div>
+
+            <form id="registrationForm" novalidate>
+
+              <!-- STEP 1: Personal Data -->
+              <div class="form-step active" id="step1">
+                <h4 class="mb-3">Datos Personales</h4>
+
+                <!-- Honeypot field (hidden from users) -->
+                <div style="display:none;">
+                  <label>Leave this field empty</label>
+                  <input type="text" name="honeypot" value="">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Título (Prefix)</label>
+                  <select class="form-select" name="prefix" required>
+                    <option value="">Selecciona...</option>
+                    <option>Sr.</option>
+                    <option>Sra.</option>
+                    <option>Srta.</option>
+                    <option>Dr.</option>
+                    <option>Dra.</option>
+                    <option>Ing.</option>
+                    <option>Lic.</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Nombre(s)</label>
+                  <input type="text" class="form-control" name="nombre" required>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Apellido Paterno</label>
+                    <input type="text" class="form-control" name="apellidoPaterno" required>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Apellido Materno</label>
+                    <input type="text" class="form-control" name="apellidoMaterno" required>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Género</label>
+                    <select class="form-select" name="genero" required>
+                      <option value="">Selecciona...</option>
+                      <option>Masculino</option>
+                      <option>Femenino</option>
+                      <option>No binario</option>
+                      <option>Prefiero no decir</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Edad (18-65)</label>
+                    <input type="number" class="form-control" name="edad" min="18" max="65" required>
+                  </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                  <button type="button" class="btn btn-xplor" onclick="nextStep(2)">Siguiente</button>
+                </div>
+              </div>
+
+              <!-- STEP 2: Contact Info -->
+              <div class="form-step" id="step2">
+                <h4 class="mb-3">Contacto</h4>
+
+                <div class="mb-3">
+                  <label class="form-label">Teléfono (10 dígitos)</label>
+                  <input type="tel" class="form-control" name="telefono" pattern="[0-9]{10}" placeholder="Ej. 9981234567" required>
+                  <div class="form-text">Ingresa los 10 dígitos sin espacios ni guiones.</div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" name="email" required>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Estado de procedencia</label>
+                  <select class="form-select" name="estado" id="estadoSelect" required>
+                    <option value="">Selecciona tu estado...</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Talla de playera</label>
+                  <select class="form-select" name="talla" required>
+                    <option value="">Selecciona...</option>
+                    <option>XS</option>
+                    <option>S</option>
+                    <option>M</option>
+                    <option>L</option>
+                    <option>XL</option>
+                    <option>XXL</option>
+                    <option>XXXL</option>
+                  </select>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                  <button type="button" class="btn btn-outline-secondary rounded-pill" onclick="prevStep(1)">Anterior</button>
+                  <button type="button" class="btn btn-xplor" onclick="nextStep(3)">Siguiente</button>
+                </div>
+              </div>
+
+              <!-- STEP 3: Schedule and Category -->
+              <div class="form-step" id="step3">
+                <h4 class="mb-3">Horario y Categoría</h4>
+
+                <div class="mb-4">
+                  <label class="form-label d-block">Categoría</label>
+                  <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="categoria" id="catIndividual" value="Individual" checked onchange="updateCategoryInfo()">
+                    <label class="btn btn-outline-xplor" for="catIndividual">Individual</label>
+
+                    <input type="radio" class="btn-check" name="categoria" id="catVIP" value="VIP" onchange="updateCategoryInfo()">
+                    <label class="btn btn-outline-xplor" for="catVIP">VIP</label>
+                  </div>
+
+                  <div id="categoryInfo" class="category-details">
+                    <!-- Info populated by JS -->
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Horario Principal</label>
+                  <select class="form-select" name="horarioPrincipal" id="horarioPrincipal" required onchange="updateAlternativeOptions()">
+                    <option value="">Cargando horarios...</option>
+                  </select>
+                  <div id="availability-hint" class="form-text"></div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Horario Alternativo (Segunda opción)</label>
+                  <select class="form-select" name="horarioAlternativo" id="horarioAlternativo" required>
+                    <option value="">Selecciona horario principal primero</option>
+                  </select>
+                </div>
+
+                <div class="alert alert-warning py-2 small" role="alert">
+                  * Inscripciones sujetas a disponibilidad. Cierre: 19 Sept 2026.
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                  <button type="button" class="btn btn-outline-secondary rounded-pill" onclick="prevStep(2)">Anterior</button>
+                  <button type="submit" class="btn btn-xplor" id="submitBtn">Finalizar Registro</button>
+                </div>
+              </div>
+
+            </form>
+
+            <div id="successMessage" class="text-center mt-4" style="display: none;">
+              <div class="mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-check-circle-fill text-success" viewBox="0 0 16 16">
+                  <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                </svg>
+              </div>
+              <h3 class="fw-bold">¡Registro Exitoso!</h3>
+              <p>Tu folio de participación es:</p>
+              <h2 class="text-orange fw-bold" id="resultFolio" style="color: var(--xplore-red);"></h2>
+              <p class="text-muted mt-3">Hemos enviado un correo de confirmación a tu bandeja de entrada.</p>
+              <button class="btn btn-xplor mt-3" onclick="resetForm()">Nuevo Registro</button>
+            </div>
+
+          </div>
+        </div>
+
+        <p class="text-center mt-4 text-muted small">
+          &copy; 2026 Xplore Eventos | <a href="?p=admin" class="text-decoration-none text-muted">Admin</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading-overlay">
+    <div class="text-center">
+      <div class="spinner-border text-success" style="width: 3rem; height: 3rem;" role="status">
+        <span class="visually-hidden">Procesando...</span>
+      </div>
+      <p class="mt-2 fw-bold text-success">Procesando...</p>
+    </div>
+  </div>
+
+  <script>
+    let initialData = null;
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', initApp);
+
+    function initApp() {
+      showLoading(true);
+      google.script.run
+        .withSuccessHandler(function(data) {
+          if (!data) {
+            showLoading(false);
+            alert('Error crítico: La respuesta del servidor es nula.');
+            return;
+          }
+
+          if (data.error) {
+            showLoading(false);
+            alert('Error en el servidor: ' + data.error);
+            return;
+          }
+
+          if (data.needsInit) {
+            showLoading(false);
+            alert('El sistema no ha sido inicializado. Por favor, usa el menú "Xplore 2026 > Inicializar Sistema" en el Sheet.');
+            return;
+          }
+
+          initialData = data;
+          populateStates(data.states);
+          populateSchedules(data.schedules);
+          setupVideo(data.videoUrl);
+          updateCategoryInfo(); // Show default category info
+          if (!data.registrationOpen) {
+            alert('Lo sentimos, las inscripciones para Xplore 2026 se encuentran cerradas en este momento.');
+            document.getElementById('submitBtn').disabled = true;
+          }
+          showLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showLoading(false);
+          alert('Error al cargar datos: ' + err.message);
+        })
+        .getInitialData();
+    }
+
+    function resetForm() {
+      // 1. Reset Form visibility and values
+      const form = document.getElementById('registrationForm');
+      form.reset();
+      form.style.display = 'block';
+
+      // 2. Hide success message
+      document.getElementById('successMessage').style.display = 'none';
+
+      // 3. Reset Steps
+      document.querySelectorAll('.form-step').forEach(el => el.classList.remove('active'));
+      document.getElementById('step1').classList.add('active');
+
+      document.querySelectorAll('.step').forEach(el => {
+        el.classList.remove('active', 'completed');
+      });
+      document.getElementById('step1-dot').classList.add('active');
+      document.querySelector('.step-indicator').style.display = 'flex';
+
+      // 4. Reload data (availability)
+      initApp();
+    }
+
+    function updateCategoryInfo() {
+      const isVip = document.getElementById('catVIP').checked;
+      const container = document.getElementById('categoryInfo');
+
+      if (isVip) {
+        container.innerHTML = `
+          <h6>Beneficios VIP:</h6>
+          <ul>
+            <li>Todos los beneficios de la entrada general.</li>
+            <li>Paquete de fotos incluido.</li>
+            <li>Souvenir incluido.</li>
+            <li>Desayuno para llenarte de energía.</li>
+            <li>Experiencia VIP para Xplor Bravest Race.</li>
+          </ul>
+          <div class="category-price">Precio: $3,800.00 m.n.</div>
+        `;
+      } else {
+        container.innerHTML = `
+          <h6>Beneficios Individual:</h6>
+          <ul>
+            <li>Participación en la carrera (un horario).</li>
+            <li>Camiseta de Xplor Bravest Race.</li>
+            <li>Medalla Xplor Bravest Race al finalizar carrera.</li>
+            <li>Número de competidor.</li>
+            <li>Casco Xplor: entrega 1 hora antes de iniciar la carrera.</li>
+          </ul>
+          <div class="category-price">Precio: $3,000.00 m.n.</div>
+        `;
+      }
+    }
+
+    function setupVideo(url) {
+      if (!url) return;
+
+      let videoId = "";
+      // Extract video ID from common YouTube URL formats
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+
+      if (match && match[2].length == 11) {
+        videoId = match[2];
+      } else {
+        return;
+      }
+
+      const wrapper = document.getElementById('video-wrapper');
+      // Autoplay requires mute in most browsers
+      wrapper.innerHTML = `
+        <iframe
+          src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      `;
+      wrapper.style.display = 'block';
+    }
+
+    function populateStates(states) {
+      const select = document.getElementById('estadoSelect');
+      if (!states || states.length === 0) {
+        const opt = document.createElement('option');
+        opt.textContent = "Error: No se cargaron estados";
+        opt.disabled = true;
+        select.appendChild(opt);
+        return;
+      }
+      states.forEach(state => {
+        const opt = document.createElement('option');
+        opt.value = state;
+        opt.textContent = state;
+        select.appendChild(opt);
+      });
+    }
+
+    function populateSchedules(schedules) {
+      const mainSelect = document.getElementById('horarioPrincipal');
+      mainSelect.innerHTML = '<option value="">Selecciona...</option>';
+
+      schedules.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.time;
+        opt.textContent = `${s.time} (${s.available} disponibles)`;
+        if (s.available <= 0) opt.disabled = true;
+        mainSelect.appendChild(opt);
+      });
+    }
+
+    function updateAlternativeOptions() {
+      const mainValue = document.getElementById('horarioPrincipal').value;
+      const altSelect = document.getElementById('horarioAlternativo');
+      altSelect.innerHTML = '<option value="">Selecciona...</option>';
+
+      if (!mainValue) return;
+
+      initialData.schedules.forEach(s => {
+        if (s.time !== mainValue) {
+          const opt = document.createElement('option');
+          opt.value = s.time;
+          opt.textContent = s.time;
+          altSelect.appendChild(opt);
+        }
+      });
+    }
+
+    // Step Navigation
+    function nextStep(step) {
+      if (validateStep(step - 1)) {
+        document.querySelectorAll('.form-step').forEach(el => el.classList.remove('active'));
+        document.getElementById('step' + step).classList.add('active');
+
+        // Update dots
+        document.getElementById('step' + (step-1) + '-dot').classList.add('completed');
+        document.getElementById('step' + step + '-dot').classList.add('active');
+      }
+    }
+
+    function prevStep(step) {
+      document.querySelectorAll('.form-step').forEach(el => el.classList.remove('active'));
+      document.getElementById('step' + step).classList.add('active');
+
+      // Update dots
+      document.getElementById('step' + (step+1) + '-dot').classList.remove('active');
+      document.getElementById('step' + step + '-dot').classList.remove('completed');
+      document.getElementById('step' + step + '-dot').classList.add('active');
+    }
+
+    function validateStep(step) {
+      const currentStepEl = document.getElementById('step' + step);
+      const inputs = currentStepEl.querySelectorAll('input, select');
+      let valid = true;
+
+      inputs.forEach(input => {
+        if (!input.checkValidity()) {
+          input.classList.add('is-invalid');
+          valid = false;
+        } else {
+          input.classList.remove('is-invalid');
+        }
+      });
+
+      if (!valid) {
+        alert('Por favor, completa todos los campos correctamente antes de continuar.');
+      }
+
+      return valid;
+    }
+
+    // Form Submission
+    document.getElementById('registrationForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      if (!validateStep(3)) return;
+
+      const formData = {};
+      const fields = new FormData(this);
+      fields.forEach((value, key) => formData[key] = value);
+
+      showLoading(true);
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          showLoading(false);
+          if (response.success) {
+            document.getElementById('registrationForm').style.display = 'none';
+            document.querySelector('.step-indicator').style.display = 'none';
+            document.getElementById('resultFolio').textContent = response.folio;
+            document.getElementById('successMessage').style.display = 'block';
+          }
+        })
+        .withFailureHandler(function(err) {
+          showLoading(false);
+          alert('Hubo un error al procesar tu registro: ' + err.message);
+        })
+        .processRegistration(formData);
+    });
+
+    let loadingTimeout = null;
+    function showLoading(show) {
+      const overlay = document.getElementById('loading-overlay');
+      overlay.style.display = show ? 'flex' : 'none';
+
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
+
+      if (show) {
+        // Safety timeout (15 seconds) to hide loader if call hangs
+        loadingTimeout = setTimeout(() => {
+          overlay.style.display = 'none';
+        }, 15000);
+      }
+    }
+  </script>
+</body>
+</html>
