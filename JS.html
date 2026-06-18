@@ -37,6 +37,12 @@
     return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
   }
 
+  function handleGlobalError(err) {
+    showLoading(false);
+    console.error('API Error:', err);
+    showAlert('Error de conexión con el servidor: ' + (err.message || err.toString()));
+  }
+
   // Export CSV helper
   function downloadCSV(base64Data, filename) {
     const link = document.createElement('a');

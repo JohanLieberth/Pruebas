@@ -65,9 +65,12 @@ function include(filename) {
 }
 
 function capitalize(s) {
-  if (typeof s !== 'string') return '';
+  if (typeof s !== 'string' || s.length === 0) return '';
   // We keep the rest of the string as is to support CamelCase filenames like PanelCliente
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  // But we ensure it's not a path or containing invalid characters for template names
+  const safeName = s.replace(/[^a-zA-Z0-9]/g, '');
+  if (safeName.length === 0) return '';
+  return safeName.charAt(0).toUpperCase() + safeName.slice(1);
 }
 
 /**
@@ -93,7 +96,7 @@ function getSheet(name) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
     if (name === "Servicios") {
-      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total"]);
+      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total ($)"]);
     } else if (name === "Usuarios_Admin") {
       sheet.appendRow(["Email", "Contraseña", "Rol", "Nombre"]);
     } else if (name === "Usuarios_Clientes") {
@@ -317,7 +320,7 @@ function obtenerEstatusPorFolio(folio) {
         FechaEntrega: data[i][10],
         Falla: data[i][6],
         Solucion: data[i][9],
-        Total: data[i][12]
+        "Total ($)": data[i][12]
       };
     }
   }

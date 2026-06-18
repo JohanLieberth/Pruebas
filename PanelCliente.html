@@ -75,6 +75,7 @@
 
       function cargarConfig() {
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(config) {
             if (config["Logo Pequeño"]) {
               document.getElementById('headerLogo').src = config["Logo Pequeño"];
@@ -88,6 +89,7 @@
       function cargarMisServicios() {
         showLoading(true);
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(servicios) {
             showLoading(false);
             const grid = document.getElementById('servicesGrid');
@@ -113,7 +115,7 @@
                     </div>
                     <h5 class="card-title">${s["Dispositivo a recibir"]}</h5>
                     <p class="card-text small text-muted mb-1">${s["Fecha de recepción"]}</p>
-                    <p class="card-text fw-bold text-success mb-3">Total: $${s.Total || '0.00'}</p>
+                    <p class="card-text fw-bold text-success mb-3">Total: $${s["Total ($)"] || '0.00'}</p>
                     <div class="d-grid">
                       <button class="btn btn-outline-primary btn-sm" onclick='verDetalle(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
                         Ver detalles
@@ -149,7 +151,7 @@
           </div>
           <div class="mb-3">
             <label class="fw-bold small text-uppercase text-muted">Total:</label>
-            <p class="fs-5 fw-bold text-success">$${s.Total || '0.00'}</p>
+            <p class="fs-5 fw-bold text-success">$${s["Total ($)"] || '0.00'}</p>
           </div>
         `;
         detailsModal.show();
@@ -157,7 +159,12 @@
 
       function logout() {
         sessionStorage.clear();
-        window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+        localStorage.clear();
+        if (window.top && window.top.location) {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+        } else {
+          window.location.href = '<?= getScriptUrl() ?>?page=login';
+        }
       }
     </script>
   </body>

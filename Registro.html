@@ -113,21 +113,18 @@
         };
 
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(result) {
             showLoading(false);
-            if (result.success) {
+            if (result && result.success) {
               currentFolio = result.folio;
               document.getElementById('folioDisplay').innerText = result.folio;
               document.getElementById('formCard').classList.add('d-none');
               document.getElementById('successCard').classList.remove('d-none');
               window.scrollTo(0,0);
             } else {
-              showAlert('Error al registrar: ' + result.message);
+              showAlert('Error al registrar: ' + (result ? result.message : 'Respuesta inválida'));
             }
-          })
-          .withFailureHandler(function(err) {
-            showLoading(false);
-            showAlert('Error de conexión: ' + err.message);
           })
           .registrarServicio(formData);
       });

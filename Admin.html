@@ -219,6 +219,7 @@
     <script>
       let editModal;
       let currentUser;
+      let allServicios = [];
 
       window.addEventListener('load', function() {
         const userStr = sessionStorage.getItem('user');
@@ -241,6 +242,7 @@
 
       function cargarConfig() {
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(config) {
             document.getElementById('configLogoPrincipal').value = config["Logo Principal"] || '';
             document.getElementById('configLogoPequeno').value = config["Logo Pequeño"] || '';
@@ -257,6 +259,7 @@
         };
         showLoading(true);
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function() {
             showLoading(false);
             bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
@@ -267,6 +270,7 @@
 
       function cargarStats() {
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(stats) {
             let total = 0;
             for (let key in stats) {
@@ -289,8 +293,10 @@
         };
 
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(servicios) {
             showLoading(false);
+            allServicios = servicios;
             const tbody = document.getElementById('serviciosTableBody');
             tbody.innerHTML = '';
 
@@ -305,9 +311,9 @@
                 </td>
                 <td>${s["Dispositivo a recibir"]}</td>
                 <td>${formatStatus(s["Estatus (admin)"])}</td>
-                <td class="fw-bold text-success">$${s.Total || '0.00'}</td>
+                <td class="fw-bold text-success">$${s["Total ($)"] || '0.00'}</td>
                 <td>
-                  <button class="btn btn-sm btn-outline-primary" onclick='abrirEditar(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
+                  <button class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
                     <i class="fas fa-edit"></i>
                   </button>
                   <button class="btn btn-sm btn-outline-dark" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')">
@@ -323,7 +329,7 @@
               tbody.appendChild(tr);
             });
             if (servicios.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No se encontraron registros</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron registros</td></tr>';
             }
           })
           .obtenerServicios(filtros);
@@ -334,12 +340,15 @@
         cargarServicios();
       }
 
-      function abrirEditar(s) {
+      function abrirEditarPorFolio(folio) {
+        const s = allServicios.find(item => item.Folio === folio);
+        if (!s) return;
+
         document.getElementById('modalFolio').innerText = s.Folio;
         document.getElementById('editFolio').value = s.Folio;
         document.getElementById('editEstatus').value = s["Estatus (admin)"];
         document.getElementById('editSolucion').value = s["Solución aplicada (admin)"];
-        document.getElementById('editTotal').value = s.Total || '';
+        document.getElementById('editTotal').value = s["Total ($)"] || '';
 
         // Format date for input type=date (YYYY-MM-DD)
         if (s["Fecha de entrega (admin)"]) {
@@ -371,6 +380,7 @@
 
         showLoading(true);
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(res) {
             showLoading(false);
             if (res.success) {
@@ -389,6 +399,7 @@
         if (confirm('¿Estás seguro de que deseas eliminar permanentemente el folio ' + folio + '?')) {
           showLoading(true);
           google.script.run
+            .withFailureHandler(handleGlobalError)
             .withSuccessHandler(function(res) {
               showLoading(false);
               if (res.success) {
@@ -406,6 +417,7 @@
       function exportarCSV() {
         showLoading(true);
         google.script.run
+          .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(base64) {
             showLoading(false);
             downloadCSV(base64, 'servicios_gamesservice_' + new Date().toLocaleDateString() + '.csv');
@@ -415,7 +427,12 @@
 
       function logout() {
         sessionStorage.clear();
-        window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+        localStorage.clear();
+        if (window.top && window.top.location) {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+        } else {
+          window.location.href = '<?= getScriptUrl() ?>?page=login';
+        }
       }
     </script>
   </body>
