@@ -1,0 +1,40 @@
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header card-header-merida py-3">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-pen-fill me-2"></i>Carga de Documento Firmado</h5>
+      </div>
+      <div class="card-body p-4">
+        <div class="alert alert-info border-0 shadow-sm mb-4">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          Al subir el documento firmado, el estado cambiará automáticamente a <b>Aprobado</b> y se bloquearán las ediciones posteriores.
+        </div>
+
+        <div class="mb-4 text-center">
+          <div class="text-muted small mb-2">Documento:</div>
+          <h4 id="firmadoDocCode" class="fw-bold text-merida">Cargando...</h4>
+        </div>
+
+        <form id="formFirmado">
+          <input type="hidden" id="firmadoDocId">
+          <div class="mb-4">
+            <label class="form-label fw-bold">Seleccione el PDF o Imagen del Documento Firmado:</label>
+            <div class="input-group">
+              <input type="file" class="form-control" id="firmadoFile" accept=".pdf,image/*" required>
+              <button class="btn btn-merida" type="button" onclick="uploadFirmado()">
+                <i class="bi bi-upload"></i> Subir y Finalizar
+              </button>
+            </div>
+            <div class="form-text mt-2">Formatos permitidos: PDF, JPG, PNG.</div>
+          </div>
+        </form>
+
+        <div class="d-flex justify-content-between mt-5 pt-3 border-top">
+          <button class="btn btn-outline-secondary" onclick="showView('dashboard')">
+            <i class="bi bi-arrow-left"></i> Volver al Panel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

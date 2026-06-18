@@ -1,0 +1,707 @@
+<script>
+  /**
+   * Variables Globales de la SPA
+   */
+  let currentUser = null;
+  let currentDoc = null;
+  let currentSections = [];
+  let currentStep = 0;
+  let availableSections = [];
+  let modalUser = null;
+  let allDocs = [];
+  let currentTab = 'all';
+  let revisionTab = 'pending';
+  let catalogTree = {};
+
+  /**
+   * Navegación SPA Segura
+   */
+  function showView(viewId, params = null) {
+    console.log("Cambiando a vista:", viewId, params);
+    $('.section-view').hide();
+    const target = $(`#view-${viewId}`);
+
+    if (target.length) {
+      target.show();
+      // Actualizar Navbar
+      $('.nav-link').removeClass('active');
+      $(`.nav-link[onclick*="${viewId}"]`).addClass('active');
+
+      if (viewId === 'dashboard') loadDashboard();
+      if (viewId === 'editor') initEditor(params);
+      if (viewId === 'revision') initRevision(params);
+      if (viewId === 'revision-list') loadRevisionQueue();
+      if (viewId === 'admin') loadAdminData();
+      if (viewId === 'firmado') initFirmado(params);
+    } else {
+      console.error("Vista no encontrada:", viewId);
+      $('#view-dashboard').show();
+    }
+  }
+
+  function showLoader(show, text = "Procesando...") {
+    $('#loading-overlay .mt-2').text(text);
+    if (show) $('#loading-overlay').fadeIn(100);
+    else $('#loading-overlay').fadeOut(100);
+  }
+
+  /**
+   * Inicialización de Aplicación
+   */
+  $(document).ready(function() {
+    showLoader(true, "Iniciando sesión segura...");
+
+    // Iniciar tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+
+    google.script.run
+      .withFailureHandler(function(err) {
+        console.error("Fallo crítico de inicio:", err);
+        alert("Fallo al cargar la plataforma. Reintente (F5). Detalle: " + err.message);
+        showLoader(false);
+      })
+      .withSuccessHandler(function(info) {
+        console.log("Sesión Iniciada:", info);
+        currentUser = info;
+        $('#userName').text(info.nombre);
+        $('#userRole').text(info.rol);
+
+        if (info.rol === 'administrador') {
+          $('.admin-only').show();
+        } else {
+          $('.admin-only').hide();
+        }
+
+        if (info.nombre === 'Invitado') {
+          console.warn("ADVERTENCIA: El usuario no está registrado o el correo no fue detectado. Usando modo lectura/invitado.");
+        }
+
+        showView('dashboard');
+        showLoader(false);
+      })
+      .getUserInfo();
+  });
+
+  /**
+   * Lógica del DASHBOARD
+   */
+  function loadDashboard() {
+    console.log("Sincronizando registros con el servidor...");
+    showLoader(true, "Actualizando documentos...");
+    google.script.run
+      .withFailureHandler(err => {
+        console.error("Error al obtener documentos:", err);
+        showLoader(false);
+      })
+      .withSuccessHandler(function(docs) {
+        console.log("Documentos sincronizados:", docs ? docs.length : 0);
+        allDocs = docs || [];
+        renderDocsTable(allDocs);
+        updateStats(allDocs);
+        showLoader(false);
+      })
+      .getDocuments();
+  }
+
+  function renderDocsTable(docs) {
+    const tbody = $('#tableDocsBody');
+    tbody.empty();
+
+    if (!docs || docs.length === 0) {
+      tbody.append('<tr><td colspan="7" class="text-center p-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i> No se encontraron documentos registrados.</td></tr>');
+      return;
+    }
+
+    const isAdmin = currentUser && currentUser.rol === 'administrador';
+    $('#headerCreador').toggle(isAdmin);
+
+    docs.forEach(doc => {
+      const badgeClass = `badge-${doc.estado}`;
+      const statusText = (doc.estado || "En_Edición").replace('_', ' ');
+      const dateStr = doc.fecha ? new Date(doc.fecha).toLocaleDateString() : 'N/A';
+
+      const row = `
+        <tr>
+          <td><span class="badge bg-light text-dark border fw-bold shadow-sm">${doc.codigo || 'S/C'}</span></td>
+          <td><small class="fw-bold">${doc.tipo || 'PROC'}</small></td>
+          ${isAdmin ? `<td><small class="text-muted">${doc.usuario || '-'}</small></td>` : ''}
+          <td><small>${dateStr}</small></td>
+          <td><span class="badge ${badgeClass} shadow-sm">${statusText}</span></td>
+          <td>
+            <div class="progress" style="height: 6px;">
+              <div class="progress-bar bg-success" style="width: ${calculateProgressPercent(doc.progreso)}%"></div>
+            </div>
+            <small class="x-small text-muted">${doc.progreso}</small>
+          </td>
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-primary" onclick="showView('editor', '${doc.id}')" title="Consultar/Editar">
+              ${(doc.estado === 'En_Edición' || doc.estado === 'Observado') ? '<i class="bi bi-pencil"></i>' : '<i class="bi bi-eye"></i>'}
+            </button>
+            ${(doc.estado === 'En_Edición' || doc.estado === 'Observado') ?
+              `<button class="btn btn-sm btn-outline-warning ms-1" onclick="sendToReview('${doc.id}')" title="Enviar a Revisión"><i class="bi bi-send"></i></button>` : ''}
+            ${doc.estado === 'Aprobado' ?
+              `<button class="btn btn-sm btn-outline-success ms-1" onclick="showView('firmado', '${doc.id}')" title="Subir Firmado"><i class="bi bi-pen"></i></button>` : ''}
+            ${isAdmin ?
+              `<button class="btn btn-sm btn-dark ms-1 shadow-sm" onclick="showView('revision', '${doc.id}')" title="Panel de Revisión">
+                <i class="bi bi-shield-fill-check"></i> Revisar
+              </button>` : ''}
+          </td>
+        </tr>
+      `;
+      tbody.append(row);
+    });
+  }
+
+  function filterDocs() {
+    const term = $('#searchDoc').val().toLowerCase();
+    const filtered = allDocs.filter(d => {
+      const matchTerm = d.codigo.toLowerCase().includes(term) || d.tipo.toLowerCase().includes(term);
+      let matchTab = true;
+      if (currentTab === 'pending') matchTab = (d.estado === 'En_Revision' || d.estado === 'Observado');
+      if (currentTab === 'approved') matchTab = d.estado === 'Aprobado';
+      return matchTerm && matchTab;
+    });
+    renderDocsTable(filtered);
+  }
+
+  function filterByTab(tab) {
+    currentTab = tab;
+    $('.btn-group .btn').removeClass('active');
+    if (tab === 'all') $('#btnTabAll').addClass('active');
+    if (tab === 'pending') $('#btnTabPending').addClass('active');
+    if (tab === 'approved') $('#btnTabApproved').addClass('active');
+    filterDocs();
+  }
+
+  function updateStats(docs) {
+    if (!currentUser || currentUser.rol !== 'administrador') return;
+    const stats = {
+      total: docs.length,
+      pending: docs.filter(d => d.estado === 'En_Revision').length,
+      observed: docs.filter(d => d.estado === 'Observado').length,
+      approved: docs.filter(d => d.estado === 'Aprobado').length
+    };
+    $('#statTotal').text(stats.total);
+    $('#statPending').text(stats.pending);
+    $('#statObserved').text(stats.observed);
+    $('#statApproved').text(stats.approved);
+  }
+
+  function calculateProgressPercent(progreso) {
+    if (!progreso) return 0;
+    const parts = progreso.split(' de ');
+    if (parts.length < 2) return 0;
+    const den = parseInt(parts[1]);
+    return den === 0 ? 0 : (parseInt(parts[0]) / den) * 100;
+  }
+
+  /**
+   * Lógica del EDITOR (Wizard)
+   */
+  async function initEditor(docId = null) {
+    currentStep = 0;
+    $('#formEditorHeader')[0].reset();
+    $('#editorDocId').val(docId || '');
+    $('#editorAnexosCard').hide();
+    $('#editorFilesList').empty();
+    showLoader(true, "Preparando catálogos...");
+
+    await new Promise(resolve => {
+      google.script.run
+        .withSuccessHandler(cats => {
+          catalogTree = cats.tree;
+          fillSelect('doc_dir', Object.keys(cats.tree));
+          resolve();
+        })
+        .getCatalogs();
+    });
+
+    if (docId) {
+      showLoader(true, "Recuperando documento...");
+      google.script.run
+        .withSuccessHandler(data => {
+          currentDoc = data.doc;
+          currentSections = data.sections;
+          $('#doc_dir').val(currentDoc.direccion);
+          onDirectionChange(currentDoc.subdireccion);
+          onSubdirectionChange(currentDoc.departamento);
+          $('#doc_rev').val(currentDoc.revision);
+          $('#doc_tipo_select').val(currentDoc.tipo);
+          $('#codePreview').text(currentDoc.codigo);
+          renderWizard();
+          loadEditorFiles(docId);
+          $('#editorAnexosCard').show();
+          showLoader(false);
+        })
+        .getDocumentDetail(docId);
+    } else {
+      currentDoc = null;
+      currentSections = [];
+      $('#codePreview').text('CÓDIGO-AUTOGENERADO');
+      $('#wizardContainer').empty();
+      showLoader(false);
+    }
+  }
+
+  function fillSelect(id, items) {
+    const sel = $(`#${id}`);
+    const currentVal = sel.val();
+    sel.empty().append('<option value="">Seleccionar...</option>');
+    if (items) items.forEach(item => sel.append(`<option value="${item}">${item}</option>`));
+    if (currentVal && items.includes(currentVal)) sel.val(currentVal);
+  }
+
+  /**
+   * Cascada de Dependencias
+   */
+  function onDirectionChange(savedSub = null) {
+    const dir = $('#doc_dir').val();
+    const subSel = $('#doc_sub');
+    const deptSel = $('#doc_dept');
+
+    subSel.empty().append('<option value="">Seleccionar...</option>');
+    deptSel.empty().append('<option value="">Seleccionar...</option>');
+
+    if (dir && catalogTree[dir]) {
+      const subs = Object.keys(catalogTree[dir]);
+      subs.forEach(s => {
+        subSel.append(`<option value="${s}">${s}</option>`);
+      });
+
+      if (savedSub) {
+        subSel.val(savedSub);
+        onSubdirectionChange(currentDoc.departamento);
+      }
+    }
+  }
+
+  function onSubdirectionChange(savedDept = null) {
+    const dir = $('#doc_dir').val();
+    let sub = $('#doc_sub').val() || "N/A";
+    const deptSel = $('#doc_dept');
+
+    deptSel.empty().append('<option value="">Seleccionar...</option>');
+
+    if (dir && catalogTree[dir] && catalogTree[dir][sub]) {
+      catalogTree[dir][sub].forEach(d => deptSel.append(`<option value="${d}">${d}</option>`));
+      if (savedDept) deptSel.val(savedDept);
+    }
+  }
+
+  function renderWizard() {
+    const tipo = $('#doc_tipo_select').val();
+    if (!tipo) return;
+
+    const abrev = tipo === 'Política' ? 'POLITICA' : 'PROCESO';
+    availableSections = tipo === 'Política' ?
+      ["OBJETIVO", "ALCANCE", "MARCO LEGAL", "DEFINICIONES", "POLÍTICAS GENERALES", "POLÍTICAS ESPECÍFICAS", "ANEXOS", "SANCIONES", "CONTROL DE CAMBIOS", "ANEXO DOCUMENTAL"] :
+      ["OBJETIVO", "ALCANCE", "RESPONSABILIDADES", "DOCUMENTOS DE REFERENCIA", "DEFINICIONES", "RECURSOS A UTILIZAR", "DESCRIPCIÓN DEL PROCEDIMIENTO", "REGISTROS QUE GENERA EL PROCEDIMIENTO", "ANEXOS", "CONTROL DE CAMBIOS", "ANEXO DOCUMENTAL"];
+
+    const container = $('#wizardContainer');
+    container.empty();
+
+    availableSections.forEach((secName, index) => {
+      const sectionData = currentSections.find(s => s.nombre === secName) || { contenido: '', estado: 'Pendiente' };
+      const isLocked = sectionData.estado === 'Visto_Bueno' && (currentUser && currentUser.rol !== 'administrador');
+
+      let contentHtml = '';
+      if (secName === 'ANEXO DOCUMENTAL') {
+        let anexosData = [];
+        try { anexosData = JSON.parse(sectionData.contenido || "[]"); } catch(e) {}
+        contentHtml = `
+          <div id="anexosContainer" class="p-3 bg-light rounded">
+            <label class="small fw-bold mb-3 d-block text-primary">EXPEDIENTES COMPLEMENTARIOS (Opcional):</label>
+            ${[0, 1, 2].map(i => `
+              <div class="row g-2 mb-3 border-bottom pb-2">
+                <div class="col-md-4">
+                  <input type="text" class="form-control form-control-sm anexo-nombre" placeholder="Nombre de Anexo ${i+1}" value="${anexosData[i]?.nombre || ''}">
+                </div>
+                <div class="col-md-8">
+                  <input type="text" class="form-control form-control-sm anexo-detalle" placeholder="URL o Referencia" value="${anexosData[i]?.detalle || ''}">
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <input type="hidden" id="content-${index}">
+        `;
+      } else {
+        contentHtml = `
+          <textarea class="form-control section-content ${isLocked ? 'section-locked' : ''}"
+                    id="content-${index}" rows="10"
+                    onkeyup="updateCharCount(${index})">${sectionData.contenido}</textarea>
+          <div class="char-counter text-end mt-1 small text-muted"><span id="count-${index}">${sectionData.contenido.length}</span> caracteres</div>
+        `;
+      }
+
+      container.append(`
+        <div class="card section-card border-0 shadow-sm ${index === 0 ? 'active' : ''}" id="step-${index}">
+          <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold text-merida text-uppercase">${index + 1}. ${secName}</h6>
+            <div>
+              ${sectionData.estado === 'Visto_Bueno' ? '<span class="badge bg-success shadow-sm">Aprobada</span>' : ''}
+              ${sectionData.estado === 'Observado' ? '<span class="badge bg-danger shadow-sm">Observada</span>' : ''}
+            </div>
+          </div>
+          <div class="card-body">
+            ${sectionData.observaciones ? `<div class="alert alert-warning py-2 mb-3 small fw-bold">Revisión: ${sectionData.observaciones}</div>` : ''}
+            ${contentHtml}
+          </div>
+        </div>
+      `);
+    });
+    updateWizardUI();
+  }
+
+  function updateWizardUI() {
+    const percent = ((currentStep + 1) / availableSections.length) * 100;
+    $('#wizardProgressBar').css('width', `${percent}%`);
+    $('#btnPrev').prop('disabled', currentStep === 0);
+    $('#btnNext').toggle(currentStep < availableSections.length - 1);
+    $('#btnSave').toggle(currentStep === availableSections.length - 1);
+  }
+
+  function moveStep(dir) {
+    $(`#step-${currentStep}`).removeClass('active');
+    currentStep += dir;
+    $(`#step-${currentStep}`).addClass('active');
+    updateWizardUI();
+  }
+
+  function updateCharCount(index) {
+    const len = $(`#content-${index}`).val().length;
+    $(`#count-${index}`).text(len);
+  }
+
+  function saveDocument() {
+    const sections = availableSections.map((name, i) => {
+      let content = $(`#content-${i}`).val();
+
+      // Caso especial: Anexo Documental (UI custom)
+      if (name === 'ANEXO DOCUMENTAL') {
+        const anexos = [];
+        $('#anexosContainer .row').each(function() {
+          const n = $(this).find('.anexo-nombre').val();
+          const d = $(this).find('.anexo-detalle').val();
+          if (n) anexos.push({ nombre: n, detalle: d });
+        });
+        content = JSON.stringify(anexos);
+      }
+
+      return { nombre: name, contenido: content };
+    });
+
+    const docData = {
+      ID_Documento: $('#editorDocId').val(),
+      coordinacion: "", // Removido de la UI
+      direccion: $('#doc_dir').val(),
+      subdireccion: $('#doc_sub').val(),
+      departamento: $('#doc_dept').val(),
+      Número_Revisión: $('#doc_rev').val(),
+      tipo: $('#doc_tipo_select').val()
+    };
+
+    showLoader(true, "Guardando expediente...");
+    google.script.run
+      .withFailureHandler(err => { alert("Error al guardar: " + err.message); showLoader(false); })
+      .withSuccessHandler(res => {
+        $('#editorDocId').val(res.idDoc);
+        $('#editorAnexosCard').fadeIn();
+        showToast('Éxito', 'Documento guardado. Ahora puede subir anexos.', 'success');
+        showLoader(false);
+      })
+      .saveDocument(docData, sections);
+  }
+
+  /**
+   * Gestión de Archivos (Frontend)
+   */
+  function loadEditorFiles(docId) {
+    google.script.run
+      .withSuccessHandler(files => {
+        const list = $('#editorFilesList');
+        list.empty();
+        if (files.length === 0) list.append('<div class="p-3 text-center text-muted small">No hay archivos adjuntos.</div>');
+        files.forEach(f => {
+          list.append(`
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div><i class="bi bi-file-earmark-text me-2"></i>${f.nombre}</div>
+              <div>
+                <a href="${f.url}" target="_blank" class="btn btn-sm btn-outline-secondary me-1"><i class="bi bi-eye"></i></a>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteFile('${f.id}')"><i class="bi bi-trash"></i></button>
+              </div>
+            </div>
+          `);
+        });
+      })
+      .getAttachedFiles(docId);
+  }
+
+  function handleFileUpload(input) {
+    const docId = $('#editorDocId').val();
+    if (!docId) return alert("Debe guardar el documento al menos una vez antes de subir archivos.");
+
+    const file = input.files[0];
+    if (!file) return;
+
+    showLoader(true, "Leyendo archivo...");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result;
+      showLoader(true, "Subiendo a Drive...");
+      google.script.run
+        .withSuccessHandler(() => {
+          showToast('Carga Exitosa', 'Archivo subido correctamente.', 'success');
+          loadEditorFiles(docId);
+          showLoader(false);
+        })
+        .uploadFileToDrive(docId, base64Data, file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function deleteFile(idAnexo) {
+    if (!confirm('¿Eliminar este archivo de forma permanente?')) return;
+    showLoader(true, "Eliminando...");
+    google.script.run
+      .withSuccessHandler(() => {
+        loadEditorFiles($('#editorDocId').val());
+        showLoader(false);
+      })
+      .deleteAttachedFile(idAnexo);
+  }
+
+  function showToast(title, msg, type = 'primary') {
+    $('#toastTitle').text(title);
+    $('#toastMessage').text(msg);
+    $('#liveToast').removeClass('bg-merida bg-success bg-danger').addClass(type === 'success' ? 'bg-success' : (type === 'danger' ? 'bg-danger' : 'bg-merida'));
+    const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+    toast.show();
+  }
+
+  /**
+   * Lógica de REVISIÓN (Admin)
+   */
+  function initRevision(docId) {
+    showLoader(true, "Accediendo al panel administrativo...");
+    google.script.run
+      .withSuccessHandler(function(data) {
+        currentDoc = data.doc;
+        currentSections = data.sections;
+        $('#revDocCode').text(currentDoc.codigo);
+        $('#revDocUser').text(currentDoc.creador);
+        $('#revGeneralObs').val(currentDoc.obs_generales || '');
+
+        const container = $('#revisionSectionsContainer');
+        container.empty();
+        let count = 0;
+
+        currentSections.forEach((sec, index) => {
+          let display = `<div class="p-3 bg-white rounded border shadow-sm" style="white-space: pre-wrap; font-size: 0.95rem;">${sec.contenido}</div>`;
+          if (sec.nombre === 'ANEXO DOCUMENTAL') {
+            try {
+              const anexos = JSON.parse(sec.contenido || "[]");
+              display = anexos.length ? `<div class="list-group shadow-sm">${anexos.map(a => `<div class="list-group-item"><b>${a.nombre}</b><br><small>${a.detalle}</small></div>`).join('')}</div>` : '<em>Sin anexos.</em>';
+            } catch(e) {}
+          }
+          if (sec.estado !== 'Pendiente') count++;
+
+          container.append(`
+            <div class="card mb-4 border-0 shadow-sm overflow-hidden">
+              <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase">${sec.nombre}</h6>
+                <div>
+                  ${sec.estado === 'Visto_Bueno' ? '<span class="badge bg-success">Aprobada</span>' : ''}
+                  ${sec.estado === 'Observado' ? '<span class="badge bg-danger">Observada</span>' : ''}
+                </div>
+              </div>
+              <div class="card-body bg-light-gray p-4">
+                <div class="row g-4">
+                  <div class="col-lg-7">
+                    <label class="small text-primary mb-2 d-block fw-bold text-uppercase"><i class="bi bi-file-earmark-text"></i> Expediente Original:</label>
+                    ${display}
+                  </div>
+                  <div class="col-lg-5">
+                    <div class="h-100 p-3 bg-white border-start border-4 border-warning rounded shadow-sm">
+                      <label class="small text-warning mb-2 d-block fw-bold text-uppercase"><i class="bi bi-pencil-square"></i> Bitácora de Observaciones:</label>
+                      <textarea class="form-control form-control-sm mb-3 border-0 bg-light" id="obs-rev-${index}" rows="6">${sec.observaciones || ''}</textarea>
+                      <div class="d-grid gap-2">
+                        <button class="btn btn-sm ${sec.estado === 'Visto_Bueno' ? 'btn-success' : 'btn-outline-success'}" onclick="submitReview('${index}', '${sec.nombre}', 'aprobar')">Dar Visto Bueno</button>
+                        <button class="btn btn-sm ${sec.estado === 'Observado' ? 'btn-danger' : 'btn-outline-danger'}" onclick="submitReview('${index}', '${sec.nombre}', 'observar')">Observar</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `);
+        });
+        $('#revProgressBar').css('width', `${(count / currentSections.length) * 100}%`);
+        $('#revProgressText').text(`${count} de ${currentSections.length} secciones revisadas`);
+        showLoader(false);
+      })
+      .getDocumentDetail(docId);
+  }
+
+  function submitReview(index, name, decision) {
+    const obs = $(`#obs-rev-${index}`).val();
+    if (decision === 'observar' && !obs) return alert('Observaciones obligatorias.');
+    showLoader(true, "Actualizando dictamen...");
+    google.script.run
+      .withSuccessHandler(() => { showToast('Dictamen Guardado', 'Sección actualizada correctamente.', 'success'); initRevision(currentDoc.id); })
+      .reviewSection(currentDoc.id, name, decision, obs);
+  }
+
+  function saveGeneralObs() {
+    showLoader(true, "Guardando comentarios globales...");
+    google.script.run
+      .withSuccessHandler(() => { showToast('Comentario Global', 'Observación general guardada.', 'success'); showLoader(false); })
+      .updateGeneralObs(currentDoc.id, $('#revGeneralObs').val());
+  }
+
+  function sendToReview(idDoc) {
+    if (!confirm('¿Desea enviar este documento a revisión formal?')) return;
+    showLoader(true, "Enviando...");
+    google.script.run.withSuccessHandler(() => { alert('Documento en revisión.'); loadDashboard(); }).sendToReview(idDoc);
+  }
+
+  function finalizeReview() { showView('dashboard'); }
+
+  /**
+   * Lógica de DOCUMENTO FIRMADO
+   */
+  function initFirmado(docId) {
+    if (!docId) return showView('dashboard');
+    showLoader(true, "Recuperando datos...");
+    $('#firmadoDocId').val(docId);
+    google.script.run
+      .withSuccessHandler(data => {
+        $('#firmadoDocCode').text(data.doc.codigo);
+        showLoader(false);
+      })
+      .getDocumentDetail(docId);
+  }
+
+  function uploadFirmado() {
+    const docId = $('#firmadoDocId').val();
+    const fileInput = document.getElementById('firmadoFile');
+    const file = fileInput.files[0];
+    if (!file) return alert("Seleccione un archivo.");
+
+    showLoader(true, "Procesando documento firmado...");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result;
+      google.script.run
+        .withSuccessHandler(() => {
+          showToast('Éxito', 'Documento firmado cargado. Estado actualizado a Aprobado.', 'success');
+          showView('dashboard');
+          showLoader(false);
+        })
+        .uploadFileToDrive(docId, base64Data, "FIRMADO_" + file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Lógica de REVISIONES (Lista)
+   */
+  function loadRevisionQueue() {
+    showLoader(true, "Cargando cola de revisiones...");
+    google.script.run
+      .withSuccessHandler(function(docs) {
+        allDocs = docs || [];
+        filterRevisionList(revisionTab);
+        showLoader(false);
+      })
+      .getDocuments();
+  }
+
+  function filterRevisionList(tab) {
+    revisionTab = tab;
+    $('#btnRevPending, #btnRevDone').removeClass('active');
+    if (tab === 'pending') $('#btnRevPending').addClass('active');
+    else $('#btnRevDone').addClass('active');
+
+    const filtered = allDocs.filter(d => {
+      if (tab === 'pending') return d.estado === 'En_Revision';
+      return d.estado === 'Aprobado' || d.estado === 'Observado';
+    });
+
+    const tbody = $('#revisionListBody');
+    tbody.empty();
+
+    if (filtered.length === 0) {
+      tbody.append('<tr><td colspan="6" class="text-center p-4">No hay documentos en esta categoría.</td></tr>');
+      return;
+    }
+
+    filtered.forEach(doc => {
+      tbody.append(`
+        <tr>
+          <td class="ps-3"><span class="badge bg-light text-dark border">${doc.codigo}</span></td>
+          <td><small>${doc.tipo}</small></td>
+          <td><small>${doc.usuario}</small></td>
+          <td><small>${new Date(doc.fecha).toLocaleDateString()}</small></td>
+          <td><small>${doc.progreso}</small></td>
+          <td class="text-end pe-3">
+            <button class="btn btn-sm btn-merida" onclick="showView('revision', '${doc.id}')">
+              <i class="bi bi-shield-check"></i> Revisar
+            </button>
+          </td>
+        </tr>
+      `);
+    });
+  }
+
+  /**
+   * ADMINISTRACIÓN DE USUARIOS
+   */
+  function loadAdminData() {
+    if (!modalUser) modalUser = new bootstrap.Modal(document.getElementById('modalUser'));
+    runServer('getUsersList', null, function(users) {
+      const tbody = $('#usersTableBody');
+      tbody.empty();
+      users.forEach(u => {
+        tbody.append(`<tr><td><div class="fw-bold">${u.nombre}</div></td><td><small>${u.email}</small></td><td><span class="badge bg-dark">${u.rol}</span></td><td><small class="text-muted">${u.coordinacion} / ${u.direccion}</small></td><td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteUser('${u.email}')"><i class="bi bi-trash"></i></button></td></tr>`);
+      });
+    });
+  }
+
+  function openUserModal() { $('#formUser')[0].reset(); modalUser.show(); }
+
+  function saveUser() {
+    const userData = { nombre: $('#u_nombre').val(), email: $('#u_email').val(), rol: $('#u_rol').val(), coordinacion: $('#u_coord').val(), direccion: $('#u_dir').val() };
+    if (!userData.nombre || !userData.email) return alert('Nombre y Correo obligatorios.');
+    runServer('saveUser', [userData], function() { alert('Usuario registrado.'); modalUser.hide(); loadAdminData(); });
+  }
+
+  function confirmDeleteUser(email) {
+    if (confirm(`¿Eliminar acceso para ${email}?`)) runServer('deleteUser', [email], function() { alert('Usuario removido.'); loadAdminData(); });
+  }
+
+  function checkDatabase() {
+    runServer('getSystemStatus', null, function(status) {
+      let msg = "Estado del Sistema:\n";
+      msg += "URL: " + status.url + "\n\n";
+      msg += "Pestañas (Registros):\n";
+      for(let s in status.sheets) msg += "- " + s + ": " + status.sheets[s] + "\n";
+      alert(msg);
+    });
+  }
+
+  function runServer(funcName, args, onSuccess) {
+    showLoader(true);
+    const runner = google.script.run.withFailureHandler(err => {
+      console.error("Runner Fail:", funcName, err);
+      alert("Error en " + funcName + ": " + err.message);
+      showLoader(false);
+    }).withSuccessHandler(res => {
+      onSuccess(res);
+      showLoader(false);
+    });
+    if (args) runner[funcName](...args); else runner[funcName]();
+  }
+</script>

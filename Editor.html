@@ -1,0 +1,91 @@
+<div class="row">
+  <!-- Sidebar de Navegación del Documento -->
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header card-header-merida">Encabezado</div>
+      <div class="card-body">
+        <form id="formEditorHeader">
+          <input type="hidden" id="editorDocId">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Dirección</label>
+            <select class="form-select form-select-sm" id="doc_dir" required onchange="onDirectionChange()"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Subdirección</label>
+            <select class="form-select form-select-sm" id="doc_sub" onchange="onSubdirectionChange()">
+              <option value="">Seleccionar...</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Departamento</label>
+            <select class="form-select form-select-sm" id="doc_dept" required>
+              <option value="">Seleccionar...</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Número Revisión</label>
+            <input type="number" class="form-control form-control-sm" id="doc_rev" value="0" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold d-block">Tipo Documento</label>
+            <select class="form-select form-select-sm" id="doc_tipo_select" name="doc_tipo" onchange="renderWizard()">
+              <option value="Política">Políticas</option>
+              <option value="Proceso" selected>Procesos</option>
+            </select>
+          </div>
+          <hr>
+          <div class="text-center">
+            <div class="small text-muted mb-1">Código Sugerido:</div>
+            <div id="codePreview" class="badge bg-light text-dark border p-2 w-100">CÓDIGO-AUTOGENERADO</div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido de Secciones (Wizard) -->
+  <div class="col-md-9">
+    <div class="progress wizard-progress shadow-sm bg-white">
+      <div class="progress-bar bg-primary" id="wizardProgressBar" role="progressbar" style="width: 0%"></div>
+    </div>
+
+    <div id="wizardContainer">
+      <!-- Secciones dinámicas -->
+    </div>
+
+    <!-- Gestión de Anexos (Archivos) -->
+    <div class="card border-0 shadow-sm mt-3" id="editorAnexosCard" style="display:none;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-paperclip me-2"></i>Expedientes Adjuntos (Drive)</h6>
+        <div class="d-flex gap-2">
+           <input type="file" id="fileInput" class="d-none" onchange="handleFileUpload(this)">
+           <button class="btn btn-sm btn-outline-primary" onclick="$('#fileInput').click()">
+              <i class="bi bi-upload"></i> Subir Archivo
+           </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush" id="editorFilesList">
+          <!-- Lista de archivos -->
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-body d-flex justify-content-between">
+        <button class="btn btn-outline-secondary" id="btnPrev" onclick="moveStep(-1)">
+          <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <div>
+          <button class="btn btn-outline-danger me-2" onclick="showView('dashboard')">Cancelar</button>
+          <button class="btn btn-merida" id="btnNext" onclick="moveStep(1)">
+            Siguiente <i class="bi bi-chevron-right"></i>
+          </button>
+          <button class="btn btn-success" id="btnSave" style="display:none;" onclick="saveDocument()">
+            <i class="bi bi-save"></i> Guardar Borrador
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
