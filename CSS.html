@@ -1,46 +1,75 @@
 <style>
   :root {
-    --primary-color: #1a1a2e;
-    --secondary-color: #e94560;
-    --bg-color: #f5f5f5;
+    --bg-main: #FFFFFF;
+    --bg-secondary: #F0F4F8;
+    --accent-primary: #2A7FFF;
+    --accent-secondary: #C0E0FF;
+    --text-main: #101820;
+    --text-secondary: #506070;
+
     --success-color: #2ecc71;
     --warning-color: #f39c12;
     --danger-color: #e74c3c;
-    --text-color: #333;
   }
 
   body {
-    background-color: var(--bg-color);
+    background-color: var(--bg-main);
     font-family: 'Roboto', sans-serif;
-    color: var(--text-color);
+    color: var(--text-main);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--text-main);
   }
 
   .navbar {
-    background-color: var(--primary-color);
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--accent-secondary);
   }
 
   .navbar-brand, .nav-link {
-    color: white !important;
+    color: var(--text-main) !important;
+  }
+
+  .nav-link:hover {
+    color: var(--accent-primary) !important;
   }
 
   .btn-primary {
-    background-color: var(--secondary-color);
-    border-color: var(--secondary-color);
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
   }
 
   .btn-primary:hover {
-    background-color: #d63d57;
-    border-color: #d63d57;
+    background-color: #1a66cc;
+    border-color: #1a66cc;
+  }
+
+  .btn-outline-primary {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+  }
+
+  .btn-outline-primary:hover {
+    background-color: var(--accent-primary);
+    color: white;
   }
 
   .card {
     border: none;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    background-color: var(--bg-main);
+  }
+
+  .card-secondary {
+    background-color: var(--bg-secondary);
   }
 
   .card-header {
-    background-color: var(--primary-color);
-    color: white;
+    background-color: var(--bg-secondary);
+    color: var(--text-main);
+    border-bottom: 1px solid var(--accent-secondary);
   }
 
   .status-badge {
@@ -51,7 +80,7 @@
   }
 
   .status-pendiente { background-color: var(--warning-color); color: white; }
-  .status-en-reparacion { background-color: var(--primary-color); color: white; }
+  .status-en-reparacion { background-color: var(--accent-primary); color: white; }
   .status-listo { background-color: var(--success-color); color: white; }
   .status-entregado { background-color: #7f8c8d; color: white; }
   .status-cancelado { background-color: var(--danger-color); color: white; }
