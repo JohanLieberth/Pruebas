@@ -1,4 +1,4 @@
-# Guía de Instalación - GameService Pro
+# Guía de Instalación - BitFix
 
 Sigue estos pasos para poner en marcha tu Sistema de Administración de Servicios Técnico.
 

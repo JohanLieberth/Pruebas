@@ -19,7 +19,7 @@
           <div class="text-center mb-4">
             <a href="<?= getScriptUrl() ?>" class="text-decoration-none">
               <i class="fas fa-gamepad fa-3x text-primary mb-2"></i>
-              <h2 class="text-dark">GameService Pro</h2>
+              <h2 class="text-dark">BitFix</h2>
             </a>
             <p class="text-muted">Consulta de Estatus de Servicio</p>
           </div>
@@ -74,32 +74,9 @@
                     <hr>
 
                     <div class="row mb-3">
-                      <div class="col-5 fw-bold">Cliente:</div>
-                      <div class="col-7">${res.Nombre}</div>
-                    </div>
-                    <div class="row mb-3">
                       <div class="col-5 fw-bold">Dispositivo:</div>
                       <div class="col-7">${res.Dispositivo}</div>
                     </div>
-                    <div class="row mb-3">
-                      <div class="col-5 fw-bold">Falla:</div>
-                      <div class="col-7">${res.Falla}</div>
-                    </div>
-                    <div class="row mb-3">
-                      <div class="col-5 fw-bold">Fecha Entrega:</div>
-                      <div class="col-7 text-primary fw-bold">${res.FechaEntrega || 'Pendiente por confirmar'}</div>
-                    </div>
-                    <div class="row mb-3">
-                      <div class="col-5 fw-bold">Total:</div>
-                      <div class="col-7 text-success fw-bold">$${res["Total ($)"] || '0.00'}</div>
-                    </div>
-
-                    ${res.Solucion ? `
-                    <div class="alert alert-success mt-4">
-                      <h6 class="alert-heading fw-bold">Solución Aplicada:</h6>
-                      <p class="mb-0 small">${res.Solucion}</p>
-                    </div>
-                    ` : ''}
                   </div>
                 </div>
                 <div class="alert alert-light border small text-muted text-center mb-4">

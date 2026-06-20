@@ -4,7 +4,7 @@
  */
 
 const CONFIG = {
-  NOMBRE_SISTEMA: "GameService Pro",
+  NOMBRE_SISTEMA: "BitFix",
   FOLIO_PREFIX: "BF-",
   ADMIN_ROLE: "admin",
   CLIENT_ROLE: "cliente",
