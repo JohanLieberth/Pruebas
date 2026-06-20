@@ -4,37 +4,41 @@
     <base target="_top">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-      body { background-color: white; font-family: 'Courier New', Courier, monospace; padding: 0; margin: 0; }
+      body { background-color: white; font-family: Arial, Helvetica, sans-serif; padding: 0; margin: 0; color: #000; }
 
-      /* Comprobante Cliente 55mm */
+      /* Comprobante Cliente 55mm - Improved Readability */
       .ticket {
         width: 55mm;
         margin: 0;
-        padding: 2mm;
-        font-size: 8pt;
-        line-height: 1.2;
+        padding: 3mm;
+        font-size: 10pt;
+        line-height: 1.4;
       }
 
-      /* Etiqueta 48mm x 25mm */
+      /* Etiqueta 48mm x 25mm - Improved Readability */
       .ticket-short {
         width: 48mm;
         height: 25mm;
         margin: 0;
-        padding: 1mm;
-        font-size: 7pt;
+        padding: 2mm;
+        font-size: 9pt;
         border: 1px solid #000;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         justify-content: center;
+        line-height: 1.1;
       }
 
-      .folio-big { font-size: 14pt; font-weight: bold; margin: 2px 0; text-align: center; }
-      .logo-print { max-width: 100%; height: auto; display: block; margin: 0 auto 5px auto; }
-      .qr-placeholder { background: #eee; width: 60px; height: 60px; display: flex; align-items: center; text-align: center; font-size: 6pt; margin: 5px auto; }
-      .disclaimer-small { font-size: 6pt; color: #000; margin-top: 5px; border-top: 1px dashed #000; padding-top: 3px; }
+      .folio-big { font-size: 16pt; font-weight: 900; margin: 4px 0; text-align: center; border: 1px solid #000; padding: 2px; }
+      .logo-print { max-width: 90%; height: auto; display: block; margin: 0 auto 8px auto; filter: grayscale(100%) contrast(200%); }
+      .qr-placeholder { border: 1px solid #000; width: 70px; height: 70px; display: flex; align-items: center; text-align: center; font-size: 7pt; margin: 8px auto; font-weight: bold; }
+      .disclaimer-small { font-size: 7pt; color: #000; margin-top: 10px; border-top: 2px solid #000; padding-top: 5px; font-weight: bold; text-align: justify; }
 
-      hr { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
+      .label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+      .field-label { font-weight: bold; text-transform: uppercase; font-size: 8pt; }
+
+      hr { border: 0; border-top: 2px dashed #000; margin: 8px 0; }
 
       @media print {
         .no-print { display: none; }
@@ -54,59 +58,59 @@
       <? if (data.tipo === 'corto') { ?>
         <!-- Etiqueta 48mm x 25mm -->
         <div class="ticket-short">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
              <? if (config["Logo Pequeño"]) { ?>
-               <img src="<?= config["Logo Pequeño"] ?>" style="height: 15px;">
+               <img src="<?= config["Logo Pequeño"] ?>" style="height: 18px; filter: grayscale(100%);">
              <? } ?>
-             <strong><?= data.servicio.Folio ?></strong>
+             <strong style="font-size: 11pt;"><?= data.servicio.Folio ?></strong>
           </div>
-          <div style="font-weight: bold; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+          <div style="font-weight: 900; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-bottom: 1px solid #000;">
             <?= data.servicio.Nombre ?>
           </div>
-          <div><?= data.servicio["Fecha de recepción"] ?></div>
-          <div style="font-size: 6pt; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+          <div style="font-size: 8pt;"><?= data.servicio["Fecha de recepción"] ?></div>
+          <div style="font-weight: bold; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; background: #000; color: #fff; padding: 1px 2px;">
             <?= data.servicio["Dispositivo a recibir"] ?>
           </div>
         </div>
       <? } else { ?>
         <!-- Comprobante 55mm -->
         <div class="ticket">
-          <div style="text-align: center; margin-bottom: 5px;">
+          <div style="text-align: center; margin-bottom: 10px;">
             <? if (config["Logo Pequeño"]) { ?>
               <img src="<?= config["Logo Pequeño"] ?>" class="logo-print">
             <? } else { ?>
-              <strong>BitFix</strong>
+              <h3 style="margin:0;">BitFix</h3>
             <? } ?>
           </div>
 
-          <div class="folio-big">ORDEN: <?= data.servicio.Folio ?></div>
-          <div style="text-align: center;"><?= data.servicio["Fecha de recepción"] ?></div>
+          <div class="folio-big"><?= data.servicio.Folio ?></div>
+          <div style="text-align: center; font-weight: bold; margin-bottom: 5px;"><?= data.servicio["Fecha de recepción"] ?></div>
 
           <hr>
 
-          <strong>CLIENTE:</strong><br>
-          <?= data.servicio.Nombre ?><br>
-          Tel: <?= data.servicio["Teléfono"] ?><br>
+          <div class="field-label">Cliente:</div>
+          <div style="font-weight: 900; font-size: 11pt;"><?= data.servicio.Nombre ?></div>
+          <div>Tel: <strong><?= data.servicio["Teléfono"] ?></strong></div>
 
           <hr>
 
-          <strong>EQUIPO:</strong><br>
-          <?= data.servicio["Dispositivo a recibir"] ?><br>
-          Estado: <?= data.servicio["Estado del equipo"] ?><br>
+          <div class="field-label">Equipo:</div>
+          <div style="font-weight: bold;"><?= data.servicio["Dispositivo a recibir"] ?></div>
+          <div>Estado: <?= data.servicio["Estado del equipo"] ?></div>
 
           <hr>
 
-          <strong>FALLA:</strong><br>
-          <?= data.servicio["Descripción de la falla"] ?>
+          <div class="field-label">Falla Reportada:</div>
+          <div style="font-size: 9pt; line-height: 1.2;"><?= data.servicio["Descripción de la falla"] ?></div>
 
           <hr>
 
           <div style="text-align: center;">
             <div class="qr-placeholder">
-              Estatus:<br>
-              <?= data.servicio.Folio ?>
+              FOLIO:<br>
+              <span style="font-size: 12pt;"><?= data.servicio.Folio ?></span>
             </div>
-            <span style="font-size: 7pt;">Consulta tu estatus con el folio en nuestra web</span>
+            <div style="font-size: 8pt; font-weight: bold; border: 1px solid #000; padding: 2px;">WWW.BITFIX.PRO</div>
           </div>
 
           <div class="disclaimer-small">

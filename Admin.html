@@ -328,9 +328,15 @@
                   <button class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
                     <i class="fas fa-edit"></i>
                   </button>
-                  <button class="btn btn-sm btn-outline-dark" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')">
-                    <i class="fas fa-print"></i>
-                  </button>
+                  <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
+                      <i class="fas fa-print"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                      <li><a class="dropdown-item" href="#" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</a></li>
+                      <li><a class="dropdown-item" href="#" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</a></li>
+                    </ul>
+                  </div>
                   ${currentUser.rol === 'Administrador' ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
                       <i class="fas fa-trash"></i>
