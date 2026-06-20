@@ -33,7 +33,7 @@
       .folio-big { font-size: 16pt; font-weight: 900; margin: 4px 0; text-align: center; border: 1px solid #000; padding: 2px; }
       .logo-print { max-width: 90%; height: auto; display: block; margin: 0 auto 8px auto; filter: grayscale(100%) contrast(200%); }
       .qr-placeholder { border: 1px solid #000; width: 70px; height: 70px; display: flex; align-items: center; text-align: center; font-size: 7pt; margin: 8px auto; font-weight: bold; }
-      .disclaimer-small { font-size: 7pt; color: #000; margin-top: 10px; border-top: 2px solid #000; padding-top: 5px; font-weight: bold; text-align: justify; }
+      .disclaimer-small { font-size: 8pt; color: #000; margin-top: 10px; border-top: 2px solid #000; padding-top: 8px; font-weight: bold; text-align: left; line-height: 1.2; word-wrap: break-word; overflow-wrap: break-word; }
 
       .label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
       .field-label { font-weight: bold; text-transform: uppercase; font-size: 8pt; }
@@ -104,14 +104,6 @@
           <div style="font-size: 9pt; line-height: 1.2;"><?= data.servicio["Descripción de la falla"] ?></div>
 
           <hr>
-
-          <div style="text-align: center;">
-            <div class="qr-placeholder">
-              FOLIO:<br>
-              <span style="font-size: 12pt;"><?= data.servicio.Folio ?></span>
-            </div>
-            <div style="font-size: 8pt; font-weight: bold; border: 1px solid #000; padding: 2px;">WWW.BITFIX.PRO</div>
-          </div>
 
           <div class="disclaimer-small">
             <?= getDisclaimer() ?>
