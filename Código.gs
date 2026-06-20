@@ -106,6 +106,7 @@ function getSheet(name) {
       sheet.appendRow(["Logo Principal", ""]);
       sheet.appendRow(["Logo Pequeño", ""]);
       sheet.appendRow(["URL_Video_Promocional", ""]);
+      sheet.appendRow(["Paleta", "Tecnología Profesional"]);
     }
   }
   return sheet;

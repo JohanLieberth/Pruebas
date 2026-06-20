@@ -156,6 +156,14 @@
                 <label class="form-label">URL Video Promocional (MP4)</label>
                 <input type="text" name="URL_Video_Promocional" class="form-control" id="configVideo">
               </div>
+              <div class="mb-3">
+                <label class="form-label">Paleta de Colores</label>
+                <select name="Paleta" class="form-select" id="configPaleta">
+                  <option value="Tecnología Profesional">Tecnología Profesional</option>
+                  <option value="Digital Moderno">Digital Moderno</option>
+                  <option value="Mecánica Tecnológica">Mecánica Tecnológica</option>
+                </select>
+              </div>
             </form>
           </div>
           <div class="modal-footer">
@@ -238,6 +246,7 @@
         cargarStats();
         cargarServicios();
         cargarConfig();
+        inicializarTema();
       });
 
       function cargarConfig() {
@@ -247,6 +256,8 @@
             document.getElementById('configLogoPrincipal').value = config["Logo Principal"] || '';
             document.getElementById('configLogoPequeno').value = config["Logo Pequeño"] || '';
             document.getElementById('configVideo').value = config["URL_Video_Promocional"] || '';
+            document.getElementById('configPaleta').value = config["Paleta"] || 'Tecnología Profesional';
+            aplicarPaleta(config["Paleta"]);
           })
           .getConfig();
       }
@@ -255,7 +266,8 @@
         const config = {
           "Logo Principal": document.getElementById('configLogoPrincipal').value,
           "Logo Pequeño": document.getElementById('configLogoPequeno').value,
-          "URL_Video_Promocional": document.getElementById('configVideo').value
+          "URL_Video_Promocional": document.getElementById('configVideo').value,
+          "Paleta": document.getElementById('configPaleta').value
         };
         showLoading(true);
         google.script.run
