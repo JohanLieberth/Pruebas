@@ -21,47 +21,61 @@
     cont.innerHTML = '<p>Generando reporte...</p>';
 
     if (tipo === 'vencidas') {
-      google.script.run.withSuccessHandler(function(ventas) {
-        var html = '<h3>Ventas Vencidas (Saldo > 0 y Fecha Límite Pasada)</h3>';
-        html += renderTabla(ventas.filter(v => v.estatus === 'Vencida'));
-        cont.innerHTML = html;
-      }).getVentas();
+      google.script.run
+        .withSuccessHandler(function(ventas) {
+          var html = '<h3>Ventas Vencidas (Saldo > 0 y Fecha Límite Pasada)</h3>';
+          html += renderTabla(ventas.filter(v => v.estatus === 'Vencida'));
+          cont.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          cont.innerHTML = '<p style="color:red">Error: ' + err.message + '</p>';
+        })
+        .getVentas();
     } else if (tipo === 'vendedores') {
-      google.script.run.withSuccessHandler(function(ventas) {
-        var html = '<h3>Detalle de Ventas por Vendedor</h3>';
-        // Agrupar por vendedor
-        var grupos = {};
-        ventas.forEach(v => {
-          if (!grupos[v.vendedor]) grupos[v.vendedor] = [];
-          grupos[v.vendedor].push(v);
-        });
+      google.script.run
+        .withSuccessHandler(function(ventas) {
+          var html = '<h3>Detalle de Ventas por Vendedor</h3>';
+          var grupos = {};
+          ventas.forEach(v => {
+            if (!grupos[v.vendedor]) grupos[v.vendedor] = [];
+            grupos[v.vendedor].push(v);
+          });
 
-        for (var vend in grupos) {
-          html += '<h4>' + vend + '</h4>';
-          html += renderTabla(grupos[vend]);
-        }
-        cont.innerHTML = html;
-      }).getVentas();
+          for (var vend in grupos) {
+            html += '<h4>' + vend + '</h4>';
+            html += renderTabla(grupos[vend]);
+          }
+          cont.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          cont.innerHTML = '<p style="color:red">Error: ' + err.message + '</p>';
+        })
+        .getVentas();
     }
   }
 
   function exportarCSV() {
-    google.script.run.withSuccessHandler(function(ventas) {
-      var csv = 'Folio,Cliente,Hotel,Vendedor,Total,Fecha Limite,Cobrado,Saldo,Estatus\n';
-      ventas.forEach(v => {
-        csv += [v.folio, v.cliente, v.hotel, v.vendedor, v.total, v.fechaLimite, v.cobrado, v.saldo, v.estatus].join(',') + '\n';
-      });
+    google.script.run
+      .withSuccessHandler(function(ventas) {
+        var csv = 'Folio,Cliente,Hotel,Vendedor,Total,Fecha Limite,Cobrado,Saldo,Estatus\n';
+        ventas.forEach(v => {
+          csv += [v.folio, v.cliente, v.hotel, v.vendedor, v.total, v.fechaLimite, v.cobrado, v.saldo, v.estatus].join(',') + '\n';
+        });
 
-      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      var link = document.createElement("a");
-      var url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", "reporte_ventas.csv");
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }).getVentas();
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement("a");
+        var url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "reporte_ventas.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .withFailureHandler(function(err) {
+        alert("Error al exportar CSV: " + err.message);
+      })
+      .getVentas();
   }
 
   function renderTabla(ventas) {

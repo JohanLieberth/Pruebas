@@ -28,27 +28,35 @@
 </div>
 
 <div id="statsContent">
-  <? var stats = getDashboardData(); ?>
+  <?
+    var stats = null;
+    try {
+      stats = getDashboardData();
+    } catch(e) {
+      console.error("Error al obtener datos iniciales:", e);
+    }
+    stats = stats || { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 0, progresoMeta: 0, ranking: [] };
+  ?>
 <div class="grid">
   <div class="card stat-card">
     <span class="stat-label">Total Ventas Mes</span>
-    <span class="stat-value">$<?= stats.totalVentas.toFixed(2) ?></span>
+    <span class="stat-value">$<?= (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
   <div class="card stat-card" style="border-color: var(--secondary);">
     <span class="stat-label">Total Cobrado</span>
-    <span class="stat-value">$<?= stats.totalCobrado.toFixed(2) ?></span>
+    <span class="stat-value">$<?= (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
   <div class="card stat-card" style="border-color: var(--warning);">
     <span class="stat-label">Saldo Pendiente</span>
-    <span class="stat-value">$<?= stats.saldoPendiente.toFixed(2) ?></span>
+    <span class="stat-value">$<?= (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
 </div>
 
 <div class="card">
-  <h3 id="metaLabel">Meta Mensual: $<?= stats.meta.toFixed(2) ?></h3>
+  <h3 id="metaLabel">Meta Mensual: $<?= (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></h3>
   <div class="progress-container">
-    <div class="progress-bar" style="width: <?= Math.min(stats.progresoMeta, 100) ?>%">
-      <?= stats.progresoMeta.toFixed(1) ?>%
+    <div class="progress-bar" style="width: <?= Math.min(stats.progresoMeta || 0, 100) ?>%">
+      <?= (stats.progresoMeta || 0).toFixed(1) ?>%
     </div>
   </div>
   <p id="metaDesc" style="text-align: center; color: #666;">Progreso hacia la meta global</p>
@@ -94,56 +102,75 @@
 
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 <script>
-  function cargarVendedoresFiltro() {
-    var select = document.getElementById('filtroVendedor');
-    google.script.run
-      .withSuccessHandler(function(vendedores) {
-        select.innerHTML = '<option value="Todos">Todos</option>';
-        vendedores.forEach(function(v) {
-          var opt = document.createElement('option');
-          opt.value = v;
-          opt.innerText = v;
-          select.appendChild(opt);
-        });
-      })
-      .getVendedores();
-  }
+  /**
+   * Definición de funciones en el ámbito global.
+   */
 
-  document.addEventListener('DOMContentLoaded', cargarVendedoresFiltro);
+  // Definir primero para asegurar disponibilidad
+  function drawChartsWithData(stats) {
+    console.log('Dibujando gráficas con:', stats);
 
-  function actualizarDashboard() {
-    var v = document.getElementById('filtroVendedor').value;
-    var m = document.getElementById('filtroMes').value;
+    if (typeof google === 'undefined' || !google.visualization || !google.visualization.PieChart) {
+      console.warn('Google Charts no disponible aún.');
+      return;
+    }
 
-    // Mostramos un loader (Overlay global definido en Index.html)
-    document.getElementById('loading-overlay').style.display = 'flex';
-    document.getElementById('statsContent').style.opacity = '0.5';
+    if (!stats) return;
 
-    google.script.run
-      .withSuccessHandler(function(stats) {
-         try {
-           renderStats(stats);
-         } catch(e) {
-           console.error("Error en success handler:", e);
-         } finally {
-           document.getElementById('statsContent').style.opacity = '1';
-           document.getElementById('loading-overlay').style.display = 'none';
-         }
-      })
-      .withFailureHandler(function(err) {
-         console.error("Error del servidor:", err);
-         alert('Error al actualizar dashboard: ' + err.message);
-         document.getElementById('loading-overlay').style.display = 'none';
-         document.getElementById('statsContent').style.opacity = '1';
-      })
-      .getDashboardData(v, m);
+    try {
+      // Gráfica de Vendedores
+      var vData = [['Vendedor', 'Ventas']];
+      if (stats.ventasPorVendedor) {
+        for (var v in stats.ventasPorVendedor) {
+          vData.push([v, stats.ventasPorVendedor[v]]);
+        }
+      }
+      if (vData.length === 1) vData.push(['Sin datos', 0]);
+      var vendedorDataTable = google.visualization.arrayToDataTable(vData);
+
+      var vendedorOptions = {
+        pieHole: 0.4,
+        colors: ['#0E7490', '#F57C00', '#1CA7C8', '#FBC02D', '#F44336'],
+        legend: { position: 'bottom' },
+        chartArea: { width: '90%', height: '80%' }
+      };
+
+      var chartVDiv = document.getElementById('vendedorChart');
+      if (chartVDiv) {
+        var chartV = new google.visualization.PieChart(chartVDiv);
+        chartV.draw(vendedorDataTable, vendedorOptions);
+      }
+
+      // Gráfica de Estatus
+      var estatusData = google.visualization.arrayToDataTable([
+        ['Estado', 'Cantidad'],
+        ['Pagada', (stats.ventasPorEstatus && stats.ventasPorEstatus['Pagada']) || 0],
+        ['Pendiente', (stats.ventasPorEstatus && stats.ventasPorEstatus['Pendiente']) || 0],
+        ['Parcial', (stats.ventasPorEstatus && stats.ventasPorEstatus['Parcialmente Pagada']) || 0],
+        ['Vencida', (stats.ventasPorEstatus && stats.ventasPorEstatus['Vencida']) || 0]
+      ]);
+
+      var estatusOptions = {
+        legend: { position: 'bottom' },
+        colors: ['#27ae60', '#FBC02D', '#1CA7C8', '#F44336'],
+        chartArea: { width: '90%', height: '80%' }
+      };
+
+      var chartEDiv = document.getElementById('estatusChart');
+      if (chartEDiv) {
+        var chartE = new google.visualization.PieChart(chartEDiv);
+        chartE.draw(estatusData, estatusOptions);
+      }
+    } catch(e) {
+      console.error('Excepción en drawChartsWithData:', e);
+    }
   }
 
   function renderStats(stats) {
+    if (!stats) return;
     try {
-      console.log('Iniciando renderizado de estadísticas:', stats);
+      console.log('Renderizando indicadores...');
 
-      // Actualizar indicadores principales (AJUSTE 1)
       var values = document.querySelectorAll('.stat-value');
       if (values.length >= 3) {
         values[0].innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
@@ -151,13 +178,14 @@
         values[2].innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
       }
 
-      // Actualizar meta y barra (AJUSTE 2)
       var metaLabel = document.getElementById('metaLabel');
       if (metaLabel) metaLabel.innerText = 'Meta Mensual: $' + (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
 
       var metaDesc = document.getElementById('metaDesc');
-      var filtroV = document.getElementById('filtroVendedor').value;
-      if (metaDesc) metaDesc.innerText = (filtroV === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
+      var vSelect = document.getElementById('filtroVendedor');
+      if (metaDesc && vSelect) {
+        metaDesc.innerText = (vSelect.value === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
+      }
 
       var progressBar = document.querySelector('.progress-bar');
       if (progressBar) {
@@ -166,10 +194,7 @@
         progressBar.innerText = prog.toFixed(1) + '%';
       }
 
-      // Re-dibujar gráficas (AJUSTE 3)
-      drawChartsWithData(stats);
-
-      // Actualizar Ranking (AJUSTE 4 - Con Posición Real)
+      // Ranking
       var rankingHtml = '';
       if (stats.ranking && stats.ranking.length > 0) {
         stats.ranking.forEach(function(r) {
@@ -187,56 +212,87 @@
       var tbody = document.querySelector('table tbody');
       if (tbody) tbody.innerHTML = rankingHtml;
 
-      console.log('Renderizado completado con éxito.');
+      // Dibujar gráficas
+      drawChartsWithData(stats);
+
     } catch (e) {
       console.error('Error en renderStats:', e);
       alert('Error al mostrar los datos: ' + e.message);
     }
   }
-</script>
-<script type="text/javascript">
+
+  function cargarVendedoresFiltro() {
+    var select = document.getElementById('filtroVendedor');
+    if (!select) return;
+
+    google.script.run
+      .withSuccessHandler(function(vendedores) {
+        select.innerHTML = '<option value="Todos">Todos</option>';
+        vendedores.forEach(function(v) {
+          var opt = document.createElement('option');
+          opt.value = v;
+          opt.innerText = v;
+          select.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function(err) {
+        console.error("Error al cargar vendedores para filtro:", err);
+        select.innerHTML = '<option value="Todos">Error al cargar</option>';
+      })
+      .getVendedores();
+  }
+
+  function actualizarDashboard() {
+    var vSelect = document.getElementById('filtroVendedor');
+    var mSelect = document.getElementById('filtroMes');
+    if (!vSelect || !mSelect) return;
+
+    var v = vSelect.value;
+    var m = mSelect.value;
+
+    var loader = document.getElementById('loading-overlay');
+    var content = document.getElementById('statsContent');
+
+    if (loader) loader.style.display = 'flex';
+    if (content) content.style.opacity = '0.5';
+
+    google.script.run
+      .withSuccessHandler(function(stats) {
+         try {
+           renderStats(stats);
+         } catch(e) {
+           console.error("Error al renderizar stats:", e);
+         } finally {
+           if (content) content.style.opacity = '1';
+           if (loader) loader.style.display = 'none';
+         }
+      })
+      .withFailureHandler(function(err) {
+         console.error("Error del servidor:", err);
+         alert('Error al actualizar dashboard: ' + err.message);
+         if (loader) loader.style.display = 'none';
+         if (content) content.style.opacity = '1';
+      })
+      .getDashboardData(v, m);
+  }
+
+
+  // Inicialización de Google Charts
   google.charts.load('current', {'packages':['corechart']});
-  google.charts.setOnLoadCallback(drawCharts);
-
-  function drawCharts() {
-    // Primera carga con datos iniciales
-    var initialStats = <?!= JSON.stringify(stats) ?>;
-    drawChartsWithData(initialStats);
-  }
-
-  function drawChartsWithData(stats) {
-    // Gráfica de Vendedores
-    var vData = [['Vendedor', 'Ventas']];
-    for (var v in stats.ventasPorVendedor) {
-      vData.push([v, stats.ventasPorVendedor[v]]);
+  google.charts.setOnLoadCallback(function() {
+    console.log('Callback de Google Charts ejecutado.');
+    try {
+      var initialStats = <?!= JSON.stringify(stats || {}) ?>;
+      if (initialStats && Object.keys(initialStats).length > 0) {
+        renderStats(initialStats);
+      }
+    } catch(e) {
+      console.error('Error en inicialización:', e);
     }
-    if (vData.length === 1) vData.push(['Sin datos', 0]);
-    var vendedorData = google.visualization.arrayToDataTable(vData);
+  });
 
-    var vendedorOptions = {
-      pieHole: 0.4,
-      colors: ['#0E7490', '#F57C00', '#1CA7C8', '#FBC02D', '#F44336'],
-      legend: { position: 'bottom' }
-    };
-
-    var chartV = new google.visualization.PieChart(document.getElementById('vendedorChart'));
-    chartV.draw(vendedorData, vendedorOptions);
-
-    // Gráfica de Estatus
-    var estatusData = google.visualization.arrayToDataTable([
-      ['Estado', 'Cantidad'],
-      ['Pagada', stats.ventasPorEstatus['Pagada'] || 0],
-      ['Pendiente', stats.ventasPorEstatus['Pendiente'] || 0],
-      ['Parcial', stats.ventasPorEstatus['Parcialmente Pagada'] || 0],
-      ['Vencida', stats.ventasPorEstatus['Vencida'] || 0]
-    ]);
-
-    var estatusOptions = {
-      legend: { position: 'bottom' },
-      colors: ['#27ae60', '#FBC02D', '#1CA7C8', '#F44336']
-    };
-
-    var chartE = new google.visualization.PieChart(document.getElementById('estatusChart'));
-    chartE.draw(estatusData, estatusOptions);
-  }
+  // Cargar vendedores al iniciar
+  document.addEventListener('DOMContentLoaded', function() {
+    cargarVendedoresFiltro();
+  });
 </script>

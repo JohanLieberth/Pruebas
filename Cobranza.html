@@ -43,7 +43,12 @@
 
 <script>
   function cargarCobranza() {
-    google.script.run.withSuccessHandler(renderCobranza).getVentas();
+    google.script.run
+      .withSuccessHandler(renderCobranza)
+      .withFailureHandler(function(err) {
+        alert("Error al cargar cobranza: " + err.message);
+      })
+      .getVentas();
   }
 
   function renderCobranza(ventas) {
@@ -82,11 +87,18 @@
       fecha: document.getElementById('fechaAbono').value
     };
 
-    google.script.run.withSuccessHandler(function(resp) {
-      alert(resp.message);
-      cerrarModal();
-      cargarCobranza();
-    }).registrarAbono(datos);
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        alert(resp.message);
+        if (resp.success) {
+          cerrarModal();
+          cargarCobranza();
+        }
+      })
+      .withFailureHandler(function(err) {
+        alert("Error al registrar abono: " + err.message);
+      })
+      .registrarAbono(datos);
   });
 
   document.addEventListener('DOMContentLoaded', cargarCobranza);
