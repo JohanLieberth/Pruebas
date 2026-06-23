@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="navbar-brand">
+        Friend Travel
+      </div>
+      <div class="nav-links">
+        <a href="<?= ScriptApp.getService().getUrl() ?>?page=dashboard">Dashboard</a>
+        <a href="<?= ScriptApp.getService().getUrl() ?>?page=formulario">Nueva Venta</a>
+        <a href="<?= ScriptApp.getService().getUrl() ?>?page=cobranza">Cobranza</a>
+        <a href="<?= ScriptApp.getService().getUrl() ?>?page=reportes">Reportes</a>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="header-logo">
+        <?
+          var logo = getLogoConfig();
+          if (logo.url) {
+        ?>
+            <img src="<?= logo.url ?>" width="<?= logo.width ?>" height="<?= logo.height ?>" alt="<?= logo.alt ?>">
+        <? } else { ?>
+            <div style="font-size: 24px; font-weight: bold; color: #8e44ad; border: 2px solid #e91e63; padding: 10px; display: inline-block;">
+               FRIEND TRAVEL
+            </div>
+        <? } ?>
+      </div>
+
+      <!-- El contenido de la página se inyecta aquí -->
+      <div id="page-content">
+        <?!= include(currentPage.charAt(0).toUpperCase() + currentPage.slice(1)); ?>
+      </div>
+    </div>
+
+    <?!= include('JS'); ?>
+  </body>
+</html>

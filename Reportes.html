@@ -1,0 +1,76 @@
+<div class="card">
+  <h2>Reportes de Ventas</h2>
+  <div class="nav-links" style="background: #eee; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+    <button class="btn btn-primary" onclick="mostrarReporte('vencidas')">Ventas Vencidas</button>
+    <button class="btn btn-secondary" onclick="mostrarReporte('vendedores')">Ventas por Vendedor</button>
+  </div>
+
+  <div id="reporteContenido">
+    <p>Seleccione un reporte para visualizar.</p>
+  </div>
+
+  <div style="margin-top: 20px; text-align: center; display: flex; gap: 10px; justify-content: center;">
+    <button class="btn btn-success" onclick="window.print()">Imprimir / Exportar PDF</button>
+    <button class="btn btn-secondary" onclick="exportarCSV()">Exportar a Excel (CSV)</button>
+  </div>
+</div>
+
+<script>
+  function mostrarReporte(tipo) {
+    var cont = document.getElementById('reporteContenido');
+    cont.innerHTML = '<p>Generando reporte...</p>';
+
+    if (tipo === 'vencidas') {
+      google.script.run.withSuccessHandler(function(ventas) {
+        var html = '<h3>Ventas Vencidas (Saldo > 0 y Fecha Límite Pasada)</h3>';
+        html += renderTabla(ventas.filter(v => v.estatus === 'Vencida'));
+        cont.innerHTML = html;
+      }).getVentas();
+    } else if (tipo === 'vendedores') {
+      google.script.run.withSuccessHandler(function(ventas) {
+        var html = '<h3>Detalle de Ventas por Vendedor</h3>';
+        // Agrupar por vendedor
+        var grupos = {};
+        ventas.forEach(v => {
+          if (!grupos[v.vendedor]) grupos[v.vendedor] = [];
+          grupos[v.vendedor].push(v);
+        });
+
+        for (var vend in grupos) {
+          html += '<h4>' + vend + '</h4>';
+          html += renderTabla(grupos[vend]);
+        }
+        cont.innerHTML = html;
+      }).getVentas();
+    }
+  }
+
+  function exportarCSV() {
+    google.script.run.withSuccessHandler(function(ventas) {
+      var csv = 'Folio,Cliente,Hotel,Vendedor,Total,Fecha Limite,Cobrado,Saldo,Estatus\n';
+      ventas.forEach(v => {
+        csv += [v.folio, v.cliente, v.hotel, v.vendedor, v.total, v.fechaLimite, v.cobrado, v.saldo, v.estatus].join(',') + '\n';
+      });
+
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      var link = document.createElement("a");
+      var url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "reporte_ventas.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }).getVentas();
+  }
+
+  function renderTabla(ventas) {
+    if (ventas.length === 0) return '<p>No se encontraron registros.</p>';
+    var html = '<table><thead><tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Saldo</th><th>Vence</th></tr></thead><tbody>';
+    ventas.forEach(v => {
+      html += '<tr><td>' + v.folio + '</td><td>' + v.cliente + '</td><td>$' + v.total + '</td><td>$' + v.saldo + '</td><td>' + v.fechaLimite + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+</script>

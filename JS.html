@@ -1,0 +1,15 @@
+<script>
+  function showAlert(message, type = 'success') {
+    // Simple alert replacement
+    alert(message);
+  }
+
+  function loadPage(page) {
+    window.top.location.href = '<?= ScriptApp.getService().getUrl() ?>?page=' + page;
+  }
+
+  // Common UI handlers
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize things if needed
+  });
+</script>
