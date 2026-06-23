@@ -3,11 +3,7 @@
     <div class="form-group">
       <label>Filtrar por Vendedor</label>
       <select id="filtroVendedor" class="form-control" onchange="actualizarDashboard()">
-        <option value="Todos">Todos</option>
-        <? var vends = getVendedores(); ?>
-        <? for(var i=0; i<vends.length; i++) { ?>
-          <option value="<?= vends[i] ?>"><?= vends[i] ?></option>
-        <? } ?>
+        <option value="Todos">Cargando...</option>
       </select>
     </div>
     <div class="form-group">
@@ -98,6 +94,23 @@
 
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 <script>
+  function cargarVendedoresFiltro() {
+    var select = document.getElementById('filtroVendedor');
+    google.script.run
+      .withSuccessHandler(function(vendedores) {
+        select.innerHTML = '<option value="Todos">Todos</option>';
+        vendedores.forEach(function(v) {
+          var opt = document.createElement('option');
+          opt.value = v;
+          opt.innerText = v;
+          select.appendChild(opt);
+        });
+      })
+      .getVendedores();
+  }
+
+  document.addEventListener('DOMContentLoaded', cargarVendedoresFiltro);
+
   function actualizarDashboard() {
     var v = document.getElementById('filtroVendedor').value;
     var m = document.getElementById('filtroMes').value;

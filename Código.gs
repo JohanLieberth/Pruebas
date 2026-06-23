@@ -91,18 +91,37 @@ function getLogoConfig() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Logo');
-    if (!sheet) return { url: '', width: 400, height: 400, alt: 'Friend Travel' };
+    if (!sheet) return { base64: '', width: 400, height: 400, alt: 'Friend Travel' };
 
-    var width = sheet.getRange('B2').getValue() || 400;
-    var height = sheet.getRange('C2').getValue() || 400;
-    var url = sheet.getRange('D2').getValue();
+    // Dimensiones fijas según requerimiento
+    var width = 400;
+    var height = 400;
 
-    if (url && url.toString().indexOf('http') === 0) {
-      return { url: url, width: width, height: height, alt: 'Friend Travel' };
+    // Intentar obtener imagen de la hoja Logo
+    // Buscamos tanto en celdas (CellImage) como sobre celdas (Images)
+    var base64 = "";
+
+    // 1. Intentar obtener imagen "En Celda" de A1 (Vía RichText si está disponible)
+    var richText = sheet.getRange("A1").getRichTextValue();
+    if (richText) {
+      // Nota: GAS no permite extraer el blob de un CellImage directamente vía RichText aún.
+      // Pero el requerimiento menciona "imagen insertada en la hoja (celda A1 o primera disponible)".
+      // Priorizamos Images sobre celdas por ser más fiable para obtener blobs.
     }
-    return { url: '', width: width, height: height, alt: 'Friend Travel' };
+
+    // 2. Intentar obtener imágenes sobre celdas (Insertar > Imagen > Imagen sobre celdas)
+    var images = sheet.getImages();
+    if (images.length > 0) {
+      var blob = images[0].getBlob();
+      var bytes = blob.getBytes();
+      var contentType = blob.getContentType();
+      base64 = "data:" + contentType + ";base64," + Utilities.base64Encode(bytes);
+    }
+
+    return { base64: base64, width: width, height: height, alt: 'Friend Travel' };
   } catch(e) {
-    return { url: '', width: 400, height: 400, alt: 'Friend Travel' };
+    console.error('Error al obtener logo:', e.message);
+    return { base64: '', width: 400, height: 400, alt: 'Friend Travel' };
   }
 }
 
@@ -113,18 +132,21 @@ function getVendedores() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Vendedores');
-    if (!sheet) return ['Arlette', 'Ámerica', 'Enrique', 'Eduardo'];
+    if (!sheet) throw new Error('La hoja "Vendedores" no existe. Por favor, créala.');
 
     var data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return ['Arlette', 'Ámerica', 'Enrique', 'Eduardo'];
+    if (data.length <= 1) throw new Error('La hoja "Vendedores" está vacía. Debes agregar al menos un vendedor en la columna A.');
 
     data.shift(); // Quitar cabecera
-    return data
+    var vendedores = data
       .map(function(r) { return r[0]; })
       .filter(function(name) { return name && name.toString().trim() !== ""; });
+
+    if (vendedores.length === 0) throw new Error('No se encontraron nombres de vendedores válidos en la hoja "Vendedores".');
+
+    return vendedores;
   } catch(e) {
-    console.error('Error al obtener vendedores:', e.message);
-    return ['Arlette', 'Ámerica', 'Enrique', 'Eduardo']; // Fallback
+    throw new Error('Error al obtener catálogo de vendedores: ' + e.message);
   }
 }
 
@@ -241,6 +263,36 @@ function enviarRecordatoriosPago() {
   });
 
   return recordatoriosEnviados;
+}
+
+/**
+ * Verificación de catálogo de vendedores para debugging
+ */
+function verificarVendedores() {
+  try {
+    var v = getVendedores();
+    return { success: true, count: v.length, list: v };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Verificación de configuración de logo para debugging
+ */
+function verificarLogo() {
+  try {
+    var config = getLogoConfig();
+    return {
+      success: true,
+      hasBase64: config.base64.length > 0,
+      length: config.base64.length,
+      width: config.width,
+      height: config.height
+    };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
 }
 
 /**

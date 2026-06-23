@@ -5,11 +5,7 @@
       <div class="form-group">
         <label for="vendedor">Vendedor *</label>
         <select id="vendedor" name="vendedor" class="form-control" required>
-          <option value="">Seleccione...</option>
-          <? var vendedores = getVendedores(); ?>
-          <? for(var i=0; i<vendedores.length; i++) { ?>
-            <option value="<?= vendedores[i] ?>"><?= vendedores[i] ?></option>
-          <? } ?>
+          <option value="">Cargando vendedores...</option>
         </select>
       </div>
       <div class="form-group">
@@ -82,6 +78,29 @@
 </div>
 
 <script>
+  // Carga dinámica de vendedores con manejo de errores
+  function inicializarVendedores() {
+    var select = document.getElementById('vendedor');
+    google.script.run
+      .withSuccessHandler(function(vendedores) {
+        select.innerHTML = '<option value="">Seleccione...</option>';
+        vendedores.forEach(function(v) {
+          var opt = document.createElement('option');
+          opt.value = v;
+          opt.innerText = v;
+          select.appendChild(opt);
+        });
+        console.log('Dropdown de vendedores actualizado.');
+      })
+      .withFailureHandler(function(err) {
+        select.innerHTML = '<option value="">Error al cargar</option>';
+        alert('Error crítico al cargar vendedores: ' + err.message);
+      })
+      .getVendedores();
+  }
+
+  document.addEventListener('DOMContentLoaded', inicializarVendedores);
+
   document.getElementById('ventaForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var btn = document.getElementById('btnGuardar');

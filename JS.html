@@ -11,6 +11,29 @@
 
   // Common UI handlers
   document.addEventListener('DOMContentLoaded', function() {
-    // Initialize things if needed
+    console.log('--- Depuración Friend Travel ---');
+
+    // Verificar Vendedores
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if(res.success) {
+          console.log('Vendedores cargados:', res.list);
+        } else {
+          console.error('Error en vendedores:', res.error);
+          alert('Configuración pendiente: ' + res.error);
+        }
+      })
+      .verificarVendedores();
+
+    // Verificar Logo
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if(res.success) {
+          console.log('Logo verificado:', res.hasBase64 ? 'Cargado correctamente' : 'No se encontró imagen');
+        } else {
+          console.error('Error en logo:', res.error);
+        }
+      })
+      .verificarLogo();
   });
 </script>

@@ -21,9 +21,9 @@
       <div class="header-logo">
         <?
           var logo = getLogoConfig();
-          if (logo.url) {
+          if (logo.base64) {
         ?>
-            <img src="<?= logo.url ?>" width="<?= logo.width ?>" height="<?= logo.height ?>" alt="<?= logo.alt ?>">
+            <img src="<?= logo.base64 ?>" width="400" height="400" alt="<?= logo.alt ?>" style="max-width: 400px; height: auto;">
         <? } else { ?>
             <div style="font-size: 24px; font-weight: bold; color: var(--secondary-blue); border: 2px solid var(--primary-orange); padding: 10px; display: inline-block;">
                FRIEND TRAVEL
