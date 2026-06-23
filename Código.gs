@@ -390,116 +390,119 @@ function registrarAbono(datos) {
 }
 
 /**
- * Obtiene datos reales para el dashboard filtrado por vendedor y mes
+ * Obtiene datos reales para el dashboard siguiendo las reglas Global vs Individual
  */
 function getDashboardData(filtroVendedor, filtroMes) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Ventas');
-  var data = sheet.getDataRange().getValues();
-  data.shift(); // Quitar cabecera
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Ventas');
+    if (!sheet) throw new Error('Hoja "Ventas" no encontrada.');
 
-  var hoy = new Date();
-  hoy.setHours(0,0,0,0);
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 1) throw new Error('No hay datos en la hoja "Ventas".');
+    data.shift(); // Quitar cabecera
 
-  // AJUSTE 2: Cálculo de Meta Mensual
-  var vendedoresCatalogo = getVendedores();
-  var metaIndividual = 10000;
-  var metaTotal = 0;
+    var hoy = new Date();
+    hoy.setHours(0,0,0,0);
 
-  if (!filtroVendedor || filtroVendedor === 'Todos') {
-    metaTotal = vendedoresCatalogo.length * metaIndividual;
-  } else {
-    metaTotal = metaIndividual;
-  }
+    var vendedoresCatalogo = getVendedores();
+    var metaIndividual = 10000;
 
-  // Indicadores principales (AJUSTE 1)
-  var totalVentas = 0;
-  var totalCobrado = 0;
-  var saldoPendiente = 0;
+    // Indicadores globales o individuales (AJUSTE 1)
+    var totalVentas = 0;
+    var totalCobrado = 0;
+    var saldoPendiente = 0;
 
-  // Datos para gráficas (AJUSTE 3)
-  var ventasPorVendedor = {};
-  var ventasPorEstatus = { 'Pagada': 0, 'Pendiente': 0, 'Parcialmente Pagada': 0, 'Vencida': 0 };
+    // Datos para gráficas (AJUSTE 3)
+    var ventasPorVendedorGlobal = {};
+    var ventasPorEstatusFiltered = { 'Pagada': 0, 'Pendiente': 0, 'Parcialmente Pagada': 0, 'Vencida': 0 };
 
-  // Inicializar ventasPorVendedor con 0 para todos si no hay filtro
-  if (!filtroVendedor || filtroVendedor === 'Todos') {
-    vendedoresCatalogo.forEach(function(v) { ventasPorVendedor[v] = 0; });
-  }
+    // Inicializar totales de vendedores para el mes
+    vendedoresCatalogo.forEach(function(v) { ventasPorVendedorGlobal[v] = 0; });
 
-  data.forEach(function(r) {
-    var vFolio = r[0];
-    var vFechaLimite = r[6] instanceof Date ? r[6] : new Date(r[6]);
-    vFechaLimite.setHours(0,0,0,0);
-    var vVendedor = r[4];
+    data.forEach(function(r) {
+      if (!r[0]) return; // Fila vacía
 
-    // Filtro de Mes (basado en Fecha Límite para consistencia con Dashboard de ventas del mes)
-    if (filtroMes && filtroMes !== 'Todos') {
-       if (vFechaLimite.getMonth() + 1 != filtroMes) return;
-    }
+      var vVendedor = r[4];
+      var vFechaLimite = r[6] instanceof Date ? r[6] : new Date(r[6]);
+      if (isNaN(vFechaLimite.getTime())) return; // Fecha inválida
+      vFechaLimite.setHours(0,0,0,0);
 
-    // Filtro de Vendedor
-    if (filtroVendedor && filtroVendedor !== 'Todos' && vVendedor !== filtroVendedor) return;
+      // Filtro de Mes
+      if (filtroMes && filtroMes !== 'Todos') {
+        if (vFechaLimite.getMonth() + 1 != filtroMes) return;
+      }
 
-    var vTotal = parseFloat(r[5]) || 0;
-    var vCobrado = parseFloat(r[15]) || 0;
-    var vSaldo = parseFloat(r[16]) || 0;
+      var vTotal = parseFloat(r[5]) || 0;
+      var vCobrado = parseFloat(r[15]) || 0;
+      var vSaldo = parseFloat(r[16]) || 0;
 
-    // AJUSTE 3: Lógica de Estado de Ventas
-    var vEstatusCalculado = '';
-    if (vSaldo <= 0) {
-      vEstatusCalculado = 'Pagada';
-    } else if (vFechaLimite < hoy) {
-      vEstatusCalculado = 'Vencida';
-    } else if (vCobrado > 0) {
-      vEstatusCalculado = 'Parcialmente Pagada';
+      // Acumular para ranking global del mes (AJUSTE 4)
+      if (ventasPorVendedorGlobal.hasOwnProperty(vVendedor)) {
+        ventasPorVendedorGlobal[vVendedor] += vTotal;
+      }
+
+      // Aplicar Filtro de Vendedor para Indicadores y Estatus (AJUSTE 1 y 3)
+      var esVendedorSeleccionado = (!filtroVendedor || filtroVendedor === 'Todos' || vVendedor === filtroVendedor);
+
+      if (esVendedorSeleccionado) {
+        totalVentas += vTotal;
+        totalCobrado += vCobrado;
+        saldoPendiente += vSaldo;
+
+        // Lógica de Estatus
+        var vEstatus = '';
+        if (vSaldo <= 0) vEstatus = 'Pagada';
+        else if (vFechaLimite < hoy) vEstatus = 'Vencida';
+        else if (vCobrado > 0) vEstatus = 'Parcialmente Pagada';
+        else vEstatus = 'Pendiente';
+
+        ventasPorEstatusFiltered[vEstatus]++;
+      }
+    });
+
+    // AJUSTE 2: Meta Dinámica
+    var metaTotal = (filtroVendedor && filtroVendedor !== 'Todos') ? metaIndividual : (vendedoresCatalogo.length * metaIndividual);
+    var progresoMeta = metaTotal > 0 ? (totalVentas / metaTotal) * 100 : 0;
+
+    // AJUSTE 4: Ranking (Siempre basado en el mes global)
+    var fullRanking = vendedoresCatalogo.map(function(v) {
+      var totalV = ventasPorVendedorGlobal[v] || 0;
+      return {
+        nombre: v,
+        total: totalV,
+        cumplimiento: (totalV / metaIndividual) * 100
+      };
+    });
+
+    fullRanking.sort(function(a, b) { return b.total - a.total; });
+    fullRanking.forEach(function(item, index) { item.posicion = index + 1; });
+
+    var rankingFinal = (filtroVendedor && filtroVendedor !== 'Todos')
+      ? fullRanking.filter(function(r) { return r.nombre === filtroVendedor; })
+      : fullRanking;
+
+    // AJUSTE 2: Gráfica de Ventas por Vendedor (Regla Global vs Individual)
+    var ventasChartData = {};
+    if (filtroVendedor && filtroVendedor !== 'Todos') {
+      ventasChartData[filtroVendedor] = ventasPorVendedorGlobal[filtroVendedor];
     } else {
-      vEstatusCalculado = 'Pendiente';
+      ventasChartData = ventasPorVendedorGlobal;
     }
 
-    totalVentas += vTotal;
-    totalCobrado += vCobrado;
-    saldoPendiente += vSaldo;
-
-    ventasPorVendedor[vVendedor] = (ventasPorVendedor[vVendedor] || 0) + vTotal;
-    ventasPorEstatus[vEstatusCalculado] = (ventasPorEstatus[vEstatusCalculado] || 0) + 1;
-  });
-
-  var progresoMeta = metaTotal > 0 ? (totalVentas / metaTotal) * 100 : 0;
-
-  // AJUSTE 4: Ranking de Vendedores (Regla Global vs Individual)
-  // Calculamos el ranking de TODOS los vendedores del mes para determinar posiciones reales
-  var fullRanking = vendedoresCatalogo.map(function(v) {
-    var totalV = ventasPorVendedor[v] || 0;
     return {
-      nombre: v,
-      total: totalV,
-      cumplimiento: (totalV / metaIndividual) * 100
+      totalVentas: totalVentas,
+      totalCobrado: totalCobrado,
+      saldoPendiente: saldoPendiente,
+      meta: metaTotal,
+      metaIndividual: metaIndividual,
+      progresoMeta: progresoMeta,
+      ventasPorVendedor: ventasChartData,
+      ventasPorEstatus: ventasPorEstatusFiltered,
+      ranking: rankingFinal
     };
-  });
-
-  // Ordenar ranking global de mayor a menor
-  fullRanking.sort(function(a, b) { return b.total - a.total; });
-
-  // Asignar posiciones
-  fullRanking.forEach(function(item, index) { item.posicion = index + 1; });
-
-  // Filtrar ranking para mostrar (si hay filtro, solo ese; si no, todos)
-  var rankingAMostrar = [];
-  if (filtroVendedor && filtroVendedor !== 'Todos') {
-    rankingAMostrar = fullRanking.filter(function(r) { return r.nombre === filtroVendedor; });
-  } else {
-    rankingAMostrar = fullRanking;
+  } catch (e) {
+    console.error('Error en getDashboardData:', e.message);
+    throw new Error(e.message);
   }
-
-  return {
-    totalVentas: totalVentas,
-    totalCobrado: totalCobrado,
-    saldoPendiente: saldoPendiente,
-    meta: metaTotal,
-    metaIndividual: metaIndividual,
-    progresoMeta: progresoMeta,
-    ventasPorVendedor: ventasPorVendedor,
-    ventasPorEstatus: ventasPorEstatus,
-    ranking: rankingAMostrar
-  };
 }

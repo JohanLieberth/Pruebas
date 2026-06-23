@@ -81,7 +81,7 @@
            var r = stats.ranking[i];
       ?>
       <tr>
-        <td><?= i + 1 ?></td>
+        <td><?= r.posicion ?></td>
         <td><?= r.nombre ?></td>
         <td>$<?= r.total.toFixed(2) ?></td>
         <td><?= r.cumplimiento.toFixed(1) ?>%</td>
@@ -121,11 +121,17 @@
 
     google.script.run
       .withSuccessHandler(function(stats) {
-         renderStats(stats);
-         document.getElementById('statsContent').style.opacity = '1';
-         document.getElementById('loading-overlay').style.display = 'none';
+         try {
+           renderStats(stats);
+         } catch(e) {
+           console.error("Error en success handler:", e);
+         } finally {
+           document.getElementById('statsContent').style.opacity = '1';
+           document.getElementById('loading-overlay').style.display = 'none';
+         }
       })
       .withFailureHandler(function(err) {
+         console.error("Error del servidor:", err);
          alert('Error al actualizar dashboard: ' + err.message);
          document.getElementById('loading-overlay').style.display = 'none';
          document.getElementById('statsContent').style.opacity = '1';
@@ -134,33 +140,58 @@
   }
 
   function renderStats(stats) {
-     // Actualizar indicadores principales (AJUSTE 1)
-     document.querySelectorAll('.stat-value')[0].innerText = '$' + stats.totalVentas.toFixed(2);
-     document.querySelectorAll('.stat-value')[1].innerText = '$' + stats.totalCobrado.toFixed(2);
-     document.querySelectorAll('.stat-value')[2].innerText = '$' + stats.saldoPendiente.toFixed(2);
+    try {
+      console.log('Iniciando renderizado de estadísticas:', stats);
 
-     // Actualizar meta y barra (AJUSTE 2)
-     document.getElementById('metaLabel').innerText = 'Meta Mensual: $' + stats.meta.toFixed(2);
-     var filtroV = document.getElementById('filtroVendedor').value;
-     document.getElementById('metaDesc').innerText = (filtroV === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
+      // Actualizar indicadores principales (AJUSTE 1)
+      var values = document.querySelectorAll('.stat-value');
+      if (values.length >= 3) {
+        values[0].innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+        values[1].innerText = '$' + (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+        values[2].innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+      }
 
-     document.querySelector('.progress-bar').style.width = Math.min(stats.progresoMeta, 100) + '%';
-     document.querySelector('.progress-bar').innerText = stats.progresoMeta.toFixed(1) + '%';
+      // Actualizar meta y barra (AJUSTE 2)
+      var metaLabel = document.getElementById('metaLabel');
+      if (metaLabel) metaLabel.innerText = 'Meta Mensual: $' + (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
 
-     // Re-dibujar gráficas (AJUSTE 3)
-     drawChartsWithData(stats);
+      var metaDesc = document.getElementById('metaDesc');
+      var filtroV = document.getElementById('filtroVendedor').value;
+      if (metaDesc) metaDesc.innerText = (filtroV === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
 
-     // Actualizar Ranking (AJUSTE 4 - Con Posición Real)
-     var rankingHtml = '';
-     stats.ranking.forEach(function(r) {
-        rankingHtml += '<tr>' +
-          '<td>' + r.posicion + '</td>' +
-          '<td>' + r.nombre + '</td>' +
-          '<td>$' + r.total.toFixed(2) + '</td>' +
-          '<td>' + r.cumplimiento.toFixed(1) + '%</td>' +
-        '</tr>';
-     });
-     document.querySelector('table tbody').innerHTML = rankingHtml;
+      var progressBar = document.querySelector('.progress-bar');
+      if (progressBar) {
+        var prog = stats.progresoMeta || 0;
+        progressBar.style.width = Math.min(prog, 100) + '%';
+        progressBar.innerText = prog.toFixed(1) + '%';
+      }
+
+      // Re-dibujar gráficas (AJUSTE 3)
+      drawChartsWithData(stats);
+
+      // Actualizar Ranking (AJUSTE 4 - Con Posición Real)
+      var rankingHtml = '';
+      if (stats.ranking && stats.ranking.length > 0) {
+        stats.ranking.forEach(function(r) {
+           rankingHtml += '<tr>' +
+             '<td>' + (r.posicion || '-') + '</td>' +
+             '<td>' + (r.nombre || 'N/A') + '</td>' +
+             '<td>$' + (r.total || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
+             '<td>' + (r.cumplimiento || 0).toFixed(1) + '%</td>' +
+           '</tr>';
+        });
+      } else {
+        rankingHtml = '<tr><td colspan="4" style="text-align:center;">Sin datos de ranking</td></tr>';
+      }
+
+      var tbody = document.querySelector('table tbody');
+      if (tbody) tbody.innerHTML = rankingHtml;
+
+      console.log('Renderizado completado con éxito.');
+    } catch (e) {
+      console.error('Error en renderStats:', e);
+      alert('Error al mostrar los datos: ' + e.message);
+    }
   }
 </script>
 <script type="text/javascript">
