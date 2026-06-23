@@ -45,13 +45,13 @@
 </div>
 
 <div class="card">
-  <h3>Meta Mensual: $<?= stats.meta.toFixed(2) ?></h3>
+  <h3 id="metaLabel">Meta Mensual: $<?= stats.meta.toFixed(2) ?></h3>
   <div class="progress-container">
     <div class="progress-bar" style="width: <?= Math.min(stats.progresoMeta, 100) ?>%">
       <?= stats.progresoMeta.toFixed(1) ?>%
     </div>
   </div>
-  <p style="text-align: center; color: #666;">Progreso hacia la meta de $10,000</p>
+  <p id="metaDesc" style="text-align: center; color: #666;">Progreso hacia la meta global</p>
 </div>
 
 <div class="grid">
@@ -70,21 +70,21 @@
   <table>
     <thead>
       <tr>
+        <th>Pos</th>
         <th>Vendedor</th>
         <th>Total Vendido</th>
+        <th>% Meta Indiv.</th>
       </tr>
     </thead>
     <tbody>
-      <?
-        var sortedVendedores = Object.keys(stats.ventasPorVendedor).sort(function(a,b){
-          return stats.ventasPorVendedor[b] - stats.ventasPorVendedor[a];
-        });
-        for (var i=0; i<sortedVendedores.length; i++) {
-          var v = sortedVendedores[i];
+      <? for (var i=0; i<stats.ranking.length; i++) {
+           var r = stats.ranking[i];
       ?>
       <tr>
-        <td><?= v ?></td>
-        <td>$<?= stats.ventasPorVendedor[v].toFixed(2) ?></td>
+        <td><?= i + 1 ?></td>
+        <td><?= r.nombre ?></td>
+        <td>$<?= r.total.toFixed(2) ?></td>
+        <td><?= r.cumplimiento.toFixed(1) ?>%</td>
       </tr>
       <? } ?>
     </tbody>
@@ -125,25 +125,31 @@
   }
 
   function renderStats(stats) {
-     // Actualizar valores de las cards
+     // Actualizar indicadores principales (AJUSTE 1)
      document.querySelectorAll('.stat-value')[0].innerText = '$' + stats.totalVentas.toFixed(2);
      document.querySelectorAll('.stat-value')[1].innerText = '$' + stats.totalCobrado.toFixed(2);
      document.querySelectorAll('.stat-value')[2].innerText = '$' + stats.saldoPendiente.toFixed(2);
 
-     // Actualizar meta y barra
+     // Actualizar meta y barra (AJUSTE 2)
+     document.getElementById('metaLabel').innerText = 'Meta Mensual: $' + stats.meta.toFixed(2);
+     var filtroV = document.getElementById('filtroVendedor').value;
+     document.getElementById('metaDesc').innerText = (filtroV === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
+
      document.querySelector('.progress-bar').style.width = Math.min(stats.progresoMeta, 100) + '%';
      document.querySelector('.progress-bar').innerText = stats.progresoMeta.toFixed(1) + '%';
 
-     // Re-dibujar gráficas
+     // Re-dibujar gráficas (AJUSTE 3)
      drawChartsWithData(stats);
 
-     // Actualizar Ranking
+     // Actualizar Ranking (AJUSTE 4)
      var rankingHtml = '';
-     var sortedVendedores = Object.keys(stats.ventasPorVendedor).sort(function(a,b){
-          return stats.ventasPorVendedor[b] - stats.ventasPorVendedor[a];
-     });
-     sortedVendedores.forEach(function(v) {
-        rankingHtml += '<tr><td>' + v + '</td><td>$' + stats.ventasPorVendedor[v].toFixed(2) + '</td></tr>';
+     stats.ranking.forEach(function(r, index) {
+        rankingHtml += '<tr>' +
+          '<td>' + (index + 1) + '</td>' +
+          '<td>' + r.nombre + '</td>' +
+          '<td>$' + r.total.toFixed(2) + '</td>' +
+          '<td>' + r.cumplimiento.toFixed(1) + '%</td>' +
+        '</tr>';
      });
      document.querySelector('table tbody').innerHTML = rankingHtml;
   }

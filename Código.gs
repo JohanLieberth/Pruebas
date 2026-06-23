@@ -390,7 +390,7 @@ function registrarAbono(datos) {
 }
 
 /**
- * Obtiene datos para el dashboard
+ * Obtiene datos reales para el dashboard filtrado por vendedor y mes
  */
 function getDashboardData(filtroVendedor, filtroMes) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -398,47 +398,99 @@ function getDashboardData(filtroVendedor, filtroMes) {
   var data = sheet.getDataRange().getValues();
   data.shift(); // Quitar cabecera
 
-  var meta = parseFloat(ss.getSheetByName('Config').getRange('B2').getValue()) || 10000;
+  var hoy = new Date();
+  hoy.setHours(0,0,0,0);
 
+  // AJUSTE 2: Cálculo de Meta Mensual
+  var vendedoresCatalogo = getVendedores();
+  var metaIndividual = 10000;
+  var metaTotal = 0;
+
+  if (!filtroVendedor || filtroVendedor === 'Todos') {
+    metaTotal = vendedoresCatalogo.length * metaIndividual;
+  } else {
+    metaTotal = metaIndividual;
+  }
+
+  // Indicadores principales (AJUSTE 1)
   var totalVentas = 0;
   var totalCobrado = 0;
   var saldoPendiente = 0;
 
+  // Datos para gráficas (AJUSTE 3)
   var ventasPorVendedor = {};
   var ventasPorEstatus = { 'Pagada': 0, 'Pendiente': 0, 'Parcialmente Pagada': 0, 'Vencida': 0 };
 
+  // Inicializar ventasPorVendedor con 0 para todos si no hay filtro
+  if (!filtroVendedor || filtroVendedor === 'Todos') {
+    vendedoresCatalogo.forEach(function(v) { ventasPorVendedor[v] = 0; });
+  }
+
   data.forEach(function(r) {
-    var vFecha = r[6] instanceof Date ? r[6] : new Date(r[6]);
+    var vFolio = r[0];
+    var vFechaLimite = r[6] instanceof Date ? r[6] : new Date(r[6]);
+    vFechaLimite.setHours(0,0,0,0);
     var vVendedor = r[4];
 
-    // Aplicar filtros
-    if (filtroVendedor && filtroVendedor !== 'Todos' && vVendedor !== filtroVendedor) return;
+    // Filtro de Mes (basado en Fecha Límite para consistencia con Dashboard de ventas del mes)
     if (filtroMes && filtroMes !== 'Todos') {
-       if (vFecha.getMonth() + 1 != filtroMes) return;
+       if (vFechaLimite.getMonth() + 1 != filtroMes) return;
     }
+
+    // Filtro de Vendedor
+    if (filtroVendedor && filtroVendedor !== 'Todos' && vVendedor !== filtroVendedor) return;
 
     var vTotal = parseFloat(r[5]) || 0;
     var vCobrado = parseFloat(r[15]) || 0;
     var vSaldo = parseFloat(r[16]) || 0;
-    var vEstatus = r[17];
+
+    // AJUSTE 3: Lógica de Estado de Ventas
+    var vEstatusCalculado = '';
+    if (vSaldo <= 0) {
+      vEstatusCalculado = 'Pagada';
+    } else if (vFechaLimite < hoy) {
+      vEstatusCalculado = 'Vencida';
+    } else if (vCobrado > 0) {
+      vEstatusCalculado = 'Parcialmente Pagada';
+    } else {
+      vEstatusCalculado = 'Pendiente';
+    }
 
     totalVentas += vTotal;
     totalCobrado += vCobrado;
     saldoPendiente += vSaldo;
 
     ventasPorVendedor[vVendedor] = (ventasPorVendedor[vVendedor] || 0) + vTotal;
-    ventasPorEstatus[vEstatus] = (ventasPorEstatus[vEstatus] || 0) + 1;
+    ventasPorEstatus[vEstatusCalculado] = (ventasPorEstatus[vEstatusCalculado] || 0) + 1;
   });
 
-  var progresoMeta = (totalVentas / meta) * 100;
+  var progresoMeta = metaTotal > 0 ? (totalVentas / metaTotal) * 100 : 0;
+
+  // AJUSTE 4: Ranking de Vendedores
+  var ranking = [];
+  var vendsParaRanking = (filtroVendedor && filtroVendedor !== 'Todos') ? [filtroVendedor] : vendedoresCatalogo;
+
+  vendsParaRanking.forEach(function(v) {
+    var totalV = ventasPorVendedor[v] || 0;
+    ranking.push({
+      nombre: v,
+      total: totalV,
+      cumplimiento: (totalV / metaIndividual) * 100
+    });
+  });
+
+  // Ordenar ranking de mayor a menor
+  ranking.sort(function(a, b) { return b.total - a.total; });
 
   return {
     totalVentas: totalVentas,
     totalCobrado: totalCobrado,
     saldoPendiente: saldoPendiente,
-    meta: meta,
+    meta: metaTotal,
+    metaIndividual: metaIndividual,
     progresoMeta: progresoMeta,
     ventasPorVendedor: ventasPorVendedor,
-    ventasPorEstatus: ventasPorEstatus
+    ventasPorEstatus: ventasPorEstatus,
+    ranking: ranking
   };
 }
