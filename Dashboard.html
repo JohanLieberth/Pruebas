@@ -1,15 +1,9 @@
 <div class="card">
   <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: end;">
     <div class="form-group">
-      <label>Filtrar por Vendedor</label>
-      <select id="filtroVendedor" class="form-control" onchange="actualizarDashboard()">
-        <option value="Todos">Cargando...</option>
-      </select>
-    </div>
-    <div class="form-group">
       <label>Filtrar por Mes</label>
       <select id="filtroMes" class="form-control" onchange="actualizarDashboard()">
-        <option value="Todos">Todos</option>
+        <option value="Todos">Todos los meses</option>
         <option value="1">Enero</option>
         <option value="2">Febrero</option>
         <option value="3">Marzo</option>
@@ -24,6 +18,12 @@
         <option value="12">Diciembre</option>
       </select>
     </div>
+    <div class="form-group">
+      <label>Filtrar por Vendedor</label>
+      <select id="filtroVendedor" class="form-control" onchange="actualizarDashboard()">
+        <option value="Todos">Todos los vendedores</option>
+      </select>
+    </div>
   </div>
 </div>
 
@@ -32,41 +32,41 @@
     /* AJUSTE 1: Carga inicial de datos reales desde el servidor */
     var stats = { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 0, progresoMeta: 0, ranking: [] };
     try {
-      var serverStats = getDashboardData();
+      var serverStats = obtenerDatosDashboard("Todos", "Todos");
       if (serverStats) {
         stats = serverStats;
       }
     } catch(e) {
-      // Si falla, se mantienen los valores en 0 pero la página carga para evitar blanco
+      // Fallback a ceros si falla la carga inicial
     }
   ?>
 <div class="grid">
   <div class="card stat-card">
     <span class="stat-label">Total Ventas Mes</span>
     <!-- AJUSTE 2: Renderizado real de Total Ventas Mes -->
-    <span class="stat-value">$<?= (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
+    <span class="stat-value" id="valTotalVentas">$<?= (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
   <div class="card stat-card" style="border-color: var(--secondary);">
     <span class="stat-label">Total Cobrado</span>
     <!-- AJUSTE 3: Renderizado real de Total Cobrado -->
-    <span class="stat-value">$<?= (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
+    <span class="stat-value" id="valTotalCobrado">$<?= (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
   <div class="card stat-card" style="border-color: var(--warning);">
     <span class="stat-label">Saldo Pendiente</span>
     <!-- AJUSTE 4: Renderizado real de Saldo Pendiente -->
-    <span class="stat-value">$<?= (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
+    <span class="stat-value" id="valSaldoPendiente">$<?= (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
 </div>
 
 <div class="card">
-  <!-- AJUSTE 5: Renderizado real de Meta Mensual ($10k * N o $10k) -->
+  <!-- AJUSTE 6: Renderizado real de Meta Mensual ($10k * N o $10k) -->
   <h3 id="metaLabel">Meta Mensual: $<?= (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></h3>
   <div class="progress-container">
-    <div class="progress-bar" style="width: <?= Math.min(stats.progresoMeta || 0, 100) ?>%">
+    <div class="progress-bar" id="valProgresoMetaBar" style="width: <?= Math.min(stats.progresoMeta || 0, 100) ?>%">
       <?= (stats.progresoMeta || 0).toFixed(1) ?>%
     </div>
   </div>
-  <p id="metaDesc" style="text-align: center; color: #666;">Progreso hacia la meta global</p>
+  <p id="metaDesc" style="text-align: center; color: #666;">Progreso hacia la meta</p>
 </div>
 
 <div class="grid">
@@ -75,7 +75,7 @@
     <div id="vendedorChart" style="height: 300px;"></div>
   </div>
   <div class="card">
-    <h3>Estado de Ventas</h3>
+    <h3>Estado de Ventas ($)</h3>
     <div id="estatusChart" style="height: 300px;"></div>
   </div>
 </div>
@@ -88,11 +88,11 @@
         <th>Pos</th>
         <th>Vendedor</th>
         <th>Total Vendido</th>
-        <th>% Meta Indiv.</th>
+        <th>% Cumplimiento</th>
       </tr>
     </thead>
-    <tbody>
-      <!-- AJUSTE 6: Renderizado correcto del Ranking de Vendedores -->
+    <tbody id="rankingBody">
+      <!-- AJUSTE 5: Renderizado correcto del Ranking -->
       <? if (stats.ranking && stats.ranking.length > 0) { ?>
         <? for (var i = 0; i < stats.ranking.length; i++) {
              var r = stats.ranking[i];
@@ -118,11 +118,8 @@
    * Definición de funciones en el ámbito global.
    */
 
-  // Definir primero para asegurar disponibilidad (Hoisting)
   function drawChartsWithData(stats) {
-    console.log('Dibujando gráficas con:', stats);
-
-    if (typeof google === 'undefined' || !google.visualization || !google.visualization.PieChart) {
+    if (typeof google === 'undefined' || !google.visualization || !google.visualization.ColumnChart) {
       console.warn('Google Charts no disponible aún.');
       return;
     }
@@ -130,48 +127,51 @@
     if (!stats) return;
 
     try {
-      // Gráfica de Vendedores
-      var vData = [['Vendedor', 'Ventas']];
-      if (stats.ventasPorVendedor) {
-        for (var v in stats.ventasPorVendedor) {
-          vData.push([v, stats.ventasPorVendedor[v]]);
-        }
+      // Ajuste 3: Gráfica de Barras - Ventas por Vendedor
+      var vData = [['Vendedor', 'Total Ventas ($)', { role: 'style' }]];
+      if (stats.graficaVendedores && stats.graficaVendedores.length > 0) {
+        stats.graficaVendedores.forEach(function(row) {
+          vData.push([row[0], row[1], 'color: #0E7490']);
+        });
       }
-      if (vData.length === 1) vData.push(['Sin datos', 0]);
+      if (vData.length === 1) vData.push(['Sin datos', 0, 'color: #ccc']);
       var vendedorDataTable = google.visualization.arrayToDataTable(vData);
 
       var vendedorOptions = {
-        pieHole: 0.4,
-        colors: ['#0E7490', '#F57C00', '#1CA7C8', '#FBC02D', '#F44336'],
-        legend: { position: 'bottom' },
-        chartArea: { width: '90%', height: '80%' }
+        legend: { position: 'none' },
+        chartArea: { width: '80%', height: '70%' },
+        hAxis: { title: 'Vendedor' },
+        vAxis: { title: 'Total ($)', format: 'currency' }
       };
 
       var chartVDiv = document.getElementById('vendedorChart');
       if (chartVDiv) {
-        var chartV = new google.visualization.PieChart(chartVDiv);
+        var chartV = new google.visualization.ColumnChart(chartVDiv);
         chartV.draw(vendedorDataTable, vendedorOptions);
       }
 
-      // Gráfica de Estatus
-      var estatusData = google.visualization.arrayToDataTable([
-        ['Estado', 'Cantidad'],
-        ['Pagada', (stats.ventasPorEstatus && stats.ventasPorEstatus['Pagada']) || 0],
-        ['Pendiente', (stats.ventasPorEstatus && stats.ventasPorEstatus['Pendiente']) || 0],
-        ['Parcial', (stats.ventasPorEstatus && stats.ventasPorEstatus['Parcialmente Pagada']) || 0],
-        ['Vencida', (stats.ventasPorEstatus && stats.ventasPorEstatus['Vencida']) || 0]
-      ]);
+      // Ajuste 4: Gráfica de Barras - Estado de Ventas (Montos $)
+      var eData = [['Estado', 'Monto Total ($)', { role: 'style' }]];
+      var colores = { 'Pagada': '#27ae60', 'Pendiente': '#FBC02D', 'Parcialmente Pagada': '#1CA7C8', 'Vencida': '#F44336' };
+
+      if (stats.graficaEstados && stats.graficaEstados.length > 0) {
+        stats.graficaEstados.forEach(function(row) {
+          eData.push([row[0], row[1], 'color: ' + (colores[row[0]] || '#ccc')]);
+        });
+      }
+      var estatusDataTable = google.visualization.arrayToDataTable(eData);
 
       var estatusOptions = {
-        legend: { position: 'bottom' },
-        colors: ['#27ae60', '#FBC02D', '#1CA7C8', '#F44336'],
-        chartArea: { width: '90%', height: '80%' }
+        legend: { position: 'none' },
+        chartArea: { width: '80%', height: '70%' },
+        hAxis: { title: 'Estado' },
+        vAxis: { title: 'Monto Total ($)', format: 'currency' }
       };
 
       var chartEDiv = document.getElementById('estatusChart');
       if (chartEDiv) {
-        var chartE = new google.visualization.PieChart(chartEDiv);
-        chartE.draw(estatusData, estatusOptions);
+        var chartE = new google.visualization.ColumnChart(chartEDiv);
+        chartE.draw(estatusDataTable, estatusOptions);
       }
     } catch(e) {
       console.error('Excepción en drawChartsWithData:', e);
@@ -181,52 +181,40 @@
   function renderStats(stats) {
     if (!stats) return;
     try {
-      console.log('Renderizando indicadores...');
+      // Ajuste 2, 3, 4: Indicadores
+      document.getElementById('valTotalVentas').innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+      document.getElementById('valTotalCobrado').innerText = '$' + (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+      document.getElementById('valSaldoPendiente').innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
 
-      var values = document.querySelectorAll('.stat-value');
-      if (values.length >= 3) {
-        // AJUSTES 2, 3 y 4: Actualización dinámica de indicadores
-        values[0].innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-        values[1].innerText = '$' + (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-        values[2].innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-      }
+      // Ajuste 6: Meta
+      document.getElementById('metaLabel').innerText = 'Meta Mensual: $' + (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
 
-      // AJUSTE 5: Meta Mensual
-      var metaLabel = document.getElementById('metaLabel');
-      if (metaLabel) metaLabel.innerText = 'Meta Mensual: $' + (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-
-      var metaDesc = document.getElementById('metaDesc');
       var vSelect = document.getElementById('filtroVendedor');
-      if (metaDesc && vSelect) {
-        metaDesc.innerText = (vSelect.value === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
-      }
+      document.getElementById('metaDesc').innerText = (vSelect.value === 'Todos') ? 'Progreso hacia la meta global' : 'Progreso hacia la meta individual de $10,000';
 
-      var progressBar = document.querySelector('.progress-bar');
+      var progressBar = document.getElementById('valProgresoMetaBar');
       if (progressBar) {
         var prog = stats.progresoMeta || 0;
         progressBar.style.width = Math.min(prog, 100) + '%';
         progressBar.innerText = prog.toFixed(1) + '%';
       }
 
-      // AJUSTE 6: Ranking (Uso de totalVentas)
+      // Ajuste 5: Ranking
       var rankingHtml = '';
       if (stats.ranking && stats.ranking.length > 0) {
         stats.ranking.forEach(function(r) {
            rankingHtml += '<tr>' +
-             '<td>' + (r.posicion || '-') + '</td>' +
-             '<td>' + (r.nombre || 'N/A') + '</td>' +
+             '<td>' + r.posicion + '</td>' +
+             '<td>' + r.nombre + '</td>' +
              '<td>$' + (r.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
              '<td>' + (r.cumplimiento || 0).toFixed(1) + '%</td>' +
            '</tr>';
         });
       } else {
-        rankingHtml = '<tr><td colspan="4" style="text-align:center;">Sin datos de ranking</td></tr>';
+        rankingHtml = '<tr><td colspan="4" style="text-align:center;">No hay datos para mostrar</td></tr>';
       }
+      document.getElementById('rankingBody').innerHTML = rankingHtml;
 
-      var tbody = document.querySelector('table tbody');
-      if (tbody) tbody.innerHTML = rankingHtml;
-
-      // Dibujar gráficas
       drawChartsWithData(stats);
 
     } catch (e) {
@@ -235,17 +223,12 @@
     }
   }
 
-  /* AJUSTE 7: Restaurar carga dinámica del dropdown de vendedores */
   function cargarVendedoresFiltro() {
     var select = document.getElementById('filtroVendedor');
-    if (!select) return;
-
-    console.log('Iniciando carga de vendedores...');
     google.script.run
       .withSuccessHandler(function(vendedores) {
-        console.log('Vendedores recibidos:', vendedores);
-        select.innerHTML = '<option value="Todos">Todos</option>';
-        if (vendedores && vendedores.length > 0) {
+        select.innerHTML = '<option value="Todos">Todos los vendedores</option>';
+        if (vendedores) {
           vendedores.forEach(function(v) {
             var opt = document.createElement('option');
             opt.value = v;
@@ -254,63 +237,41 @@
           });
         }
       })
-      .withFailureHandler(function(err) {
-        console.error("Error al cargar vendedores para filtro:", err);
-        select.innerHTML = '<option value="Todos">Error al cargar vendedores</option>';
-      })
       .getVendedores();
   }
 
   function actualizarDashboard() {
-    var vSelect = document.getElementById('filtroVendedor');
-    var mSelect = document.getElementById('filtroMes');
-    if (!vSelect || !mSelect) return;
+    var mes = document.getElementById('filtroMes').value;
+    var vend = document.getElementById('filtroVendedor').value;
 
-    var v = vSelect.value;
-    var m = mSelect.value;
-
-    var loader = document.getElementById('loading-overlay');
-    var content = document.getElementById('statsContent');
-
-    if (loader) loader.style.display = 'flex';
-    if (content) content.style.opacity = '0.5';
+    document.getElementById('loading-overlay').style.display = 'flex';
+    document.getElementById('statsContent').style.opacity = '0.5';
 
     google.script.run
       .withSuccessHandler(function(stats) {
          try {
            renderStats(stats);
-         } catch(e) {
-           console.error("Error al renderizar stats:", e);
          } finally {
-           if (content) content.style.opacity = '1';
-           if (loader) loader.style.display = 'none';
+           document.getElementById('statsContent').style.opacity = '1';
+           document.getElementById('loading-overlay').style.display = 'none';
          }
       })
       .withFailureHandler(function(err) {
-         console.error("Error del servidor:", err);
-         alert('Error al actualizar dashboard: ' + err.message);
-         if (loader) loader.style.display = 'none';
-         if (content) content.style.opacity = '1';
+         alert('Error: ' + err.message);
+         document.getElementById('loading-overlay').style.display = 'none';
+         document.getElementById('statsContent').style.opacity = '1';
       })
-      .getDashboardData(v, m);
+      .obtenerDatosDashboard(mes, vend);
   }
 
-
-  // Inicialización de Google Charts
   google.charts.load('current', {'packages':['corechart']});
   google.charts.setOnLoadCallback(function() {
-    console.log('Callback de Google Charts ejecutado.');
-    try {
-      var initialStats = <?!= JSON.stringify(stats || {}) ?>;
-      if (initialStats && Object.keys(initialStats).length > 0) {
-        renderStats(initialStats);
-      }
-    } catch(e) {
-      console.error('Error en inicialización:', e);
+    var initialStats = <?!= JSON.stringify(stats || {}) ?>;
+    if (initialStats && Object.keys(initialStats).length > 0) {
+      renderStats(initialStats);
     }
   });
 
-  // Cargar vendedores al iniciar
   document.addEventListener('DOMContentLoaded', function() {
     cargarVendedoresFiltro();
   });
