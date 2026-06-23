@@ -29,30 +29,37 @@
 
 <div id="statsContent">
   <?
-    var stats = null;
+    /* AJUSTE 1: Carga inicial de datos reales desde el servidor */
+    var stats = { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 0, progresoMeta: 0, ranking: [] };
     try {
-      stats = getDashboardData();
+      var serverStats = getDashboardData();
+      if (serverStats) {
+        stats = serverStats;
+      }
     } catch(e) {
-      console.error("Error al obtener datos iniciales:", e);
+      // Si falla, se mantienen los valores en 0 pero la página carga para evitar blanco
     }
-    stats = stats || { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 0, progresoMeta: 0, ranking: [] };
   ?>
 <div class="grid">
   <div class="card stat-card">
     <span class="stat-label">Total Ventas Mes</span>
+    <!-- AJUSTE 2: Renderizado real de Total Ventas Mes -->
     <span class="stat-value">$<?= (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
   <div class="card stat-card" style="border-color: var(--secondary);">
     <span class="stat-label">Total Cobrado</span>
+    <!-- AJUSTE 3: Renderizado real de Total Cobrado -->
     <span class="stat-value">$<?= (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
   <div class="card stat-card" style="border-color: var(--warning);">
     <span class="stat-label">Saldo Pendiente</span>
+    <!-- AJUSTE 4: Renderizado real de Saldo Pendiente -->
     <span class="stat-value">$<?= (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
   </div>
 </div>
 
 <div class="card">
+  <!-- AJUSTE 5: Renderizado real de Meta Mensual ($10k * N o $10k) -->
   <h3 id="metaLabel">Meta Mensual: $<?= (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></h3>
   <div class="progress-container">
     <div class="progress-bar" style="width: <?= Math.min(stats.progresoMeta || 0, 100) ?>%">
@@ -85,15 +92,20 @@
       </tr>
     </thead>
     <tbody>
-      <? for (var i=0; i<stats.ranking.length; i++) {
-           var r = stats.ranking[i];
-      ?>
-      <tr>
-        <td><?= r.posicion ?></td>
-        <td><?= r.nombre ?></td>
-        <td>$<?= r.total.toFixed(2) ?></td>
-        <td><?= r.cumplimiento.toFixed(1) ?>%</td>
-      </tr>
+      <!-- AJUSTE 6: Renderizado correcto del Ranking de Vendedores -->
+      <? if (stats.ranking && stats.ranking.length > 0) { ?>
+        <? for (var i = 0; i < stats.ranking.length; i++) {
+             var r = stats.ranking[i];
+        ?>
+        <tr>
+          <td><?= r.posicion ?></td>
+          <td><?= r.nombre ?></td>
+          <td>$<?= (r.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></td>
+          <td><?= (r.cumplimiento || 0).toFixed(1) ?>%</td>
+        </tr>
+        <? } ?>
+      <? } else { ?>
+        <tr><td colspan="4" style="text-align:center;">No hay datos para mostrar</td></tr>
       <? } ?>
     </tbody>
   </table>
@@ -106,7 +118,7 @@
    * Definición de funciones en el ámbito global.
    */
 
-  // Definir primero para asegurar disponibilidad
+  // Definir primero para asegurar disponibilidad (Hoisting)
   function drawChartsWithData(stats) {
     console.log('Dibujando gráficas con:', stats);
 
@@ -173,11 +185,13 @@
 
       var values = document.querySelectorAll('.stat-value');
       if (values.length >= 3) {
+        // AJUSTES 2, 3 y 4: Actualización dinámica de indicadores
         values[0].innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
         values[1].innerText = '$' + (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
         values[2].innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
       }
 
+      // AJUSTE 5: Meta Mensual
       var metaLabel = document.getElementById('metaLabel');
       if (metaLabel) metaLabel.innerText = 'Meta Mensual: $' + (stats.meta || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
 
@@ -194,14 +208,14 @@
         progressBar.innerText = prog.toFixed(1) + '%';
       }
 
-      // Ranking
+      // AJUSTE 6: Ranking (Uso de totalVentas)
       var rankingHtml = '';
       if (stats.ranking && stats.ranking.length > 0) {
         stats.ranking.forEach(function(r) {
            rankingHtml += '<tr>' +
              '<td>' + (r.posicion || '-') + '</td>' +
              '<td>' + (r.nombre || 'N/A') + '</td>' +
-             '<td>$' + (r.total || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
+             '<td>$' + (r.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
              '<td>' + (r.cumplimiento || 0).toFixed(1) + '%</td>' +
            '</tr>';
         });
@@ -221,23 +235,28 @@
     }
   }
 
+  /* AJUSTE 7: Restaurar carga dinámica del dropdown de vendedores */
   function cargarVendedoresFiltro() {
     var select = document.getElementById('filtroVendedor');
     if (!select) return;
 
+    console.log('Iniciando carga de vendedores...');
     google.script.run
       .withSuccessHandler(function(vendedores) {
+        console.log('Vendedores recibidos:', vendedores);
         select.innerHTML = '<option value="Todos">Todos</option>';
-        vendedores.forEach(function(v) {
-          var opt = document.createElement('option');
-          opt.value = v;
-          opt.innerText = v;
-          select.appendChild(opt);
-        });
+        if (vendedores && vendedores.length > 0) {
+          vendedores.forEach(function(v) {
+            var opt = document.createElement('option');
+            opt.value = v;
+            opt.innerText = v;
+            select.appendChild(opt);
+          });
+        }
       })
       .withFailureHandler(function(err) {
         console.error("Error al cargar vendedores para filtro:", err);
-        select.innerHTML = '<option value="Todos">Error al cargar</option>';
+        select.innerHTML = '<option value="Todos">Error al cargar vendedores</option>';
       })
       .getVendedores();
   }

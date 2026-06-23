@@ -470,12 +470,12 @@ function getDashboardData(filtroVendedor, filtroMes) {
       var totalV = ventasPorVendedorGlobal[v] || 0;
       return {
         nombre: v,
-        total: totalV,
+        totalVentas: totalV,
         cumplimiento: (totalV / metaIndividual) * 100
       };
     });
 
-    fullRanking.sort(function(a, b) { return b.total - a.total; });
+    fullRanking.sort(function(a, b) { return b.totalVentas - a.totalVentas; });
     fullRanking.forEach(function(item, index) { item.posicion = index + 1; });
 
     var rankingFinal = (filtroVendedor && filtroVendedor !== 'Todos')
