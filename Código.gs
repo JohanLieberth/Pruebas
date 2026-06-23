@@ -50,7 +50,7 @@ function setup() {
 
   var sheets = [
     { name: 'Ventas', headers: ['FOLIO/CONCEPTO', 'CLIENTE', 'CORREO', 'HOTEL', 'VENDEDOR', 'TOTAL', 'FECHA LIMITE', 'ANTICIPO', 'FECHA ANTICIPO', 'ABONO 1', 'FECHA ABONO 1', 'ABONO 2', 'FECHA ABONO 2', 'ABONO 3', 'FECHA ABONO 3', 'TOTAL COBRADO', 'SALDO', 'ESTATUS'] },
-    { name: 'Dashboard', headers: [] },
+    { name: 'Dashboard', headers: ['TOTAL VENTAS GLOBAL', 'TOTAL COBRADO GLOBAL', 'SALDO PENDIENTE GLOBAL', 'META TOTAL', '% CUMPLIMIENTO GLOBAL', 'ÚLTIMA ACTUALIZACIÓN'] },
     { name: 'Vendedores', headers: ['NOMBRE'], data: [['Arlette'], ['Ámerica'], ['Enrique'], ['Eduardo']] },
     { name: 'Config', headers: ['PARAMETRO', 'VALOR'], data: [['META_MENSUAL', '10000']] },
     { name: 'Logo', headers: ['LOGO (Inserta en A1)', 'ANCHO (B1)', 'ALTO (B2)'] }
@@ -221,6 +221,14 @@ function registrarVenta(datos) {
   ];
 
   sheet.appendRow(row);
+
+  // Actualizar hoja Dashboard
+  try {
+    actualizarHojaDashboard();
+  } catch (e) {
+    console.error('Error al actualizar Dashboard tras venta:', e.message);
+  }
+
   return { success: true, message: 'Venta registrada con éxito' };
 }
 
@@ -380,6 +388,13 @@ function registrarAbono(datos) {
         sheet.getRange(rowIdx, 17).setValue(nuevoSaldo);   // Col Q
         sheet.getRange(rowIdx, 18).setValue(nuevoEstatus); // Col R
 
+        // Actualizar hoja Dashboard
+        try {
+          actualizarHojaDashboard();
+        } catch (e) {
+          console.error('Error al actualizar Dashboard tras abono:', e.message);
+        }
+
         return { success: true, message: 'Pago registrado correctamente' };
       } else {
         return { success: false, message: 'Límite de abonos alcanzado para esta venta' };
@@ -387,6 +402,43 @@ function registrarAbono(datos) {
     }
   }
   return { success: false, message: 'Venta no encontrada' };
+}
+
+/**
+ * Registra los indicadores globales en la hoja 'Dashboard'
+ */
+function actualizarHojaDashboard() {
+  try {
+    // Obtenemos los datos globales (Todos los meses, Todos los vendedores)
+    var stats = obtenerDatosDashboard("Todos", "Todos");
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Dashboard');
+    if (!sheet) return;
+
+    var row = [
+      stats.totalVentas,
+      stats.totalCobrado,
+      stats.saldoPendiente,
+      stats.meta,
+      stats.progresoMeta / 100, // En decimal para formato %
+      new Date()
+    ];
+
+    // Limpiamos datos anteriores (fila 2 en adelante) y escribimos los nuevos
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+    }
+    sheet.appendRow(row);
+
+    // Formatear celdas
+    sheet.getRange("A2:D2").setNumberFormat("$#,##0.00");
+    sheet.getRange("E2").setNumberFormat("0.00%");
+    sheet.getRange("F2").setNumberFormat("dd/mm/yyyy HH:mm:ss");
+
+  } catch (e) {
+    console.error('Error al actualizar hoja Dashboard:', e.message);
+  }
 }
 
 /**
@@ -405,7 +457,7 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
     data.shift(); // Quitar cabecera
 
     var vendedoresCatalogo = [];
-    if (sheetVendedores) {
+    if (sheetVendedores && sheetVendedores.getLastRow() > 1) {
       vendedoresCatalogo = sheetVendedores.getRange("A2:A" + sheetVendedores.getLastRow()).getValues()
         .map(function(r) { return r[0]; })
         .filter(function(v) { return v && v.toString().trim() !== ""; });
