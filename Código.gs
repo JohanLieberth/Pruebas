@@ -49,7 +49,7 @@ function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   var sheets = [
-    { name: 'Ventas', headers: ['FOLIO/CONCEPTO', 'CLIENTE', 'HOTEL', 'VENDEDOR', 'TOTAL', 'FECHA LIMITE', 'ANTICIPO', 'FECHA ANTICIPO', 'ABONO 1', 'FECHA ABONO 1', 'ABONO 2', 'FECHA ABONO 2', 'ABONO 3', 'FECHA ABONO 3', 'TOTAL COBRADO', 'SALDO', 'ESTATUS'] },
+    { name: 'Ventas', headers: ['FOLIO/CONCEPTO', 'CLIENTE', 'CORREO', 'HOTEL', 'VENDEDOR', 'TOTAL', 'FECHA LIMITE', 'ANTICIPO', 'FECHA ANTICIPO', 'ABONO 1', 'FECHA ABONO 1', 'ABONO 2', 'FECHA ABONO 2', 'ABONO 3', 'FECHA ABONO 3', 'TOTAL COBRADO', 'SALDO', 'ESTATUS'] },
     { name: 'Dashboard', headers: [] },
     { name: 'Vendedores', headers: ['NOMBRE'], data: [['Arlette'], ['Ámerica'], ['Enrique'], ['Eduardo']] },
     { name: 'Config', headers: ['PARAMETRO', 'VALOR'], data: [['META_MENSUAL', '10000']] },
@@ -77,10 +77,10 @@ function setup() {
   if (logoSheet.getLastRow() < 2) {
     logoSheet.getRange('B1').setValue('ANCHO');
     logoSheet.getRange('C1').setValue('ALTO');
-    logoSheet.getRange('D1').setValue('URL (Opcional)');
-    logoSheet.getRange('B2').setValue(150); // Ancho default
-    logoSheet.getRange('C2').setValue(80);  // Alto default
-    logoSheet.getRange('A3').setValue('INSTRUCCIONES: 1. Ve a Insertar > Imagen > Imagen en celda en A1. O pega una URL pública en D2. 2. Ajusta dimensiones en B2 y C2.');
+    logoSheet.getRange('D1').setValue('URL DEL LOGO');
+    logoSheet.getRange('B2').setValue(400); // Ancho default
+    logoSheet.getRange('C2').setValue(400); // Alto default
+    logoSheet.getRange('A3').setValue('INSTRUCCIONES: Pega el link directo del logo en la celda D2. El sistema lo mostrará a 400x400 por defecto.');
   }
 }
 
@@ -88,27 +88,22 @@ function setup() {
  * Obtiene la configuración del logo
  */
 function getLogoConfig() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Logo');
-  if (!sheet) return { url: '', width: 150, height: 80, alt: 'Mujeres Seguras' };
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Logo');
+    if (!sheet) return { url: '', width: 400, height: 400, alt: 'Friend Travel' };
 
-  // Para obtener una imagen de una celda en GAS es complejo si es "Imagen sobre celdas".
-  // Si es "Imagen en celda", se puede intentar obtener el valor, pero suele ser una fórmula o vacío.
-  // Una alternativa común es usar una URL en una celda o un ID de Drive.
-  // Sin embargo, el requerimiento pide "insertar imagen directamente en la celda A1".
-  // En GAS moderno, Range.getValue() para una celda con imagen devuelve un objeto CellImage.
+    var width = sheet.getRange('B2').getValue() || 400;
+    var height = sheet.getRange('C2').getValue() || 400;
+    var url = sheet.getRange('D2').getValue();
 
-  var width = sheet.getRange('B2').getValue() || 150;
-  var height = sheet.getRange('C2').getValue() || 80;
-  var urlOverride = sheet.getRange('D2').getValue();
-
-  if (urlOverride && urlOverride.toString().indexOf('http') === 0) {
-    return { url: urlOverride, width: width, height: height, alt: 'Friend Travel' };
+    if (url && url.toString().indexOf('http') === 0) {
+      return { url: url, width: width, height: height, alt: 'Friend Travel' };
+    }
+    return { url: '', width: width, height: height, alt: 'Friend Travel' };
+  } catch(e) {
+    return { url: '', width: 400, height: 400, alt: 'Friend Travel' };
   }
-
-  // Fallback si no hay URL.
-  // Nota: Obtener el blob de una imagen 'en celda' es limitado en GAS web apps.
-  return { url: '', width: width, height: height, alt: 'Friend Travel' };
 }
 
 /**
@@ -118,10 +113,17 @@ function getVendedores() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Vendedores');
+    if (!sheet) return ['Arlette', 'Ámerica', 'Enrique', 'Eduardo'];
+
     var data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return ['Arlette', 'Ámerica', 'Enrique', 'Eduardo'];
+
     data.shift(); // Quitar cabecera
-    return data.map(function(r) { return r[0]; });
+    return data
+      .map(function(r) { return r[0]; })
+      .filter(function(name) { return name && name.toString().trim() !== ""; });
   } catch(e) {
+    console.error('Error al obtener vendedores:', e.message);
     return ['Arlette', 'Ámerica', 'Enrique', 'Eduardo']; // Fallback
   }
 }
@@ -178,6 +180,7 @@ function registrarVenta(datos) {
   var row = [
     datos.folio,
     datos.cliente,
+    datos.correo,
     datos.hotel,
     datos.vendedor,
     total,
@@ -200,6 +203,47 @@ function registrarVenta(datos) {
 }
 
 /**
+ * Función para enviar recordatorios de pago un día antes del vencimiento
+ * Se debe configurar como activador (trigger) diario
+ */
+function enviarRecordatoriosPago() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Ventas');
+  var data = sheet.getDataRange().getValues();
+  data.shift(); // Cabecera
+
+  var mañana = new Date();
+  mañana.setDate(mañana.getDate() + 1);
+  mañana.setHours(0,0,0,0);
+
+  var recordatoriosEnviados = 0;
+
+  data.forEach(function(r) {
+    var vCorreo = r[2];
+    var vFechaLimite = r[6] instanceof Date ? r[6] : new Date(r[6]);
+    vFechaLimite.setHours(0,0,0,0);
+    var vSaldo = parseFloat(r[16]) || 0;
+    var vCliente = r[1];
+    var vFolio = r[0];
+
+    if (vSaldo > 0 && vFechaLimite.getTime() === mañana.getTime() && vCorreo) {
+      var asunto = 'Recordatorio de Pago - Friend Travel';
+      var mensaje = 'Hola ' + vCliente + ',\n\n' +
+                    'Te recordamos que tu fecha límite de pago para el concepto "' + vFolio + '" es el día de mañana.\n' +
+                    'Tu saldo pendiente es de $' + vSaldo.toFixed(2) + ' MXN.\n\n' +
+                    'Por favor, realiza tu pago a la brevedad para evitar inconvenientes.\n\n' +
+                    'Atentamente,\n' +
+                    'Equipo Friend Travel';
+
+      MailApp.sendEmail(vCorreo, asunto, mensaje);
+      recordatoriosEnviados++;
+    }
+  });
+
+  return recordatoriosEnviados;
+}
+
+/**
  * Obtiene todas las ventas como un array de objetos
  */
 function getVentas() {
@@ -212,10 +256,10 @@ function getVentas() {
   hoy.setHours(0,0,0,0);
 
   return data.map(function(r) {
-    var vTotal = parseFloat(r[4]) || 0;
-    var vCobrado = parseFloat(r[14]) || 0;
-    var vSaldo = parseFloat(r[15]) || 0;
-    var vFechaLimite = r[5] instanceof Date ? r[5] : new Date(r[5]);
+    var vTotal = parseFloat(r[5]) || 0;
+    var vCobrado = parseFloat(r[15]) || 0;
+    var vSaldo = parseFloat(r[16]) || 0;
+    var vFechaLimite = r[6] instanceof Date ? r[6] : new Date(r[6]);
     vFechaLimite.setHours(0,0,0,0);
 
     var vEstatus = r[16];
@@ -234,11 +278,12 @@ function getVentas() {
     return {
       folio: r[0],
       cliente: r[1],
-      hotel: r[2],
-      vendedor: r[3],
+      correo: r[2],
+      hotel: r[3],
+      vendedor: r[4],
       total: vTotal,
       fechaLimite: vFechaLimite.toLocaleDateString(),
-      anticipo: parseFloat(r[6]) || 0,
+      anticipo: parseFloat(r[7]) || 0,
       cobrado: vCobrado,
       saldo: vSaldo,
       estatus: vEstatus
@@ -257,32 +302,31 @@ function registrarAbono(datos) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] == datos.folio) {
       var rowIdx = i + 1;
-      var total = parseFloat(data[i][4]);
+      var total = parseFloat(data[i][5]);
       var abono = parseFloat(datos.monto);
-      var saldoActual = parseFloat(data[i][15]);
+      var saldoActual = parseFloat(data[i][16]);
 
       if (abono > saldoActual) return { success: false, message: 'El abono no puede ser mayor al saldo pendiente ($' + saldoActual + ')' };
 
       // Buscar el siguiente campo de abono disponible (Abono 1, 2, o 3)
-      // Columnas: I (8), K (10), M (12)
+      // Columnas (ajustadas por nueva columna CORREO):
+      // Abono 1: J(9), Abono 2: L(11), Abono 3: N(13)
       var colIdx = -1;
-      if (!data[i][8]) colIdx = 9;
-      else if (!data[i][10]) colIdx = 11;
-      else if (!data[i][12]) colIdx = 13;
+      if (!data[i][9]) colIdx = 10;
+      else if (!data[i][11]) colIdx = 12;
+      else if (!data[i][13]) colIdx = 14;
 
       if (colIdx != -1) {
         sheet.getRange(rowIdx, colIdx).setValue(abono);
         sheet.getRange(rowIdx, colIdx + 1).setValue(datos.fecha);
 
-        // Recalcular totales en la fila (Apps Script recalcula si hay fórmulas, pero aquí son valores)
-        // Forzamos actualización de Total Cobrado, Saldo y Estatus
-        var nuevoCobrado = (parseFloat(data[i][14]) || 0) + abono;
+        var nuevoCobrado = (parseFloat(data[i][15]) || 0) + abono;
         var nuevoSaldo = total - nuevoCobrado;
         var nuevoEstatus = nuevoSaldo <= 0 ? 'Pagada' : 'Parcialmente Pagada';
 
-        sheet.getRange(rowIdx, 15).setValue(nuevoCobrado); // Col O
-        sheet.getRange(rowIdx, 16).setValue(nuevoSaldo);   // Col P
-        sheet.getRange(rowIdx, 17).setValue(nuevoEstatus); // Col Q
+        sheet.getRange(rowIdx, 16).setValue(nuevoCobrado); // Col P
+        sheet.getRange(rowIdx, 17).setValue(nuevoSaldo);   // Col Q
+        sheet.getRange(rowIdx, 18).setValue(nuevoEstatus); // Col R
 
         return { success: true, message: 'Pago registrado correctamente' };
       } else {
@@ -312,8 +356,8 @@ function getDashboardData(filtroVendedor, filtroMes) {
   var ventasPorEstatus = { 'Pagada': 0, 'Pendiente': 0, 'Parcialmente Pagada': 0, 'Vencida': 0 };
 
   data.forEach(function(r) {
-    var vFecha = r[5] instanceof Date ? r[5] : new Date(r[5]);
-    var vVendedor = r[3];
+    var vFecha = r[6] instanceof Date ? r[6] : new Date(r[6]);
+    var vVendedor = r[4];
 
     // Aplicar filtros
     if (filtroVendedor && filtroVendedor !== 'Todos' && vVendedor !== filtroVendedor) return;
@@ -321,11 +365,10 @@ function getDashboardData(filtroVendedor, filtroMes) {
        if (vFecha.getMonth() + 1 != filtroMes) return;
     }
 
-    var vTotal = parseFloat(r[4]) || 0;
-    var vCobrado = parseFloat(r[14]) || 0;
-    var vSaldo = parseFloat(r[15]) || 0;
-    var vVendedor = r[3];
-    var vEstatus = r[16];
+    var vTotal = parseFloat(r[5]) || 0;
+    var vCobrado = parseFloat(r[15]) || 0;
+    var vSaldo = parseFloat(r[16]) || 0;
+    var vEstatus = r[17];
 
     totalVentas += vTotal;
     totalCobrado += vCobrado;
