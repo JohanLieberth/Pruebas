@@ -466,21 +466,30 @@ function getDashboardData(filtroVendedor, filtroMes) {
 
   var progresoMeta = metaTotal > 0 ? (totalVentas / metaTotal) * 100 : 0;
 
-  // AJUSTE 4: Ranking de Vendedores
-  var ranking = [];
-  var vendsParaRanking = (filtroVendedor && filtroVendedor !== 'Todos') ? [filtroVendedor] : vendedoresCatalogo;
-
-  vendsParaRanking.forEach(function(v) {
+  // AJUSTE 4: Ranking de Vendedores (Regla Global vs Individual)
+  // Calculamos el ranking de TODOS los vendedores del mes para determinar posiciones reales
+  var fullRanking = vendedoresCatalogo.map(function(v) {
     var totalV = ventasPorVendedor[v] || 0;
-    ranking.push({
+    return {
       nombre: v,
       total: totalV,
       cumplimiento: (totalV / metaIndividual) * 100
-    });
+    };
   });
 
-  // Ordenar ranking de mayor a menor
-  ranking.sort(function(a, b) { return b.total - a.total; });
+  // Ordenar ranking global de mayor a menor
+  fullRanking.sort(function(a, b) { return b.total - a.total; });
+
+  // Asignar posiciones
+  fullRanking.forEach(function(item, index) { item.posicion = index + 1; });
+
+  // Filtrar ranking para mostrar (si hay filtro, solo ese; si no, todos)
+  var rankingAMostrar = [];
+  if (filtroVendedor && filtroVendedor !== 'Todos') {
+    rankingAMostrar = fullRanking.filter(function(r) { return r.nombre === filtroVendedor; });
+  } else {
+    rankingAMostrar = fullRanking;
+  }
 
   return {
     totalVentas: totalVentas,
@@ -491,6 +500,6 @@ function getDashboardData(filtroVendedor, filtroMes) {
     progresoMeta: progresoMeta,
     ventasPorVendedor: ventasPorVendedor,
     ventasPorEstatus: ventasPorEstatus,
-    ranking: ranking
+    ranking: rankingAMostrar
   };
 }

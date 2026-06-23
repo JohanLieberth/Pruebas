@@ -115,13 +115,22 @@
     var v = document.getElementById('filtroVendedor').value;
     var m = document.getElementById('filtroMes').value;
 
-    // Mostramos un loader simple
+    // Mostramos un loader (Overlay global definido en Index.html)
+    document.getElementById('loading-overlay').style.display = 'flex';
     document.getElementById('statsContent').style.opacity = '0.5';
 
-    google.script.run.withSuccessHandler(function(stats) {
-       renderStats(stats);
-       document.getElementById('statsContent').style.opacity = '1';
-    }).getDashboardData(v, m);
+    google.script.run
+      .withSuccessHandler(function(stats) {
+         renderStats(stats);
+         document.getElementById('statsContent').style.opacity = '1';
+         document.getElementById('loading-overlay').style.display = 'none';
+      })
+      .withFailureHandler(function(err) {
+         alert('Error al actualizar dashboard: ' + err.message);
+         document.getElementById('loading-overlay').style.display = 'none';
+         document.getElementById('statsContent').style.opacity = '1';
+      })
+      .getDashboardData(v, m);
   }
 
   function renderStats(stats) {
@@ -141,11 +150,11 @@
      // Re-dibujar gráficas (AJUSTE 3)
      drawChartsWithData(stats);
 
-     // Actualizar Ranking (AJUSTE 4)
+     // Actualizar Ranking (AJUSTE 4 - Con Posición Real)
      var rankingHtml = '';
-     stats.ranking.forEach(function(r, index) {
+     stats.ranking.forEach(function(r) {
         rankingHtml += '<tr>' +
-          '<td>' + (index + 1) + '</td>' +
+          '<td>' + r.posicion + '</td>' +
           '<td>' + r.nombre + '</td>' +
           '<td>$' + r.total.toFixed(2) + '</td>' +
           '<td>' + r.cumplimiento.toFixed(1) + '%</td>' +
