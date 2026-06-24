@@ -443,6 +443,7 @@ function actualizarHojaDashboard() {
 
 /**
  * Servidor: Procesa datos reales del Dashboard aplicando filtros independientes de Mes y Vendedor.
+ * Identifica columnas dinámicamente por nombre de encabezado.
  */
 function obtenerDatosDashboard(filtroMes, filtroVendedor) {
   try {
@@ -452,9 +453,22 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
 
     if (!sheetVentas) throw new Error('Hoja "Ventas" no encontrada.');
 
-    var data = sheetVentas.getDataRange().getValues();
-    if (data.length < 1) throw new Error('No hay datos en la hoja "Ventas".');
-    data.shift(); // Quitar cabecera
+    var fullData = sheetVentas.getDataRange().getValues();
+    if (fullData.length < 1) throw new Error('No hay datos en la hoja "Ventas".');
+
+    var headers = fullData[0];
+    var data = fullData.slice(1);
+
+    // Mapeo dinámico de columnas
+    var idxVendedor = headers.indexOf('VENDEDOR');
+    var idxTotal = headers.indexOf('TOTAL');
+    var idxTotalCobrado = headers.indexOf('TOTAL COBRADO');
+    var idxSaldo = headers.indexOf('SALDO');
+    var idxFechaLimite = headers.indexOf('FECHA LIMITE');
+
+    if (idxVendedor === -1 || idxTotal === -1 || idxTotalCobrado === -1 || idxSaldo === -1 || idxFechaLimite === -1) {
+       throw new Error('Estructura de la hoja Ventas inválida. Faltan columnas obligatorias.');
+    }
 
     var vendedoresCatalogo = [];
     if (sheetVendedores && sheetVendedores.getLastRow() > 1) {
@@ -473,7 +487,11 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
 
     // Gráfica de Ventas por Vendedor (siempre agregamos todos para el ranking interno)
     var ventasPorVendedorMap = {};
-    vendedoresCatalogo.forEach(function(v) { ventasPorVendedorMap[v] = 0; });
+    var cobradoPorVendedorMap = {}; // Mapa para seguimiento de cobranza por vendedor
+    vendedoresCatalogo.forEach(function(v) {
+      ventasPorVendedorMap[v] = 0;
+      cobradoPorVendedorMap[v] = 0;
+    });
 
     // Gráfica de Estados de Venta (sumamos montos $)
     var estadosMontoMap = { 'Pagada': 0, 'Pendiente': 0, 'Parcialmente Pagada': 0, 'Vencida': 0 };
@@ -481,8 +499,8 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
     data.forEach(function(r) {
       if (!r[0]) return; // Fila vacía
 
-      var vVendedor = r[4];
-      var vFecha = r[6] instanceof Date ? r[6] : new Date(r[6]); // Fecha Límite para el filtro de mes
+      var vVendedor = r[idxVendedor];
+      var vFecha = r[idxFechaLimite] instanceof Date ? r[idxFechaLimite] : new Date(r[idxFechaLimite]);
       if (isNaN(vFecha.getTime())) return;
 
       // Filtro Independiente: Mes
@@ -490,41 +508,46 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
         if ((vFecha.getMonth() + 1).toString() !== filtroMes.toString()) return;
       }
 
-      var totalRow = parseFloat(r[5]) || 0;
-      var cobradoRow = parseFloat(r[15]) || 0;
-      var saldoRow = parseFloat(r[16]) || 0;
+      var totalRow = parseFloat(r[idxTotal]) || 0;
+      var cobradoRow = parseFloat(r[idxTotalCobrado]) || 0;
+      var saldoRow = parseFloat(r[idxSaldo]) || 0;
 
-      // Calcular Estatus REAL (Ajuste 4)
+      // Calcular Estatus REAL (Ajuste para gráfica de estados)
       var estatusRow = '';
       if (saldoRow <= 0) estatusRow = 'Pagada';
       else if (vFecha < hoy) estatusRow = 'Vencida';
       else if (cobradoRow > 0) estatusRow = 'Parcialmente Pagada';
       else estatusRow = 'Pendiente';
 
-      // 1. Acumular para Ranking del Mes seleccionado (AJUSTE 5)
+      // 1. Acumular para Ranking del Mes seleccionado (siempre se calcula sobre el catálogo)
       if (ventasPorVendedorMap.hasOwnProperty(vVendedor)) {
         ventasPorVendedorMap[vVendedor] += totalRow;
+        cobradoPorVendedorMap[vVendedor] += cobradoRow;
       }
 
-      // 2. Aplicar Filtro Independiente: Vendedor (AJUSTE 1)
+      // 2. Aplicar Filtro Independiente: Vendedor (Ajustes 1, 2 y 3)
       var esVendedorMatch = (!filtroVendedor || filtroVendedor === 'Todos' || vVendedor === filtroVendedor);
 
       if (esVendedorMatch) {
-        totalVentas += totalRow;
-        totalCobrado += cobradoRow;
-        saldoPendiente += saldoRow;
+        totalVentas += totalRow;     // Ajuste 1: Suma de TOTAL
+        totalCobrado += cobradoRow;   // Ajuste 2: Suma de TOTAL COBRADO
+        saldoPendiente += saldoRow;    // Ajuste 3: Suma de SALDO
 
-        // Sumar montos por estado para la gráfica (AJUSTE 4)
+        // Sumar montos por estado para la gráfica (AJUSTE 4 de turnos previos)
         estadosMontoMap[estatusRow] += totalRow;
       }
     });
 
-    // AJUSTE 6: Meta Dinámica
+    // AJUSTE 4: Meta Dinámica y Progreso
     var metaIndiv = 10000;
+    // Meta total: $40,000 para el equipo (4 vendedores) o $10,000 individual
     var metaFinal = (filtroVendedor && filtroVendedor !== 'Todos') ? metaIndiv : (vendedoresCatalogo.length * metaIndiv);
-    var progresoMetaFinal = metaFinal > 0 ? (totalVentas / metaFinal) * 100 : 0;
+    if (metaFinal === 0 && !filtroVendedor) metaFinal = 40000; // Fallback a 40k si el catálogo está vacío pero es vista global
 
-    // AJUSTE 3: Datos para Gráfica Ventas por Vendedor
+    // Porcentaje de avance: (Suma de TOTAL COBRADO / Meta correspondiente) * 100
+    var progresoMetaFinal = metaFinal > 0 ? (totalCobrado / metaFinal) * 100 : 0;
+
+    // Ajuste 3: Datos para Gráfica Ventas por Vendedor
     var listVentasVendedor = [];
     if (filtroVendedor && filtroVendedor !== 'Todos') {
       listVentasVendedor.push([filtroVendedor, ventasPorVendedorMap[filtroVendedor] || 0]);
@@ -534,12 +557,13 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
       });
     }
 
-    // AJUSTE 5: Procesar Ranking Real
+    // AJUSTE 5: Procesar Ranking Real con cumplimiento basado en TOTAL COBRADO
     var rankingGlobal = vendedoresCatalogo.map(function(v) {
       return {
         nombre: v,
         totalVentas: ventasPorVendedorMap[v] || 0,
-        cumplimiento: ((ventasPorVendedorMap[v] || 0) / metaIndiv) * 100
+        totalCobrado: cobradoPorVendedorMap[v] || 0,
+        cumplimiento: ((cobradoPorVendedorMap[v] || 0) / metaIndiv) * 100
       };
     });
     rankingGlobal.sort(function(a, b) { return b.totalVentas - a.totalVentas; });
