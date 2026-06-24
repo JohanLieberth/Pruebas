@@ -82,6 +82,9 @@ function setup() {
     logoSheet.getRange('C2').setValue(400); // Alto default
     logoSheet.getRange('A3').setValue('INSTRUCCIONES: Pega el link directo del logo en la celda D2. El sistema lo mostrará a 400x400 por defecto.');
   }
+
+  // Inicializar hoja Dashboard con datos
+  actualizarHojaDashboard();
 }
 
 /**
@@ -443,7 +446,7 @@ function actualizarHojaDashboard() {
 
 /**
  * Servidor: Procesa datos reales del Dashboard aplicando filtros independientes de Mes y Vendedor.
- * Identifica columnas dinámicamente por nombre de encabezado.
+ * Identifica columnas dinámicamente por nombre de encabezado para evitar errores de índice fijo.
  */
 function obtenerDatosDashboard(filtroMes, filtroVendedor) {
   try {
@@ -451,23 +454,25 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
     var sheetVentas = ss.getSheetByName('Ventas');
     var sheetVendedores = ss.getSheetByName('Vendedores');
 
-    if (!sheetVentas) throw new Error('Hoja "Ventas" no encontrada.');
+    if (!sheetVentas) return { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 40000, progresoMeta: 0, graficaVendedores: [], graficaEstados: [], ranking: [] };
 
     var fullData = sheetVentas.getDataRange().getValues();
-    if (fullData.length < 1) throw new Error('No hay datos en la hoja "Ventas".');
+    if (fullData.length < 2) return { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 40000, progresoMeta: 0, graficaVendedores: [], graficaEstados: [], ranking: [] };
 
-    var headers = fullData[0];
+    var headers = fullData[0].map(function(h) { return h.toString().toUpperCase().trim(); });
     var data = fullData.slice(1);
 
-    // Mapeo dinámico de columnas
+    // Mapeo dinámico de columnas (Corrección estructural)
     var idxVendedor = headers.indexOf('VENDEDOR');
     var idxTotal = headers.indexOf('TOTAL');
     var idxTotalCobrado = headers.indexOf('TOTAL COBRADO');
     var idxSaldo = headers.indexOf('SALDO');
     var idxFechaLimite = headers.indexOf('FECHA LIMITE');
 
+    // Validación de existencia de columnas críticas
     if (idxVendedor === -1 || idxTotal === -1 || idxTotalCobrado === -1 || idxSaldo === -1 || idxFechaLimite === -1) {
-       throw new Error('Estructura de la hoja Ventas inválida. Faltan columnas obligatorias.');
+       console.error('Columnas faltantes en Ventas. Headers detectados:', headers);
+       throw new Error('Estructura de la hoja Ventas inválida. Verifica los encabezados.');
     }
 
     var vendedoresCatalogo = [];
@@ -485,26 +490,24 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
     var totalCobrado = 0;
     var saldoPendiente = 0;
 
-    // Gráfica de Ventas por Vendedor (siempre agregamos todos para el ranking interno)
     var ventasPorVendedorMap = {};
-    var cobradoPorVendedorMap = {}; // Mapa para seguimiento de cobranza por vendedor
+    var cobradoPorVendedorMap = {};
     vendedoresCatalogo.forEach(function(v) {
       ventasPorVendedorMap[v] = 0;
       cobradoPorVendedorMap[v] = 0;
     });
 
-    // Gráfica de Estados de Venta (sumamos montos $)
     var estadosMontoMap = { 'Pagada': 0, 'Pendiente': 0, 'Parcialmente Pagada': 0, 'Vencida': 0 };
 
     data.forEach(function(r) {
-      if (!r[0]) return; // Fila vacía
+      if (!r[idxVendedor]) return; // Saltar filas sin vendedor
 
       var vVendedor = r[idxVendedor];
-      var vFecha = r[idxFechaLimite] instanceof Date ? r[idxFechaLimite] : new Date(r[idxFechaLimite]);
-      if (isNaN(vFecha.getTime())) return;
+      var valFecha = r[idxFechaLimite];
+      var vFecha = (valFecha instanceof Date) ? valFecha : new Date(valFecha);
 
       // Filtro Independiente: Mes
-      if (filtroMes && filtroMes !== 'Todos') {
+      if (filtroMes && filtroMes !== 'Todos' && !isNaN(vFecha.getTime())) {
         if ((vFecha.getMonth() + 1).toString() !== filtroMes.toString()) return;
       }
 
@@ -512,42 +515,37 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
       var cobradoRow = parseFloat(r[idxTotalCobrado]) || 0;
       var saldoRow = parseFloat(r[idxSaldo]) || 0;
 
-      // Calcular Estatus REAL (Ajuste para gráfica de estados)
+      // Calcular Estatus REAL (Basado en sumatorias reales del sheet)
       var estatusRow = '';
       if (saldoRow <= 0) estatusRow = 'Pagada';
-      else if (vFecha < hoy) estatusRow = 'Vencida';
+      else if (!isNaN(vFecha.getTime()) && vFecha < hoy) estatusRow = 'Vencida';
       else if (cobradoRow > 0) estatusRow = 'Parcialmente Pagada';
       else estatusRow = 'Pendiente';
 
-      // 1. Acumular para Ranking del Mes seleccionado (siempre se calcula sobre el catálogo)
+      // 1. Acumular para Ranking del Mes seleccionado (Vista Global del periodo)
       if (ventasPorVendedorMap.hasOwnProperty(vVendedor)) {
         ventasPorVendedorMap[vVendedor] += totalRow;
         cobradoPorVendedorMap[vVendedor] += cobradoRow;
       }
 
-      // 2. Aplicar Filtro Independiente: Vendedor (Ajustes 1, 2 y 3)
+      // 2. Aplicar Filtro Independiente: Vendedor
       var esVendedorMatch = (!filtroVendedor || filtroVendedor === 'Todos' || vVendedor === filtroVendedor);
 
       if (esVendedorMatch) {
-        totalVentas += totalRow;     // Ajuste 1: Suma de TOTAL
-        totalCobrado += cobradoRow;   // Ajuste 2: Suma de TOTAL COBRADO
-        saldoPendiente += saldoRow;    // Ajuste 3: Suma de SALDO
-
-        // Sumar montos por estado para la gráfica (AJUSTE 4 de turnos previos)
+        totalVentas += totalRow;
+        totalCobrado += cobradoRow;
+        saldoPendiente += saldoRow;
         estadosMontoMap[estatusRow] += totalRow;
       }
     });
 
-    // AJUSTE 4: Meta Dinámica y Progreso
+    // Ajuste de Metas: $10,000 x vendedor o $10,000 individual
     var metaIndiv = 10000;
-    // Meta total: $40,000 para el equipo (4 vendedores) o $10,000 individual
-    var metaFinal = (filtroVendedor && filtroVendedor !== 'Todos') ? metaIndiv : (vendedoresCatalogo.length * metaIndiv);
-    if (metaFinal === 0 && !filtroVendedor) metaFinal = 40000; // Fallback a 40k si el catálogo está vacío pero es vista global
-
-    // Porcentaje de avance: (Suma de TOTAL COBRADO / Meta correspondiente) * 100
+    var numVends = vendedoresCatalogo.length || 4;
+    var metaFinal = (filtroVendedor && filtroVendedor !== 'Todos') ? metaIndiv : (numVends * metaIndiv);
     var progresoMetaFinal = metaFinal > 0 ? (totalCobrado / metaFinal) * 100 : 0;
 
-    // Ajuste 3: Datos para Gráfica Ventas por Vendedor
+    // Datos para Gráfica Ventas por Vendedor
     var listVentasVendedor = [];
     if (filtroVendedor && filtroVendedor !== 'Todos') {
       listVentasVendedor.push([filtroVendedor, ventasPorVendedorMap[filtroVendedor] || 0]);
@@ -557,19 +555,18 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
       });
     }
 
-    // AJUSTE 5: Procesar Ranking Real con cumplimiento basado en TOTAL COBRADO
+    // Ranking Real (Ajuste 5)
     var rankingGlobal = vendedoresCatalogo.map(function(v) {
       return {
         nombre: v,
         totalVentas: ventasPorVendedorMap[v] || 0,
-        totalCobrado: cobradoPorVendedorMap[v] || 0,
         cumplimiento: ((cobradoPorVendedorMap[v] || 0) / metaIndiv) * 100
       };
     });
     rankingGlobal.sort(function(a, b) { return b.totalVentas - a.totalVentas; });
     rankingGlobal.forEach(function(item, index) { item.posicion = index + 1; });
 
-    var rankingFiltrado = (filtroVendedor && filtroVendedor !== 'Todos')
+    var rankingFinal = (filtroVendedor && filtroVendedor !== 'Todos')
       ? rankingGlobal.filter(function(r) { return r.nombre === filtroVendedor; })
       : rankingGlobal;
 
@@ -581,11 +578,12 @@ function obtenerDatosDashboard(filtroMes, filtroVendedor) {
       progresoMeta: progresoMetaFinal,
       graficaVendedores: listVentasVendedor,
       graficaEstados: Object.entries(estadosMontoMap),
-      ranking: rankingFiltrado
+      ranking: rankingFinal
     };
   } catch (e) {
     console.error('Error en obtenerDatosDashboard:', e.message);
-    throw new Error(e.message);
+    // Retornar estructura vacía para evitar romper el scriptlet
+    return { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, meta: 40000, progresoMeta: 0, graficaVendedores: [], graficaEstados: [], ranking: [] };
   }
 }
 
