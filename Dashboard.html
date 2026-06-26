@@ -1,18 +1,18 @@
 <div id="statsContent">
   <?
-    /* Carga inicial de datos reales desde el servidor */
-    var stats = { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, ranking: [], graficaVendedores: [] };
+    /* Carga inicial de datos globales reales desde el servidor */
+    var stats = { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, graficaVendedores: [] };
     try {
       var serverStats = obtenerDatosDashboard("Todos", "Todos");
       if (serverStats) {
         stats = serverStats;
       }
     } catch(e) {
-      // Fallback a ceros si falla la carga inicial
+      // Fallback si falla la carga
     }
   ?>
 
-  <!-- Indicadores principales: Totales Globales -->
+  <!-- Totales Globales en formato de tarjetas -->
   <div class="grid">
     <div class="card stat-card">
       <span class="stat-label">Total Ventas Mes</span>
@@ -28,7 +28,7 @@
     </div>
   </div>
 
-  <!-- Gráfica de Barras por Vendedor -->
+  <!-- Gráfica de Barras con las ventas por vendedor -->
   <div class="card">
     <h3>Ventas por Vendedor</h3>
     <div id="vendedorChart" style="height: 400px; width: 100%;"></div>
@@ -80,12 +80,12 @@
   function renderStats(stats) {
     if (!stats) return;
     try {
-      // Indicadores
+      // Actualizar indicadores globales
       document.getElementById('valTotalVentas').innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
       document.getElementById('valTotalCobrado').innerText = '$' + (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
       document.getElementById('valSaldoPendiente').innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
 
-      // Dibujar gráficas
+      // Dibujar gráfica
       drawChartsWithData(stats);
 
     } catch (e) {
@@ -93,15 +93,12 @@
     }
   }
 
+  // Inicialización de Google Charts
   google.charts.load('current', {'packages':['corechart']});
   google.charts.setOnLoadCallback(function() {
     var initialStats = <?!= JSON.stringify(stats || {}) ?>;
     if (initialStats && Object.keys(initialStats).length > 0) {
       renderStats(initialStats);
     }
-  });
-
-  document.addEventListener('DOMContentLoaded', function() {
-    // No hay filtros que cargar
   });
 </script>

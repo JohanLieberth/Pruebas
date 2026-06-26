@@ -21,7 +21,8 @@ function openWebApp() {
 
 function doGet(e) {
   e = e || { parameter: {} };
-  var page = e.parameter.page || 'dashboard';
+  // Página de inicio: Nueva Venta
+  var page = e.parameter.page || 'formulario';
   return render(page);
 }
 
