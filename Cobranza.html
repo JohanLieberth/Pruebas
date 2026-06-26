@@ -1,0 +1,107 @@
+<div class="card">
+  <h2>Seguimiento de Cobranza</h2>
+  <div style="overflow-x: auto;">
+    <table id="tablaCobranza">
+      <thead>
+        <tr>
+          <th>Folio</th>
+          <th>Cliente</th>
+          <th>Total</th>
+          <th>Cobrado</th>
+          <th>Saldo</th>
+          <th>Estado</th>
+          <th>Vencimiento</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="listaCobranza">
+        <!-- Cargado vía JS -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal / Form para abonos -->
+<div id="modalAbono" class="card" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 90%; max-width: 500px; border: 2px solid var(--primary);">
+  <h3>Registrar Pago</h3>
+  <p id="infoVenta"></p>
+  <form id="abonoForm">
+    <input type="hidden" id="editFolio">
+    <div class="form-group">
+      <label for="montoAbono">Monto del Abono ($)</label>
+      <input type="number" id="montoAbono" step="0.01" class="form-control" required>
+    </div>
+    <div class="form-group">
+      <label for="fechaAbono">Fecha del Pago</label>
+      <input type="date" id="fechaAbono" class="form-control" required>
+    </div>
+    <div style="text-align: right; gap: 10px; display: flex; justify-content: flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Guardar Pago</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  function cargarCobranza() {
+    google.script.run
+      .withSuccessHandler(renderCobranza)
+      .withFailureHandler(function(err) {
+        alert("Error al cargar cobranza: " + err.message);
+      })
+      .getVentas();
+  }
+
+  function renderCobranza(ventas) {
+    var html = '';
+    ventas.forEach(function(v) {
+      var badgeClass = 'bg-' + v.estatus.toLowerCase().split(' ')[0];
+      html += '<tr>' +
+        '<td>' + v.folio + '</td>' +
+        '<td>' + v.cliente + '</td>' +
+        '<td>$' + v.total.toFixed(2) + '</td>' +
+        '<td>$' + v.cobrado.toFixed(2) + '</td>' +
+        '<td style="font-weight:bold; color:var(--danger)">$' + v.saldo.toFixed(2) + '</td>' +
+        '<td><span class="badge ' + badgeClass + '">' + v.estatus + '</span></td>' +
+        '<td>' + (v.fechaLimite || '-') + '</td>' +
+        '<td>' + (v.saldo > 0 ? '<button class="btn btn-success" onclick=\'abrirModal(' + JSON.stringify(v) + ')\'>Pagar</button>' : '-') + '</td>' +
+        '</tr>';
+    });
+    document.getElementById('listaCobranza').innerHTML = html;
+  }
+
+  function abrirModal(venta) {
+    document.getElementById('editFolio').value = venta.folio;
+    document.getElementById('infoVenta').innerText = 'Folio: ' + venta.folio + ' | Saldo: $' + venta.saldo.toFixed(2);
+    document.getElementById('montoAbono').max = venta.saldo;
+    document.getElementById('modalAbono').style.display = 'block';
+  }
+
+  function cerrarModal() {
+    document.getElementById('modalAbono').style.display = 'none';
+  }
+
+  document.getElementById('abonoForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var datos = {
+      folio: document.getElementById('editFolio').value,
+      monto: document.getElementById('montoAbono').value,
+      fecha: document.getElementById('fechaAbono').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        alert(resp.message);
+        if (resp.success) {
+          cerrarModal();
+          cargarCobranza();
+        }
+      })
+      .withFailureHandler(function(err) {
+        alert("Error al registrar abono: " + err.message);
+      })
+      .registrarAbono(datos);
+  });
+
+  document.addEventListener('DOMContentLoaded', cargarCobranza);
+</script>

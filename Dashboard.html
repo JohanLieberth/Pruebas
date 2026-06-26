@@ -1,0 +1,104 @@
+<div id="statsContent">
+  <?
+    /* Carga inicial de datos globales reales desde el servidor */
+    var stats = { totalVentas: 0, totalCobrado: 0, saldoPendiente: 0, graficaVendedores: [] };
+    try {
+      var serverStats = obtenerDatosDashboard("Todos", "Todos");
+      if (serverStats) {
+        stats = serverStats;
+      }
+    } catch(e) {
+      // Fallback si falla la carga
+    }
+  ?>
+
+  <!-- Totales Globales en formato de tarjetas -->
+  <div class="grid">
+    <div class="card stat-card">
+      <span class="stat-label">Total Ventas Mes</span>
+      <span class="stat-value" id="valTotalVentas">$<?= (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
+    </div>
+    <div class="card stat-card" style="border-color: var(--secondary);">
+      <span class="stat-label">Total Cobrado</span>
+      <span class="stat-value" id="valTotalCobrado">$<?= (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
+    </div>
+    <div class="card stat-card" style="border-color: var(--warning);">
+      <span class="stat-label">Saldo Pendiente</span>
+      <span class="stat-value" id="valSaldoPendiente">$<?= (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) ?></span>
+    </div>
+  </div>
+
+  <!-- Gráfica de Barras con las ventas por vendedor -->
+  <div class="card">
+    <h3>Ventas por Vendedor</h3>
+    <div id="vendedorChart" style="height: 400px; width: 100%;"></div>
+  </div>
+</div>
+
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+  /**
+   * Definición de funciones en el ámbito global.
+   */
+
+  function drawChartsWithData(stats) {
+    if (typeof google === 'undefined' || !google.visualization || !google.visualization.ColumnChart) {
+      console.warn('Google Charts no disponible aún.');
+      return;
+    }
+
+    if (!stats) return;
+
+    try {
+      // Gráfica de Barras - Ventas por Vendedor
+      var vData = [['Vendedor', 'Total Ventas ($)', { role: 'style' }]];
+      if (stats.graficaVendedores && stats.graficaVendedores.length > 0) {
+        stats.graficaVendedores.forEach(function(row) {
+          vData.push([row[0], row[1], 'color: #0E7490']);
+        });
+      }
+      if (vData.length === 1) vData.push(['Sin datos', 0, 'color: #ccc']);
+      var vendedorDataTable = google.visualization.arrayToDataTable(vData);
+
+      var vendedorOptions = {
+        legend: { position: 'none' },
+        chartArea: { width: '80%', height: '70%' },
+        hAxis: { title: 'Vendedor' },
+        vAxis: { title: 'Total ($)', format: 'currency' }
+      };
+
+      var chartVDiv = document.getElementById('vendedorChart');
+      if (chartVDiv) {
+        var chartV = new google.visualization.ColumnChart(chartVDiv);
+        chartV.draw(vendedorDataTable, vendedorOptions);
+      }
+    } catch(e) {
+      console.error('Excepción en drawChartsWithData:', e);
+    }
+  }
+
+  function renderStats(stats) {
+    if (!stats) return;
+    try {
+      // Actualizar indicadores globales
+      document.getElementById('valTotalVentas').innerText = '$' + (stats.totalVentas || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+      document.getElementById('valTotalCobrado').innerText = '$' + (stats.totalCobrado || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+      document.getElementById('valSaldoPendiente').innerText = '$' + (stats.saldoPendiente || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+
+      // Dibujar gráfica
+      drawChartsWithData(stats);
+
+    } catch (e) {
+      console.error('Error en renderStats:', e);
+    }
+  }
+
+  // Inicialización de Google Charts
+  google.charts.load('current', {'packages':['corechart']});
+  google.charts.setOnLoadCallback(function() {
+    var initialStats = <?!= JSON.stringify(stats || {}) ?>;
+    if (initialStats && Object.keys(initialStats).length > 0) {
+      renderStats(initialStats);
+    }
+  });
+</script>
