@@ -10,6 +10,7 @@
           <th>Cobrado</th>
           <th>Saldo</th>
           <th>Estado</th>
+          <th>Vencimiento</th>
           <th>Acción</th>
         </tr>
       </thead>
@@ -62,6 +63,7 @@
         '<td>$' + v.cobrado.toFixed(2) + '</td>' +
         '<td style="font-weight:bold; color:var(--danger)">$' + v.saldo.toFixed(2) + '</td>' +
         '<td><span class="badge ' + badgeClass + '">' + v.estatus + '</span></td>' +
+        '<td>' + (v.fechaLimite || '-') + '</td>' +
         '<td>' + (v.saldo > 0 ? '<button class="btn btn-success" onclick=\'abrirModal(' + JSON.stringify(v) + ')\'>Pagar</button>' : '-') + '</td>' +
         '</tr>';
     });
