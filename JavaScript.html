@@ -1,0 +1,728 @@
+<script>
+  var branchCount = 0;
+  var currentUser = null;
+
+  // --- Navegación ---
+  function showSection(id) {
+    var sections = document.querySelectorAll('.step-section');
+    for (var i = 0; i < sections.length; i++) {
+      sections[i].classList.remove('active');
+    }
+    var target = document.getElementById(id);
+    if (target) target.classList.add('active');
+  }
+
+  function showWelcome() {
+    showSection('welcome-section');
+    cargarCatalogoPublico();
+  }
+
+  function transformGoogleDriveLink(url) {
+    if (!url) return url;
+    var id = "";
+    // Extraer ID de formato /d/ID/view o /d/ID
+    var dMatch = url.match(/\/d\/([^\/?#]+)/);
+    if (dMatch) {
+      id = dMatch[1];
+    } else {
+      // Extraer ID de formato ?id=ID
+      var idMatch = url.match(/[?&]id=([^&?#]+)/);
+      if (idMatch) id = idMatch[1];
+    }
+
+    if (id) {
+      // El endpoint lh3.googleusercontent.com/d/ es más robusto para incrustar imágenes
+      return "https://lh3.googleusercontent.com/d/" + id;
+    }
+    return url;
+  }
+
+  function cargarCatalogoPublico() {
+    var catalogDiv = document.getElementById('public-catalog');
+    if (!catalogDiv) return;
+
+    google.script.run
+      .withFailureHandler(function(err) {
+        console.error("Error al cargar catálogo:", err);
+        catalogDiv.innerHTML = '<p style="color: #d9534f;">Error al cargar el catálogo.</p>';
+      })
+      .withSuccessHandler(function(sucursales) {
+        if (!sucursales || sucursales.length === 0) {
+          catalogDiv.innerHTML = '<p style="color: #999;">Aún no hay sucursales certificadas aprobadas.</p>';
+          return;
+        }
+
+        // Cargar insignia de configuración si existe
+        google.script.run.withSuccessHandler(function(insigniaUrl) {
+          var finalInsigniaUrl = transformGoogleDriveLink(insigniaUrl);
+          var html = "";
+          for (var i = 0; i < sucursales.length; i++) {
+            var suc = sucursales[i];
+            var hasInsignia = (suc.estatus === "Con insignia");
+            var insigniaHtml = "";
+            if (hasInsignia) {
+              if (finalInsigniaUrl) {
+                insigniaHtml = '<img src="' + finalInsigniaUrl + '" class="badge-icon" title="Espacio con Insignia" onerror="this.style.display=\'none\'">';
+              } else {
+                insigniaHtml = '<span class="badge-icon" title="Espacio con Insignia" style="font-size: 24px; line-height: 1;">🏅</span>';
+              }
+            }
+
+            html += '<div class="catalog-card">' +
+                      '<div style="display: flex; justify-content: space-between; align-items: flex-start;">' +
+                        '<small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase;">' + (suc.empresa || '') + '</small>' +
+                        insigniaHtml +
+                      '</div>' +
+                    '<h4 style="margin-top: 5px;">' + suc.nombre + '</h4>' +
+                    '<p>📍 ' + suc.direccion + '</p>' +
+                    (suc.telefono ? '<p>📞 ' + suc.telefono + '</p>' : '') +
+                    (suc.urlMaps ? '<div style="margin-top:10px;"><button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="window.open(\'' + suc.urlMaps + '\', \'_blank\')">Ver en Google Maps</button></div>' : '') +
+                  '</div>';
+          }
+          catalogDiv.innerHTML = html;
+        }).getConfigValue('link_insignia');
+      })
+      .getSucursalesCertificadas();
+  }
+
+  function cargarConfiguracionGeneral() {
+    // Cargar Video
+    google.script.run
+      .withFailureHandler(function(err) { console.error("Error al buscar link_video:", err); })
+      .withSuccessHandler(function(videoUrl) {
+        if (!videoUrl) {
+          google.script.run
+            .withFailureHandler(function(err) { console.error("Error al buscar clave 1:", err); })
+            .withSuccessHandler(procesarVideo)
+            .getConfigValue('1');
+        } else {
+          procesarVideo(videoUrl);
+        }
+      })
+      .getConfigValue('link_video');
+
+    // Cargar Logo
+    google.script.run
+      .withSuccessHandler(function(logoUrl) {
+        if (logoUrl) {
+          var finalLogoUrl = transformGoogleDriveLink(logoUrl);
+          var logoImg = document.getElementById('app-logo');
+          logoImg.onload = function() { logoImg.style.display = 'inline-block'; };
+          logoImg.onerror = function() { console.error("Error al cargar logo:", finalLogoUrl); };
+          logoImg.src = finalLogoUrl;
+        }
+      })
+      .getConfigValue('link_logo');
+  }
+
+  function procesarVideo(videoUrl) {
+    if (videoUrl) {
+      var videoId = "";
+      var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      var match = videoUrl.match(regExp);
+      if (match && match[2].length == 11) {
+        videoId = match[2];
+        var embedUrl = "https://www.youtube.com/embed/" + videoId;
+        document.getElementById('youtube-video').src = embedUrl;
+        document.getElementById('video-container').style.display = 'block';
+      }
+    }
+  }
+
+  // Cargar catálogo y configuración al inicio
+  window.addEventListener('load', function() {
+    cargarCatalogoPublico();
+    cargarConfiguracionGeneral();
+  });
+
+  function showLogin() { showSection('login-section'); }
+  function showWizard() {
+    showSection('wizard-section');
+    transitionToStep(1);
+    if (branchCount === 0) addBranch();
+  }
+
+  function resetApp() {
+    branchCount = 0;
+    currentUser = null;
+    window.idPlanActualizar = null;
+    document.getElementById('registroForm').reset();
+    document.getElementById('login-rfc').value = '';
+    document.getElementById('plan-detalle').value = '';
+    document.getElementById('plan-archivo').value = '';
+    document.getElementById('sucursales-container').innerHTML = '';
+    document.getElementById('lista-planes').innerHTML = '';
+    document.getElementById('nueva-sucursal-form').style.display = 'none';
+    document.getElementById('plan-id-ubicacion').disabled = false;
+    document.getElementById('comprobante-termino-container').style.display = 'none';
+    transitionToStep(1);
+    showWelcome();
+  }
+
+  function nextStep(current) {
+    if (!validateStep(current)) return;
+
+    if (current === 1) {
+      var rfc = document.getElementById('reg-rfc').value;
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(exists) {
+          showLoader(false);
+          if (exists) {
+            alert('Este RFC ya está registrado. Si desea actualizar datos, use la opción "Continuar Registro".');
+          } else {
+            transitionToStep(2);
+          }
+        })
+        .withFailureHandler(function(err) {
+          showLoader(false);
+          alert("Error de conexión: " + err);
+        })
+        .validarRFCExistente(rfc);
+    } else if (current === 3) {
+      cargarCalendario();
+      transitionToStep(4);
+    } else if (current === 4) {
+      mostrarResumen();
+      transitionToStep(5);
+    } else {
+      transitionToStep(current + 1);
+    }
+  }
+
+  function prevStep(current) {
+    transitionToStep(current - 1);
+  }
+
+  function transitionToStep(n) {
+    var contents = document.querySelectorAll('.step-content');
+    for (var i = 0; i < contents.length; i++) {
+      contents[i].style.display = 'none';
+    }
+    var targetStep = document.getElementById('step-' + n);
+    if (targetStep) targetStep.style.display = 'block';
+
+    var progressSteps = document.querySelectorAll('.progress-step');
+    for (var j = 0; j < progressSteps.length; j++) {
+      var s = progressSteps[j];
+      s.classList.remove('active', 'completed');
+      if (j < 5) {
+        if (j + 1 < n) s.classList.add('completed');
+        if (j + 1 === n) s.classList.add('active');
+      }
+    }
+  }
+
+  // --- Manejo de Sucursales ---
+  function addBranch(containerId) {
+    if (!containerId) containerId = 'sucursales-container';
+    branchCount++;
+    var container = document.getElementById(containerId);
+    var isWizard = containerId === 'sucursales-container';
+
+    var branchHtml = '<div class="branch-card" id="branch-' + branchCount + '">' +
+        (isWizard ? '<span class="remove-branch" onclick="removeBranch(' + branchCount + ')">&times;</span>' : '') +
+        '<h3>Sucursal ' + (isWizard ? '#' + branchCount : '') + '</h3>' +
+        '<div class="form-group">' +
+          '<label>Nombre de la Sucursal:</label>' +
+          '<input type="text" class="branch-nombre" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Dirección completa:</label>' +
+          '<input type="text" class="branch-direccion" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Coordenadas GPS (Latitud, Longitud):</label>' +
+          '<div style="display: flex; gap: 10px; margin-bottom: 10px;">' +
+            '<input type="text" class="branch-coords" placeholder="Ej: 19.4326, -99.1332" ' +
+                   'oninput="updateMapPreview(this)" required style="flex: 1;">' +
+          '</div>' +
+          '<button type="button" class="btn btn-outline btn-map-external" onclick="window.open(\'https://www.google.com/maps\', \'_blank\')" style="width: 100%; margin-top: 5px;">Abrir Google Maps</button>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Horario de atención:</label>' +
+          '<input type="text" class="branch-horario" placeholder="Ej: Lun-Vie 9:00 - 18:00" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Teléfono local:</label>' +
+          '<input type="tel" class="branch-telefono" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Nombre del Responsable del Local:</label>' +
+          '<input type="text" class="branch-responsable" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Cargo del responsable:</label>' +
+          '<input type="text" class="branch-cargo" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Compromisos específicos para esta sucursal (Opcional):</label>' +
+          '<div class="checkbox-group" style="background: #fff; border: 1px solid #ddd; padding: 10px;">' +
+            '<div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Personal capacitado en protocolos de género</label></div>' +
+            '<div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Botón de pánico instalado y funcional</label></div>' +
+            '<div class="checkbox-item"><input type="checkbox" class="branch-comp"> <label>Habilitar el espacio seguro para su resguardo</label></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    container.insertAdjacentHTML('beforeend', branchHtml);
+  }
+
+  function removeBranch(id) {
+    if (document.querySelectorAll('#sucursales-container .branch-card').length > 1) {
+      document.getElementById('branch-' + id).remove();
+    } else {
+      alert("Debe registrar al menos una sucursal.");
+    }
+  }
+
+  function parseCoordinates(input) {
+    var decimalMatch = input.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+    if (decimalMatch) return { lat: decimalMatch[1], lng: decimalMatch[2] };
+    var dmsMatch = input.match(/(\d+)°(\d+)'([\d.]+)"([NS])\s+(\d+)°(\d+)'([\d.]+)"([EW])/);
+    if (dmsMatch) {
+      var convert = function(d, m, s, dir) {
+        var res = parseFloat(d) + parseFloat(m)/60 + parseFloat(s)/3600;
+        if (dir === 'S' || dir === 'W') res *= -1;
+        return res.toFixed(6);
+      };
+      return {
+        lat: convert(dmsMatch[1], dmsMatch[2], dmsMatch[3], dmsMatch[4]),
+        lng: convert(dmsMatch[5], dmsMatch[6], dmsMatch[7], dmsMatch[8])
+      };
+    }
+    return null;
+  }
+
+  function updateMapPreview(input) {
+    var card = input.closest('.branch-card');
+    var mapBtn = card.querySelector('.btn-map-external');
+    var coords = parseCoordinates(input.value);
+    if (coords) {
+      mapBtn.onclick = function() {
+        window.open('https://www.google.com/maps?q=' + coords.lat + ',' + coords.lng, '_blank');
+      };
+      mapBtn.classList.add('btn-primary');
+      mapBtn.classList.remove('btn-outline');
+    } else {
+      mapBtn.onclick = function() { window.open('https://www.google.com/maps', '_blank'); };
+      mapBtn.classList.remove('btn-primary');
+      mapBtn.classList.add('btn-outline');
+    }
+  }
+
+  // --- Dashboard Nueva Sucursal ---
+  function toggleNuevaSucursal() {
+    var div = document.getElementById('nueva-sucursal-form');
+    if (div.style.display === 'none') {
+      div.style.display = 'block';
+      div.innerHTML = '<h3>Registrar Nueva Sucursal</h3>' +
+        '<div id="new-branch-hook"></div>' +
+        '<div style="margin-top:20px; border-top: 1px solid #ddd; padding-top:15px;">' +
+           '<label style="font-weight:bold;">Seleccione la Capacitación Obligatoria:</label>' +
+           '<div id="new-branch-calendar" class="calendar-container"></div>' +
+           '<input type="hidden" id="new-branch-course-id">' +
+        '</div>' +
+        '<div class="button-group">' +
+          '<button class="btn btn-outline" onclick="document.getElementById(\'nueva-sucursal-form\').style.display=\'none\'">Cancelar</button>' +
+          '<button class="btn btn-primary" onclick="enviarNuevaSucursal()">Guardar Sucursal y Capacitación</button>' +
+        '</div>';
+      addBranch('new-branch-hook');
+      cargarCalendario('new-branch-calendar', 'new-branch-course-id');
+    } else {
+      div.style.display = 'none';
+    }
+  }
+
+  function enviarNuevaSucursal() {
+    var card = document.querySelector('#new-branch-hook .branch-card');
+    var cursoId = document.getElementById('new-branch-course-id').value;
+    var coords = parseCoordinates(card.querySelector('.branch-coords').value);
+
+    if (!coords) return alert("Coordenadas inválidas.");
+    if (!cursoId) return alert("Debe seleccionar una capacitación para la sucursal.");
+
+    var compromisos = [];
+    var checkedComps = card.querySelectorAll('.branch-comp:checked');
+    for (var i = 0; i < checkedComps.length; i++) {
+      compromisos.push(checkedComps[i].nextElementSibling.innerText);
+    }
+
+    var data = {
+      rfc: currentUser.rfc,
+      nombre: card.querySelector('.branch-nombre').value,
+      direccion: card.querySelector('.branch-direccion').value,
+      coordenadas: coords.lat + ", " + coords.lng,
+      horario: card.querySelector('.branch-horario').value,
+      telefono: card.querySelector('.branch-telefono').value,
+      responsable: card.querySelector('.branch-responsable').value,
+      cargo: card.querySelector('.branch-cargo').value,
+      compromisos: compromisos,
+      capacitacion: {
+        idCurso: cursoId,
+        hora: window.selectedCourseInfo ? window.selectedCourseInfo.hora : "-",
+        sede: window.selectedCourseInfo ? window.selectedCourseInfo.sede : "-"
+      }
+    };
+
+    if (!data.nombre || !data.direccion) return alert("Complete los campos obligatorios.");
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showLoader(false);
+        if (res.success) {
+          alert("Sucursal agregada y capacitación programada.");
+          document.getElementById('nueva-sucursal-form').style.display = 'none';
+          accederPorRFC();
+        } else {
+          alert("Error: " + res.error);
+        }
+      })
+      .withFailureHandler(function(err) { showLoader(false); alert(err); })
+      .agregarNuevaSucursal(data);
+  }
+
+  // --- Validaciones y Envío Registro ---
+  function validateStep(n) {
+    if (n === 4) {
+      if (!document.getElementById('selected-course-id').value) {
+        alert("Debe seleccionar un curso del calendario.");
+        return false;
+      }
+      return true;
+    }
+    var stepDiv = document.getElementById('step-' + n);
+    var inputs = stepDiv.querySelectorAll('input[required]');
+    for (var i = 0; i < inputs.length; i++) {
+      if (!inputs[i].value.trim()) {
+        alert("Por favor complete todos los campos obligatorios.");
+        inputs[i].focus();
+        return false;
+      }
+    }
+    if (n === 1) {
+      var rfc = document.getElementById('reg-rfc').value;
+      var rfcRegex = /^[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/;
+      if (!rfcRegex.test(rfc.toUpperCase())) {
+        alert("RFC inválido.");
+        return false;
+      }
+    }
+    if (n === 2) {
+      var coordInputs = document.querySelectorAll('.branch-coords');
+      for (var j = 0; j < coordInputs.length; j++) {
+        if (!parseCoordinates(coordInputs[j].value)) {
+          alert("Formato de coordenadas inválido.");
+          coordInputs[j].focus();
+          return false;
+        }
+      }
+    }
+    if (n === 3) {
+      if (document.querySelectorAll('.compromiso:checked').length < 6) {
+        alert("Debe aceptar todos los compromisos generales.");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function mostrarResumen() {
+    var rfc = document.getElementById('reg-rfc').value;
+    var nombre = document.querySelector('input[name="nombreEmpresa"]').value;
+    var sucursales = document.querySelectorAll('#sucursales-container .branch-card').length;
+    var curso = window.selectedCourseInfo ? window.selectedCourseInfo.nombre : 'No seleccionado';
+    var fecha = window.selectedCourseInfo ? window.selectedCourseInfo.fecha : '-';
+    var hora = window.selectedCourseInfo ? window.selectedCourseInfo.hora : '-';
+    var sede = window.selectedCourseInfo ? window.selectedCourseInfo.sede : '-';
+
+    document.getElementById('resumen-registro').innerHTML =
+      '<p><strong>RFC:</strong> ' + rfc + '</p>' +
+      '<p><strong>Empresa Principal:</strong> ' + nombre + '</p>' +
+      '<p><strong>Sucursales a registrar:</strong> ' + sucursales + '</p>' +
+      '<hr>' +
+      '<p style="color: var(--primary-color); font-weight: bold;">Capacitación Seleccionada (Primera Sede):</p>' +
+      '<p><strong>Módulo:</strong> ' + curso + '</p>' +
+      '<p><strong>Fecha:</strong> ' + fecha + '</p>' +
+      '<p><strong>Hora:</strong> ' + hora + '</p>' +
+      '<p><strong>Sede:</strong> ' + sede + '</p>';
+  }
+
+  function submitRegistro() {
+    var cursoId = document.getElementById('selected-course-id').value;
+    if (!cursoId) return alert("Seleccione un curso en el Paso 4.");
+
+    showLoader(true);
+    var data = {
+      empresa: {
+        rfc: document.getElementById('reg-rfc').value.toUpperCase(),
+        nombreEmpresa: document.querySelector('input[name="nombreEmpresa"]').value,
+        telefono: document.querySelector('input[name="telefono"]').value,
+        correo: document.querySelector('input[name="correo"]').value
+      },
+      sucursales: [],
+      compromisos: []
+    };
+
+    var branches = document.querySelectorAll('#sucursales-container .branch-card');
+    for (var i = 0; i < branches.length; i++) {
+      var card = branches[i];
+      var coords = parseCoordinates(card.querySelector('.branch-coords').value);
+      var comps = [];
+      var checkedComps = card.querySelectorAll('.branch-comp:checked');
+      for (var j = 0; j < checkedComps.length; j++) {
+        comps.push(checkedComps[j].nextElementSibling.innerText);
+      }
+      data.sucursales.push({
+        nombre: card.querySelector('.branch-nombre').value,
+        direccion: card.querySelector('.branch-direccion').value,
+        coordenadas: coords ? (coords.lat + ", " + coords.lng) : "",
+        horario: card.querySelector('.branch-horario').value,
+        telefono: card.querySelector('.branch-telefono').value,
+        responsable: card.querySelector('.branch-responsable').value,
+        cargo: card.querySelector('.branch-cargo').value,
+        compromisos: comps
+      });
+    }
+
+    var generalComps = document.querySelectorAll('.compromiso:checked');
+    for (var k = 0; k < generalComps.length; k++) {
+      data.compromisos.push(generalComps[k].nextElementSibling.innerText);
+    }
+
+    // Proceso unificado: Registrar Empresa + Inscribir Curso
+    data.capacitacionInicial = {
+      idCurso: cursoId,
+      hora: window.selectedCourseInfo ? window.selectedCourseInfo.hora : "-",
+      sede: window.selectedCourseInfo ? window.selectedCourseInfo.sede : "-"
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showLoader(false);
+        if (res.success) {
+          var folio = res.folio;
+          currentUser = { rfc: data.empresa.rfc, folio: folio };
+
+          document.getElementById('success-folio').innerText = folio;
+          document.getElementById('comprobante-inscripcion').innerHTML =
+            '<div style="text-align: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px;">' +
+               '<h3 style="color: #6B2C91; margin:0;">COMPROBANTE DE INSCRIPCIÓN</h3>' +
+               '<small>Folio: ' + folio + '</small>' +
+            '</div>' +
+            '<p><strong>Organización:</strong> ' + data.empresa.nombreEmpresa + '</p>' +
+            '<p><strong>Curso:</strong> ' + window.selectedCourseInfo.nombre + '</p>' +
+            '<p><strong>Fecha:</strong> ' + window.selectedCourseInfo.fecha + '</p>' +
+            '<p><strong>Hora:</strong> ' + window.selectedCourseInfo.hora + '</p>' +
+            '<p style="margin-top:20px; padding: 10px; background: #f9f9f9; border-left: 4px solid #F47C20; font-size: 13px;">' +
+              '<strong>Importante:</strong> Favor de presentarse 15 minutos antes con este comprobante impreso o digital.' +
+            '</p>';
+          transitionToStep(6);
+
+        } else {
+          showLoader(false);
+          alert("Error: " + res.error);
+        }
+      })
+      .withFailureHandler(function(err) { showLoader(false); alert(err); })
+      .procesarRegistro(data);
+  }
+
+  function cargarCalendario(containerId, inputId) {
+    if (!containerId) containerId = 'calendar-view';
+    if (!inputId) inputId = 'selected-course-id';
+    showLoader(true);
+    var view = document.getElementById(containerId);
+    view.innerHTML = '<p style="text-align:center; padding: 20px; color: #666; width: 100%;">Cargando fechas disponibles...</p>';
+
+    google.script.run
+      .withSuccessHandler(function(cursos) {
+        showLoader(false);
+        if (!cursos || cursos.length === 0) {
+          view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">No se encontraron cursos disponibles en este momento.</p>';
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < cursos.length; i++) {
+          var c = cursos[i];
+          html += '<div class="calendar-item" data-container="' + containerId + '" onclick="selectCourse(this, \'' + (c.id || '') + '\', \'' + (c.nombre || '').replace(/'/g, "\\'") + '\', \'' + (c.fecha || '') + '\', \'' + (c.hora || '') + '\', \'' + (c.sede || '').replace(/'/g, "\\'") + '\', \'' + inputId + '\')">' +
+            '<h4>' + (c.nombre || 'Curso sin nombre') + '</h4>' +
+            '<p><strong>Fecha:</strong> ' + (c.fechaAmigable || c.fecha || 'Sin fecha') + '</p>' +
+            '<p><strong>Hora:</strong> ' + (c.hora || 'Sin hora') + '</p>' +
+            '<p><strong>Sede:</strong> ' + (c.sede || 'Sede no especificada') + '</p>' +
+          '</div>';
+        }
+        view.innerHTML = html;
+      })
+      .withFailureHandler(function(err) {
+        showLoader(false);
+        view.innerHTML = '<p style="text-align:center; padding: 20px; color: #d9534f; width: 100%;">Error al cargar el calendario: ' + err + '</p>';
+      })
+      .getCursosDisponibles();
+  }
+
+  function selectCourse(el, id, nombre, fecha, hora, sede, inputId) {
+    var containerId = el.getAttribute('data-container');
+    var items = document.querySelectorAll('#' + containerId + ' .calendar-item');
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.remove('selected');
+    }
+    el.classList.add('selected');
+    document.getElementById(inputId).value = id;
+    window.selectedCourseInfo = { nombre: nombre, fecha: fecha, hora: hora, sede: sede };
+  }
+
+  // --- Acceso Posterior ---
+  function accederPorRFC() {
+    var rfc = document.getElementById('login-rfc').value.toUpperCase();
+    if (!rfc) return alert("Ingrese un RFC");
+    showLoader(true);
+
+    google.script.run
+      .withSuccessHandler(function(user) {
+        if (user) {
+          currentUser = user;
+          document.getElementById('dash-empresa').innerText = user.nombreEmpresa;
+          document.getElementById('dash-folio').innerText = user.folio;
+
+          cargarUbicacionesDropdown(user.rfc);
+          cargarHistorialPlanes(user.rfc);
+          cargarProgresoCapacitacion(user.rfc);
+        } else { showLoader(false); alert("RFC no encontrado."); }
+      })
+      .withFailureHandler(function(err) { showLoader(false); alert(err); })
+      .buscarPorRFC(rfc);
+  }
+
+  function cargarProgresoCapacitacion(rfc) {
+    google.script.run.withSuccessHandler(function(res) {
+      showLoader(false);
+      var tbody = document.getElementById('lista-capacitacion');
+      tbody.innerHTML = '';
+
+      if (res.seguimientoDetallado.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No hay registros de seguimiento.</td></tr>';
+        return;
+      }
+
+      for (var i = 0; i < res.seguimientoDetallado.length; i++) {
+        var row = res.seguimientoDetallado[i];
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><small>' + row.idSeguimiento + '</small></td>' +
+          '<td>' + row.sucursalNombre + '</td>' +
+          '<td>' + row.nombreCurso + '</td>' +
+          '<td>' + row.fecha + '</td>' +
+          '<td>' + row.hora + '</td>' +
+          '<td>' + row.sede + '</td>' +
+          '<td><span class="status-badge status-' + row.estatus.toLowerCase().replace(/ /g, '-') + '">' + row.estatus + '</span></td>';
+        tbody.appendChild(tr);
+      }
+
+      showSection('user-dashboard');
+    }).getProgresoCapacitacion(rfc);
+  }
+
+  /**
+   * Carga el dropdown de sucursales para el plan de trabajo
+   */
+  function cargarUbicacionesDropdown(rfc) {
+    google.script.run
+      .withSuccessHandler(function(ubicaciones) {
+        var select = document.getElementById('plan-id-ubicacion');
+        select.innerHTML = '<option value="">Seleccione una sucursal...</option>';
+        for (var i = 0; i < ubicaciones.length; i++) {
+          var u = ubicaciones[i];
+          var opt = document.createElement('option');
+          opt.value = u.id;
+          opt.innerText = u.nombre;
+          select.appendChild(opt);
+        }
+
+        // Almacenar globalmente para mostrar nombres en el historial
+        window.ubicacionesMap = {};
+        for (var j = 0; j < ubicaciones.length; j++) {
+          window.ubicacionesMap[ubicaciones[j].id] = ubicaciones[j].nombre;
+        }
+      })
+      .getUbicaciones(rfc);
+  }
+
+  function cargarHistorialPlanes(rfc) {
+    google.script.run
+      .withSuccessHandler(function(planes) {
+        showLoader(false);
+        var tbody = document.getElementById('lista-planes');
+        tbody.innerHTML = '';
+        for (var i = 0; i < planes.length; i++) {
+          var p = planes[i];
+          var nombreSuc = p.nombreSucursal || "No especificada";
+          var btnHtml = (p.estatus === "Observado") ?
+            '<button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="prepararActualizacion(\'' + p.id + '\', \'' + p.idSucursal + '\')">Actualizar</button>' : '-';
+
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + nombreSuc + '</td>' +
+            '<td>' + p.tipoArchivo + '</td>' +
+            '<td><span class="status-badge status-' + p.estatus.toLowerCase().replace(/ /g, '-') + '">' + p.estatus + '</span></td>' +
+            '<td>' + p.fecha + '</td>' +
+            '<td>' + (p.observaciones || '-') + '</td>' +
+            '<td>' + btnHtml + '</td>';
+          tbody.appendChild(tr);
+        }
+        showSection('user-dashboard');
+      })
+      .withFailureHandler(function(err) { showLoader(false); alert(err); showSection('user-dashboard'); })
+      .getPlanesTrabajo(rfc);
+  }
+
+  function prepararActualizacion(idPlan, idSuc) {
+    window.idPlanActualizar = idPlan;
+    document.getElementById('plan-id-ubicacion').value = idSuc;
+    document.getElementById('plan-id-ubicacion').disabled = true;
+    document.getElementById('plan-detalle').placeholder = "Describa los cambios realizados...";
+    document.getElementById('plan-trabajo-section').scrollIntoView();
+  }
+
+  function enviarPlan() {
+    var idUbicacion = document.getElementById('plan-id-ubicacion').value;
+    var detalle = document.getElementById('plan-detalle').value;
+    var fileInput = document.getElementById('plan-archivo');
+
+    if (!idUbicacion) return alert("Por favor seleccione una sucursal.");
+
+    showLoader(true);
+    var payload = {
+      rfc: currentUser.rfc,
+      folio: currentUser.folio,
+      planDetalle: detalle,
+      idUbicacion: idUbicacion,
+      idPlan: window.idPlanActualizar || null
+    };
+
+    if (fileInput.files.length > 0) {
+      var file = fileInput.files[0];
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        payload.fileName = file.name;
+        payload.fileData = e.target.result;
+        google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(function(err) { showLoader(false); alert(err); }).guardarPlanTrabajo(payload);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      google.script.run.withSuccessHandler(finalizarEnvioPlan).withFailureHandler(function(err) { showLoader(false); alert(err); }).guardarPlanTrabajo(payload);
+    }
+  }
+
+  function finalizarEnvioPlan(res) {
+    showLoader(false);
+    if (res.success) {
+      alert("Plan enviado correctamente.");
+      window.idPlanActualizar = null;
+      document.getElementById('plan-id-ubicacion').disabled = false;
+      document.getElementById('plan-detalle').placeholder = "";
+      accederPorRFC();
+    } else alert("Error: " + res.error);
+  }
+
+
+  function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
+</script>
