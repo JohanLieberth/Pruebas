@@ -37,7 +37,7 @@
                 </a>
               </li>
               <li class="nav-item w-100">
-                <a href="#" onclick="cargarPagina('Reportes')" class="nav-link px-0 align-middle text-white" id="link-Reportes">
+                <a href="#" onclick="cargarPagina('Estadisticas')" class="nav-link px-0 align-middle text-white" id="link-Estadisticas">
                   <i class="fas fa-file-invoice-dollar ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Reportes</span>
                 </a>
               </li>
@@ -68,8 +68,8 @@
                 <?!= include('RegistrarPago'); ?>
               </div>
 
-              <div id="page-Reportes" class="page-container" style="display:none;">
-                <?!= include('Reportes'); ?>
+              <div id="page-Estadisticas" class="page-container" style="display:none;">
+                <?!= include('Estadisticas'); ?>
               </div>
 
               <!-- Loading Overlay -->
@@ -118,7 +118,7 @@
 
           // Llamar a la función de inicialización específica de cada página si existe
           if (pageId === 'Dashboard') inicializarDashboard();
-          if (pageId === 'Reportes') inicializarReportes();
+          if (pageId === 'Estadisticas') inicializarReportes();
         }
       }
 

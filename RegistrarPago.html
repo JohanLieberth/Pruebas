@@ -98,7 +98,7 @@
             <small class="text-muted">${v.agente}</small>
           </div>
           <p class="mb-1 small">${v.cliente} - ${v.hotel}</p>
-          <small class="text-navy fw-bold">Saldo: $${v.saldo.toLocaleString()}</small>
+          <small class="text-navy fw-bold">Saldo: ${formatCurrency(v.saldo)}</small>
         </button>
       `).join('');
     }).buscarVentaPorFolioOCliente(q);
@@ -112,13 +112,13 @@
     document.getElementById('span-folio').innerText = v['folio/concepto'];
     document.getElementById('input-folio').value = v['folio/concepto'];
     document.getElementById('input-monto').max = v.saldo;
-    document.getElementById('saldo-max').innerText = '$' + v.saldo.toLocaleString();
+    document.getElementById('saldo-max').innerText = formatCurrency(v.saldo);
 
     document.getElementById('td-cliente').innerText = v.cliente;
     document.getElementById('td-hotel').innerText = v.hotel;
-    document.getElementById('td-total').innerText = '$' + v.total.toLocaleString();
-    document.getElementById('td-cobrado').innerText = '$' + v.total_cobrado.toLocaleString();
-    document.getElementById('td-saldo').innerText = '$' + v.saldo.toLocaleString();
+    document.getElementById('td-total').innerText = formatCurrency(v.total);
+    document.getElementById('td-cobrado').innerText = formatCurrency(v.total_cobrado);
+    document.getElementById('td-saldo').innerText = formatCurrency(v.saldo);
     document.getElementById('td-agente').innerText = v.agente;
 
     document.getElementById('fecha-hoy').valueAsDate = new Date();
