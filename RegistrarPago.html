@@ -1,0 +1,173 @@
+<div class="row mb-4">
+  <div class="col">
+    <h2 class="fw-bold">Registrar Pago (Anticipo / Abono)</h2>
+    <p class="text-muted">Busque una venta para registrar un nuevo ingreso.</p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <label class="form-label fw-bold">Buscar Venta (Folio o Cliente)</label>
+        <div class="input-group mb-3">
+          <input type="text" id="busqueda" class="form-control" placeholder="Ej: F-2023... o Juan Pérez">
+          <button class="btn btn-navy text-white" onclick="buscarVenta()"><i class="fas fa-search"></i></button>
+        </div>
+
+        <div id="resultados-busqueda" class="list-group">
+          <!-- Resultados aparecerán aquí -->
+        </div>
+      </div>
+    </div>
+
+    <div id="contenedor-pago" style="display:none;">
+      <div class="card shadow-sm border-top border-4 border-navy">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-4">Datos del Pago: <span id="span-folio" class="text-navy"></span></h5>
+          <form id="formPago" onsubmit="event.preventDefault(); guardarPago();">
+            <input type="hidden" name="folio" id="input-folio">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Tipo de Pago</label>
+                <select class="form-select" name="tipo" required>
+                  <option value="Abono">Abono</option>
+                  <option value="Anticipo">Anticipo</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Monto ($)</label>
+                <input type="number" step="0.01" class="form-control" name="monto" id="input-monto" required min="0.01">
+                <div class="form-text">Saldo pendiente: <span id="saldo-max" class="fw-bold"></span></div>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">Fecha de Pago</label>
+                <input type="date" class="form-control" name="fecha" required id="fecha-hoy">
+              </div>
+              <div class="col-12 mt-4">
+                <button type="submit" class="btn btn-navy text-white px-5 w-100 py-3" id="btnGuardarPago">
+                  <i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div id="detalle-venta" style="display:none;">
+      <div class="card shadow-sm">
+        <div class="card-header bg-navy text-white">
+          <h6 class="mb-0">Resumen de la Venta</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr><th width="40%">Cliente:</th><td id="td-cliente"></td></tr>
+            <tr><th>Hotel/Paquete:</th><td id="td-hotel"></td></tr>
+            <tr><th>Total Venta:</th><td id="td-total"></td></tr>
+            <tr><th>Total Cobrado:</th><td id="td-cobrado" class="text-success fw-bold"></td></tr>
+            <tr><th>Saldo:</th><td id="td-saldo" class="text-danger fw-bold"></td></tr>
+            <tr><th>Agente:</th><td id="td-agente"></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function buscarVenta() {
+    const q = document.getElementById('busqueda').value;
+    if (q.length < 3) return;
+
+    document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
+
+    google.script.run.withSuccessHandler(ventas => {
+      const container = document.getElementById('resultados-busqueda');
+      if (ventas.length === 0) {
+        container.innerHTML = '<div class="alert alert-warning">No se encontraron resultados.</div>';
+        return;
+      }
+
+      container.innerHTML = ventas.map(v => `
+        <button type="button" class="list-group-item list-group-item-action" onclick='seleccionarVenta(${JSON.stringify(v)})'>
+          <div class="d-flex w-100 justify-content-between">
+            <h6 class="mb-1 fw-bold">${v['folio/concepto']}</h6>
+            <small class="text-muted">${v.agente}</small>
+          </div>
+          <p class="mb-1 small">${v.cliente} - ${v.hotel}</p>
+          <small class="text-navy fw-bold">Saldo: $${v.saldo.toLocaleString()}</small>
+        </button>
+      `).join('');
+    }).buscarVentaPorFolioOCliente(q);
+  }
+
+  function seleccionarVenta(v) {
+    document.getElementById('contenedor-pago').style.display = 'block';
+    document.getElementById('detalle-venta').style.display = 'block';
+    document.getElementById('resultados-busqueda').innerHTML = '';
+
+    document.getElementById('span-folio').innerText = v['folio/concepto'];
+    document.getElementById('input-folio').value = v['folio/concepto'];
+    document.getElementById('input-monto').max = v.saldo;
+    document.getElementById('saldo-max').innerText = '$' + v.saldo.toLocaleString();
+
+    document.getElementById('td-cliente').innerText = v.cliente;
+    document.getElementById('td-hotel').innerText = v.hotel;
+    document.getElementById('td-total').innerText = '$' + v.total.toLocaleString();
+    document.getElementById('td-cobrado').innerText = '$' + v.total_cobrado.toLocaleString();
+    document.getElementById('td-saldo').innerText = '$' + v.saldo.toLocaleString();
+    document.getElementById('td-agente').innerText = v.agente;
+
+    document.getElementById('fecha-hoy').valueAsDate = new Date();
+  }
+
+  function guardarPago() {
+    const btn = document.getElementById('btnGuardarPago');
+    const monto = parseFloat(document.getElementById('input-monto').value);
+    const max = parseFloat(document.getElementById('input-monto').max);
+
+    if (monto > max) {
+      alert('El monto no puede ser mayor al saldo pendiente ($' + max + ')');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Registrando...';
+    toggleLoading(true);
+
+    const form = document.getElementById('formPago');
+    const formData = {
+      folio: form.folio.value,
+      tipo: form.tipo.value,
+      monto: form.monto.value,
+      fecha: form.fecha.value
+    };
+
+    google.script.run
+      .withSuccessHandler(res => {
+        toggleLoading(false);
+        alert('Pago registrado correctamente.');
+        if (res.pdfUrl && res.pdfUrl !== "#") {
+          window.open(res.pdfUrl, '_blank');
+        } else {
+          alert('No se pudo generar el PDF (plantilla no encontrada). El pago se guardó en el sistema.');
+        }
+        // Resetear vista
+        document.getElementById('contenedor-pago').style.display = 'none';
+        document.getElementById('detalle-venta').style.display = 'none';
+        document.getElementById('busqueda').value = '';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
+      })
+      .withFailureHandler(err => {
+        toggleLoading(false);
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
+      })
+      .registrarPago(formData);
+  }
+</script>
