@@ -103,29 +103,43 @@
 
   function inicializarDashboard() {
     toggleLoading(true);
-    // Cargar KPIs
-    google.script.run
-      .withSuccessHandler(data => {
-        document.getElementById('kpi-ventas-totales').innerText = formatCurrency(data.totalVendido);
-        document.getElementById('kpi-total-cobrado').innerText = formatCurrency(data.totalCobrado);
-        document.getElementById('kpi-saldo-pendiente').innerText = formatCurrency(data.saldoPendiente);
-        document.getElementById('kpi-count-ventas').innerText = data.numVentas;
-      })
-      .withFailureHandler(err => console.error("Error KPIs:", err))
-      .obtenerKPIsGlobales();
+    try {
+      // Cargar KPIs
+      google.script.run
+        .withSuccessHandler(data => {
+          if (data) {
+            document.getElementById('kpi-ventas-totales').innerText = formatCurrency(data.totalVendido);
+            document.getElementById('kpi-total-cobrado').innerText = formatCurrency(data.totalCobrado);
+            document.getElementById('kpi-saldo-pendiente').innerText = formatCurrency(data.saldoPendiente);
+            document.getElementById('kpi-count-ventas').innerText = data.numVentas;
+          }
+        })
+        .withFailureHandler(err => {
+          console.error("Error KPIs:", err);
+        })
+        .obtenerKPIsGlobales();
 
-    // Cargar Gráfica y Tabla
-    google.script.run
-      .withSuccessHandler(data => {
-        renderGrafica(data);
-        renderTablaMetas(data);
-        toggleLoading(false);
-      })
-      .withFailureHandler(err => {
-        console.error("Error Gráfica:", err);
-        toggleLoading(false);
-      })
-      .obtenerDatosGraficaAgentes();
+      // Cargar Gráfica y Tabla
+      google.script.run
+        .withSuccessHandler(data => {
+          try {
+            renderGrafica(data || []);
+            renderTablaMetas(data || []);
+          } catch (e) {
+            console.error("Error rendering dashboard:", e);
+          } finally {
+            toggleLoading(false);
+          }
+        })
+        .withFailureHandler(err => {
+          console.error("Error Gráfica:", err);
+          toggleLoading(false);
+        })
+        .obtenerDatosGraficaAgentes();
+    } catch (e) {
+      console.error("Fatal error in inicializarDashboard:", e);
+      toggleLoading(false);
+    }
   }
 
   function renderGrafica(data) {

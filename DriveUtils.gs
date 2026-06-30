@@ -8,9 +8,14 @@ const DriveUtils = {
    */
   obtenerOCrearSpreadsheet: function(nombre) {
     const files = DriveApp.getFilesByName(nombre);
-    if (files.hasNext()) {
-      return SpreadsheetApp.open(files.next());
-    } else {
+    while (files.hasNext()) {
+      let file = files.next();
+      if (file.getMimeType() === MimeType.GOOGLE_SHEETS) {
+        return SpreadsheetApp.open(file);
+      }
+    }
+
+    {
       const ss = SpreadsheetApp.create(nombre);
       const sheet = ss.getSheets()[0];
       sheet.setName(nombre);

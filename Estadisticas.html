@@ -48,23 +48,42 @@
   }
 
   function cargarReporte() {
-    const agente = document.getElementById('filtro-agente').value;
-    const tbody = document.getElementById('tbody-ventas');
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
-    toggleLoading(true);
+    try {
+      const agente = document.getElementById('filtro-agente').value;
+      const tbody = document.getElementById('tbody-ventas');
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
+      toggleLoading(true);
 
-    if (agente === 'Global') {
-      google.script.run.withSuccessHandler(data => {
-        renderTabla(data);
-        renderStatsReporte(data, true);
-        toggleLoading(false);
-      }).obtenerVentas();
-    } else {
-      google.script.run.withSuccessHandler(res => {
-        renderTabla(res.ventas);
-        renderStatsReporte(res.stats, false);
-        toggleLoading(false);
-      }).obtenerReportePorAgente(agente);
+      if (agente === 'Global') {
+        google.script.run
+          .withSuccessHandler(data => {
+            renderTabla(data || []);
+            renderStatsReporte(data || [], true);
+            toggleLoading(false);
+          })
+          .withFailureHandler(err => {
+            console.error("Error global ventas:", err);
+            toggleLoading(false);
+          })
+          .obtenerVentas();
+      } else {
+        google.script.run
+          .withSuccessHandler(res => {
+            if (res) {
+              renderTabla(res.ventas || []);
+              renderStatsReporte(res.stats || {}, false);
+            }
+            toggleLoading(false);
+          })
+          .withFailureHandler(err => {
+            console.error("Error agente ventas:", err);
+            toggleLoading(false);
+          })
+          .obtenerReportePorAgente(agente);
+      }
+    } catch (e) {
+      console.error("Error en cargarReporte:", e);
+      toggleLoading(false);
     }
   }
 

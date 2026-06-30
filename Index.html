@@ -117,6 +117,8 @@
 
       function cargarPagina(pageId) {
         console.log("Cargando página:", pageId);
+        toggleLoading(true);
+
         // Ocultar todas las páginas
         document.querySelectorAll('.page-container').forEach(el => el.style.display = 'none');
         document.querySelectorAll('#menu .nav-link').forEach(el => el.classList.remove('active-link'));
@@ -130,13 +132,20 @@
 
           // Llamar a la función de inicialización específica de cada página si existe
           try {
-            if (pageId === 'Dashboard' && typeof inicializarDashboard === 'function') inicializarDashboard();
-            if (pageId === 'Estadisticas' && typeof inicializarReportes === 'function') inicializarReportes();
+            if (pageId === 'Dashboard' && typeof inicializarDashboard === 'function') {
+              inicializarDashboard();
+            } else if (pageId === 'Estadisticas' && typeof inicializarReportes === 'function') {
+              inicializarReportes();
+            } else {
+              toggleLoading(false);
+            }
           } catch (e) {
             console.error("Error al inicializar página " + pageId, e);
+            toggleLoading(false);
           }
         } else {
           console.warn("Página no encontrada:", pageId);
+          toggleLoading(false);
           // Fallback a Dashboard si la página solicitada no existe
           if (pageId !== 'Dashboard') cargarPagina('Dashboard');
         }
