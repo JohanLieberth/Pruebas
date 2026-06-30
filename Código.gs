@@ -19,8 +19,18 @@ const CONFIG = {
  * Función principal para servir la aplicación web.
  */
 function doGet(e) {
-  let page = e.parameter.page || 'Dashboard';
+  // Manejo defensivo del objeto de evento 'e'
+  let page = 'Dashboard';
+  try {
+    if (e && e.parameter && e.parameter.page) {
+      page = e.parameter.page;
+    }
+  } catch (error) {
+    console.error("Error al procesar parámetros de URL:", error);
+  }
+
   if (page === 'Reportes') page = 'Estadisticas'; // Redirección por compatibilidad
+
   const template = HtmlService.createTemplateFromFile('Index');
   template.page = page;
   return template.evaluate()
