@@ -3,6 +3,8 @@
  */
 
 function registrarPago(datos) {
+  if (!datos) throw new Error("No se recibieron datos para registrar el pago.");
+
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);

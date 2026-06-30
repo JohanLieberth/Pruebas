@@ -3,6 +3,8 @@
  */
 
 function registrarVenta(datos) {
+  if (!datos) throw new Error("No se recibieron datos para registrar la venta.");
+
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);
@@ -59,6 +61,7 @@ function obtenerVentas() {
 }
 
 function buscarVentaPorFolioOCliente(query) {
+  if (!query) return [];
   const ventas = obtenerVentas();
   query = query.toLowerCase();
   return ventas.filter(v =>
