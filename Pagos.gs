@@ -2,9 +2,7 @@
  * Gestión de Pagos (Abonos).
  */
 
-function registrarPago(datos) {
-  if (!datos) throw new Error("No se recibieron datos para registrar el pago.");
-
+function registrarPago(datos = {}) {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);

@@ -44,8 +44,7 @@ function obtenerDatosGraficaAgentes() {
   return resultados;
 }
 
-function obtenerReportePorAgente(agente) {
-  if (!agente) throw new Error("Se requiere el nombre del agente para el reporte.");
+function obtenerReportePorAgente(agente = "") {
   const ventas = obtenerVentas();
   const filtradas = ventas.filter(v => v.agente === agente);
 

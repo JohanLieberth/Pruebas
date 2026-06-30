@@ -2,9 +2,7 @@
  * Gestión de Ventas (CRUD).
  */
 
-function registrarVenta(datos) {
-  if (!datos) throw new Error("No se recibieron datos para registrar la venta.");
-
+function registrarVenta(datos = {}) {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);
