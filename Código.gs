@@ -16,6 +16,43 @@ const CONFIG = {
 };
 
 /**
+ * Se ejecuta al abrir la hoja de cálculo.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Friend Travel')
+    .addItem('⚙️ Configurar Sistema', 'setup')
+    .addItem('🚀 Abrir Web App', 'mostrarUrlApp')
+    .addToUi();
+}
+
+/**
+ * Función de alias para inicializar la aplicación.
+ */
+function setup() {
+  return inicializarApp();
+}
+
+/**
+ * Muestra la URL de la aplicación web en un diálogo.
+ */
+function mostrarUrlApp() {
+  const url = ScriptApp.getService().getUrl();
+  if (url) {
+    const html = HtmlService.createHtmlOutput(
+      `<div style="font-family:sans-serif; text-align:center;">
+        <p>La aplicación está lista:</p>
+        <a href="${url}" target="_blank" style="padding:10px 20px; background:#1a3a5c; color:white; text-decoration:none; border-radius:5px;">Abrir Aplicación</a>
+        <p style="margin-top:20px; font-size:0.8rem; color:grey;">URL: ${url}</p>
+      </div>`
+    ).setWidth(400).setHeight(200);
+    SpreadsheetApp.getUi().showModalDialog(html, 'Friend Travel - Web App');
+  } else {
+    SpreadsheetApp.getUi().alert('La aplicación no ha sido desplegada como Web App todavía.');
+  }
+}
+
+/**
  * Función principal para servir la aplicación web.
  */
 function doGet(e) {
@@ -30,6 +67,9 @@ function doGet(e) {
   }
 
   if (page === 'Reportes') page = 'Estadisticas'; // Redirección por compatibilidad
+
+  // Auto-inicializar si no hay ID de spreadsheet guardado
+  getSpreadsheetId();
 
   const template = HtmlService.createTemplateFromFile('Index');
   template.page = page;
