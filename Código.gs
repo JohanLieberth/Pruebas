@@ -67,8 +67,20 @@ function inicializarApp() {
  */
 function getSpreadsheetId() {
   let id = PropertiesService.getScriptProperties().getProperty('ID_SPREADSHEET');
+
+  if (id) {
+    try {
+      // Verificar que el ID sea válido y accesible
+      SpreadsheetApp.openById(id);
+    } catch (e) {
+      console.warn("ID guardado no válido o inaccesible, re-inicializando...");
+      id = null;
+    }
+  }
+
   if (!id) {
-    id = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_HOJA_VENTAS).getId();
+    const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_HOJA_VENTAS);
+    id = ss.getId();
     PropertiesService.getScriptProperties().setProperty('ID_SPREADSHEET', id);
   }
   return id;

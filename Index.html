@@ -98,14 +98,25 @@
       let currentAppConfig = null;
 
       window.onload = () => {
-        google.script.run.withSuccessHandler(config => {
-          currentAppConfig = config;
-          inicializarSelectsAgentes();
-          cargarPagina("<?= page ?>");
-        }).getAppConfig();
+        toggleLoading(true);
+        google.script.run
+          .withSuccessHandler(config => {
+            currentAppConfig = config;
+            inicializarSelectsAgentes();
+            cargarPagina("<?= page ?>");
+            toggleLoading(false);
+          })
+          .withFailureHandler(err => {
+            console.error("Error al cargar config:", err);
+            // Si falla la config, intentamos cargar la página de todos modos con valores por defecto
+            cargarPagina("<?= page ?>");
+            toggleLoading(false);
+          })
+          .getAppConfig();
       };
 
       function cargarPagina(pageId) {
+        console.log("Cargando página:", pageId);
         // Ocultar todas las páginas
         document.querySelectorAll('.page-container').forEach(el => el.style.display = 'none');
         document.querySelectorAll('#menu .nav-link').forEach(el => el.classList.remove('active-link'));
@@ -114,11 +125,20 @@
         const targetPage = document.getElementById('page-' + pageId);
         if (targetPage) {
           targetPage.style.display = 'block';
-          document.getElementById('link-' + pageId).classList.add('active-link');
+          const link = document.getElementById('link-' + pageId);
+          if (link) link.classList.add('active-link');
 
           // Llamar a la función de inicialización específica de cada página si existe
-          if (pageId === 'Dashboard') inicializarDashboard();
-          if (pageId === 'Estadisticas') inicializarReportes();
+          try {
+            if (pageId === 'Dashboard' && typeof inicializarDashboard === 'function') inicializarDashboard();
+            if (pageId === 'Estadisticas' && typeof inicializarReportes === 'function') inicializarReportes();
+          } catch (e) {
+            console.error("Error al inicializar página " + pageId, e);
+          }
+        } else {
+          console.warn("Página no encontrada:", pageId);
+          // Fallback a Dashboard si la página solicitada no existe
+          if (pageId !== 'Dashboard') cargarPagina('Dashboard');
         }
       }
 
