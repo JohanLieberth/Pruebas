@@ -124,10 +124,20 @@
         document.querySelectorAll('#menu .nav-link').forEach(el => el.classList.remove('active-link'));
 
         // Mapeo de IDs de página por si acaso
-        if (pageId === 'Nueva venta') pageId = 'NuevaVenta';
-        if (pageId === 'Registro de pago') pageId = 'RegistrarPago';
-        if (pageId === 'Reporte') pageId = 'Estadisticas';
-        if (pageId === 'Reportes') pageId = 'Estadisticas';
+        const pageMapping = {
+          'Nueva venta': 'NuevaVenta',
+          'Registro de pago': 'RegistrarPago',
+          'Reporte': 'Estadisticas',
+          'Reportes': 'Estadisticas',
+          'Estadisticas': 'Estadisticas',
+          'Dashboard': 'Dashboard',
+          'RegistrarPago': 'RegistrarPago',
+          'NuevaVenta': 'NuevaVenta'
+        };
+
+        if (pageMapping[pageId]) {
+          pageId = pageMapping[pageId];
+        }
 
         // Mostrar la seleccionada
         const targetPage = document.getElementById('page-' + pageId);

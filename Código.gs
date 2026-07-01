@@ -98,6 +98,7 @@ function getAppConfig() {
  */
 function inicializarApp() {
   const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_HOJA_VENTAS);
+  DriveUtils.inicializarHojas(ss);
   CONFIG.ID_SPREADSHEET = ss.getId();
 
   const folder = DriveUtils.obtenerOCrearCarpeta(CONFIG.NOMBRE_CARPETA_RECIBOS);
