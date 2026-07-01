@@ -123,6 +123,12 @@
         document.querySelectorAll('.page-container').forEach(el => el.style.display = 'none');
         document.querySelectorAll('#menu .nav-link').forEach(el => el.classList.remove('active-link'));
 
+        // Mapeo de IDs de página por si acaso
+        if (pageId === 'Nueva venta') pageId = 'NuevaVenta';
+        if (pageId === 'Registro de pago') pageId = 'RegistrarPago';
+        if (pageId === 'Reporte') pageId = 'Estadisticas';
+        if (pageId === 'Reportes') pageId = 'Estadisticas';
+
         // Mostrar la seleccionada
         const targetPage = document.getElementById('page-' + pageId);
         if (targetPage) {
@@ -137,7 +143,8 @@
             } else if (pageId === 'Estadisticas' && typeof inicializarReportes === 'function') {
               inicializarReportes();
             } else {
-              toggleLoading(false);
+              // Para páginas sin inicializador (NuevaVenta, RegistrarPago) ocultamos el loader
+              setTimeout(() => toggleLoading(false), 300);
             }
           } catch (e) {
             console.error("Error al inicializar página " + pageId, e);
