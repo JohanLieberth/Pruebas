@@ -5,7 +5,7 @@
 function registrarPago(datos = {}) {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
-  const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);
+  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_VENTAS);
   const data = sheet.getDataRange().getValues();
 
   const folio = datos.folio;

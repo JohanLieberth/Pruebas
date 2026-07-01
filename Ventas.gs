@@ -5,7 +5,7 @@
 function registrarVenta(datos = {}) {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
-  const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);
+  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_VENTAS);
 
   const total = parseFloat(datos.total) || 0;
   const anticipo = parseFloat(datos.anticipo) || 0;
@@ -40,7 +40,8 @@ function registrarVenta(datos = {}) {
 function obtenerVentas() {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
-  const sheet = ss.getSheetByName(CONFIG.NOMBRE_HOJA_VENTAS);
+  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_VENTAS);
+  if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
   const headers = data.shift();
 

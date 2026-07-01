@@ -5,7 +5,9 @@
 
 // --- CONFIGURACIÓN GLOBAL ---
 const CONFIG = {
-  NOMBRE_HOJA_VENTAS: "VENTAS JUNIO",
+  NOMBRE_ARCHIVO_SS: "FriendTravelVentas",
+  NOMBRE_TAB_VENTAS: "Ventas",
+  NOMBRE_TAB_PAGOS: "Pagos",
   NOMBRE_HOJA_RECIBO_PLANTILLA: "Formato Recibo",
   NOMBRE_CARPETA_RECIBOS: "FriendTravel/Recibos",
   AGENTES_PERMITIDOS: ["Arlette", "Eduardo", "Enrique", "América"],
@@ -97,7 +99,7 @@ function getAppConfig() {
  * Inicialización de la aplicación: busca o crea la estructura de archivos.
  */
 function inicializarApp() {
-  const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_HOJA_VENTAS);
+  const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_ARCHIVO_SS);
   DriveUtils.inicializarHojas(ss);
   CONFIG.ID_SPREADSHEET = ss.getId();
 
@@ -130,7 +132,8 @@ function getSpreadsheetId() {
   }
 
   if (!id) {
-    const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_HOJA_VENTAS);
+    const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_ARCHIVO_SS);
+    DriveUtils.inicializarHojas(ss); // Asegurar estructura al crear
     id = ss.getId();
     PropertiesService.getScriptProperties().setProperty('ID_SPREADSHEET', id);
   }
