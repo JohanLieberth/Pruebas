@@ -15,8 +15,7 @@ const DriveUtils = {
       }
     }
 
-    {
-      const ss = SpreadsheetApp.create(nombre);
+    const ss = SpreadsheetApp.create(nombre);
       const sheet = ss.getSheets()[0];
       sheet.setName(nombre);
 
@@ -36,8 +35,7 @@ const DriveUtils = {
            .setFontColor("#ffffff")
            .setFontWeight("bold");
 
-      return ss;
-    }
+    return ss;
   },
 
   /**

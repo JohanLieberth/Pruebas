@@ -77,8 +77,7 @@ function doGet(e) {
   template.page = page;
   return template.evaluate()
     .setTitle('FriendTravel - Gestión de Ventas')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 /**
