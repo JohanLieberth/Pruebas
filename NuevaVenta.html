@@ -20,6 +20,10 @@
               <input type="text" class="form-control" name="cliente" required>
             </div>
             <div class="col-md-6">
+              <label class="form-label fw-bold">Correo Electrónico <span class="text-danger">*</span></label>
+              <input type="email" class="form-control" name="correo" required>
+            </div>
+            <div class="col-md-6">
               <label class="form-label fw-bold">Hotel/Paquete <span class="text-danger">*</span></label>
               <input type="text" class="form-control" name="hotel" required>
             </div>
@@ -87,6 +91,7 @@
     const formData = {
       folio: form.folio.value,
       cliente: form.cliente.value,
+      correo: form.correo.value,
       hotel: form.hotel.value,
       agente: form.agente.value,
       total: form.total.value,

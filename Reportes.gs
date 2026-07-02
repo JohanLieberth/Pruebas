@@ -3,17 +3,21 @@
  */
 
 function obtenerKPIsGlobales() {
-  const ventas = obtenerVentas();
+  const ssId = getSpreadsheetId();
+  const ss = SpreadsheetApp.openById(ssId);
+  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_REPORTES);
+  const data = sheet.getDataRange().getValues();
+  data.shift(); // Encabezados
 
   let totalVendido = 0;
   let totalCobrado = 0;
   let saldoPendiente = 0;
-  let numVentas = ventas.length;
+  let numVentas = data.length;
 
-  ventas.forEach(v => {
-    totalVendido += parseFloat(v.total) || 0;
-    totalCobrado += parseFloat(v.total_cobrado) || 0;
-    saldoPendiente += parseFloat(v.saldo) || 0;
+  data.forEach(v => {
+    totalVendido += parseFloat(v[4]) || 0; // TOTAL
+    totalCobrado += parseFloat(v[5]) || 0; // COBRADO
+    saldoPendiente += parseFloat(v[6]) || 0; // SALDO
   });
 
   return {
@@ -45,12 +49,21 @@ function obtenerDatosGraficaAgentes() {
 }
 
 function obtenerReportePorAgente(agente = "") {
-  const ventas = obtenerVentas();
-  const filtradas = ventas.filter(v => v.agente === agente);
+  const ssId = getSpreadsheetId();
+  const ss = SpreadsheetApp.openById(ssId);
+  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_REPORTES);
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+
+  const filtradas = data.filter(v => v[7] === agente).map(row => {
+    let obj = {};
+    headers.forEach((h, i) => obj[h.replace(/\s+/g, '_').toLowerCase()] = row[i]);
+    return obj;
+  });
 
   let stats = {
     totalVendido: filtradas.reduce((acc, v) => acc + (parseFloat(v.total) || 0), 0),
-    totalCobrado: filtradas.reduce((acc, v) => acc + (parseFloat(v.total_cobrado) || 0), 0),
+    totalCobrado: filtradas.reduce((acc, v) => acc + (parseFloat(v.cobrado) || 0), 0),
     saldoPendiente: filtradas.reduce((acc, v) => acc + (parseFloat(v.saldo) || 0), 0),
     numVentas: filtradas.length,
     meta: CONFIG.META_MENSUAL_AGENTE

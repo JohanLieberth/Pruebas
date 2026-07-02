@@ -47,9 +47,9 @@ const DriveUtils = {
 
     // Estructura requerida por los requerimientos y la lógica existente
     const estructura = {
-      "Ventas": ["FOLIO/CONCEPTO", "CLIENTE", "HOTEL", "TOTAL", "FECHA LIMITE DE PAGO", "ANTICIPO", "FECHA", "ABONO 1", "FECHA 1", "ABONO 2", "FECHA 2", "TOTAL COBRADO", "SALDO", "AGENTE", "ESTADO"],
-      "Pagos": ["ID", "FOLIO/CONCEPTO", "FECHA", "MONTO", "METODO", "REFERENCIA", "ESTADO"],
-      "Reportes": ["FECHA_REPORTE", "TIPO", "AGENTE", "TOTAL_VENTAS", "TOTAL_COBRADO", "PENDIENTE"],
+      "Ventas": ["FOLIO/CONCEPTO", "CLIENTE", "CORREO", "HOTEL", "TOTAL", "FECHA LIMITE DE PAGO", "ANTICIPO", "FECHA", "ABONO 1", "FECHA 1", "ABONO 2", "FECHA 2", "TOTAL COBRADO", "SALDO", "AGENTE", "ESTADO"],
+      "Pagos": ["ID", "FOLIO/CONCEPTO", "FECHA", "MONTO", "TIPO", "ESTADO"],
+      "Reportes": ["FOLIO/CONCEPTO", "CLIENTE", "CORREO", "HOTEL", "TOTAL", "COBRADO", "SALDO", "AGENTE", "ESTADO"],
       "Configuracion": ["PARAMETRO", "VALOR", "DESCRIPCION"],
       "Dashboard": ["KPI", "VALOR", "ULTIMA_ACTUALIZACION"]
     };
@@ -69,6 +69,18 @@ const DriveUtils = {
         if (JSON.stringify(currentHeaders) !== JSON.stringify(headers)) {
           sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
           sheet.setFrozenRows(1);
+
+          // Inicializar Logo si es la hoja de configuración
+          if (nombreHoja === "Configuracion") {
+            const data = sheet.getDataRange().getValues();
+            let logoFound = false;
+            for (let i = 1; i < data.length; i++) {
+              if (data[i][0] === "LOGO") { logoFound = true; break; }
+            }
+            if (!logoFound) {
+              sheet.appendRow(["LOGO", "https://via.placeholder.com/150", "URL del logo de la empresa"]);
+            }
+          }
 
           // Formato a encabezados
           sheet.getRange(1, 1, 1, headers.length)

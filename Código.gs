@@ -8,6 +8,8 @@ const CONFIG = {
   NOMBRE_ARCHIVO_SS: "FriendTravelVentas",
   NOMBRE_TAB_VENTAS: "Ventas",
   NOMBRE_TAB_PAGOS: "Pagos",
+  NOMBRE_TAB_REPORTES: "Reportes",
+  NOMBRE_TAB_CONFIG: "Configuracion",
   NOMBRE_HOJA_RECIBO_PLANTILLA: "Formato Recibo",
   NOMBRE_CARPETA_RECIBOS: "FriendTravel/Recibos",
   AGENTES_PERMITIDOS: ["Arlette", "Eduardo", "Enrique", "América"],
@@ -88,10 +90,30 @@ function include(filename) {
 }
 
 /**
- * Obtener configuración para el frontend.
+ * Obtener configuración para el frontend, incluyendo el logo.
  */
 function getAppConfig() {
-  return CONFIG;
+  const config = JSON.parse(JSON.stringify(CONFIG));
+  config.LOGO_URL = getLogoUrl();
+  return config;
+}
+
+/**
+ * Lee el Logo desde la hoja de configuración.
+ */
+function getLogoUrl() {
+  try {
+    const ssId = getSpreadsheetId();
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_CONFIG);
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === "LOGO") return data[i][1];
+    }
+  } catch (e) {
+    console.error("Error al obtener logo:", e);
+  }
+  return "https://via.placeholder.com/150";
 }
 
 /**

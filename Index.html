@@ -16,9 +16,10 @@
       <div class="row vh-100 overflow-auto">
         <!-- Sidebar -->
         <div class="col-12 col-sm-3 col-xl-2 px-sm-2 px-0 bg-navy d-flex sticky-top">
-          <div class="d-flex flex-sm-column flex-row flex-grow-1 align-items-center align-items-sm-start px-3 pt-2 text-white">
-            <a href="javascript:void(0)" onclick="cargarPagina('Dashboard')" class="d-flex align-items-center pb-sm-3 mb-md-0 me-md-auto text-white text-decoration-none">
-              <span class="fs-5 d-none d-sm-inline fw-bold"><i class="fas fa-plane-departure me-2"></i>FriendTravel</span>
+          <div class="d-flex flex-sm-column flex-row flex-grow-1 align-items-center align-items-sm-start px-3 pt-2 text-white w-100">
+            <a href="javascript:void(0)" onclick="cargarPagina('Dashboard')" class="d-flex flex-column align-items-center pb-sm-3 mb-md-0 me-md-auto text-white text-decoration-none w-100">
+              <img id="app-logo" src="" alt="Logo" class="img-fluid mb-2 d-none d-sm-block" style="max-height: 80px; border-radius: 8px;">
+              <span class="fs-5 d-none d-sm-inline fw-bold text-center">FriendTravel</span>
             </a>
             <ul class="nav nav-pills flex-sm-column flex-row flex-nowrap flex-shrink-1 flex-sm-grow-0 flex-grow-1 mb-sm-auto mb-0 justify-content-center align-items-center align-items-sm-start w-100" id="menu">
               <li class="nav-item w-100">
@@ -110,6 +111,7 @@
         google.script.run
           .withSuccessHandler(config => {
             currentAppConfig = config;
+            if (config.LOGO_URL) document.getElementById('app-logo').src = config.LOGO_URL;
             inicializarSelectsAgentes();
             cargarPagina("<?= page ?>");
             // Nota: toggleLoading(false) se maneja dentro de cargarPagina o sus inicializadores
