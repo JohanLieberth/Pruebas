@@ -97,74 +97,96 @@
     <script>
       let currentAppConfig = null;
 
+      // Manejador global de errores para depuración
+      window.onerror = function(msg, url, line, col, error) {
+        console.error("Error Global:", msg, "en", url, ":", line);
+        toggleLoading(false);
+        return false;
+      };
+
       window.onload = () => {
+        console.log("Iniciando aplicación...");
         toggleLoading(true);
         google.script.run
           .withSuccessHandler(config => {
             currentAppConfig = config;
             inicializarSelectsAgentes();
             cargarPagina("<?= page ?>");
-            toggleLoading(false);
+            // Nota: toggleLoading(false) se maneja dentro de cargarPagina o sus inicializadores
           })
           .withFailureHandler(err => {
             console.error("Error al cargar config:", err);
-            // Si falla la config, intentamos cargar la página de todos modos con valores por defecto
-            cargarPagina("<?= page ?>");
+            alert("Error de conexión con el servidor. Intente recargar.");
             toggleLoading(false);
           })
           .getAppConfig();
       };
 
       function cargarPagina(pageId) {
-        console.log("Cargando página:", pageId);
+        console.log("Solicitud cargarPagina:", pageId);
         toggleLoading(true);
 
         // Ocultar todas las páginas
         document.querySelectorAll('.page-container').forEach(el => el.style.display = 'none');
         document.querySelectorAll('#menu .nav-link').forEach(el => el.classList.remove('active-link'));
 
-        // Mapeo de IDs de página por si acaso
+        // Normalización y mapeo de IDs de página
         const pageMapping = {
-          'Nueva venta': 'NuevaVenta',
-          'Registro de pago': 'RegistrarPago',
-          'Reporte': 'Estadisticas',
-          'Reportes': 'Estadisticas',
-          'Estadisticas': 'Estadisticas',
           'Dashboard': 'Dashboard',
+          'NuevaVenta': 'NuevaVenta',
+          'Nueva venta': 'NuevaVenta',
           'RegistrarPago': 'RegistrarPago',
-          'NuevaVenta': 'NuevaVenta'
+          'Registrar Pago': 'RegistrarPago',
+          'Registro de pago': 'RegistrarPago',
+          'Estadisticas': 'Estadisticas',
+          'Reporte': 'Estadisticas',
+          'Reportes': 'Estadisticas'
         };
 
-        if (pageMapping[pageId]) {
-          pageId = pageMapping[pageId];
-        }
+        const technicalId = pageMapping[pageId] || pageId;
+        console.log("ID técnico detectado:", technicalId);
 
         // Mostrar la seleccionada
-        const targetPage = document.getElementById('page-' + pageId);
+        const targetPage = document.getElementById('page-' + technicalId);
         if (targetPage) {
           targetPage.style.display = 'block';
-          const link = document.getElementById('link-' + pageId);
+
+          // Actualizar link de navegación
+          const link = document.getElementById('link-' + technicalId);
           if (link) link.classList.add('active-link');
 
-          // Llamar a la función de inicialización específica de cada página si existe
+          // Inicializadores específicos
           try {
-            if (pageId === 'Dashboard' && typeof inicializarDashboard === 'function') {
-              inicializarDashboard();
-            } else if (pageId === 'Estadisticas' && typeof inicializarReportes === 'function') {
-              inicializarReportes();
+            if (technicalId === 'Dashboard') {
+              if (typeof inicializarDashboard === 'function') {
+                inicializarDashboard();
+              } else {
+                console.warn("inicializarDashboard no definida");
+                toggleLoading(false);
+              }
+            } else if (technicalId === 'Estadisticas') {
+              if (typeof inicializarReportes === 'function') {
+                inicializarReportes();
+              } else {
+                console.warn("inicializarReportes no definida");
+                toggleLoading(false);
+              }
             } else {
-              // Para páginas sin inicializador (NuevaVenta, RegistrarPago) ocultamos el loader
-              setTimeout(() => toggleLoading(false), 300);
+              // Páginas estáticas o sin init
+              console.log("Página sin inicializador dinámico:", technicalId);
+              setTimeout(() => toggleLoading(false), 200);
             }
           } catch (e) {
-            console.error("Error al inicializar página " + pageId, e);
+            console.error("Error ejecutando inicializador de " + technicalId, e);
             toggleLoading(false);
           }
         } else {
-          console.warn("Página no encontrada:", pageId);
+          console.error("No existe el contenedor para la página:", technicalId);
           toggleLoading(false);
-          // Fallback a Dashboard si la página solicitada no existe
-          if (pageId !== 'Dashboard') cargarPagina('Dashboard');
+          // Prevenir bucle infinito si Dashboard no existe
+          if (technicalId !== 'Dashboard') {
+            cargarPagina('Dashboard');
+          }
         }
       }
 

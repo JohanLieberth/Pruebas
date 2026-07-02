@@ -42,8 +42,12 @@ const DriveUtils = {
 
   /**
    * Inicializa las hojas necesarias con sus encabezados.
+   * Verifica existencia y crea si faltan.
    */
   inicializarHojas: function(ss) {
+    if (!ss) return;
+
+    // Estructura requerida por los requerimientos y la lógica existente
     const estructura = {
       "Ventas": ["FOLIO/CONCEPTO", "CLIENTE", "HOTEL", "TOTAL", "FECHA LIMITE DE PAGO", "ANTICIPO", "FECHA", "ABONO 1", "FECHA 1", "ABONO 2", "FECHA 2", "TOTAL COBRADO", "SALDO", "AGENTE", "ESTADO"],
       "Pagos": ["ID", "FOLIO/CONCEPTO", "FECHA", "MONTO", "METODO", "REFERENCIA", "ESTADO"],
@@ -53,32 +57,46 @@ const DriveUtils = {
     };
 
     for (let nombreHoja in estructura) {
-      let sheet = ss.getSheetByName(nombreHoja);
-      if (!sheet) {
-        sheet = ss.insertSheet(nombreHoja);
-      }
+      try {
+        let sheet = ss.getSheetByName(nombreHoja);
+        if (!sheet) {
+          sheet = ss.insertSheet(nombreHoja);
+        }
 
-      const headers = estructura[nombreHoja];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.setFrozenRows(1);
+        // Solo escribir encabezados si la hoja está vacía o para asegurar estructura en fila 1
+        const headers = estructura[nombreHoja];
+        const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
 
-      // Formato a encabezados
-      sheet.getRange(1, 1, 1, headers.length)
-           .setBackground("#1a3a5c")
-           .setFontColor("#ffffff")
-           .setFontWeight("bold");
+        // Si la fila 1 no coincide con lo esperado, la sobreescribimos (respetando la restricción de creación)
+        if (JSON.stringify(currentHeaders) !== JSON.stringify(headers)) {
+          sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+          sheet.setFrozenRows(1);
 
-      // Autoajustar columnas
-      if (headers.length > 0) {
-        sheet.autoResizeColumns(1, headers.length);
+          // Formato a encabezados
+          sheet.getRange(1, 1, 1, headers.length)
+               .setBackground("#1a3a5c")
+               .setFontColor("#ffffff")
+               .setFontWeight("bold")
+               .setHorizontalAlignment("center");
+
+          // Autoajustar columnas
+          if (headers.length > 0) {
+            sheet.autoResizeColumns(1, headers.length);
+          }
+        }
+      } catch (e) {
+        console.error("Error inicializando hoja " + nombreHoja + ": " + e.message);
       }
     }
 
-    // Borrar la Hoja1 por defecto si está vacía
-    const defaultSheet = ss.getSheetByName("Hoja 1") || ss.getSheetByName("Sheet1");
-    if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
-      ss.deleteSheet(defaultSheet);
-    }
+    // Borrar hojas por defecto vacías si hay más de una hoja
+    const defaultSheets = ["Hoja 1", "Sheet1", "Hoja1"];
+    defaultSheets.forEach(name => {
+      let ds = ss.getSheetByName(name);
+      if (ds && ds.getLastRow() === 0 && ss.getSheets().length > 1) {
+        try { ss.deleteSheet(ds); } catch(e) {}
+      }
+    });
   },
 
   /**

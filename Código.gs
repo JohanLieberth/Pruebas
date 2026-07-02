@@ -120,11 +120,12 @@ function inicializarApp() {
  */
 function getSpreadsheetId() {
   let id = PropertiesService.getScriptProperties().getProperty('ID_SPREADSHEET');
+  let ss = null;
 
   if (id) {
     try {
       // Verificar que el ID sea válido y accesible
-      SpreadsheetApp.openById(id);
+      ss = SpreadsheetApp.openById(id);
     } catch (e) {
       console.warn("ID guardado no válido o inaccesible, re-inicializando...");
       id = null;
@@ -132,10 +133,15 @@ function getSpreadsheetId() {
   }
 
   if (!id) {
-    const ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_ARCHIVO_SS);
-    DriveUtils.inicializarHojas(ss); // Asegurar estructura al crear
+    ss = DriveUtils.obtenerOCrearSpreadsheet(CONFIG.NOMBRE_ARCHIVO_SS);
     id = ss.getId();
     PropertiesService.getScriptProperties().setProperty('ID_SPREADSHEET', id);
   }
+
+  // Siempre asegurar que las hojas necesarias existan al obtener el ID
+  if (ss) {
+    DriveUtils.inicializarHojas(ss);
+  }
+
   return id;
 }

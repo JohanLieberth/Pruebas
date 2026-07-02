@@ -143,7 +143,12 @@
   }
 
   function renderGrafica(data) {
-    const ctx = document.getElementById('chartAgentes').getContext('2d');
+    const canvas = document.getElementById('chartAgentes');
+    if (!canvas) {
+      console.error("Canvas chartAgentes no encontrado");
+      return;
+    }
+    const ctx = canvas.getContext('2d');
 
     if (chartInstancia) {
       chartInstancia.destroy();
