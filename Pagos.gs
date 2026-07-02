@@ -91,5 +91,24 @@ function registrarPago(datos = {}) {
     fechaLimite: actualizadoRow[4]
   });
 
-  return { success: true, pdfUrl: urlPdf };
+  return { success: true, pdfUrl: urlPdf, data: { folio: folio, cliente: actualizadoRow[1], monto: montoPago, tipo: datos.tipo, saldo: nuevoSaldo, total: totalVenta, fecha: fechaPago } };
+}
+
+/**
+ * Obtiene el historial de pagos de un folio.
+ */
+function obtenerHistorialPagos(folio) {
+  const ssId = getSpreadsheetId();
+  const ss = SpreadsheetApp.openById(ssId);
+  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
+  if (!sheet) return [];
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+
+  return data.filter(row => row[1] == folio).map(row => {
+    let obj = {};
+    headers.forEach((h, i) => obj[h.replace(/\s+/g, '_').toLowerCase()] = row[i]);
+    return obj;
+  });
 }

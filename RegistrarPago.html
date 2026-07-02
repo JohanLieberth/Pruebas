@@ -58,7 +58,7 @@
 
   <div class="col-lg-6">
     <div id="detalle-venta" style="display:none;">
-      <div class="card shadow-sm">
+      <div class="card shadow-sm mb-4">
         <div class="card-header bg-navy text-white">
           <h6 class="mb-0">Resumen de la Venta</h6>
         </div>
@@ -71,6 +71,28 @@
             <tr><th>Saldo:</th><td id="td-saldo" class="text-danger fw-bold"></td></tr>
             <tr><th>Agente:</th><td id="td-agente"></td></tr>
           </table>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Historial de Pagos</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="small text-muted">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Monto</th>
+                  <th>Tipo</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-historial">
+                <!-- Se llena dinámicamente -->
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -108,6 +130,23 @@
     document.getElementById('contenedor-pago').style.display = 'block';
     document.getElementById('detalle-venta').style.display = 'block';
     document.getElementById('resultados-busqueda').innerHTML = '';
+
+    // Cargar Historial
+    const folio = v['folio/concepto'];
+    google.script.run.withSuccessHandler(historial => {
+      const tbody = document.getElementById('tbody-historial');
+      if (historial.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3">Sin pagos registrados</td></tr>';
+      } else {
+        tbody.innerHTML = historial.map(h => `
+          <tr>
+            <td>${new Date(h.fecha).toLocaleDateString()}</td>
+            <td>${formatCurrency(h.monto)}</td>
+            <td><span class="badge bg-light text-dark">${h.tipo}</span></td>
+          </tr>
+        `).join('');
+      }
+    }).obtenerHistorialPagos(folio);
 
     document.getElementById('span-folio').innerText = v['folio/concepto'];
     document.getElementById('input-folio').value = v['folio/concepto'];
@@ -150,10 +189,11 @@
       .withSuccessHandler(res => {
         toggleLoading(false);
         alert('Pago registrado correctamente.');
+        if (confirm('¿Desea imprimir el recibo?')) {
+          imprimirRecibo(res.data);
+        }
         if (res.pdfUrl && res.pdfUrl !== "#") {
           window.open(res.pdfUrl, '_blank');
-        } else {
-          alert('No se pudo generar el PDF (plantilla no encontrada). El pago se guardó en el sistema.');
         }
         // Resetear vista
         document.getElementById('contenedor-pago').style.display = 'none';

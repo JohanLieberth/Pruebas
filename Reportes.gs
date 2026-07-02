@@ -15,9 +15,9 @@ function obtenerKPIsGlobales() {
   let numVentas = data.length;
 
   data.forEach(v => {
-    totalVendido += parseFloat(v[4]) || 0; // TOTAL
-    totalCobrado += parseFloat(v[5]) || 0; // COBRADO
-    saldoPendiente += parseFloat(v[6]) || 0; // SALDO
+    totalVendido += parseFloat(v[4]) || 0; // Col E: TOTAL
+    totalCobrado += parseFloat(v[5]) || 0; // Col F: COBRADO
+    saldoPendiente += parseFloat(v[6]) || 0; // Col G: SALDO
   });
 
   return {

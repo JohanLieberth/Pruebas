@@ -104,6 +104,9 @@
       .withSuccessHandler(res => {
         toggleLoading(false);
         alert('Venta registrada con éxito. Folio: ' + res.folio);
+        if (confirm('¿Desea imprimir el recibo?')) {
+          imprimirRecibo(res.data);
+        }
         form.reset();
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Venta';

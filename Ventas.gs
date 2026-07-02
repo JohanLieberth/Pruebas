@@ -48,7 +48,15 @@ function registrarVenta(datos = {}) {
     enviarReciboVenta(datos, folio, anticipo);
   } catch(e) { console.error("Error al enviar correo", e); }
 
-  return { success: true, folio: folio };
+  // Registrar Anticipo en Pagos
+  if (anticipo > 0) {
+    try {
+      const pagosSheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
+      pagosSheet.appendRow([Utilities.getUuid(), folio, datos.fechaAnticipo || fechaActual, anticipo, "Anticipo", datos.estado || "Pendiente"]);
+    } catch(e) { console.error("Error al registrar anticipo en pagos", e); }
+  }
+
+  return { success: true, folio: folio, data: { ...datos, folio: folio, total: total, anticipo: anticipo, saldo: saldo, fecha: fechaActual } };
 }
 
 /**

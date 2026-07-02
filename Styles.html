@@ -82,4 +82,30 @@
       height: 100vh;
     }
   }
+
+  /* Estilos para impresión del recibo */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    #printable-receipt, #printable-receipt * {
+      visibility: visible;
+    }
+    #printable-receipt {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      background: white;
+    }
+    .no-print {
+      display: none !important;
+    }
+  }
+
+  #printable-receipt {
+    display: none;
+    font-family: 'Arial', sans-serif;
+    color: #333;
+  }
 </style>
