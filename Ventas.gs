@@ -56,7 +56,23 @@ function registrarVenta(datos = {}) {
     } catch(e) { console.error("Error al registrar anticipo en pagos", e); }
   }
 
-  return { success: true, folio: folio, data: { ...datos, folio: folio, total: total, anticipo: anticipo, saldo: saldo, fecha: fechaActual } };
+  const result = {
+    success: true,
+    folio: folio,
+    data: {
+      cliente: datos.cliente,
+      correo: datos.correo,
+      hotel: datos.hotel,
+      agente: datos.agente,
+      folio: folio,
+      total: total,
+      anticipo: anticipo,
+      saldo: saldo,
+      fecha: fechaActual.toISOString()
+    }
+  };
+
+  return result;
 }
 
 /**

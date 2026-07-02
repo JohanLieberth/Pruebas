@@ -103,11 +103,15 @@
     google.script.run
       .withSuccessHandler(res => {
         toggleLoading(false);
-        alert('Venta registrada con éxito. Folio: ' + res.folio);
-        if (confirm('¿Desea imprimir el recibo?')) {
-          imprimirRecibo(res.data);
+        if (res && res.success) {
+          alert('Venta registrada con éxito. Folio: ' + res.folio);
+          if (confirm('¿Desea imprimir el recibo?')) {
+            imprimirRecibo(res.data);
+          }
+          form.reset();
+        } else {
+          alert('La venta se guardó pero hubo un problema al recibir la confirmación.');
         }
-        form.reset();
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Venta';
       })
