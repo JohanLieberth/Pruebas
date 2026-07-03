@@ -110,7 +110,7 @@
       .withSuccessHandler(ventas => {
         const container = document.getElementById('resultados-busqueda');
 
-        if (ventas.length === 0) {
+        if (!ventas || ventas.length === 0) {
           container.innerHTML = '<div class="alert alert-info">No hay ventas registradas para pago en la pestaña "Pagos". Registre una venta primero.</div>';
           return;
         }
@@ -164,7 +164,7 @@
     const folio = v['folio/concepto'];
     google.script.run.withSuccessHandler(historial => {
       const tbody = document.getElementById('tbody-historial');
-      if (historial.length === 0) {
+      if (!historial || historial.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3">Sin pagos registrados</td></tr>';
       } else {
         tbody.innerHTML = historial.map(h => `

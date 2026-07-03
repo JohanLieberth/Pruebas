@@ -114,6 +114,7 @@ function obtenerVentas() {
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_VENTAS);
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
   const headers = data.shift();
 
   // Filtrar fila de totales si existe (la que tiene "TOTALES" en la columna C o índice 2)

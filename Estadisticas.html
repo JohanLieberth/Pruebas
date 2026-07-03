@@ -89,7 +89,7 @@
 
   function renderTabla(ventas) {
     const tbody = document.getElementById('tbody-ventas');
-    if (ventas.length === 0) {
+    if (!ventas || ventas.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">No hay registros de ventas.</td></tr>';
       return;
     }

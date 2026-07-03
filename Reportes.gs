@@ -6,7 +6,11 @@ function obtenerKPIsGlobales() {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_REPORTES);
+  if (!sheet) return { totalVendido: 0, totalCobrado: 0, saldoPendiente: 0, numVentas: 0 };
+
   const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { totalVendido: 0, totalCobrado: 0, saldoPendiente: 0, numVentas: 0 };
+
   data.shift(); // Encabezados
 
   let totalVendido = 0;
@@ -52,7 +56,11 @@ function obtenerReportePorAgente(agente = "") {
   const ssId = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_REPORTES);
+  if (!sheet) return { stats: { totalVendido: 0, totalCobrado: 0, saldoPendiente: 0, numVentas: 0, meta: CONFIG.META_MENSUAL_AGENTE, porcentaje: 0, metaAlcanzada: false }, ventas: [] };
+
   const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { stats: { totalVendido: 0, totalCobrado: 0, saldoPendiente: 0, numVentas: 0, meta: CONFIG.META_MENSUAL_AGENTE, porcentaje: 0, metaAlcanzada: false }, ventas: [] };
+
   const headers = data.shift();
 
   const filtradas = data.filter(v => v[7] === agente).map(row => {
