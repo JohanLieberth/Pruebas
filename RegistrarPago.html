@@ -101,29 +101,58 @@
 
 <script>
   function buscarVenta() {
-    const q = document.getElementById('busqueda').value;
-    if (q.length < 3) return;
+    const q = document.getElementById('busqueda').value.toLowerCase();
 
     document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
 
-    google.script.run.withSuccessHandler(ventas => {
-      const container = document.getElementById('resultados-busqueda');
-      if (ventas.length === 0) {
-        container.innerHTML = '<div class="alert alert-warning">No se encontraron resultados.</div>';
-        return;
-      }
+    // Cambiamos a obtenerVentasDesdePagos para cumplir el requerimiento de leer de la pestaña Pagos
+    google.script.run
+      .withSuccessHandler(ventas => {
+        const container = document.getElementById('resultados-busqueda');
 
-      container.innerHTML = ventas.map(v => `
-        <button type="button" class="list-group-item list-group-item-action" onclick='seleccionarVenta(${JSON.stringify(v)})'>
-          <div class="d-flex w-100 justify-content-between">
-            <h6 class="mb-1 fw-bold">${v['folio/concepto']}</h6>
-            <small class="text-muted">${v.agente}</small>
-          </div>
-          <p class="mb-1 small">${v.cliente} - ${v.hotel}</p>
-          <small class="text-navy fw-bold">Saldo: ${formatCurrency(v.saldo)}</small>
-        </button>
-      `).join('');
-    }).buscarVentaPorFolioOCliente(q);
+        if (ventas.length === 0) {
+          container.innerHTML = '<div class="alert alert-info">No hay ventas registradas para pago en la pestaña "Pagos". Registre una venta primero.</div>';
+          return;
+        }
+
+        // Filtrado local por la query del usuario
+        const filtradas = q.length < 2 ? ventas : ventas.filter(v =>
+          v['folio/concepto'].toString().toLowerCase().includes(q) ||
+          v.cliente.toLowerCase().includes(q)
+        );
+
+        if (filtradas.length === 0) {
+          container.innerHTML = '<div class="alert alert-warning">No se encontraron resultados con ese filtro entre las ventas con pagos pendientes.</div>';
+          return;
+        }
+
+        container.innerHTML = filtradas.map(v => `
+          <button type="button" class="list-group-item list-group-item-action" onclick='intentarSeleccionarVenta(${JSON.stringify(v)})'>
+            <div class="d-flex w-100 justify-content-between">
+              <h6 class="mb-1 fw-bold">${v['folio/concepto']}</h6>
+              <small class="text-muted">${v.agente}</small>
+            </div>
+            <p class="mb-1 small">${v.cliente} - ${v.hotel}</p>
+            <small class="text-navy fw-bold">Saldo: ${formatCurrency(v.saldo)}</small>
+          </button>
+        `).join('');
+      })
+      .withFailureHandler(err => {
+        document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error al buscar ventas: ' + err.message + '</div>';
+      })
+      .obtenerVentasDesdePagos();
+  }
+
+  function intentarSeleccionarVenta(v) {
+    try {
+      seleccionarVenta(v);
+    } catch (e) {
+      console.error("Error al seleccionar venta:", e);
+      alert("Hubo un problema al cargar los detalles de la venta seleccionada.");
+      // Asegurarse de ocultar si falló
+      document.getElementById('contenedor-pago').style.display = 'none';
+      document.getElementById('detalle-venta').style.display = 'none';
+    }
   }
 
   function seleccionarVenta(v) {

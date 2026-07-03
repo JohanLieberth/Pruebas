@@ -48,13 +48,13 @@ function registrarVenta(datos = {}) {
     enviarReciboVenta(datos, folio, anticipo);
   } catch(e) { console.error("Error al enviar correo", e); }
 
-  // Registrar Anticipo en Pagos
-  if (anticipo > 0) {
-    try {
-      const pagosSheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
-      pagosSheet.appendRow([Utilities.getUuid(), folio, datos.fechaAnticipo || fechaActual, anticipo, "Anticipo", datos.estado || "Pendiente"]);
-    } catch(e) { console.error("Error al registrar anticipo en pagos", e); }
-  }
+  // Registrar en Pagos (Siempre, para permitir lectura posterior y abonos)
+  try {
+    const pagosSheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
+    const tipoPago = anticipo > 0 ? "Anticipo" : "Registro Venta";
+    const fechaPago = datos.fechaAnticipo || fechaActual;
+    pagosSheet.appendRow([Utilities.getUuid(), folio, fechaPago, anticipo, tipoPago, datos.estado || "Pendiente"]);
+  } catch(e) { console.error("Error al registrar en pagos", e); }
 
   const result = {
     success: true,
@@ -67,6 +67,8 @@ function registrarVenta(datos = {}) {
       folio: folio,
       total: total,
       anticipo: anticipo,
+      monto: anticipo, // Para el recibo unificado
+      tipo: anticipo > 0 ? "Anticipo" : "Registro",
       saldo: saldo,
       fecha: fechaActual.toISOString()
     }
@@ -140,4 +142,30 @@ function buscarVentaPorFolioOCliente(query) {
     const tieneSaldo = parseFloat(v.saldo) > 0;
     return coincide && tieneSaldo;
   });
+}
+
+/**
+ * Obtiene ventas disponibles para pago leyendo desde la pestaña 'Pagos'
+ * y cruzando con 'Ventas' para obtener el saldo actual.
+ */
+function obtenerVentasDesdePagos() {
+  const ssId = getSpreadsheetId();
+  const ss = SpreadsheetApp.openById(ssId);
+  const sheetPagos = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
+  if (!sheetPagos) return [];
+
+  const dataPagos = sheetPagos.getDataRange().getValues();
+  if (dataPagos.length <= 1) return []; // Solo encabezados
+
+  // Obtener folios únicos que tienen algún pago registrado
+  const foliosConPagos = [...new Set(dataPagos.slice(1).map(row => row[1]))];
+
+  // Obtener todas las ventas para cruzar datos de saldo y cliente
+  const todasVentas = obtenerVentas();
+
+  // Filtrar ventas que tengan pagos Y tengan saldo pendiente
+  return todasVentas.filter(v =>
+    foliosConPagos.includes(v['folio/concepto']) &&
+    parseFloat(v.saldo) > 0
+  );
 }
