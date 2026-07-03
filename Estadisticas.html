@@ -54,33 +54,22 @@
       tbody.innerHTML = '<tr><td colspan="7" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
       toggleLoading(true);
 
-      if (agente === 'Global') {
-        google.script.run
-          .withSuccessHandler(data => {
-            renderTabla(data || []);
-            renderStatsReporte(data || [], true);
-            toggleLoading(false);
-          })
-          .withFailureHandler(err => {
-            console.error("Error global ventas:", err);
-            toggleLoading(false);
-          })
-          .obtenerVentas();
-      } else {
-        google.script.run
-          .withSuccessHandler(res => {
-            if (res) {
-              renderTabla(res.ventas || []);
-              renderStatsReporte(res.stats || {}, false);
-            }
-            toggleLoading(false);
-          })
-          .withFailureHandler(err => {
-            console.error("Error agente ventas:", err);
-            toggleLoading(false);
-          })
-          .obtenerReportePorAgente(agente);
-      }
+      // Ahora unificamos la llamada a obtenerReportePorAgente para ambos casos (Global y Filtrado)
+      // ya que Reportes.gs ahora maneja la vista global si no se pasa agente o es "Global"
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res) {
+            renderTabla(res.ventas || []);
+            renderStatsReporte(res.stats || {}, agente === 'Global');
+          }
+          toggleLoading(false);
+        })
+        .withFailureHandler(err => {
+          console.error("Error al cargar reporte:", err);
+          toggleLoading(false);
+        })
+        .obtenerReportePorAgente(agente);
+
     } catch (e) {
       console.error("Error en cargarReporte:", e);
       toggleLoading(false);
@@ -99,7 +88,7 @@
         <td class="fw-bold">${v['folio/concepto']}</td>
         <td>${v.cliente}</td>
         <td>${formatCurrency(v.total)}</td>
-        <td class="text-success">${formatCurrency(v.total_cobrado)}</td>
+        <td class="text-success">${formatCurrency(v.cobrado || v.total_cobrado)}</td>
         <td class="text-danger fw-bold">${formatCurrency(v.saldo)}</td>
         <td><span class="badge bg-light text-dark">${v.agente}</span></td>
         <td><span class="status-badge badge-${v.estado.toLowerCase()}">${v.estado}</span></td>
@@ -112,27 +101,23 @@
     let html = '';
 
     if (isGlobal) {
-      // Para global, data es el array de ventas. Calculamos KPIs rápidos
-      let tVendido = data.reduce((a, b) => a + (parseFloat(b.total) || 0), 0);
-      let tCobrado = data.reduce((a, b) => a + (parseFloat(b.total_cobrado) || 0), 0);
-
       html = `
         <div class="col-md-4">
           <div class="card bg-white p-3 border-0 shadow-sm">
             <small class="text-muted text-uppercase fw-bold">Ventas Totales</small>
-            <h4 class="mb-0 text-primary">${formatCurrency(tVendido)}</h4>
+            <h4 class="mb-0 text-primary">${formatCurrency(data.totalVendido)}</h4>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card bg-white p-3 border-0 shadow-sm">
             <small class="text-muted text-uppercase fw-bold">Cobrado</small>
-            <h4 class="mb-0 text-success">${formatCurrency(tCobrado)}</h4>
+            <h4 class="mb-0 text-success">${formatCurrency(data.totalCobrado)}</h4>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card bg-white p-3 border-0 shadow-sm">
             <small class="text-muted text-uppercase fw-bold">Pendiente</small>
-            <h4 class="mb-0 text-danger">${formatCurrency(tVendido - tCobrado)}</h4>
+            <h4 class="mb-0 text-danger">${formatCurrency(data.saldoPendiente)}</h4>
           </div>
         </div>
       `;

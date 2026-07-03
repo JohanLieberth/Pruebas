@@ -132,8 +132,13 @@ function obtenerVentas() {
 }
 
 function buscarVentaPorFolioOCliente(query) {
-  if (!query) return [];
   const ventas = obtenerVentas();
+
+  // Si no hay query, devolvemos todas las ventas con saldo pendiente
+  if (!query) {
+    return ventas.filter(v => parseFloat(v.saldo) > 0);
+  }
+
   query = query.toLowerCase();
 
   // Filtrar solo ventas con saldo pendiente y que coincidan con la búsqueda

@@ -12,7 +12,9 @@
         <label class="form-label fw-bold">Buscar Venta (Folio o Cliente)</label>
         <div class="input-group mb-3">
           <input type="text" id="busqueda" class="form-control" placeholder="Ej: F-2023... o Juan Pérez">
-          <button class="btn btn-navy text-white" onclick="buscarVenta()"><i class="fas fa-search"></i></button>
+          <button class="btn btn-dark text-white" onclick="buscarVenta()" style="background-color: #000000 !important; border-color: #000000 !important;">
+            <i class="fas fa-search"></i>
+          </button>
         </div>
 
         <div id="resultados-busqueda" class="list-group">
@@ -101,32 +103,21 @@
 
 <script>
   function buscarVenta() {
-    const q = document.getElementById('busqueda').value.toLowerCase();
+    const q = document.getElementById('busqueda').value;
 
     document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
 
-    // Cambiamos a obtenerVentasDesdePagos para cumplir el requerimiento de leer de la pestaña Pagos
+    // Leemos directamente de Ventas mediante buscarVentaPorFolioOCliente
     google.script.run
       .withSuccessHandler(ventas => {
         const container = document.getElementById('resultados-busqueda');
 
         if (!ventas || ventas.length === 0) {
-          container.innerHTML = '<div class="alert alert-info">No hay ventas registradas para pago en la pestaña "Pagos". Registre una venta primero.</div>';
+          container.innerHTML = '<div class="alert alert-info">No se encontraron ventas con saldo pendiente.</div>';
           return;
         }
 
-        // Filtrado local por la query del usuario
-        const filtradas = q.length < 2 ? ventas : ventas.filter(v =>
-          v['folio/concepto'].toString().toLowerCase().includes(q) ||
-          v.cliente.toLowerCase().includes(q)
-        );
-
-        if (filtradas.length === 0) {
-          container.innerHTML = '<div class="alert alert-warning">No se encontraron resultados con ese filtro entre las ventas con pagos pendientes.</div>';
-          return;
-        }
-
-        container.innerHTML = filtradas.map(v => `
+        container.innerHTML = ventas.map(v => `
           <button type="button" class="list-group-item list-group-item-action" onclick='intentarSeleccionarVenta(${JSON.stringify(v)})'>
             <div class="d-flex w-100 justify-content-between">
               <h6 class="mb-1 fw-bold">${v['folio/concepto']}</h6>
@@ -140,7 +131,7 @@
       .withFailureHandler(err => {
         document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error al buscar ventas: ' + err.message + '</div>';
       })
-      .obtenerVentasDesdePagos();
+      .buscarVentaPorFolioOCliente(q);
   }
 
   function intentarSeleccionarVenta(v) {

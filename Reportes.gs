@@ -19,9 +19,9 @@ function obtenerKPIsGlobales() {
   let numVentas = data.length;
 
   data.forEach(v => {
-    totalVendido += parseFloat(v[4]) || 0; // Col E: TOTAL (Ventas Totales)
-    totalCobrado += parseFloat(v[5]) || 0; // Col F: COBRADO (Total Cobrado)
-    saldoPendiente += parseFloat(v[6]) || 0; // Col G: SALDO (Total Saldo Pendiente)
+    totalVendido += parseFloat(v[4]) || 0; // Col E: TOTAL
+    totalCobrado += parseFloat(v[5]) || 0; // Col F: COBRADO
+    saldoPendiente += parseFloat(v[6]) || 0; // Col G: SALDO
   });
 
   return {
@@ -63,7 +63,7 @@ function obtenerReportePorAgente(agente = "") {
 
   const headers = data.shift();
 
-  const filtradas = data.filter(v => v[7] === agente).map(row => {
+  const filtradas = data.filter(v => !agente || agente === "Global" || v[7] === agente).map(row => {
     let obj = {};
     headers.forEach((h, i) => obj[h.replace(/\s+/g, '_').toLowerCase()] = row[i]);
     return obj;
