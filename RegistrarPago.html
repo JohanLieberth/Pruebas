@@ -17,8 +17,8 @@
           </button>
         </div>
 
-        <div id="resultados-busqueda" class="list-group">
-          <!-- Resultados aparecerán aquí -->
+        <div id="resultados-busqueda" class="mt-3">
+          <!-- Resultados aparecerán aquí en una tabla -->
         </div>
       </div>
     </div>
@@ -107,7 +107,6 @@
 
     document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
 
-    // Leemos directamente de Ventas mediante buscarVentaPorFolioOCliente
     google.script.run
       .withSuccessHandler(ventas => {
         const container = document.getElementById('resultados-busqueda');
@@ -117,16 +116,43 @@
           return;
         }
 
-        container.innerHTML = ventas.map(v => `
-          <button type="button" class="list-group-item list-group-item-action" onclick='intentarSeleccionarVenta(${JSON.stringify(v)})'>
-            <div class="d-flex w-100 justify-content-between">
-              <h6 class="mb-1 fw-bold">${v['folio/concepto']}</h6>
-              <small class="text-muted">${v.agente}</small>
-            </div>
-            <p class="mb-1 small">${v.cliente} - ${v.hotel}</p>
-            <small class="text-navy fw-bold">Saldo: ${formatCurrency(v.saldo)}</small>
-          </button>
+        let html = `
+          <div class="table-responsive">
+            <table class="table table-sm table-hover border">
+              <thead class="bg-light">
+                <tr class="small text-uppercase">
+                  <th>Folio</th>
+                  <th>Cliente</th>
+                  <th>Total</th>
+                  <th>Vencimiento</th>
+                  <th>Pagado</th>
+                  <th>Saldo</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody class="small">
+        `;
+
+        html += ventas.map(v => `
+          <tr>
+            <td class="fw-bold">${v['folio/concepto']}</td>
+            <td>${v.cliente}</td>
+            <td>${formatCurrency(v.total)}</td>
+            <td>${new Date(v.fecha_limite).toLocaleDateString()}</td>
+            <td class="text-success">${formatCurrency(v.total_cobrado)}</td>
+            <td class="text-danger fw-bold">${formatCurrency(v.saldo)}</td>
+            <td><span class="status-badge badge-${v.estado.toLowerCase()}">${v.estado}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary py-0" onclick='intentarSeleccionarVenta(${JSON.stringify(v).replace(/'/g, "&apos;")})'>
+                Ver
+              </button>
+            </td>
+          </tr>
         `).join('');
+
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
       })
       .withFailureHandler(err => {
         document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error al buscar ventas: ' + err.message + '</div>';
@@ -147,6 +173,8 @@
   }
 
   function seleccionarVenta(v) {
+    if (!v) throw new Error("Venta inválida seleccionada");
+
     document.getElementById('contenedor-pago').style.display = 'block';
     document.getElementById('detalle-venta').style.display = 'block';
     document.getElementById('resultados-busqueda').innerHTML = '';
@@ -176,7 +204,7 @@
     document.getElementById('td-cliente').innerText = v.cliente;
     document.getElementById('td-hotel').innerText = v.hotel;
     document.getElementById('td-total').innerText = formatCurrency(v.total);
-    document.getElementById('td-cobrado').innerText = formatCurrency(v.total_cobrado);
+    document.getElementById('td-cobrado').innerText = formatCurrency(v.total_cobrado || v.cobrado || 0);
     document.getElementById('td-saldo').innerText = formatCurrency(v.saldo);
     document.getElementById('td-agente').innerText = v.agente;
 

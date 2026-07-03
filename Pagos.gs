@@ -21,9 +21,11 @@ function registrarPago(datos = {}) {
   if (rowIndex === -1) throw new Error("Venta no encontrada con folio: " + folio);
 
   const row = data[rowIndex - 1];
-  const totalVenta = parseFloat(row[4]); // Cambio de índice por Col C: CORREO
+  const cliente = row[1];
+  const correoCliente = row[2];
+  const totalVenta = parseFloat(row[4]);
   const montoPago = parseFloat(datos.monto);
-  const fechaPago = datos.fecha || new Date();
+  const fechaPago = datos.fecha ? new Date(datos.fecha) : new Date();
 
   let colMonto, colFecha;
 
@@ -40,6 +42,8 @@ function registrarPago(datos = {}) {
     throw new Error("Límite de abonos alcanzado para esta venta (Máximo 2 abonos después del anticipo).");
   }
 
+  const saldoAnterior = parseFloat(row[13]) || 0;
+
   sheet.getRange(rowIndex, colMonto).setValue(montoPago);
   sheet.getRange(rowIndex, colFecha).setValue(fechaPago);
 
@@ -54,15 +58,15 @@ function registrarPago(datos = {}) {
   sheet.getRange(rowIndex, 14).setValue(nuevoSaldo);        // Col N
 
   // Cambiar estado si ya está pagado
-  const nuevoEstado = nuevoSaldo <= 0 ? "Pagado" : "Pendiente";
-  if (nuevoSaldo <= 0) {
-    sheet.getRange(rowIndex, 16).setValue(nuevoEstado);
-  }
+  const nuevoEstado = nuevoSaldo <= 0 ? "Pagado" : (nuevoTotalCobrado > 0 ? "Parcial" : "Pendiente");
+  sheet.getRange(rowIndex, 16).setValue(nuevoEstado);
 
-  // Registrar en hoja Pagos
+  // Registrar en hoja Pagos con el nuevo formato solicitado
+  const numRecibo = "REC-" + Utilities.formatDate(new Date(), "GMT-6", "HHmmss");
   try {
     const pagosSheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
-    pagosSheet.appendRow([Utilities.getUuid(), folio, fechaPago, montoPago, datos.tipo, nuevoEstado]);
+    // ["FECHA", "FOLIO VENTA", "CLIENTE", "MONTO PAGADO", "METODO", "SALDO ANTERIOR", "NUEVO SALDO", "NUMERO RECIBO"]
+    pagosSheet.appendRow([fechaPago, folio, cliente, montoPago, datos.tipo, saldoAnterior, nuevoSaldo, numRecibo]);
   } catch(e) { console.error("Error al registrar en Pagos", e); }
 
   // Sincronizar con Reportes
@@ -79,19 +83,75 @@ function registrarPago(datos = {}) {
     }
   } catch(e) { console.error("Error al sincronizar Reportes", e); }
 
+  // Enviar Correo de Confirmación
+  if (correoCliente) {
+    try {
+      enviarCorreoConfirmacionPago({
+        cliente: cliente,
+        correo: correoCliente,
+        folio: folio,
+        monto: montoPago,
+        fecha: fechaPago,
+        saldoAnterior: saldoAnterior,
+        nuevoSaldo: nuevoSaldo,
+        metodo: datos.tipo
+      });
+    } catch(e) { console.error("Error al enviar correo de pago", e); }
+  }
+
   // Generar PDF
   const urlPdf = Recibos.generarRecibo(folio, {
     tipo: datos.tipo,
     monto: montoPago,
     fecha: fechaPago,
     cliente: actualizadoRow[1],
-    hotel: actualizadoRow[2],
+    hotel: actualizadoRow[3], // Col D: HOTEL tras Col C: CORREO
     totalVenta: totalVenta,
     saldo: nuevoSaldo,
-    fechaLimite: actualizadoRow[4]
+    fechaLimite: actualizadoRow[5] // Col F: FECHA LIMITE
   });
 
-  return { success: true, pdfUrl: urlPdf, data: { folio: folio, cliente: actualizadoRow[1], monto: montoPago, tipo: datos.tipo, saldo: nuevoSaldo, total: totalVenta, fecha: fechaPago } };
+  return {
+    success: true,
+    pdfUrl: urlPdf,
+    data: {
+      folio: folio,
+      cliente: cliente,
+      correo: correoCliente,
+      monto: montoPago,
+      tipo: datos.tipo,
+      saldo: nuevoSaldo,
+      total: totalVenta,
+      fecha: fechaPago.toISOString(),
+      numRecibo: numRecibo
+    }
+  };
+}
+
+/**
+ * Envía correo de confirmación de pago.
+ */
+function enviarCorreoConfirmacionPago(d) {
+  const subject = "Confirmación de Pago Recibido - " + d.folio;
+  const body = `
+    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+      <h2 style="color: #1a3a5c;">FriendTravel - Confirmación de Pago</h2>
+      <p>Estimado/a <strong>${d.cliente}</strong>,</p>
+      <p>Hemos registrado correctamente tu pago.</p>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 5px;"><strong>Folio Venta:</strong></td><td>${d.folio}</td></tr>
+        <tr><td style="padding: 5px;"><strong>Monto Pagado:</strong></td><td>$${d.monto.toLocaleString()}</td></tr>
+        <tr><td style="padding: 5px;"><strong>Fecha:</strong></td><td>${d.fecha.toLocaleDateString()}</td></tr>
+        <tr><td style="padding: 5px;"><strong>Método/Tipo:</strong></td><td>${d.metodo}</td></tr>
+        <tr><td style="padding: 5px;"><strong>Saldo Anterior:</strong></td><td>$${d.saldoAnterior.toLocaleString()}</td></tr>
+        <tr><td style="padding: 5px; color: #d9534f;"><strong>Nuevo Saldo:</strong></td><td style="color: #d9534f; font-weight: bold;">$${d.nuevoSaldo.toLocaleString()}</td></tr>
+      </table>
+      <p style="margin-top: 20px;">¡Gracias por tu preferencia!</p>
+      <p>Atentamente,<br>El equipo de FriendTravel</p>
+    </div>
+  `;
+
+  GmailApp.sendEmail(d.correo, subject, "", { htmlBody: body });
 }
 
 /**

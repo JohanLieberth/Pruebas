@@ -48,7 +48,7 @@ const DriveUtils = {
     // Estructura requerida por los requerimientos y la lógica existente
     const estructura = {
       "Ventas": ["FOLIO/CONCEPTO", "CLIENTE", "CORREO", "HOTEL", "TOTAL", "FECHA LIMITE DE PAGO", "ANTICIPO", "FECHA", "ABONO 1", "FECHA 1", "ABONO 2", "FECHA 2", "TOTAL COBRADO", "SALDO", "AGENTE", "ESTADO"],
-      "Pagos": ["ID", "FOLIO/CONCEPTO", "FECHA", "MONTO", "TIPO", "ESTADO"],
+      "Pagos": ["FECHA", "FOLIO VENTA", "CLIENTE", "MONTO PAGADO", "METODO", "SALDO ANTERIOR", "NUEVO SALDO", "NUMERO RECIBO"],
       "Reportes": ["FOLIO/CONCEPTO", "CLIENTE", "CORREO", "HOTEL", "TOTAL", "COBRADO", "SALDO", "AGENTE", "ESTADO"],
       "Configuracion": ["PARAMETRO", "VALOR", "DESCRIPCION"],
       "Dashboard": ["KPI", "VALOR", "ULTIMA_ACTUALIZACION"]

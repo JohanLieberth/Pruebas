@@ -53,7 +53,9 @@ function registrarVenta(datos = {}) {
     const pagosSheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
     const tipoPago = anticipo > 0 ? "Anticipo" : "Registro Venta";
     const fechaPago = datos.fechaAnticipo || fechaActual;
-    pagosSheet.appendRow([Utilities.getUuid(), folio, fechaPago, anticipo, tipoPago, datos.estado || "Pendiente"]);
+    const numRecibo = "REC-" + Utilities.formatDate(new Date(), "GMT-6", "HHmmss");
+    // ["FECHA", "FOLIO VENTA", "CLIENTE", "MONTO PAGADO", "METODO", "SALDO ANTERIOR", "NUEVO SALDO", "NUMERO RECIBO"]
+    pagosSheet.appendRow([fechaPago, folio, datos.cliente, anticipo, tipoPago, total, saldo, numRecibo]);
   } catch(e) { console.error("Error al registrar en pagos", e); }
 
   const result = {
@@ -115,17 +117,18 @@ function obtenerVentas() {
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
-  const headers = data.shift();
 
-  // Filtrar fila de totales si existe (la que tiene "TOTALES" en la columna C o índice 2)
-  const rows = data.filter(row => row[2] !== "TOTALES" && row[0] !== "");
+  // Encabezados exactos de la hoja Ventas (A-P)
+  const headers = ["folio/concepto", "cliente", "correo", "hotel", "total", "fecha_limite", "anticipo", "fecha_ant", "abono_1", "fecha_1", "abono_2", "fecha_2", "total_cobrado", "saldo", "agente", "estado"];
+  data.shift(); // Quitar encabezados reales de la hoja
+
+  // Filtrar filas vacías o de totales
+  const rows = data.filter(row => row[0] !== "" && row[1] !== "TOTALES");
 
   return rows.map(row => {
     let obj = {};
     headers.forEach((h, i) => {
-      // Normalizar nombres de propiedades
-      let key = h.replace(/\s+/g, '_').toLowerCase();
-      obj[key] = row[i];
+      obj[h] = row[i];
     });
     return obj;
   }).reverse(); // Mostrar más recientes primero
