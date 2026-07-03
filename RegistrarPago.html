@@ -111,6 +111,11 @@
       .withSuccessHandler(res => {
         const container = document.getElementById('resultados-busqueda');
 
+        if (!res) {
+          container.innerHTML = '<div class="alert alert-danger">Error: El servidor devolvió una respuesta vacía.</div>';
+          return;
+        }
+
         if (res.status === "NOT_FOUND" || res.status === "LIQUIDATED") {
           container.innerHTML = `<div class="alert alert-warning">${res.message}</div>`;
           return;

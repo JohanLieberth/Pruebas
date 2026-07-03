@@ -108,10 +108,15 @@
       google.script.run
         .withSuccessHandler(data => {
           if (data) {
-            document.getElementById('kpi-ventas-totales').innerText = formatCurrency(data.totalVendido);
-            document.getElementById('kpi-total-cobrado').innerText = formatCurrency(data.totalCobrado);
-            document.getElementById('kpi-saldo-pendiente').innerText = formatCurrency(data.saldoPendiente);
-            document.getElementById('kpi-count-ventas').innerText = data.numVentas;
+            const elVentas = document.getElementById('kpi-ventas-totales');
+            const elCobrado = document.getElementById('kpi-total-cobrado');
+            const elSaldo = document.getElementById('kpi-saldo-pendiente');
+            const elCount = document.getElementById('kpi-count-ventas');
+
+            if (elVentas) elVentas.innerText = formatCurrency(data.totalVendido);
+            if (elCobrado) elCobrado.innerText = formatCurrency(data.totalCobrado);
+            if (elSaldo) elSaldo.innerText = formatCurrency(data.saldoPendiente);
+            if (elCount) elCount.innerText = data.numVentas;
           }
         })
         .withFailureHandler(err => {
