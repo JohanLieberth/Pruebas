@@ -137,20 +137,51 @@ function obtenerVentas() {
 function buscarVentaPorFolioOCliente(query) {
   const ventas = obtenerVentas();
 
-  // Si no hay query, devolvemos todas las ventas con saldo pendiente
+  // Normalizar el parsing de saldo para que sea robusto
+  const parsearSaldo = (val) => {
+    if (val === null || val === undefined || val === "") return 0;
+    if (typeof val === 'number') return val;
+    // Quitar símbolos de moneda y comas si vienen como string
+    return parseFloat(val.toString().replace(/[$,]/g, '')) || 0;
+  };
+
+  // CASO A: Sin query (Vista inicial o campo vacío)
   if (!query) {
-    return ventas.filter(v => parseFloat(v.saldo) > 0);
+    const conSaldo = ventas.filter(v => parsearSaldo(v.saldo) > 0);
+    return { status: "OK", results: conSaldo };
   }
 
   query = query.toLowerCase();
 
-  // Filtrar solo ventas con saldo pendiente y que coincidan con la búsqueda
-  return ventas.filter(v => {
-    const coincide = (v['folio/concepto'] && v['folio/concepto'].toString().toLowerCase().includes(query)) ||
-                     (v.cliente && v.cliente.toLowerCase().includes(query));
-    const tieneSaldo = parseFloat(v.saldo) > 0;
-    return coincide && tieneSaldo;
+  // PASO 1: Búsqueda por coincidencia de FOLIO/CONCEPTO o CLIENTE
+  const coincidencias = ventas.filter(v => {
+    return (v['folio/concepto'] && v['folio/concepto'].toString().toLowerCase().includes(query)) ||
+           (v.cliente && v.cliente.toLowerCase().includes(query));
   });
+
+  if (coincidencias.length === 0) {
+    return {
+      status: "NOT_FOUND",
+      message: "No se encontró ninguna venta con el folio/concepto ingresado. Verifique e intente nuevamente.",
+      results: []
+    };
+  }
+
+  // PASO 2: Validación de saldo sobre las coincidencias
+  const conSaldo = coincidencias.filter(v => parsearSaldo(v.saldo) > 0);
+
+  if (conSaldo.length === 0) {
+    // Si encontramos la venta pero no tiene saldo
+    const folios = coincidencias.map(v => v['folio/concepto']).join(', ');
+    return {
+      status: "LIQUIDATED",
+      message: "La venta [" + folios + "] no tiene saldo pendiente. Ya está liquidada.",
+      results: []
+    };
+  }
+
+  // CASO C: Encontradas y con saldo
+  return { status: "OK", results: conSaldo };
 }
 
 /**

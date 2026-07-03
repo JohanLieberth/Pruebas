@@ -108,8 +108,15 @@
     document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
 
     google.script.run
-      .withSuccessHandler(ventas => {
+      .withSuccessHandler(res => {
         const container = document.getElementById('resultados-busqueda');
+
+        if (res.status === "NOT_FOUND" || res.status === "LIQUIDATED") {
+          container.innerHTML = `<div class="alert alert-warning">${res.message}</div>`;
+          return;
+        }
+
+        const ventas = res.results;
 
         if (!ventas || ventas.length === 0) {
           container.innerHTML = '<div class="alert alert-info">No se encontraron ventas con saldo pendiente.</div>';
