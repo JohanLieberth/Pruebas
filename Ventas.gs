@@ -156,66 +156,123 @@ function obtenerVentas() {
   }
 }
 
-function buscarVentaPorFolioOCliente(query) {
-  try {
-    console.log("Iniciando búsqueda para: " + query);
-    const ventas = obtenerVentas();
+/**
+ * Busca ventas con saldo pendiente. Refactorizado para máxima robustez siguiendo instrucciones del usuario.
+ * Implementa LOGS críticos y retornos garantizados en todos los caminos.
+ */
+function obtenerVentasConSaldo(query) {
+  // Asegurar que query sea string
+  const q = query || "";
+  console.log("Servidor: [INICIO] obtenerVentasConSaldo - Query recibida: '" + q + "'");
 
-    // Normalizar el parsing de saldo para que sea robusto
-    const parsearSaldo = (val) => {
-      if (val === null || val === undefined || val === "") return 0;
-      if (typeof val === 'number') return val;
-      // Quitar símbolos de moneda y comas si vienen como string
-      return parseFloat(val.toString().replace(/[$,]/g, '')) || 0;
+  try {
+    // 1. Obtener spreadsheet y validar
+    const ssId = getSpreadsheetId();
+    console.log("Servidor: [LOG] Usando SS ID: " + ssId);
+
+    const ss = SpreadsheetApp.openById(ssId);
+    if (!ss) {
+      console.error("Servidor: [ERROR] No se pudo acceder al Spreadsheet.");
+      return { status: "error", message: "No se pudo acceder a la base de datos.", data: [] };
+    }
+
+    // 2. Obtener hoja "Ventas" - VERIFICAR NOMBRE EXACTO
+    const sheetName = CONFIG.NOMBRE_TAB_VENTAS || "Ventas";
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      const hojasDisponibles = ss.getSheets().map(s => s.getName()).join(", ");
+      console.error("Servidor: [ERROR] Hoja '" + sheetName + "' no encontrada. Disponibles: " + hojasDisponibles);
+      return { status: "error", message: "Hoja '" + sheetName + "' no encontrada. Verifique el nombre exacto.", data: [] };
+    }
+
+    // 3. Obtener datos
+    const data = sheet.getDataRange().getValues();
+    console.log("Servidor: [LOG] Filas totales leídas: " + data.length);
+
+    if (data.length <= 1) {
+      return { status: "success", message: "La hoja 'Ventas' está vacía o solo tiene encabezados.", data: [], totalRegistros: 0 };
+    }
+
+    // Función robusta para parsear números
+    const parseNum = (v) => {
+      if (v === null || v === undefined || v === "") return 0;
+      if (typeof v === 'number') return v;
+      const clean = v.toString().replace(/[$,]/g, '');
+      const parsed = parseFloat(clean);
+      return isNaN(parsed) ? 0 : parsed;
     };
 
-    // CASO A: Sin query (Vista inicial o campo vacío)
-    if (!query) {
-      const conSaldo = ventas.filter(v => parsearSaldo(v.saldo) > 0);
-      // Ordenar por fecha de vencimiento más próxima
-      conSaldo.sort((a, b) => {
-        const da = a.fecha_limite ? new Date(a.fecha_limite).getTime() : Infinity;
-        const db = b.fecha_limite ? new Date(b.fecha_limite).getTime() : Infinity;
-        return da - db;
-      });
-      return { status: "OK", results: conSaldo };
+    // 4. Procesar datos (Saltando encabezados)
+    const ventas = [];
+    const queryLower = q.toString().toLowerCase();
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      // Ignorar filas sin folio o marcadas como TOTALES
+      if (!row[0] || row[0].toString().toUpperCase() === "TOTALES") continue;
+
+      // ESTRUCTURA DE COLUMNAS (Basada en DriveUtils.gs):
+      // 0:FOLIO, 1:CLIENTE, 2:CORREO, 3:HOTEL, 4:TOTAL, 5:FECHA LIMITE, 6:ANTICIPO, ..., 12:COBRADO, 13:SALDO, 14:AGENTE, 15:ESTADO
+      const folio = (row[0] || "").toString();
+      const cliente = (row[1] || "").toString();
+      const saldo = parseNum(row[13]);
+
+      // Filtro de búsqueda
+      if (queryLower && !folio.toLowerCase().includes(queryLower) && !cliente.toLowerCase().includes(queryLower)) {
+        continue;
+      }
+
+      // Solo incluir si tiene saldo pendiente
+      if (saldo > 0) {
+        // Stringificar fechas para evitar problemas de serialización en el transporte
+        let fechaStr = "-";
+        if (row[5]) {
+          if (row[5] instanceof Date) {
+            fechaStr = Utilities.formatDate(row[5], Session.getScriptTimeZone(), "dd/MM/yyyy");
+          } else {
+            fechaStr = row[5].toString();
+          }
+        }
+
+        ventas.push({
+          folio: folio,
+          cliente: cliente,
+          total: parseNum(row[4]),
+          fechaLimite: fechaStr,
+          anticipo: parseNum(row[6]),
+          cobrado: parseNum(row[12]),
+          saldo: saldo,
+          estado: (row[15] || "Pendiente").toString(),
+          agente: (row[14] || "").toString(),
+          hotel: (row[3] || "").toString(),
+          correo: (row[2] || "").toString(),
+          // Compatibilidad adicional
+          "folio/concepto": folio,
+          fecha_limite: fechaStr,
+          total_cobrado: parseNum(row[12])
+        });
+      }
     }
 
-    query = query.toLowerCase();
+    console.log("Servidor: [EXITO] Retornando " + ventas.length + " ventas con saldo.");
 
-    // PASO 1: Búsqueda por coincidencia de FOLIO/CONCEPTO o CLIENTE
-    const coincidencias = ventas.filter(v => {
-      const folio = (v['folio/concepto'] || "").toString().toLowerCase();
-      const cliente = (v.cliente || "").toString().toLowerCase();
-      return folio.includes(query) || cliente.includes(query);
-    });
+    // 5. RETORNO OBLIGATORIO Y EXPLÍCITO
+    const respuesta = {
+      status: "success",
+      data: ventas,
+      totalRegistros: ventas.length,
+      message: ventas.length > 0 ? "Ventas cargadas correctamente" : "No hay ventas con saldo pendiente"
+    };
+    return respuesta;
 
-    if (coincidencias.length === 0) {
-      return {
-        status: "NOT_FOUND",
-        message: "No se encontró ninguna venta con el folio/concepto ingresado. Verifique e intente nuevamente.",
-        results: []
-      };
-    }
-
-    // PASO 2: Validación de saldo sobre las coincidencias
-    const conSaldo = coincidencias.filter(v => parsearSaldo(v.saldo) > 0);
-
-    if (conSaldo.length === 0) {
-      // Si encontramos la venta pero no tiene saldo
-      const folios = coincidencias.map(v => v['folio/concepto']).join(', ');
-      return {
-        status: "LIQUIDATED",
-        message: "La venta [" + folios + "] no tiene saldo pendiente. Ya está liquidada.",
-        results: []
-      };
-    }
-
-    // CASO C: Encontradas y con saldo
-    return { status: "OK", results: conSaldo };
   } catch (error) {
-    console.error("Error en buscarVentaPorFolioOCliente: " + error.message);
-    return { status: "error", message: "Error en el servidor: " + error.toString(), results: [] };
+    // 6. CAPTURA DE ERRORES - SIEMPRE retornar
+    console.error("Servidor: [FATAL] Error en obtenerVentasConSaldo: " + error.toString());
+    return {
+      status: "error",
+      message: "Error en el servidor: " + error.toString(),
+      data: []
+    };
   }
 }
 
@@ -223,6 +280,10 @@ function buscarVentaPorFolioOCliente(query) {
  * Obtiene ventas disponibles para pago leyendo desde la pestaña 'Pagos'
  * y cruzando con 'Ventas' para obtener el saldo actual.
  */
+function buscarVentaPorFolioOCliente(query) {
+  return obtenerVentasConSaldo(query);
+}
+
 function obtenerVentasDesdePagos() {
   try {
     const ssId = getSpreadsheetId();
