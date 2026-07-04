@@ -193,20 +193,32 @@
 
     // Cargar Historial
     const folio = v['folio/concepto'];
-    google.script.run.withSuccessHandler(historial => {
-      const tbody = document.getElementById('tbody-historial');
-      if (!historial || historial.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3">Sin pagos registrados</td></tr>';
-      } else {
-        tbody.innerHTML = historial.map(h => `
-          <tr>
-            <td>${new Date(h.fecha).toLocaleDateString()}</td>
-            <td>${formatCurrency(h.monto)}</td>
-            <td><span class="badge bg-light text-dark">${h.tipo}</span></td>
-          </tr>
-        `).join('');
-      }
-    }).obtenerHistorialPagos(folio);
+    google.script.run
+      .withSuccessHandler(res => {
+        const tbody = document.getElementById('tbody-historial');
+
+        if (!res || res.status === "error") {
+          tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-danger">Error al cargar historial: ${res ? res.message : "Sin respuesta"}</td></tr>`;
+          return;
+        }
+
+        const historial = res.data;
+        if (!historial || historial.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3">Sin pagos registrados</td></tr>';
+        } else {
+          tbody.innerHTML = historial.map(h => `
+            <tr>
+              <td>${new Date(h.fecha).toLocaleDateString()}</td>
+              <td>${formatCurrency(h.monto_pagado || h.monto)}</td>
+              <td><span class="badge bg-light text-dark">${h.metodo || h.tipo}</span></td>
+            </tr>
+          `).join('');
+        }
+      })
+      .withFailureHandler(err => {
+        document.getElementById('tbody-historial').innerHTML = `<tr><td colspan="3" class="text-center py-3 text-danger">Fallo de conexión: ${err.message}</td></tr>`;
+      })
+      .obtenerHistorialPagos(folio);
 
     document.getElementById('span-folio').innerText = v['folio/concepto'];
     document.getElementById('input-folio').value = v['folio/concepto'];
@@ -229,7 +241,7 @@
     const max = parseFloat(document.getElementById('input-monto').max);
 
     if (monto > max) {
-      alert('El monto no puede ser mayor al saldo pendiente ($' + max + ')');
+      alert('El monto del pago no puede exceder el saldo pendiente de ' + formatCurrency(max));
       return;
     }
 
@@ -248,23 +260,33 @@
     google.script.run
       .withSuccessHandler(res => {
         toggleLoading(false);
-        alert('Pago registrado correctamente.');
-        if (confirm('¿Desea imprimir el recibo?')) {
-          imprimirRecibo(res.data);
+
+        if (!res || res.status === "error") {
+          alert('Error: ' + (res ? res.message : "El servidor devolvió una respuesta vacía."));
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
+          return;
         }
-        if (res.pdfUrl && res.pdfUrl !== "#") {
-          window.open(res.pdfUrl, '_blank');
+
+        if (res.status === "success") {
+          alert(res.message || 'Pago registrado correctamente.');
+          if (confirm('¿Desea imprimir el recibo?')) {
+            imprimirRecibo(res.data);
+          }
+          if (res.pdfUrl && res.pdfUrl !== "#") {
+            window.open(res.pdfUrl, '_blank');
+          }
+          // Resetear vista
+          document.getElementById('contenedor-pago').style.display = 'none';
+          document.getElementById('detalle-venta').style.display = 'none';
+          document.getElementById('busqueda').value = '';
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
         }
-        // Resetear vista
-        document.getElementById('contenedor-pago').style.display = 'none';
-        document.getElementById('detalle-venta').style.display = 'none';
-        document.getElementById('busqueda').value = '';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
       })
       .withFailureHandler(err => {
         toggleLoading(false);
-        alert('Error: ' + err.message);
+        alert('Fallo de conexión: ' + err.message);
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
       })

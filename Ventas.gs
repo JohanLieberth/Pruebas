@@ -189,23 +189,28 @@ function buscarVentaPorFolioOCliente(query) {
  * y cruzando con 'Ventas' para obtener el saldo actual.
  */
 function obtenerVentasDesdePagos() {
-  const ssId = getSpreadsheetId();
-  const ss = SpreadsheetApp.openById(ssId);
-  const sheetPagos = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
-  if (!sheetPagos) return [];
+  try {
+    const ssId = getSpreadsheetId();
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheetPagos = ss.getSheetByName(CONFIG.NOMBRE_TAB_PAGOS);
+    if (!sheetPagos) return [];
 
-  const dataPagos = sheetPagos.getDataRange().getValues();
-  if (dataPagos.length <= 1) return []; // Solo encabezados
+    const dataPagos = sheetPagos.getDataRange().getValues();
+    if (dataPagos.length <= 1) return []; // Solo encabezados
 
-  // Obtener folios únicos que tienen algún pago registrado
-  const foliosConPagos = [...new Set(dataPagos.slice(1).map(row => row[1]))];
+    // Obtener folios únicos que tienen algún pago registrado
+    const foliosConPagos = [...new Set(dataPagos.slice(1).map(row => row[1]))];
 
-  // Obtener todas las ventas para cruzar datos de saldo y cliente
-  const todasVentas = obtenerVentas();
+    // Obtener todas las ventas para cruzar datos de saldo y cliente
+    const todasVentas = obtenerVentas();
 
-  // Filtrar ventas que tengan pagos Y tengan saldo pendiente
-  return todasVentas.filter(v =>
-    foliosConPagos.includes(v['folio/concepto']) &&
-    parseFloat(v.saldo) > 0
-  );
+    // Filtrar ventas que tengan pagos Y tengan saldo pendiente
+    return todasVentas.filter(v =>
+      foliosConPagos.includes(v['folio/concepto']) &&
+      parseFloat(v.saldo) > 0
+    );
+  } catch (error) {
+    console.error("Error en obtenerVentasDesdePagos:", error);
+    return [];
+  }
 }
