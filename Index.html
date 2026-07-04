@@ -17,28 +17,28 @@
         <!-- Sidebar -->
         <div class="col-12 col-sm-3 col-xl-2 px-sm-2 px-0 bg-navy d-flex sticky-top">
           <div class="d-flex flex-sm-column flex-row flex-grow-1 align-items-center align-items-sm-start px-3 pt-2 text-white w-100">
-            <a href="javascript:void(0)" onclick="cargarPagina('Dashboard')" class="d-flex flex-column align-items-center pb-sm-3 mb-md-0 me-md-auto text-white text-decoration-none w-100">
+            <a href="#" onclick="cargarPagina('Dashboard'); return false;" class="d-flex flex-column align-items-center pb-sm-3 mb-md-0 me-md-auto text-white text-decoration-none w-100">
               <img id="app-logo" src="" alt="Logo" class="img-fluid mb-2 d-none d-sm-block" style="max-height: 80px; border-radius: 8px;">
               <span class="fs-5 d-none d-sm-inline fw-bold text-center">FriendTravel</span>
             </a>
             <ul class="nav nav-pills flex-sm-column flex-row flex-nowrap flex-shrink-1 flex-sm-grow-0 flex-grow-1 mb-sm-auto mb-0 justify-content-center align-items-center align-items-sm-start w-100" id="menu">
               <li class="nav-item w-100">
-                <a href="javascript:void(0)" onclick="cargarPagina('Dashboard')" class="nav-link px-0 align-middle text-white" id="link-Dashboard">
+                <a href="#" onclick="cargarPagina('Dashboard'); return false;" class="nav-link px-0 align-middle text-white" id="link-Dashboard">
                   <i class="fas fa-chart-pie ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Dashboard</span>
                 </a>
               </li>
               <li class="nav-item w-100">
-                <a href="javascript:void(0)" onclick="cargarPagina('NuevaVenta')" class="nav-link px-0 align-middle text-white" id="link-NuevaVenta">
+                <a href="#" onclick="cargarPagina('NuevaVenta'); return false;" class="nav-link px-0 align-middle text-white" id="link-NuevaVenta">
                   <i class="fas fa-plus-circle ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Nueva Venta</span>
                 </a>
               </li>
               <li class="nav-item w-100">
-                <a href="javascript:void(0)" onclick="cargarPagina('RegistrarPago')" class="nav-link px-0 align-middle text-white" id="link-RegistrarPago">
+                <a href="#" onclick="cargarPagina('RegistrarPago'); return false;" class="nav-link px-0 align-middle text-white" id="link-RegistrarPago">
                   <i class="fas fa-cash-register ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Registrar Pago</span>
                 </a>
               </li>
               <li class="nav-item w-100">
-                <a href="javascript:void(0)" onclick="cargarPagina('Estadisticas')" class="nav-link px-0 align-middle text-white" id="link-Estadisticas">
+                <a href="#" onclick="cargarPagina('Estadisticas'); return false;" class="nav-link px-0 align-middle text-white" id="link-Estadisticas">
                   <i class="fas fa-file-invoice-dollar ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Reportes</span>
                 </a>
               </li>
@@ -180,8 +180,12 @@
         toggleLoading(true);
 
         // Ocultar todas las páginas
-        document.querySelectorAll('.page-container').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('#menu .nav-link').forEach(el => el.classList.remove('active-link'));
+        document.querySelectorAll('.page-container').forEach(el => {
+          if (el) el.style.display = 'none';
+        });
+        document.querySelectorAll('#menu .nav-link').forEach(el => {
+          if (el && el.classList) el.classList.remove('active-link');
+        });
 
         // Normalización y mapeo de IDs de página
         const pageMapping = {
@@ -206,7 +210,7 @@
 
           // Actualizar link de navegación
           const link = document.getElementById('link-' + technicalId);
-          if (link) link.classList.add('active-link');
+          if (link && link.classList) link.classList.add('active-link');
 
           // Inicializadores específicos
           try {
