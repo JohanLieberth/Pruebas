@@ -157,123 +157,133 @@ function obtenerVentas() {
 }
 
 /**
- * Busca ventas con saldo pendiente. Refactorizado para máxima robustez siguiendo instrucciones del usuario.
- * Implementa LOGS críticos y retornos garantizados en todos los caminos.
+ * Busca ventas con saldo pendiente. Implementado con máxima robustez y logs de diagnóstico solicitados.
  */
 function obtenerVentasConSaldo(query) {
-  // Asegurar que query sea string
   const q = query || "";
-  console.log("Servidor: [INICIO] obtenerVentasConSaldo - Query recibida: '" + q + "'");
+  console.log("Servidor: [INICIO] obtenerVentasConSaldo - Query: '" + q + "'");
 
   try {
-    // 1. Obtener spreadsheet y validar
     const ssId = getSpreadsheetId();
-    console.log("Servidor: [LOG] Usando SS ID: " + ssId);
-
     const ss = SpreadsheetApp.openById(ssId);
     if (!ss) {
-      console.error("Servidor: [ERROR] No se pudo acceder al Spreadsheet.");
-      return { status: "error", message: "No se pudo acceder a la base de datos.", data: [] };
+      return { status: "error", message: "No se pudo acceder al spreadsheet activo", data: [] };
     }
 
-    // 2. Obtener hoja "Ventas" - VERIFICAR NOMBRE EXACTO
     const sheetName = CONFIG.NOMBRE_TAB_VENTAS || "Ventas";
     const sheet = ss.getSheetByName(sheetName);
     if (!sheet) {
-      const hojasDisponibles = ss.getSheets().map(s => s.getName()).join(", ");
-      console.error("Servidor: [ERROR] Hoja '" + sheetName + "' no encontrada. Disponibles: " + hojasDisponibles);
-      return { status: "error", message: "Hoja '" + sheetName + "' no encontrada. Verifique el nombre exacto.", data: [] };
+      console.log("Hojas disponibles: " + ss.getSheets().map(s => s.getName()).join(", "));
+      return { status: "error", message: "Hoja 'Ventas' no encontrada", data: [] };
     }
 
-    // 3. Obtener datos
     const data = sheet.getDataRange().getValues();
-    console.log("Servidor: [LOG] Filas totales leídas: " + data.length);
+
+    // LOGS CRÍTICOS SOLICITADOS
+    console.log("Filas totales en hoja: " + data.length);
+    console.log("Primera fila (encabezado): " + JSON.stringify(data[0]));
+    if (data.length > 1) {
+      console.log("Segunda fila (primer dato): " + JSON.stringify(data[1]));
+    }
 
     if (data.length <= 1) {
-      return { status: "success", message: "La hoja 'Ventas' está vacía o solo tiene encabezados.", data: [], totalRegistros: 0 };
+      return { status: "empty", message: "No hay datos en la hoja", data: [] };
     }
 
-    // Función robusta para parsear números
     const parseNum = (v) => {
       if (v === null || v === undefined || v === "") return 0;
       if (typeof v === 'number') return v;
-      const clean = v.toString().replace(/[$,]/g, '');
+      // Limpieza profunda de strings de moneda: quitar $, espacios, comas
+      const clean = v.toString().replace(/[$,\s]/g, '');
       const parsed = parseFloat(clean);
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    // 4. Procesar datos (Saltando encabezados)
-    const ventas = [];
+    var ventas = [];
     const queryLower = q.toString().toLowerCase();
 
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
       // Ignorar filas sin folio o marcadas como TOTALES
-      if (!row[0] || row[0].toString().toUpperCase() === "TOTALES") continue;
+      if (!row[0] || row[1] === "TOTALES" || row[0].toString().toUpperCase() === "TOTALES") continue;
 
-      // ESTRUCTURA DE COLUMNAS (Basada en DriveUtils.gs):
-      // 0:FOLIO, 1:CLIENTE, 2:CORREO, 3:HOTEL, 4:TOTAL, 5:FECHA LIMITE, 6:ANTICIPO, ..., 12:COBRADO, 13:SALDO, 14:AGENTE, 15:ESTADO
-      const folio = (row[0] || "").toString();
-      const cliente = (row[1] || "").toString();
-      const saldo = parseNum(row[13]);
+      // Estructura EXACTA (Basada en DriveUtils.gs):
+      // 0:FOLIO, 1:CLIENTE, 4:TOTAL, 5:LIMITE, 6:ANTICIPO, 13:SALDO, 15:ESTADO
+      var folio = row[0];
+      var cliente = row[1];
+      var total = row[4];
+      var fechaLimite = row[5];
+      var anticipo = row[6];
+      var saldo = row[13];
+      var estado = row[15];
 
-      // Filtro de búsqueda
-      if (queryLower && !folio.toLowerCase().includes(queryLower) && !cliente.toLowerCase().includes(queryLower)) {
+      // CRÍTICO: Parseo de números - manejar formatos de moneda
+      var totalNum = parseNum(total);
+      var anticipoNum = parseNum(anticipo);
+      var saldoNum = parseNum(saldo);
+
+      // Si SALDO es 0 pero TOTAL > 0 y COBRADO es menor, intentar recalcular
+      if (saldoNum === 0 && totalNum > 0) {
+        var cobradoNum = parseNum(row[12]);
+        if (totalNum > cobradoNum) {
+          saldoNum = totalNum - cobradoNum;
+        }
+      }
+
+      // LOG DE DIAGNÓSTICO POR FILA
+      console.log("Fila " + i + ": folio=" + folio + ", saldo=" + saldoNum + ", tipoOriginal=" + typeof row[13]);
+
+      if (queryLower && !folio.toString().toLowerCase().includes(queryLower) && !cliente.toString().toLowerCase().includes(queryLower)) {
         continue;
       }
 
-      // Solo incluir si tiene saldo pendiente
-      if (saldo > 0) {
-        // Stringificar fechas para evitar problemas de serialización en el transporte
-        let fechaStr = "-";
-        if (row[5]) {
-          if (row[5] instanceof Date) {
-            fechaStr = Utilities.formatDate(row[5], Session.getScriptTimeZone(), "dd/MM/yyyy");
-          } else {
-            fechaStr = row[5].toString();
-          }
-        }
-
+      // Incluir ventas con saldo pendiente
+      if (saldoNum > 0) {
         ventas.push({
           folio: folio,
           cliente: cliente,
-          total: parseNum(row[4]),
-          fechaLimite: fechaStr,
-          anticipo: parseNum(row[6]),
-          cobrado: parseNum(row[12]),
-          saldo: saldo,
-          estado: (row[15] || "Pendiente").toString(),
-          agente: (row[14] || "").toString(),
-          hotel: (row[3] || "").toString(),
-          correo: (row[2] || "").toString(),
-          // Compatibilidad adicional
+          total: totalNum,
+          fechaLimite: formatearFecha(fechaLimite),
+          anticipo: anticipoNum,
+          saldo: saldoNum,
+          estado: estado,
+          // Compatibilidad SPA
           "folio/concepto": folio,
-          fecha_limite: fechaStr,
+          hotel: (row[3] || "").toString(),
+          agente: (row[14] || "").toString(),
           total_cobrado: parseNum(row[12])
         });
       }
     }
 
-    console.log("Servidor: [EXITO] Retornando " + ventas.length + " ventas con saldo.");
+    // LOG CRÍTICO SOLICITADO
+    console.log("Ventas procesadas: " + ventas.length);
 
-    // 5. RETORNO OBLIGATORIO Y EXPLÍCITO
-    const respuesta = {
+    return {
       status: "success",
       data: ventas,
       totalRegistros: ventas.length,
-      message: ventas.length > 0 ? "Ventas cargadas correctamente" : "No hay ventas con saldo pendiente"
+      message: ventas.length > 0 ? "Datos cargados" : "No se encontraron ventas con saldo pendiente"
     };
-    return respuesta;
 
   } catch (error) {
-    // 6. CAPTURA DE ERRORES - SIEMPRE retornar
-    console.error("Servidor: [FATAL] Error en obtenerVentasConSaldo: " + error.toString());
-    return {
-      status: "error",
-      message: "Error en el servidor: " + error.toString(),
-      data: []
-    };
+    console.error("ERROR Fatal en obtenerVentasConSaldo: " + error.toString());
+    return { status: "error", message: "Error en el servidor: " + error.toString(), data: [] };
   }
+}
+
+/**
+ * Auxiliar para formatear fechas a dd/MM/yyyy
+ */
+function formatearFecha(fecha) {
+  if (fecha instanceof Date) {
+    try {
+      return Utilities.formatDate(fecha, Session.getScriptTimeZone(), "dd/MM/yyyy");
+    } catch(e) {
+      return fecha.toLocaleDateString();
+    }
+  }
+  return fecha ? fecha.toString() : "";
 }
 
 /**
