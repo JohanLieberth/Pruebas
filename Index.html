@@ -224,6 +224,13 @@
                 console.warn("inicializarReportes no definida");
                 toggleLoading(false);
               }
+            } else if (technicalId === 'RegistrarPago') {
+              if (typeof inicializarRegistrarPago === 'function') {
+                inicializarRegistrarPago();
+              } else {
+                console.warn("inicializarRegistrarPago no definida");
+                toggleLoading(false);
+              }
             } else {
               // Páginas estáticas o sin init
               console.log("Página sin inicializador dinámico:", technicalId);

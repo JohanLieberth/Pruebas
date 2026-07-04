@@ -58,6 +58,18 @@ function registrarVenta(datos = {}) {
     pagosSheet.appendRow([fechaPago, folio, datos.cliente, anticipo, tipoPago, total, saldo, numRecibo]);
   } catch(e) { console.error("Error al registrar en pagos", e); }
 
+  // Sincronizar con Google Calendar
+  try {
+    CalendarUtils.sincronizarEventoCalendario({
+      'folio/concepto': folio,
+      cliente: datos.cliente,
+      fecha_limite: datos.fechaLimite,
+      total: total,
+      saldo: saldo,
+      estado: datos.estado || "Pendiente"
+    });
+  } catch(e) { console.error("Error al sincronizar calendario", e); }
+
   const result = {
     success: true,
     folio: folio,

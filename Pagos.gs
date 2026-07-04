@@ -86,6 +86,18 @@ function registrarPago(datos = {}) {
       }
     } catch(e) { console.error("Error al sincronizar Reportes", e); }
 
+    // Sincronizar con Google Calendar
+    try {
+      CalendarUtils.sincronizarEventoCalendario({
+        'folio/concepto': folio,
+        cliente: cliente,
+        fecha_limite: actualizadoRow[5], // Col F: FECHA LIMITE
+        total: totalVenta,
+        saldo: nuevoSaldo,
+        estado: nuevoEstado
+      });
+    } catch(e) { console.error("Error al sincronizar calendario tras pago", e); }
+
     // Enviar Correo de Confirmación
     if (correoCliente) {
       try {
