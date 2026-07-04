@@ -11,10 +11,8 @@
       <div class="card-body p-4">
         <label class="form-label fw-bold">Buscar Venta (Folio o Cliente)</label>
         <div class="input-group mb-3">
-          <input type="text" id="busqueda" class="form-control" placeholder="Ej: F-2023... o Juan Pérez">
-          <button class="btn btn-dark text-white" onclick="buscarVenta()" style="background-color: #000000 !important; border-color: #000000 !important;">
-            <i class="fas fa-search"></i>
-          </button>
+          <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+          <input type="text" id="busqueda" class="form-control border-start-0" placeholder="Filtrar por folio o nombre de cliente..." oninput="filtrarVentasLocal()">
         </div>
 
         <div id="resultados-busqueda" class="mt-3">
@@ -102,86 +100,105 @@
 </div>
 
 <script>
+  let todasLasVentas = [];
+  let timeoutFiltrado = null;
+
   function inicializarRegistrarPago() {
-    buscarVenta();
+    cargarVentasIniciales();
   }
 
-  function buscarVenta() {
-    const q = document.getElementById('busqueda').value;
-    console.log("Buscando venta con query:", q);
-
-    document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
+  function cargarVentasIniciales() {
+    document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div> Cargando catálogo de ventas...</div>';
 
     google.script.run
       .withSuccessHandler(res => {
-        console.log("Respuesta búsqueda:", res);
-        const container = document.getElementById('resultados-busqueda');
-
-        if (!res) {
-          container.innerHTML = '<div class="alert alert-danger">Error: El servidor devolvió una respuesta vacía.</div>';
+        if (!res || res.status === "error") {
+          document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error al cargar ventas: ' + (res ? res.message : 'Respuesta vacía') + '</div>';
           return;
         }
-
-        if (res.status === "NOT_FOUND" || res.status === "LIQUIDATED" || res.status === "error") {
-          container.innerHTML = `<div class="alert alert-warning">${res.message || "Error desconocido"}</div>`;
-          return;
-        }
-
-        const ventas = res.results;
-
-        if (!ventas || ventas.length === 0) {
-          container.innerHTML = '<div class="alert alert-info">No se encontraron ventas con saldo pendiente.</div>';
-          return;
-        }
-
-        let html = `
-          <div class="table-responsive mt-2">
-            <table class="table table-sm table-hover border align-middle">
-              <thead class="bg-light small text-uppercase">
-                <tr>
-                  <th>Folio/Concepto</th>
-                  <th>Cliente</th>
-                  <th>Total</th>
-                  <th>Fecha Límite</th>
-                  <th>Anticipo/Cobrado</th>
-                  <th>Saldo</th>
-                  <th>Estado</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody class="small">
-        `;
-
-        html += ventas.map(v => {
-          const saldoNum = typeof v.saldo === 'string' ? parseFloat(v.saldo.replace(/[$,]/g, '')) : v.saldo;
-          const statusClass = (v.estado || "").toLowerCase().includes("pagado") || saldoNum <= 0 ? "bg-success" : "bg-warning text-dark";
-
-          return `
-            <tr>
-              <td class="fw-bold">${v['folio/concepto'] || '-'}</td>
-              <td>${v.cliente || '-'}</td>
-              <td>${formatCurrency(v.total)}</td>
-              <td>${v.fecha_limite ? new Date(v.fecha_limite).toLocaleDateString() : '-'}</td>
-              <td class="text-success">${formatCurrency(v.total_cobrado)}</td>
-              <td class="text-danger fw-bold">${formatCurrency(v.saldo)}</td>
-              <td><span class="badge ${statusClass}">${v.estado || 'Pendiente'}</span></td>
-              <td>
-                <button class="btn btn-sm btn-primary py-1" onclick='intentarSeleccionarVenta(${JSON.stringify(v).replace(/'/g, "&apos;")})'>
-                  Registrar Pago
-                </button>
-              </td>
-            </tr>
-          `;
-        }).join('');
-
-        html += '</tbody></table></div>';
-        container.innerHTML = html;
+        todasLasVentas = res.results || [];
+        renderizarTablaVentas(todasLasVentas);
       })
       .withFailureHandler(err => {
-        console.error("Fallo buscarVenta:", err);
-        document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error de comunicación: ' + err.message + '</div>';
+        document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error de conexión: ' + err.message + '</div>';
       })
-      .buscarVentaPorFolioOCliente(q);
+      .buscarVentaPorFolioOCliente("");
+  }
+
+  function filtrarVentasLocal() {
+    clearTimeout(timeoutFiltrado);
+    timeoutFiltrado = setTimeout(() => {
+      const q = document.getElementById('busqueda').value.toLowerCase();
+      const filtradas = todasLasVentas.filter(v => {
+        const folio = (v['folio/concepto'] || "").toString().toLowerCase();
+        const cliente = (v.cliente || "").toString().toLowerCase();
+        return folio.includes(q) || cliente.includes(q);
+      });
+      renderizarTablaVentas(filtradas);
+    }, 300);
+  }
+
+  function renderizarTablaVentas(ventas) {
+    const container = document.getElementById('resultados-busqueda');
+
+    if (ventas.length === 0) {
+      container.innerHTML = '<div class="alert alert-info">No se encontraron ventas con los criterios ingresados.</div>';
+      return;
+    }
+
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    const tresDias = new Date();
+    tresDias.setDate(hoy.getDate() + 3);
+
+    let html = `
+      <div class="table-responsive mt-2" style="max-height: 400px; overflow-y: auto;">
+        <table class="table table-sm table-hover border align-middle">
+          <thead class="bg-light small text-uppercase sticky-top">
+            <tr>
+              <th>Folio</th>
+              <th>Cliente</th>
+              <th>Vencimiento</th>
+              <th>Saldo</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody class="small">
+    `;
+
+    html += ventas.map(v => {
+      const fechaVenc = v.fecha_limite ? new Date(v.fecha_limite) : null;
+      let alertaClase = "";
+      let alertaTooltip = "";
+
+      if (fechaVenc) {
+        fechaVenc.setHours(0,0,0,0);
+        if (fechaVenc < hoy) {
+          alertaClase = "text-danger fw-bold";
+          alertaTooltip = "Vencida";
+        } else if (fechaVenc <= tresDias) {
+          alertaClase = "text-warning fw-bold";
+          alertaTooltip = "Próxima a vencer";
+        }
+      }
+
+      return `
+        <tr title="${alertaTooltip}">
+          <td class="fw-bold">${v['folio/concepto'] || '-'}</td>
+          <td>${v.cliente || '-'}</td>
+          <td class="${alertaClase}">${fechaVenc ? fechaVenc.toLocaleDateString() : '-'}</td>
+          <td class="${alertaClase}">${formatCurrency(v.saldo)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary py-0" onclick='intentarSeleccionarVenta(${JSON.stringify(v).replace(/'/g, "&apos;")})'>
+              Seleccionar
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
   }
 
   function intentarSeleccionarVenta(v) {
@@ -288,12 +305,13 @@
           if (res.pdfUrl && res.pdfUrl !== "#") {
             window.open(res.pdfUrl, '_blank');
           }
-          // Resetear vista
+          // Resetear vista y recargar catálogo
           document.getElementById('contenedor-pago').style.display = 'none';
           document.getElementById('detalle-venta').style.display = 'none';
           document.getElementById('busqueda').value = '';
           btn.disabled = false;
           btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Registrar y Generar Recibo PDF';
+          cargarVentasIniciales();
         }
       })
       .withFailureHandler(err => {

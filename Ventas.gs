@@ -172,6 +172,12 @@ function buscarVentaPorFolioOCliente(query) {
     // CASO A: Sin query (Vista inicial o campo vacío)
     if (!query) {
       const conSaldo = ventas.filter(v => parsearSaldo(v.saldo) > 0);
+      // Ordenar por fecha de vencimiento más próxima
+      conSaldo.sort((a, b) => {
+        const da = a.fecha_limite ? new Date(a.fecha_limite).getTime() : Infinity;
+        const db = b.fecha_limite ? new Date(b.fecha_limite).getTime() : Infinity;
+        return da - db;
+      });
       return { status: "OK", results: conSaldo };
     }
 
