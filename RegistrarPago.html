@@ -108,11 +108,13 @@
 
   function buscarVenta() {
     const q = document.getElementById('busqueda').value;
+    console.log("Buscando venta con query:", q);
 
     document.getElementById('resultados-busqueda').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>';
 
     google.script.run
       .withSuccessHandler(res => {
+        console.log("Respuesta búsqueda:", res);
         const container = document.getElementById('resultados-busqueda');
 
         if (!res) {
@@ -120,8 +122,8 @@
           return;
         }
 
-        if (res.status === "NOT_FOUND" || res.status === "LIQUIDATED") {
-          container.innerHTML = `<div class="alert alert-warning">${res.message}</div>`;
+        if (res.status === "NOT_FOUND" || res.status === "LIQUIDATED" || res.status === "error") {
+          container.innerHTML = `<div class="alert alert-warning">${res.message || "Error desconocido"}</div>`;
           return;
         }
 
@@ -133,45 +135,51 @@
         }
 
         let html = `
-          <div class="table-responsive">
-            <table class="table table-sm table-hover border">
-              <thead class="bg-light">
-                <tr class="small text-uppercase">
-                  <th>Folio</th>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm table-hover border align-middle">
+              <thead class="bg-light small text-uppercase">
+                <tr>
+                  <th>Folio/Concepto</th>
                   <th>Cliente</th>
                   <th>Total</th>
-                  <th>Vencimiento</th>
-                  <th>Pagado</th>
+                  <th>Fecha Límite</th>
+                  <th>Anticipo/Cobrado</th>
                   <th>Saldo</th>
                   <th>Estado</th>
-                  <th></th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody class="small">
         `;
 
-        html += ventas.map(v => `
-          <tr>
-            <td class="fw-bold">${v['folio/concepto']}</td>
-            <td>${v.cliente}</td>
-            <td>${formatCurrency(v.total)}</td>
-            <td>${new Date(v.fecha_limite).toLocaleDateString()}</td>
-            <td class="text-success">${formatCurrency(v.total_cobrado)}</td>
-            <td class="text-danger fw-bold">${formatCurrency(v.saldo)}</td>
-            <td><span class="status-badge badge-${v.estado.toLowerCase()}">${v.estado}</span></td>
-            <td>
-              <button class="btn btn-sm btn-outline-primary py-0" onclick='intentarSeleccionarVenta(${JSON.stringify(v).replace(/'/g, "&apos;")})'>
-                Ver
-              </button>
-            </td>
-          </tr>
-        `).join('');
+        html += ventas.map(v => {
+          const saldoNum = typeof v.saldo === 'string' ? parseFloat(v.saldo.replace(/[$,]/g, '')) : v.saldo;
+          const statusClass = (v.estado || "").toLowerCase().includes("pagado") || saldoNum <= 0 ? "bg-success" : "bg-warning text-dark";
+
+          return `
+            <tr>
+              <td class="fw-bold">${v['folio/concepto'] || '-'}</td>
+              <td>${v.cliente || '-'}</td>
+              <td>${formatCurrency(v.total)}</td>
+              <td>${v.fecha_limite ? new Date(v.fecha_limite).toLocaleDateString() : '-'}</td>
+              <td class="text-success">${formatCurrency(v.total_cobrado)}</td>
+              <td class="text-danger fw-bold">${formatCurrency(v.saldo)}</td>
+              <td><span class="badge ${statusClass}">${v.estado || 'Pendiente'}</span></td>
+              <td>
+                <button class="btn btn-sm btn-primary py-1" onclick='intentarSeleccionarVenta(${JSON.stringify(v).replace(/'/g, "&apos;")})'>
+                  Registrar Pago
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
 
         html += '</tbody></table></div>';
         container.innerHTML = html;
       })
       .withFailureHandler(err => {
-        document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error al buscar ventas: ' + err.message + '</div>';
+        console.error("Fallo buscarVenta:", err);
+        document.getElementById('resultados-busqueda').innerHTML = '<div class="alert alert-danger">Error de comunicación: ' + err.message + '</div>';
       })
       .buscarVentaPorFolioOCliente(q);
   }

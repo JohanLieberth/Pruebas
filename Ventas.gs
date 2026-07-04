@@ -123,77 +123,94 @@ function enviarReciboVenta(datos, folio, montoPagado) {
 }
 
 function obtenerVentas() {
-  const ssId = getSpreadsheetId();
-  const ss = SpreadsheetApp.openById(ssId);
-  const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_VENTAS);
-  if (!sheet) return [];
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
+  try {
+    const ssId = getSpreadsheetId();
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(CONFIG.NOMBRE_TAB_VENTAS);
 
-  // Encabezados exactos de la hoja Ventas (A-P)
-  const headers = ["folio/concepto", "cliente", "correo", "hotel", "total", "fecha_limite", "anticipo", "fecha_ant", "abono_1", "fecha_1", "abono_2", "fecha_2", "total_cobrado", "saldo", "agente", "estado"];
-  data.shift(); // Quitar encabezados reales de la hoja
+    if (!sheet) {
+      console.error("Hoja Ventas no encontrada");
+      return [];
+    }
 
-  // Filtrar filas vacías o de totales
-  const rows = data.filter(row => row[0] !== "" && row[1] !== "TOTALES");
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return [];
 
-  return rows.map(row => {
-    let obj = {};
-    headers.forEach((h, i) => {
-      obj[h] = row[i];
-    });
-    return obj;
-  }).reverse(); // Mostrar más recientes primero
+    // Encabezados exactos de la hoja Ventas (A-P)
+    const headers = ["folio/concepto", "cliente", "correo", "hotel", "total", "fecha_limite", "anticipo", "fecha_ant", "abono_1", "fecha_1", "abono_2", "fecha_2", "total_cobrado", "saldo", "agente", "estado"];
+    data.shift(); // Quitar encabezados reales de la hoja
+
+    // Filtrar filas vacías o de totales
+    const rows = data.filter(row => row[0] !== "" && row[1] !== "TOTALES");
+
+    return rows.map(row => {
+      let obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = row[i];
+      });
+      return obj;
+    }).reverse(); // Mostrar más recientes primero
+  } catch (e) {
+    console.error("Error en obtenerVentas: " + e.message);
+    return [];
+  }
 }
 
 function buscarVentaPorFolioOCliente(query) {
-  const ventas = obtenerVentas();
+  try {
+    console.log("Iniciando búsqueda para: " + query);
+    const ventas = obtenerVentas();
 
-  // Normalizar el parsing de saldo para que sea robusto
-  const parsearSaldo = (val) => {
-    if (val === null || val === undefined || val === "") return 0;
-    if (typeof val === 'number') return val;
-    // Quitar símbolos de moneda y comas si vienen como string
-    return parseFloat(val.toString().replace(/[$,]/g, '')) || 0;
-  };
+    // Normalizar el parsing de saldo para que sea robusto
+    const parsearSaldo = (val) => {
+      if (val === null || val === undefined || val === "") return 0;
+      if (typeof val === 'number') return val;
+      // Quitar símbolos de moneda y comas si vienen como string
+      return parseFloat(val.toString().replace(/[$,]/g, '')) || 0;
+    };
 
-  // CASO A: Sin query (Vista inicial o campo vacío)
-  if (!query) {
-    const conSaldo = ventas.filter(v => parsearSaldo(v.saldo) > 0);
+    // CASO A: Sin query (Vista inicial o campo vacío)
+    if (!query) {
+      const conSaldo = ventas.filter(v => parsearSaldo(v.saldo) > 0);
+      return { status: "OK", results: conSaldo };
+    }
+
+    query = query.toLowerCase();
+
+    // PASO 1: Búsqueda por coincidencia de FOLIO/CONCEPTO o CLIENTE
+    const coincidencias = ventas.filter(v => {
+      const folio = (v['folio/concepto'] || "").toString().toLowerCase();
+      const cliente = (v.cliente || "").toString().toLowerCase();
+      return folio.includes(query) || cliente.includes(query);
+    });
+
+    if (coincidencias.length === 0) {
+      return {
+        status: "NOT_FOUND",
+        message: "No se encontró ninguna venta con el folio/concepto ingresado. Verifique e intente nuevamente.",
+        results: []
+      };
+    }
+
+    // PASO 2: Validación de saldo sobre las coincidencias
+    const conSaldo = coincidencias.filter(v => parsearSaldo(v.saldo) > 0);
+
+    if (conSaldo.length === 0) {
+      // Si encontramos la venta pero no tiene saldo
+      const folios = coincidencias.map(v => v['folio/concepto']).join(', ');
+      return {
+        status: "LIQUIDATED",
+        message: "La venta [" + folios + "] no tiene saldo pendiente. Ya está liquidada.",
+        results: []
+      };
+    }
+
+    // CASO C: Encontradas y con saldo
     return { status: "OK", results: conSaldo };
+  } catch (error) {
+    console.error("Error en buscarVentaPorFolioOCliente: " + error.message);
+    return { status: "error", message: "Error en el servidor: " + error.toString(), results: [] };
   }
-
-  query = query.toLowerCase();
-
-  // PASO 1: Búsqueda por coincidencia de FOLIO/CONCEPTO o CLIENTE
-  const coincidencias = ventas.filter(v => {
-    return (v['folio/concepto'] && v['folio/concepto'].toString().toLowerCase().includes(query)) ||
-           (v.cliente && v.cliente.toLowerCase().includes(query));
-  });
-
-  if (coincidencias.length === 0) {
-    return {
-      status: "NOT_FOUND",
-      message: "No se encontró ninguna venta con el folio/concepto ingresado. Verifique e intente nuevamente.",
-      results: []
-    };
-  }
-
-  // PASO 2: Validación de saldo sobre las coincidencias
-  const conSaldo = coincidencias.filter(v => parsearSaldo(v.saldo) > 0);
-
-  if (conSaldo.length === 0) {
-    // Si encontramos la venta pero no tiene saldo
-    const folios = coincidencias.map(v => v['folio/concepto']).join(', ');
-    return {
-      status: "LIQUIDATED",
-      message: "La venta [" + folios + "] no tiene saldo pendiente. Ya está liquidada.",
-      results: []
-    };
-  }
-
-  // CASO C: Encontradas y con saldo
-  return { status: "OK", results: conSaldo };
 }
 
 /**
