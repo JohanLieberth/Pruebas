@@ -152,22 +152,27 @@ function registrarPago(datos = {}) {
  * Envía correo de confirmación de pago.
  */
 function enviarCorreoConfirmacionPago(d) {
+  const logoUrl = getLogoUrl();
   const subject = "Confirmación de Pago Recibido - " + d.folio;
   const body = `
-    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-      <h2 style="color: #1a3a5c;">FriendTravel - Confirmación de Pago</h2>
-      <p>Estimado/a <strong>${d.cliente}</strong>,</p>
-      <p>Hemos registrado correctamente tu pago.</p>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+      <div style="text-align: center;">
+        <img src="${logoUrl}" style="max-height: 100px; margin-bottom: 20px;">
+        <h2 style="color: #1a3a5c;">Confirmación de Pago</h2>
+      </div>
+      <p>Hola <strong>${d.cliente}</strong>,</p>
+      <p>Hemos recibido tu pago correctamente. Aquí tienes los detalles actualizados:</p>
       <table style="width: 100%; border-collapse: collapse;">
-        <tr><td style="padding: 5px;"><strong>Folio Venta:</strong></td><td>${d.folio}</td></tr>
-        <tr><td style="padding: 5px;"><strong>Monto Pagado:</strong></td><td>$${d.monto.toLocaleString()}</td></tr>
-        <tr><td style="padding: 5px;"><strong>Fecha:</strong></td><td>${d.fecha.toLocaleDateString()}</td></tr>
-        <tr><td style="padding: 5px;"><strong>Método/Tipo:</strong></td><td>${d.metodo}</td></tr>
-        <tr><td style="padding: 5px;"><strong>Saldo Anterior:</strong></td><td>$${d.saldoAnterior.toLocaleString()}</td></tr>
-        <tr><td style="padding: 5px; color: #d9534f;"><strong>Nuevo Saldo:</strong></td><td style="color: #d9534f; font-weight: bold;">$${d.nuevoSaldo.toLocaleString()}</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Folio Venta:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${d.folio}</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Monto Pagado:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #27ae60;"><strong>$${d.monto.toLocaleString()}</strong></td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Fecha de Pago:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${d.fecha.toLocaleDateString()}</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Método/Tipo:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${d.metodo}</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Saldo Anterior:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">$${d.saldoAnterior.toLocaleString()}</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Nuevo Saldo:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: ${d.nuevoSaldo > 0 ? '#d9534f' : '#27ae60'}; font-weight: bold;">$${d.nuevoSaldo.toLocaleString()}</td></tr>
       </table>
-      <p style="margin-top: 20px;">¡Gracias por tu preferencia!</p>
-      <p>Atentamente,<br>El equipo de FriendTravel</p>
+      ${d.nuevoSaldo <= 0 ? '<p style="text-align: center; color: #27ae60; font-weight: bold; margin-top: 20px;">🎉 ¡Felicidades! Tu cuenta ha sido liquidada completamente.</p>' : ''}
+      <p style="margin-top: 20px;">¡Gracias por confiar en FriendTravel!</p>
+      <p>Atentamente,<br><strong>El equipo de FriendTravel</strong></p>
     </div>
   `;
 
