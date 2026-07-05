@@ -240,17 +240,17 @@ function obtenerVentasConSaldo(query) {
       // Incluir ventas con saldo pendiente
       if (saldoNum > 0) {
         ventas.push({
-          folio: folio,
-          cliente: cliente,
+          folio: String(folio || ""),
+          cliente: String(cliente || ""),
           total: totalNum,
           fechaLimite: formatearFecha(fechaLimite),
           anticipo: anticipoNum,
           saldo: saldoNum,
-          estado: estado,
+          estado: String(estado || "Pendiente"),
           // Compatibilidad SPA
-          "folio/concepto": folio,
-          hotel: (row[3] || "").toString(),
-          agente: (row[14] || "").toString(),
+          "folio/concepto": String(folio || ""),
+          hotel: String(row[3] || ""),
+          agente: String(row[14] || ""),
           total_cobrado: parseNum(row[12])
         });
       }
