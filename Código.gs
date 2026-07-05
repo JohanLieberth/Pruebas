@@ -22,12 +22,16 @@ const CONFIG = {
 /**
  * Se ejecuta al abrir la hoja de cálculo.
  */
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('Friend Travel')
-    .addItem('⚙️ Configurar Sistema', 'setup')
-    .addItem('🚀 Abrir Web App', 'mostrarUrlApp')
-    .addToUi();
+function onOpen(e) {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu('Friend Travel')
+      .addItem('⚙️ Configurar Sistema', 'setup')
+      .addItem('🚀 Abrir Web App', 'mostrarUrlApp')
+      .addToUi();
+  } catch (err) {
+    console.log("onOpen ejecutado en contexto sin UI: " + err.message);
+  }
 }
 
 /**
@@ -41,18 +45,23 @@ function setup() {
  * Muestra la URL de la aplicación web en un diálogo.
  */
 function mostrarUrlApp() {
-  const url = ScriptApp.getService().getUrl();
-  if (url) {
-    const html = HtmlService.createHtmlOutput(
-      `<div style="font-family:sans-serif; text-align:center;">
-        <p>La aplicación está lista:</p>
-        <a href="${url}" target="_blank" style="padding:10px 20px; background:#1a3a5c; color:white; text-decoration:none; border-radius:5px;">Abrir Aplicación</a>
-        <p style="margin-top:20px; font-size:0.8rem; color:grey;">URL: ${url}</p>
-      </div>`
-    ).setWidth(400).setHeight(200);
-    SpreadsheetApp.getUi().showModalDialog(html, 'Friend Travel - Web App');
-  } else {
-    SpreadsheetApp.getUi().alert('La aplicación no ha sido desplegada como Web App todavía.');
+  try {
+    const ui = SpreadsheetApp.getUi();
+    const url = ScriptApp.getService().getUrl();
+    if (url) {
+      const html = HtmlService.createHtmlOutput(
+        `<div style="font-family:sans-serif; text-align:center;">
+          <p>La aplicación está lista:</p>
+          <a href="${url}" target="_blank" style="padding:10px 20px; background:#1a3a5c; color:white; text-decoration:none; border-radius:5px;">Abrir Aplicación</a>
+          <p style="margin-top:20px; font-size:0.8rem; color:grey;">URL: ${url}</p>
+        </div>`
+      ).setWidth(400).setHeight(200);
+      ui.showModalDialog(html, 'Friend Travel - Web App');
+    } else {
+      ui.alert('La aplicación no ha sido desplegada como Web App todavía.');
+    }
+  } catch (err) {
+    console.error("No se puede mostrar el diálogo de URL: " + err.message);
   }
 }
 
