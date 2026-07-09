@@ -65,6 +65,16 @@
       .getConfig();
   }
 
+  function logout() {
+    sessionStorage.clear();
+    localStorage.clear();
+    if (window.top && window.top.location) {
+      window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+    } else {
+      window.location.href = '<?= getScriptUrl() ?>?page=login';
+    }
+  }
+
   // Export CSV helper
   function downloadCSV(base64Data, filename) {
     const link = document.createElement('a');

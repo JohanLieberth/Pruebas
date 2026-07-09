@@ -23,9 +23,22 @@
     <nav class="navbar navbar-expand-lg mb-4">
       <div class="container">
         <a class="navbar-brand" href="#"><i class="fas fa-user-shield me-2"></i>Admin Panel</a>
-        <div class="ms-auto d-flex align-items-center">
-          <span class="me-3 d-none d-md-inline" id="adminName"></span>
-          <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="adminNavbar">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link active" href="#"><i class="fas fa-list me-1"></i>Servicios</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="<?= getScriptUrl() ?>?page=dashboard"><i class="fas fa-chart-line me-1"></i>Dashboard</a>
+            </li>
+          </ul>
+          <div class="ms-auto d-flex align-items-center">
+            <span class="me-3 d-none d-md-inline" id="adminName"></span>
+            <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+          </div>
         </div>
       </div>
     </nav>
@@ -121,8 +134,9 @@
                 <th>Fecha</th>
                 <th>Cliente</th>
                 <th>Dispositivo</th>
+                <th>Falla</th>
                 <th>Estatus</th>
-                <th>Total</th>
+                <th class="col-total">Total</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -205,6 +219,14 @@
                   <input type="number" step="0.01" id="editTotal" class="form-control">
                 </div>
               </div>
+              <div class="row mb-3" id="rowAsignacion" style="display: none;">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Asignar a Supervisor</label>
+                  <select id="editAsignado" class="form-select">
+                    <option value="">No asignado</option>
+                  </select>
+                </div>
+              </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Solución Aplicada / Notas Internas</label>
                 <textarea id="editSolucion" class="form-control" rows="4"></textarea>
@@ -222,10 +244,41 @@
       </div>
     </div>
 
+    <!-- Email Preview Modal -->
+    <div class="modal fade" id="emailModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title">Reenviar Correo al Cliente</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Destinatario</label>
+              <input type="email" id="emailDestino" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Asunto</label>
+              <input type="text" id="emailAsunto" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Cuerpo del Mensaje (HTML)</label>
+              <div id="emailCuerpoEditor" contenteditable="true" class="form-control" style="min-height: 200px; background: #fff;"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="confirmarReenvio()">Enviar Correo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?!= include('JS'); ?>
     <script>
       let editModal;
+      let emailModal;
       let currentUser;
       let allServicios = [];
 
@@ -242,12 +295,32 @@
         }
         document.getElementById('adminName').innerText = currentUser.nombre;
         editModal = new bootstrap.Modal(document.getElementById('editModal'));
+        emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
+
+        if (currentUser.rol === 'Administrador') {
+          document.getElementById('rowAsignacion').style.display = 'flex';
+          cargarSupervisores();
+        }
 
         cargarStats();
         cargarServicios();
         cargarConfig();
         inicializarTema();
       });
+
+      function cargarSupervisores() {
+        google.script.run
+          .withSuccessHandler(function(supervisores) {
+            const select = document.getElementById('editAsignado');
+            supervisores.forEach(sup => {
+              const opt = document.createElement('option');
+              opt.value = sup;
+              opt.innerText = sup;
+              select.appendChild(opt);
+            });
+          })
+          .obtenerSupervisores();
+      }
 
       function cargarConfig() {
         google.script.run
@@ -314,6 +387,7 @@
 
             servicios.forEach(s => {
               const tr = document.createElement('tr');
+              const isSupervisor = currentUser.rol === 'Supervisor';
               tr.innerHTML = `
                 <td class="fw-bold">${s.Folio}</td>
                 <td class="small">${s["Fecha de recepción"]}</td>
@@ -322,8 +396,9 @@
                   <div class="small text-muted">${s["Teléfono"]}</div>
                 </td>
                 <td>${s["Dispositivo a recibir"]}</td>
+                <td class="small" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s["Descripción de la falla"]}">${s["Descripción de la falla"]}</td>
                 <td>${formatStatus(s["Estatus (admin)"])}</td>
-                <td class="fw-bold text-success">$${s["Total ($)"] || '0.00'}</td>
+                <td class="fw-bold text-success col-total">${s["Total ($)"] ? '$' + s["Total ($)"] : '-'}</td>
                 <td>
                   <button class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
                     <i class="fas fa-edit"></i>
@@ -332,9 +407,11 @@
                     <button class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
                       <i class="fas fa-print"></i>
                     </button>
-                    <ul class="dropdown-menu">
+                    <ul class="dropdown-menu shadow">
                       <li><a class="dropdown-item" href="#" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</a></li>
                       <li><a class="dropdown-item" href="#" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</a></li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li><a class="dropdown-item" href="#" onclick="abrirReenvio('${s.Folio}')"><i class="fas fa-envelope me-2"></i>Reenviar Correo</a></li>
                     </ul>
                   </div>
                   ${currentUser.rol === 'Administrador' ? `
@@ -347,10 +424,14 @@
               tbody.appendChild(tr);
             });
             if (servicios.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron registros</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No se encontraron registros</td></tr>';
+            }
+
+            if (isSupervisor) {
+              document.querySelectorAll('.col-total').forEach(el => el.style.display = 'none');
             }
           })
-          .obtenerServicios(filtros);
+          .obtenerServicios({ ...filtros, userRole: currentUser.rol, userName: currentUser.nombre });
       }
 
       function filtrarEstatus(estatus) {
@@ -367,6 +448,9 @@
         document.getElementById('editEstatus').value = s["Estatus (admin)"];
         document.getElementById('editSolucion').value = s["Solución aplicada (admin)"];
         document.getElementById('editTotal').value = s["Total ($)"] || '';
+        if (document.getElementById('editAsignado')) {
+          document.getElementById('editAsignado').value = s["Asignado a"] || '';
+        }
 
         // Format date for input type=date (YYYY-MM-DD)
         if (s["Fecha de entrega (admin)"]) {
@@ -386,6 +470,7 @@
         const estatus = document.getElementById('editEstatus').value;
         const solucion = document.getElementById('editSolucion').value;
         const total = document.getElementById('editTotal').value;
+        const asignado = document.getElementById('editAsignado') ? document.getElementById('editAsignado').value : '';
         let fecha = document.getElementById('editFechaEntrega').value;
 
         // Format back to DD/MM/YYYY
@@ -395,20 +480,70 @@
         }
 
         showLoading(true);
-        google.script.run
+
+        // Use a Promise to sequence assignment if necessary
+        const p1 = google.script.run
           .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(res) {
-            showLoading(false);
             if (res.success) {
+              if (currentUser.rol === 'Administrador') {
+                 google.script.run.asignarTrabajo(folio, asignado);
+              }
+              showLoading(false);
               editModal.hide();
               showAlert('Actualizado correctamente', 'success');
               cargarStats();
               cargarServicios();
             } else {
+              showLoading(false);
               showAlert(res.message);
             }
           })
           .actualizarEstatus(folio, estatus, solucion, fecha, currentUser.rol, total);
+      }
+
+      function abrirReenvio(folio) {
+        const s = allServicios.find(item => item.Folio === folio);
+        if (!s) return;
+
+        document.getElementById('emailDestino').value = s["Correo electrónico"];
+        document.getElementById('emailAsunto').value = 'Información de su Servicio - ' + folio;
+
+        const content = `
+          <div style="font-family: sans-serif;">
+            <h3>BitFix - Seguimiento de Servicio</h3>
+            <p>Hola <b>${s.Nombre}</b>,</p>
+            <p>Le informamos sobre el estatus de su equipo: <b>${s["Dispositivo a recibir"]}</b></p>
+            <p><b>Folio:</b> ${s.Folio}</p>
+            <p><b>Estatus Actual:</b> ${s["Estatus (admin)"]}</p>
+            <p><b>Falla reportada:</b> ${s["Descripción de la falla"]}</p>
+            <p>Para más información puede consultar en nuestro portal con su folio.</p>
+          </div>
+        `;
+        document.getElementById('emailCuerpoEditor').innerHTML = content;
+        emailModal.show();
+      }
+
+      function confirmarReenvio() {
+        const datos = {
+          correo: document.getElementById('emailDestino').value,
+          asunto: document.getElementById('emailAsunto').value,
+          cuerpo: document.getElementById('emailCuerpoEditor').innerHTML
+        };
+
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            showLoading(false);
+            if (res.success) {
+              emailModal.hide();
+              showAlert('Correo reenviado exitosamente', 'success');
+            } else {
+              showAlert(res.message);
+            }
+          })
+          .enviarCorreoPersonalizado(datos);
       }
 
       function confirmarEliminar(folio) {
@@ -441,15 +576,6 @@
           .exportToCSV();
       }
 
-      function logout() {
-        sessionStorage.clear();
-        localStorage.clear();
-        if (window.top && window.top.location) {
-          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
-        } else {
-          window.location.href = '<?= getScriptUrl() ?>?page=login';
-        }
-      }
     </script>
   </body>
 </html>

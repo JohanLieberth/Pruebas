@@ -25,18 +25,18 @@
               <form id="registroForm">
                 <div class="row mb-3">
                   <div class="col-md-6">
-                    <label class="form-label">Nombre del Cliente *</label>
-                    <input type="text" name="nombre" class="form-control" required>
+                    <label class="form-label">Teléfono (10 dígitos) *</label>
+                    <input type="tel" name="telefono" id="telInput" class="form-control" pattern="[0-9]{10}" required onblur="autoCompletar()">
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label">Teléfono (10 dígitos) *</label>
-                    <input type="tel" name="telefono" class="form-control" pattern="[0-9]{10}" required>
+                    <label class="form-label">Nombre del Cliente *</label>
+                    <input type="text" name="nombre" id="nombreInput" class="form-control" required>
                   </div>
                 </div>
 
                 <div class="mb-3">
                   <label class="form-label">Correo Electrónico *</label>
-                  <input type="email" name="correo" class="form-control" required>
+                  <input type="email" name="correo" id="emailInput" class="form-control" required>
                 </div>
 
                 <div class="mb-3">
@@ -54,12 +54,18 @@
                   <input type="text" name="estadoEquipo" class="form-control" placeholder="Ej: Rayado, le falta un tornillo, tapa suelta..." required>
                 </div>
 
-                <div class="mb-4">
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="disclaimerCheck" required>
-                    <label class="form-check-label disclaimer-text" for="disclaimerCheck">
-                      <?= getDisclaimer() ?>
-                    </label>
+                <div class="row mb-4">
+                  <div class="col-md-4">
+                    <label class="form-label">Anticipo ($)</label>
+                    <input type="number" name="anticipo" class="form-control" step="0.01">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Abono ($)</label>
+                    <input type="number" name="abono" class="form-control" step="0.01">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Pago Total ($)</label>
+                    <input type="number" name="pagoTotal" class="form-control" step="0.01">
                   </div>
                 </div>
 
@@ -99,6 +105,21 @@
     <script>
       let currentFolio = '';
 
+      function autoCompletar() {
+        const tel = document.getElementById('telInput').value;
+        if (tel.length === 10) {
+          google.script.run
+            .withSuccessHandler(function(cliente) {
+              if (cliente) {
+                document.getElementById('nombreInput').value = cliente.nombre;
+                document.getElementById('emailInput').value = cliente.correo;
+                showAlert('Datos de cliente recuperados automáticamente.', 'info');
+              }
+            })
+            .buscarClientePorTelefono(tel);
+        }
+      }
+
       document.getElementById('registroForm').addEventListener('submit', function(e) {
         e.preventDefault();
         showLoading(true);
@@ -109,7 +130,10 @@
           correo: this.correo.value,
           dispositivo: this.dispositivo.value,
           falla: this.falla.value,
-          estadoEquipo: this.estadoEquipo.value
+          estadoEquipo: this.estadoEquipo.value,
+          anticipo: this.anticipo.value,
+          abono: this.abono.value,
+          pagoTotal: this.pagoTotal.value
         };
 
         google.script.run

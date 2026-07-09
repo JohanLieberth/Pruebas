@@ -158,15 +158,6 @@
         detailsModal.show();
       }
 
-      function logout() {
-        sessionStorage.clear();
-        localStorage.clear();
-        if (window.top && window.top.location) {
-          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
-        } else {
-          window.location.href = '<?= getScriptUrl() ?>?page=login';
-        }
-      }
     </script>
   </body>
 </html>

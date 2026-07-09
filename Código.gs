@@ -31,6 +31,10 @@ function doGet(e) {
     return render('Estatus', { folio: folio });
   }
 
+  if (page === 'dashboard') {
+    return render('Dashboard');
+  }
+
   if (page === 'imprimir' && folio) {
     const servicio = obtenerDatosCompletosServicio(folio);
     if (!servicio) {
@@ -96,7 +100,7 @@ function getSheet(name) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
     if (name === "Servicios") {
-      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total ($)"]);
+      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total ($)", "Anticipo", "Abono", "PagoTotal", "Asignado a"]);
     } else if (name === "Usuarios_Admin") {
       sheet.appendRow(["Email", "Contraseña", "Rol", "Nombre"]);
     } else if (name === "Usuarios_Clientes") {
@@ -189,7 +193,12 @@ function registrarServicio(datos) {
     "Pendiente",
     "",
     "",
-    timestamp
+    timestamp,
+    "", // Total ($) - initially empty or from logic
+    datos.anticipo || 0,
+    datos.abono || 0,
+    datos.pagoTotal || 0,
+    "" // Asignado a
   ]);
 
   const config = getConfig();
@@ -286,6 +295,11 @@ function obtenerServicios(filtros = {}) {
     return obj;
   });
 
+  // Role-based filtering for Supervisors
+  if (filtros.userRole === 'Supervisor') {
+    result = result.filter(s => s["Asignado a"] === filtros.userName);
+  }
+
   if (filtros.rol === CONFIG.CLIENT_ROLE && filtros.correo) {
     result = result.filter(s => s["Correo electrónico"] === filtros.correo);
   }
@@ -300,8 +314,16 @@ function obtenerServicios(filtros = {}) {
       s["Folio"].toLowerCase().includes(q) ||
       s["Nombre"].toLowerCase().includes(q) ||
       s["Teléfono"].toLowerCase().includes(q) ||
-      s["Correo electrónico"].toLowerCase().includes(q)
+      s["Correo electrónico"].toLowerCase().includes(q) ||
+      (s["Descripción de la falla"] && s["Descripción de la falla"].toLowerCase().includes(q))
     );
+  }
+
+  // Remove sensitive data for Supervisors
+  if (filtros.userRole === 'Supervisor') {
+    result.forEach(s => {
+      delete s["Total ($)"];
+    });
   }
 
   return result.reverse(); // Newest first
@@ -466,4 +488,99 @@ function updateConfig(newConfig) {
     }
   }
   return { success: true };
+}
+
+/**
+ * NEW BACKEND FUNCTIONS
+ */
+
+function buscarClientePorTelefono(telefono) {
+  const sheet = getSheet("Servicios");
+  const data = sheet.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) { // Reverse to get most recent
+    if (data[i][2].toString() === telefono.toString()) {
+      return {
+        nombre: data[i][1],
+        correo: data[i][4]
+      };
+    }
+  }
+  return null;
+}
+
+function obtenerSupervisores() {
+  const sheet = getSheet("Usuarios_Admin");
+  const data = sheet.getDataRange().getValues();
+  return data.slice(1)
+    .filter(row => row[2] === 'Supervisor')
+    .map(row => row[3]); // Return Names
+}
+
+function asignarTrabajo(folio, supervisorName) {
+  const sheet = getSheet("Servicios");
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === folio) {
+      sheet.getRange(i + 1, 17).setValue(supervisorName);
+      return { success: true };
+    }
+  }
+  return { success: false, message: "Folio no encontrado" };
+}
+
+function enviarCorreoPersonalizado(datos) {
+  try {
+    GmailApp.sendEmail(datos.correo, datos.asunto, "", {
+      htmlBody: datos.cuerpo
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+function getDashboardData() {
+  const sheet = getSheet("Servicios");
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const rows = data.slice(1);
+
+  // Collections by Day
+  const dailyCollections = {};
+  const supervisorStats = {};
+
+  rows.forEach(row => {
+    const timestamp = row[11];
+    const status = row[8];
+    const supervisor = row[16] || "No asignado";
+    const anticipo = parseFloat(row[13]) || 0;
+    const abono = parseFloat(row[14]) || 0;
+    const pagoTotal = parseFloat(row[15]) || 0;
+    const totalDay = anticipo + abono + pagoTotal;
+
+    if (timestamp instanceof Date) {
+      const dayKey = Utilities.formatDate(timestamp, "GMT-6", "dd/MM");
+      dailyCollections[dayKey] = (dailyCollections[dayKey] || 0) + totalDay;
+    }
+
+    if (supervisor !== "No asignado") {
+      if (!supervisorStats[supervisor]) {
+        supervisorStats[supervisor] = {
+          "Pendiente": 0,
+          "En reparación": 0,
+          "Listo": 0,
+          "Entregado": 0,
+          "Cancelado": 0
+        };
+      }
+      if (supervisorStats[supervisor].hasOwnProperty(status)) {
+        supervisorStats[supervisor][status]++;
+      }
+    }
+  });
+
+  return {
+    dailyCollections: dailyCollections,
+    supervisorStats: supervisorStats
+  };
 }
