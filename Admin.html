@@ -31,7 +31,7 @@
             <li class="nav-item">
               <a class="nav-link active" href="#"><i class="fas fa-list me-1"></i>Servicios</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" id="navDashboard" style="display: none;">
               <a class="nav-link" href="<?= getScriptUrl() ?>?page=dashboard"><i class="fas fa-chart-line me-1"></i>Dashboard</a>
             </li>
           </ul>
@@ -300,6 +300,13 @@
 
         if (currentUser.rol === 'Administrador') {
           document.getElementById('rowAsignacion').style.display = 'flex';
+          const navDash = document.getElementById('navDashboard');
+          if (navDash) navDash.style.display = 'block';
+
+          // Fix: show the "Asignado a" column header for Admins
+          const colAsignacionHeader = document.querySelector('.col-asignacion');
+          if (colAsignacionHeader) colAsignacionHeader.style.display = 'table-cell';
+
           cargarSupervisores();
         }
 

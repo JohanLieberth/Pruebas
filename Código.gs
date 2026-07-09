@@ -32,6 +32,8 @@ function doGet(e) {
   }
 
   if (page === 'dashboard') {
+    // For simplicity in doGet, we can't easily check sessionStorage here.
+    // However, Dashboard.html and getDashboardData already have robust role checks.
     return render('Dashboard');
   }
 
