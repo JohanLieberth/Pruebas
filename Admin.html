@@ -382,12 +382,12 @@
           .withSuccessHandler(function(servicios) {
             showLoading(false);
             allServicios = servicios;
+            const isSupervisor = currentUser.rol === 'Supervisor';
             const tbody = document.getElementById('serviciosTableBody');
             tbody.innerHTML = '';
 
             servicios.forEach(s => {
               const tr = document.createElement('tr');
-              const isSupervisor = currentUser.rol === 'Supervisor';
               tr.innerHTML = `
                 <td class="fw-bold">${s.Folio}</td>
                 <td class="small">${s["Fecha de recepción"]}</td>
