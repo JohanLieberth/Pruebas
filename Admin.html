@@ -133,8 +133,9 @@
                 <th>Folio</th>
                 <th>Fecha</th>
                 <th>Cliente</th>
-                <th>Dispositivo</th>
-                <th>Falla</th>
+                <th style="width: 250px;">Dispositivo</th>
+                <th style="width: 150px;">Falla</th>
+                <th class="col-asignacion" style="display: none;">Asignado a</th>
                 <th>Estatus</th>
                 <th class="col-total">Total</th>
                 <th>Acciones</th>
@@ -383,6 +384,7 @@
             showLoading(false);
             allServicios = servicios;
             const isSupervisor = currentUser.rol === 'Supervisor';
+            const isAdmin = currentUser.rol === 'Administrador';
             const tbody = document.getElementById('serviciosTableBody');
             tbody.innerHTML = '';
 
@@ -395,8 +397,11 @@
                   <div class="fw-bold">${s.Nombre}</div>
                   <div class="small text-muted">${s["Teléfono"]}</div>
                 </td>
-                <td>${s["Dispositivo a recibir"]}</td>
-                <td class="small" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s["Descripción de la falla"]}">${s["Descripción de la falla"]}</td>
+                <td class="small" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title='${s["Dispositivo a recibir"]}'>${s["Dispositivo a recibir"]}</td>
+                <td class="small" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title='${s["Descripción de la falla"]}'>${s["Descripción de la falla"]}</td>
+                <td class="col-asignacion" style="display: ${isAdmin ? 'table-cell' : 'none'};">
+                   ${s["Asignado a"] ? `<span class="badge bg-info text-dark">${s["Asignado a"]}</span>` : '<span class="badge bg-light text-muted">Pendiente</span>'}
+                </td>
                 <td>${formatStatus(s["Estatus (admin)"])}</td>
                 <td class="fw-bold text-success col-total">${s["Total ($)"] ? '$' + s["Total ($)"] : '-'}</td>
                 <td>
