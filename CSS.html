@@ -1,16 +1,16 @@
 <style>
   :root {
-    /* BitFix Palette: primary #e94560, dark bg #1a1a2e, light text #eaeaea */
-    --bg-main: #1a1a2e;
-    --bg-secondary: #16213e;
+    /* Enhanced Light Theme for High Legibility */
+    --bg-main: #f8f9fa;
+    --bg-secondary: #ffffff;
     --accent-primary: #e94560;
-    --accent-secondary: #0f3460;
-    --text-main: #eaeaea;
-    --text-secondary: #94A3B8;
-    --nav-bg: #16213e;
-    --nav-text: #eaeaea;
-    --card-bg: #1a1a2e;
-    --card-border: #e94560;
+    --accent-secondary: #dee2e6;
+    --text-main: #212529;
+    --text-secondary: #495057;
+    --nav-bg: #ffffff;
+    --nav-text: #1a1a2e;
+    --card-bg: #ffffff;
+    --card-border: #dee2e6;
     --btn-primary: #e94560;
     --btn-primary-hover: #c83349;
     --gradient-accent: none;
@@ -20,12 +20,12 @@
     --danger-color: #e74c3c;
   }
 
-
   body {
     background-color: var(--bg-main);
-    font-family: 'Roboto', sans-serif;
+    font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     color: var(--text-main);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease;
+    line-height: 1.6;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -34,11 +34,20 @@
 
   .navbar {
     background-color: var(--nav-bg);
-    border-bottom: 1px solid var(--accent-secondary);
+    border-bottom: 2px solid var(--accent-primary);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   }
 
-  .navbar-brand, .nav-link {
+  .navbar-brand {
     color: var(--nav-text) !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .nav-link {
+    color: var(--text-secondary) !important;
+    font-weight: 500;
   }
 
   .nav-link:hover {
@@ -46,22 +55,23 @@
   }
 
   .btn-primary {
-    background: var(--gradient-accent, var(--btn-primary));
     background-color: var(--btn-primary);
     border-color: var(--btn-primary);
-    color: var(--bg-main);
-    font-weight: bold;
-  }
-
-  body:not(.palette-digital-moderno) .btn-primary {
-    color: #FFFFFF;
+    color: #FFFFFF !important;
+    font-weight: 600;
+    padding: 0.5rem 1.25rem;
+    box-shadow: 0 2px 4px rgba(233, 69, 96, 0.2);
   }
 
   .btn-primary:hover {
     background-color: var(--btn-primary-hover);
     border-color: var(--btn-primary-hover);
-    filter: brightness(90%);
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
   }
+
+  .btn-success { background-color: var(--success-color); border-color: var(--success-color); color: white !important; }
+  .btn-warning { background-color: var(--warning-color); border-color: var(--warning-color); color: white !important; }
+  .btn-danger { background-color: var(--danger-color); border-color: var(--danger-color); color: white !important; }
 
   .btn-outline-primary {
     color: var(--accent-primary);
@@ -75,8 +85,41 @@
 
   .card {
     border: 1px solid var(--card-border);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     background-color: var(--card-bg);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .table {
+    background-color: white;
+    border-radius: 4px;
+  }
+
+  .table-hover tbody tr:hover {
+    background-color: #f1f3f5;
+  }
+
+  .table-striped tbody tr:nth-of-type(odd) {
+    background-color: #fdfdfe;
+  }
+
+  .table thead th {
+    background-color: #f8f9fa;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+  }
+
+  .form-control, .form-select {
+    border: 1px solid #ced4da;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .form-control:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 0.2rem rgba(233, 69, 96, 0.15);
   }
 
   .card-secondary {
@@ -90,17 +133,18 @@
   }
 
   .status-badge {
-    padding: 5px 10px;
-    border-radius: 20px;
-    font-size: 0.85em;
-    font-weight: bold;
+    padding: 6px 12px;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .status-pendiente { background-color: var(--warning-color); color: white; }
-  .status-en-reparacion { background-color: var(--accent-primary); color: white; }
-  body.palette-digital-moderno .status-en-reparacion { color: #081018; }
+  .status-en-reparacion { background-color: #343A40; color: white; }
   .status-listo { background-color: var(--success-color); color: white; }
-  .status-entregado { background-color: #7f8c8d; color: white; }
+  .status-entregado { background-color: #6c757d; color: white; }
   .status-cancelado { background-color: var(--danger-color); color: white; }
 
   .loading-overlay {

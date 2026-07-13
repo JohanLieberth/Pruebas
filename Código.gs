@@ -466,12 +466,6 @@ function confirmarRecoleccion(folio) {
   return { success: true };
 }
 
-function enviarNotificacionWhatsApp(folio, destinatario) {
-  console.log(`WhatsApp MOCK: Notificando folio ${folio} al numero ${destinatario}`);
-  const sheet = getSheet("Notificaciones");
-  sheet.appendRow([new Date(), "WhatsApp", folio, destinatario, "Enviado (Simulado)"]);
-  return { success: true };
-}
 
 function eliminarServicio(folio, userRole) {
   if (userRole !== 'Administrador') {

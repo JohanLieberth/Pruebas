@@ -43,27 +43,7 @@
     showAlert('Error de conexión con el servidor: ' + (err.message || err.toString()));
   }
 
-  function aplicarPaleta(nombre) {
-    const body = document.body;
-    body.classList.remove('palette-digital-moderno', 'palette-mecanica-tecnologica');
 
-    if (nombre === 'Digital Moderno') {
-      body.classList.add('palette-digital-moderno');
-    } else if (nombre === 'Mecánica Tecnológica') {
-      body.classList.add('palette-mecanica-tecnologica');
-    }
-    // 'Tecnología Profesional' is the default CSS variables
-  }
-
-  function inicializarTema() {
-    google.script.run
-      .withSuccessHandler(function(config) {
-        if (config && config.Paleta) {
-          aplicarPaleta(config.Paleta);
-        }
-      })
-      .getConfig();
-  }
 
   function logout() {
     sessionStorage.clear();

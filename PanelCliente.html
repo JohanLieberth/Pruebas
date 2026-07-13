@@ -62,7 +62,6 @@
 
       window.addEventListener('load', function() {
         cargarConfig();
-        inicializarTema();
         const userStr = sessionStorage.getItem('user');
         if (!userStr) {
           window.top.location.href = '<?= getScriptUrl() ?>?page=login';
