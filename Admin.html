@@ -346,7 +346,7 @@
             bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
             showAlert('Configuración guardada', 'success');
           })
-          .updateConfig(config);
+          .updateConfig(config, currentUser);
       }
 
       function cargarStats() {
@@ -385,42 +385,98 @@
 
             servicios.forEach(s => {
               const tr = document.createElement('tr');
-              tr.innerHTML = `
-                <td class="fw-bold">${s.Folio}</td>
-                <td class="small">${s["Fecha de recepción"]}</td>
-                <td>
-                  <div class="fw-bold">${s.Nombre}</div>
-                  <div class="small text-muted">${s["Teléfono"]}</div>
-                </td>
-                <td class="small" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title='${s["Dispositivo a recibir"]}'>${s["Dispositivo a recibir"]}</td>
-                <td class="small" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title='${s["Descripción de la falla"]}'>${s["Descripción de la falla"]}</td>
-                <td class="col-asignacion" style="display: ${isAdmin ? 'table-cell' : 'none'};">
-                   ${s["Asignado a"] ? `<span class="badge bg-info text-dark">${s["Asignado a"]}</span>` : '<span class="badge bg-light text-muted">Pendiente</span>'}
-                </td>
-                <td>${formatStatus(s["Estatus (admin)"])}</td>
-                <td class="fw-bold text-success col-total">${s["Total ($)"] ? '$' + s["Total ($)"] : '-'}</td>
-                <td>
-                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
-                    <i class="fas fa-edit"></i>
+
+              const tdFolio = document.createElement('td');
+              tdFolio.className = 'fw-bold';
+              tdFolio.textContent = s.Folio;
+
+              const tdFecha = document.createElement('td');
+              tdFecha.className = 'small';
+              tdFecha.textContent = s["Fecha de recepción"];
+
+              const tdCliente = document.createElement('td');
+              const divNombre = document.createElement('div');
+              divNombre.className = 'fw-bold';
+              divNombre.textContent = s.Nombre;
+              const divTel = document.createElement('div');
+              divTel.className = 'small text-muted';
+              divTel.textContent = s["Teléfono"];
+              tdCliente.appendChild(divNombre);
+              tdCliente.appendChild(divTel);
+
+              const tdDispositivo = document.createElement('td');
+              tdDispositivo.className = 'small';
+              tdDispositivo.style.maxWidth = '150px';
+              tdDispositivo.style.overflow = 'hidden';
+              tdDispositivo.style.textOverflow = 'ellipsis';
+              tdDispositivo.style.whiteSpace = 'nowrap';
+              tdDispositivo.textContent = s["Dispositivo a recibir"];
+              tdDispositivo.title = s["Dispositivo a recibir"];
+
+              const tdFalla = document.createElement('td');
+              tdFalla.className = 'small';
+              tdFalla.style.maxWidth = '250px';
+              tdFalla.style.overflow = 'hidden';
+              tdFalla.style.textOverflow = 'ellipsis';
+              tdFalla.style.whiteSpace = 'nowrap';
+              tdFalla.textContent = s["Descripción de la falla"];
+              tdFalla.title = s["Descripción de la falla"];
+
+              const tdAsignado = document.createElement('td');
+              tdAsignado.className = 'col-asignacion';
+              tdAsignado.style.display = isAdmin ? 'table-cell' : 'none';
+              if (s["Asignado a"]) {
+                const span = document.createElement('span');
+                span.className = 'badge bg-info text-dark';
+                span.textContent = s["Asignado a"];
+                tdAsignado.appendChild(span);
+              } else {
+                const span = document.createElement('span');
+                span.className = 'badge bg-light text-muted';
+                span.textContent = 'Pendiente';
+                tdAsignado.appendChild(span);
+              }
+
+              const tdEstatus = document.createElement('td');
+              tdEstatus.innerHTML = formatStatus(s["Estatus (admin)"]);
+
+              const tdTotal = document.createElement('td');
+              tdTotal.className = 'fw-bold text-success col-total';
+              tdTotal.textContent = s["Total ($)"] ? '$' + s["Total ($)"] : '-';
+
+              const tdAcciones = document.createElement('td');
+              tdAcciones.innerHTML = `
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-print"></i>
                   </button>
-                  <div class="btn-group">
-                    <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
-                      <i class="fas fa-print"></i>
-                    </button>
-                    <ul class="dropdown-menu shadow">
-                      <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</button></li>
-                      <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</button></li>
-                      <li><hr class="dropdown-divider"></li>
-                      <li><button type="button" class="dropdown-item" onclick="abrirReenvio('${s.Folio}')"><i class="fas fa-envelope me-2"></i>Reenviar Correo</button></li>
-                    </ul>
-                  </div>
-                  ${currentUser.rol === 'Administrador' ? `
-                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  ` : ''}
-                </td>
+                  <ul class="dropdown-menu shadow">
+                    <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</button></li>
+                    <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button type="button" class="dropdown-item" onclick="abrirReenvio('${s.Folio}')"><i class="fas fa-envelope me-2"></i>Reenviar Correo</button></li>
+                  </ul>
+                </div>
+                ${currentUser.rol === 'Administrador' ? `
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                ` : ''}
               `;
+
+              tr.appendChild(tdFolio);
+              tr.appendChild(tdFecha);
+              tr.appendChild(tdCliente);
+              tr.appendChild(tdDispositivo);
+              tr.appendChild(tdFalla);
+              tr.appendChild(tdAsignado);
+              tr.appendChild(tdEstatus);
+              tr.appendChild(tdTotal);
+              tr.appendChild(tdAcciones);
+
               tbody.appendChild(tr);
             });
             if (servicios.length === 0) {
@@ -431,7 +487,7 @@
               document.querySelectorAll('.col-total').forEach(el => el.style.display = 'none');
             }
           })
-          .obtenerServicios({ ...filtros, userRole: currentUser.rol, userName: currentUser.nombre });
+          .obtenerServicios(filtros, currentUser);
       }
 
       function filtrarEstatus(estatus) {
@@ -481,13 +537,12 @@
 
         showLoading(true);
 
-        // Use a Promise to sequence assignment if necessary
-        const p1 = google.script.run
+        google.script.run
           .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(res) {
             if (res.success) {
               if (currentUser.rol === 'Administrador') {
-                 google.script.run.asignarTrabajo(folio, asignado);
+                 google.script.run.asignarTrabajo(folio, asignado, currentUser);
               }
               showLoading(false);
               editModal.hide();
@@ -499,7 +554,7 @@
               showAlert(res.message);
             }
           })
-          .actualizarEstatus(folio, estatus, solucion, fecha, currentUser.rol, total);
+          .actualizarEstatus(folio, estatus, solucion, fecha, total, currentUser);
       }
 
       function abrirReenvio(folio) {
@@ -543,7 +598,7 @@
               showAlert(res.message);
             }
           })
-          .enviarCorreoPersonalizado(datos);
+          .enviarCorreoPersonalizado(datos, currentUser);
       }
 
       function confirmarEliminar(folio) {
@@ -561,7 +616,7 @@
                 showAlert(res.message);
               }
             })
-            .eliminarServicio(folio, currentUser.rol);
+            .eliminarServicio(folio, currentUser);
         }
       }
 
@@ -571,9 +626,13 @@
           .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(base64) {
             showLoading(false);
-            downloadCSV(base64, 'servicios_bitfix_' + new Date().toLocaleDateString() + '.csv');
+            if (base64) {
+              downloadCSV(base64, 'servicios_bitfix_' + new Date().toLocaleDateString() + '.csv');
+            } else {
+              showAlert('No se pudo generar el CSV. Verifica tus permisos.');
+            }
           })
-          .exportToCSV();
+          .exportToCSV(currentUser);
       }
 
 

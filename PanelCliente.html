@@ -95,7 +95,6 @@
             const grid = document.getElementById('servicesGrid');
             grid.innerHTML = '';
 
-            // Fix: ensure we only show services for the logged in user
             servicios = servicios.filter(s => s["Correo electrónico"] === currentUser.email);
 
             if (servicios.length === 0) {
@@ -106,24 +105,50 @@
             servicios.forEach(s => {
               const col = document.createElement('div');
               col.className = 'col-md-6 col-lg-4';
-              col.innerHTML = `
-                <div class="card h-100">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between mb-2">
-                      <span class="fw-bold text-primary">${s.Folio}</span>
-                      ${formatStatus(s["Estatus (admin)"])}
-                    </div>
-                    <h5 class="card-title">${s["Dispositivo a recibir"]}</h5>
-                    <p class="card-text small text-muted mb-1">${s["Fecha de recepción"]}</p>
-                    <p class="card-text fw-bold text-success mb-3">Total: $${s["Total ($)"] || '0.00'}</p>
-                    <div class="d-grid">
-                      <button type="button" class="btn btn-outline-primary btn-sm" onclick='verDetalle(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
-                        Ver detalles
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              `;
+
+              const card = document.createElement('div');
+              card.className = 'card h-100';
+              const body = document.createElement('div');
+              body.className = 'card-body';
+
+              const headerDiv = document.createElement('div');
+              headerDiv.className = 'd-flex justify-content-between mb-2';
+              const folioSpan = document.createElement('span');
+              folioSpan.className = 'fw-bold text-primary';
+              folioSpan.textContent = s.Folio;
+              headerDiv.appendChild(folioSpan);
+              const statusDiv = document.createElement('div');
+              statusDiv.innerHTML = formatStatus(s["Estatus (admin)"]);
+              headerDiv.appendChild(statusDiv);
+
+              const title = document.createElement('h5');
+              title.className = 'card-title';
+              title.textContent = s["Dispositivo a recibir"];
+
+              const date = document.createElement('p');
+              date.className = 'card-text small text-muted mb-1';
+              date.textContent = s["Fecha de recepción"];
+
+              const total = document.createElement('p');
+              total.className = 'card-text fw-bold text-success mb-3';
+              total.textContent = 'Total: $' + (s["Total ($)"] || '0.00');
+
+              const btnDiv = document.createElement('div');
+              btnDiv.className = 'd-grid';
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'btn btn-outline-primary btn-sm';
+              btn.textContent = 'Ver detalles';
+              btn.onclick = function() { verDetalle(s); };
+              btnDiv.appendChild(btn);
+
+              body.appendChild(headerDiv);
+              body.appendChild(title);
+              body.appendChild(date);
+              body.appendChild(total);
+              body.appendChild(btnDiv);
+              card.appendChild(body);
+              col.appendChild(card);
               grid.appendChild(col);
             });
           })
@@ -132,28 +157,30 @@
 
       function verDetalle(s) {
         const body = document.getElementById('detailsBody');
-        body.innerHTML = `
-          <div class="mb-3">
-            <label class="fw-bold small text-uppercase text-muted">Falla reportada:</label>
-            <p>${s["Descripción de la falla"]}</p>
-          </div>
-          <div class="mb-3">
-            <label class="fw-bold small text-uppercase text-muted">Estado del equipo:</label>
-            <p>${s["Estado del equipo"]}</p>
-          </div>
-          <div class="mb-3">
-            <label class="fw-bold small text-uppercase text-muted">Solución / Notas:</label>
-            <p>${s["Solución aplicada (admin)"] || 'Pendiente de revisión'}</p>
-          </div>
-          <div class="mb-3">
-            <label class="fw-bold small text-uppercase text-muted">Fecha Estimada de Entrega:</label>
-            <p>${s["Fecha de entrega (admin)"] || 'Por confirmar'}</p>
-          </div>
-          <div class="mb-3">
-            <label class="fw-bold small text-uppercase text-muted">Total:</label>
-            <p class="fs-5 fw-bold text-success">$${s["Total ($)"] || '0.00'}</p>
-          </div>
-        `;
+        body.innerHTML = '';
+
+        const sections = [
+          { label: 'Falla reportada:', value: s["Descripción de la falla"] },
+          { label: 'Estado del equipo:', value: s["Estado del equipo"] },
+          { label: 'Solución / Notas:', value: s["Solución aplicada (admin)"] || 'Pendiente de revisión' },
+          { label: 'Fecha Estimada de Entrega:', value: s["Fecha de entrega (admin)"] || 'Por confirmar' },
+          { label: 'Total:', value: '$' + (s["Total ($)"] || '0.00'), class: 'fs-5 fw-bold text-success' }
+        ];
+
+        sections.forEach(sec => {
+          const div = document.createElement('div');
+          div.className = 'mb-3';
+          const label = document.createElement('label');
+          label.className = 'fw-bold small text-uppercase text-muted';
+          label.textContent = sec.label;
+          const p = document.createElement('p');
+          if (sec.class) p.className = sec.class;
+          p.textContent = sec.value;
+          div.appendChild(label);
+          div.appendChild(p);
+          body.appendChild(div);
+        });
+
         detailsModal.show();
       }
 

@@ -59,37 +59,75 @@
           .withSuccessHandler(function(res) {
             const container = document.getElementById('estatusContainer');
             if (res) {
-              container.innerHTML = `
-                <div class="card shadow mb-4">
-                  <div class="card-header text-center py-3">
-                    <h4 class="mb-0">Folio: ${res.Folio}</h4>
-                  </div>
-                  <div class="card-body p-4">
-                    <div class="text-center mb-4">
-                      <div class="mb-2">Estatus Actual:</div>
-                      ${formatStatus(res.Estatus).replace('status-badge', 'status-badge fs-4')}
-                    </div>
+              container.innerHTML = '';
+              const card = document.createElement('div');
+              card.className = 'card shadow mb-4';
 
-                    <hr>
+              const header = document.createElement('div');
+              header.className = 'card-header text-center py-3';
+              const h4 = document.createElement('h4');
+              h4.className = 'mb-0';
+              h4.textContent = 'Folio: ' + res.Folio;
+              header.appendChild(h4);
 
-                    <div class="row mb-3">
-                      <div class="col-5 fw-bold">Dispositivo:</div>
-                      <div class="col-7">${res.Dispositivo}</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="alert alert-light border small text-muted text-center mb-4">
-                  <i class="fas fa-info-circle me-2"></i>Los tiempos de reparación pueden variar según la disponibilidad de piezas.
-                </div>
-              `;
+              const body = document.createElement('div');
+              body.className = 'card-body p-4';
+
+              const textCenter = document.createElement('div');
+              textCenter.className = 'text-center mb-4';
+              const mb2 = document.createElement('div');
+              mb2.className = 'mb-2';
+              mb2.textContent = 'Estatus Actual:';
+              textCenter.appendChild(mb2);
+              const statusSpan = document.createElement('span');
+              statusSpan.innerHTML = formatStatus(res.Estatus).replace('status-badge', 'status-badge fs-4');
+              textCenter.appendChild(statusSpan);
+
+              const hr = document.createElement('hr');
+
+              const row = document.createElement('div');
+              row.className = 'row mb-3';
+              const col5 = document.createElement('div');
+              col5.className = 'col-5 fw-bold';
+              col5.textContent = 'Dispositivo:';
+              const col7 = document.createElement('div');
+              col7.className = 'col-7';
+              col7.textContent = res.Dispositivo;
+              row.appendChild(col5);
+              row.appendChild(col7);
+
+              body.appendChild(textCenter);
+              body.appendChild(hr);
+              body.appendChild(row);
+
+              card.appendChild(header);
+              card.appendChild(body);
+
+              const alert = document.createElement('div');
+              alert.className = 'alert alert-light border small text-muted text-center mb-4';
+              alert.innerHTML = '<i class="fas fa-info-circle me-2"></i>Los tiempos de reparación pueden variar según la disponibilidad de piezas.';
+
+              container.appendChild(card);
+              container.appendChild(alert);
             } else {
-              container.innerHTML = `
-                <div class="alert alert-danger text-center">
-                  <i class="fas fa-exclamation-triangle fa-2x mb-3 d-block"></i>
-                  <h5>Folio no encontrado</h5>
-                  <p>Verifica que el folio <strong>${folio}</strong> sea correcto.</p>
-                </div>
-              `;
+              container.innerHTML = '';
+              const div = document.createElement('div');
+              div.className = 'alert alert-danger text-center';
+
+              const icon = document.createElement('i');
+              icon.className = 'fas fa-exclamation-triangle fa-2x mb-3 d-block';
+
+              const h5 = document.createElement('h5');
+              h5.textContent = 'Folio no encontrado';
+
+              const p = document.createElement('p');
+              p.innerHTML = 'Verifica que el folio <strong id="folioError"></strong> sea correcto.';
+
+              div.appendChild(icon);
+              div.appendChild(h5);
+              div.appendChild(p);
+              container.appendChild(div);
+              document.getElementById('folioError').textContent = folio;
             }
           })
           .obtenerEstatusPorFolio(folio);

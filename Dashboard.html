@@ -50,7 +50,7 @@
     <script>
       function drawCharts() {
         const userStr = sessionStorage.getItem('user');
-        const user = userStr ? JSON.parse(userStr) : { rol: '' };
+        const user = userStr ? JSON.parse(userStr) : null;
 
         showLoading(true);
         google.script.run
@@ -61,7 +61,7 @@
             renderIncomeChart(data.dailyCollections);
             renderPerformanceChart(data.supervisorStats);
           })
-          .getDashboardData(user.rol);
+          .getDashboardData(user);
       }
 
       function renderStatusChart(fullData) {

@@ -6,7 +6,8 @@
 const CONFIG = {
   NOMBRE_SISTEMA: "BitFix",
   FOLIO_PREFIX: "BF-",
-  ADMIN_ROLE: "admin",
+  ADMIN_ROLE: "Administrador",
+  SUPERVISOR_ROLE: "Supervisor",
   CLIENT_ROLE: "cliente",
   ESTADOS: ["Pendiente", "En reparación", "Listo", "Entregado", "Cancelado"],
   RECOLECCION_AVISO: "DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM."
@@ -46,12 +47,36 @@ function doGet(e) {
 function doPost(e) {
   const result = { success: false, message: "Petición no procesada." };
   try {
-    const action = e.parameter.action;
-    // Basic dispatcher for POST actions if needed, though we prefer google.script.run
     return HtmlService.createHtmlOutput(JSON.stringify(result)).setMimeType(HtmlService.MimeType.JSON);
   } catch (err) {
     return HtmlService.createHtmlOutput("Error: " + err.toString());
   }
+}
+
+/**
+ * AUTHENTICATION & SECURITY
+ */
+
+function checkAuth(auth) {
+  if (!auth || !auth.email || !auth.token) return { authorized: false };
+
+  const adminSheet = getSheet("Usuarios_Admin");
+  const adminData = adminSheet.getDataRange().getValues();
+  for (let i = 1; i < adminData.length; i++) {
+    const email = adminData[i][0];
+    const pass = adminData[i][1].toString();
+    const rol = adminData[i][2];
+    const nombre = adminData[i][3];
+
+    // Simple token: sha256(email + pass)
+    const serverToken = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email + pass)
+                          .map(function(chr){return (chr<0?chr+256:chr).toString(16).padStart(2, '0')}).join('');
+
+    if (email === auth.email && serverToken === auth.token) {
+      return { authorized: true, rol: rol, nombre: nombre, email: email };
+    }
+  }
+  return { authorized: false };
 }
 
 function render(templateName, data = {}) {
@@ -65,7 +90,7 @@ function render(templateName, data = {}) {
     return template.evaluate()
       .setTitle(CONFIG.NOMBRE_SISTEMA)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
   } catch (e) {
     console.error("Error en render(): " + e.toString());
     return HtmlService.createHtmlOutput("Error cargando página: " + e.toString());
@@ -78,8 +103,6 @@ function include(filename) {
 
 function capitalize(s) {
   if (typeof s !== 'string' || s.length === 0) return '';
-  // We keep the rest of the string as is to support CamelCase filenames like PanelCliente
-  // But we ensure it's not a path or containing invalid characters for template names
   const safeName = s.replace(/[^a-zA-Z0-9]/g, '');
   if (safeName.length === 0) return '';
   return safeName.charAt(0).toUpperCase() + safeName.slice(1);
@@ -162,7 +185,7 @@ function registrarUsuarioCliente(datos) {
   }
   sheet.appendRow([
     datos.email,
-    datos.password, // MVP: basic encryption or plain as requested
+    datos.password,
     datos.nombre,
     datos.telefono,
     new Date()
@@ -195,8 +218,6 @@ function registrarServicio(datos) {
 
   let fotoLinks = [];
   if (datos.fotos && datos.fotos.length > 0) {
-    // Logic to save base64 to Drive would go here in a production system
-    // For now we assume they are already uploaded or we store the count
     fotoLinks.push(datos.fotos.length + " fotos cargadas");
   }
 
@@ -229,7 +250,6 @@ function registrarServicio(datos) {
 }
 
 function enviarCorreoRegistro(datos, folio) {
-  console.log(`Intentando enviar correo de registro para el folio ${folio}...`);
   const config = getConfig();
   let logoHtml = "";
   if (config["Logo Principal"]) {
@@ -256,7 +276,6 @@ function enviarCorreoRegistro(datos, folio) {
 
   try {
     GmailApp.sendEmail(datos.correo, `Registro de Servicio - ${folio}`, "", { htmlBody: htmlBody });
-    console.log(`Correo de registro enviado a ${datos.correo}`);
   } catch (e) {
     console.error("Error enviando correo de registro: " + e.toString());
   }
@@ -266,7 +285,6 @@ function getScriptUrl() {
   try {
     return ScriptApp.getService().getUrl();
   } catch (err) {
-    console.error("Error obteniendo URL del script: " + err.toString());
     return "";
   }
 }
@@ -277,12 +295,15 @@ function validarLogin(correo, pass) {
   const adminData = adminSheet.getDataRange().getValues();
   for (let i = 1; i < adminData.length; i++) {
     if (adminData[i][0] === correo && adminData[i][1].toString() === pass.toString()) {
+      const token = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, correo + pass)
+                      .map(function(chr){return (chr<0?chr+256:chr).toString(16).padStart(2, '0')}).join('');
       return {
         success: true,
         user: {
           email: adminData[i][0],
           nombre: adminData[i][3],
-          rol: adminData[i][2] // 'Administrador' or 'Supervisor'
+          rol: adminData[i][2],
+          token: token
         }
       };
     }
@@ -307,7 +328,19 @@ function validarLogin(correo, pass) {
   return { success: false, message: "Credenciales incorrectas" };
 }
 
-function obtenerServicios(filtros = {}) {
+function obtenerServicios(filtros = {}, auth = null) {
+  let userRol = null;
+  let userName = null;
+
+  if (auth) {
+    const authRes = checkAuth(auth);
+    if (!authRes.authorized) throw new Error("No autorizado");
+    userRol = authRes.rol;
+    userName = authRes.nombre;
+  } else if (filtros.rol !== CONFIG.CLIENT_ROLE) {
+    throw new Error("Petición administrativa requiere autenticación");
+  }
+
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getDisplayValues();
   const headers = data[0];
@@ -322,8 +355,8 @@ function obtenerServicios(filtros = {}) {
   });
 
   // Role-based filtering for Supervisors
-  if (filtros.userRole === 'Supervisor') {
-    result = result.filter(s => s["Asignado a"] === filtros.userName);
+  if (userRol === 'Supervisor') {
+    result = result.filter(s => s["Asignado a"] === userName);
   }
 
   if (filtros.rol === CONFIG.CLIENT_ROLE && filtros.correo) {
@@ -346,9 +379,12 @@ function obtenerServicios(filtros = {}) {
   }
 
   // Remove sensitive data for Supervisors
-  if (filtros.userRole === 'Supervisor') {
+  if (userRol === 'Supervisor') {
     result.forEach(s => {
       delete s["Total ($)"];
+      delete s["Anticipo"];
+      delete s["Abono"];
+      delete s["PagoTotal"];
     });
   }
 
@@ -358,7 +394,6 @@ function obtenerServicios(filtros = {}) {
 function obtenerEstatusPorFolio(folio) {
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getDisplayValues();
-  const headers = data[0];
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === folio) {
       return {
@@ -392,21 +427,30 @@ function obtenerDatosCompletosServicio(folio) {
   return null;
 }
 
-function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, total) {
+function actualizarEstatus(folio, estatus, solucion, fechaEntrega, total, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized) return { success: false, message: "No autorizado" };
+
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === folio) {
       const oldStatus = data[i][8];
+
+      if (authRes.rol === 'Supervisor' && data[i][16] !== authRes.nombre) {
+        return { success: false, message: "No tienes permiso para editar este servicio (no asignado)." };
+      }
+
       sheet.getRange(i + 1, 9).setValue(estatus);
       sheet.getRange(i + 1, 10).setValue(solucion);
       sheet.getRange(i + 1, 11).setValue(fechaEntrega);
-      if (total !== undefined && total !== null) {
+
+      if (authRes.rol === 'Administrador' && total !== undefined && total !== null) {
         sheet.getRange(i + 1, 13).setValue(total);
       }
 
       if (estatus === "Listo" && oldStatus !== "Listo") {
-        enviarCorreoEquipoListo(data[i], folio, solucion, total);
+        enviarCorreoEquipoListo(data[i], folio, solucion, total || data[i][12]);
       }
       return { success: true };
     }
@@ -415,7 +459,6 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, tot
 }
 
 function enviarCorreoEquipoListo(rowData, folio, solucion, total) {
-  console.log(`Intentando enviar correo de 'Listo' para el folio ${folio}...`);
   const config = getConfig();
   const correo = rowData[4];
   const nombre = rowData[1];
@@ -443,7 +486,6 @@ function enviarCorreoEquipoListo(rowData, folio, solucion, total) {
 
   try {
     GmailApp.sendEmail(correo, `Equipo Listo - ${folio}`, "", { htmlBody: htmlBody });
-    console.log(`Correo de equipo listo enviado a ${correo}`);
   } catch (e) {
     console.error("Error enviando correo de listo: " + e.toString());
   }
@@ -466,9 +508,9 @@ function confirmarRecoleccion(folio) {
   return { success: true };
 }
 
-
-function eliminarServicio(folio, userRole) {
-  if (userRole !== 'Administrador') {
+function eliminarServicio(folio, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized || authRes.rol !== 'Administrador') {
     return { success: false, message: "No tienes permisos para eliminar registros." };
   }
   const sheet = getSheet("Servicios");
@@ -502,7 +544,10 @@ function getDashboardStats() {
   return stats;
 }
 
-function exportToCSV() {
+function exportToCSV(auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized) return null;
+
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getDisplayValues();
   let csvContent = "";
@@ -526,7 +571,12 @@ function getConfig() {
   return config;
 }
 
-function updateConfig(newConfig) {
+function updateConfig(newConfig, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized || authRes.rol !== 'Administrador') {
+    return { success: false, message: "No autorizado" };
+  }
+
   const sheet = getSheet("Config");
   const data = sheet.getDataRange().getValues();
   for (let key in newConfig) {
@@ -540,14 +590,10 @@ function updateConfig(newConfig) {
   return { success: true };
 }
 
-/**
- * NEW BACKEND FUNCTIONS
- */
-
 function buscarClientePorTelefono(telefono) {
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
-  for (let i = data.length - 1; i >= 1; i--) { // Reverse to get most recent
+  for (let i = data.length - 1; i >= 1; i--) {
     if (data[i][2].toString() === telefono.toString()) {
       return {
         nombre: data[i][1],
@@ -563,10 +609,15 @@ function obtenerSupervisores() {
   const data = sheet.getDataRange().getValues();
   return data.slice(1)
     .filter(row => row[2] === 'Supervisor')
-    .map(row => row[3]); // Return Names
+    .map(row => row[3]);
 }
 
-function asignarTrabajo(folio, supervisorName) {
+function asignarTrabajo(folio, supervisorName, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized || authRes.rol !== 'Administrador') {
+    return { success: false, message: "No autorizado" };
+  }
+
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
@@ -578,7 +629,10 @@ function asignarTrabajo(folio, supervisorName) {
   return { success: false, message: "Folio no encontrado" };
 }
 
-function enviarCorreoPersonalizado(datos) {
+function enviarCorreoPersonalizado(datos, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized) return { success: false, message: "No autorizado" };
+
   try {
     GmailApp.sendEmail(datos.correo, datos.asunto, "", {
       htmlBody: datos.cuerpo
@@ -589,13 +643,17 @@ function enviarCorreoPersonalizado(datos) {
   }
 }
 
-function getDashboardData() {
+function getDashboardData(auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized || authRes.rol !== 'Administrador') {
+    throw new Error("Acceso denegado a datos financieros.");
+  }
+
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const rows = data.slice(1);
 
-  // Collections by Day
   const dailyCollections = {};
   const supervisorStats = {};
 
