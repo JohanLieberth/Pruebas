@@ -19,7 +19,7 @@
         </a>
         <div class="ms-auto d-flex align-items-center">
           <a href="<?= getScriptUrl() ?>" class="btn btn-outline-light btn-sm me-2">Inicio</a>
-          <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+          <button type="button" class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
         </div>
       </div>
     </nav>
@@ -118,7 +118,7 @@
                     <p class="card-text small text-muted mb-1">${s["Fecha de recepción"]}</p>
                     <p class="card-text fw-bold text-success mb-3">Total: $${s["Total ($)"] || '0.00'}</p>
                     <div class="d-grid">
-                      <button class="btn btn-outline-primary btn-sm" onclick='verDetalle(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
+                      <button type="button" class="btn btn-outline-primary btn-sm" onclick='verDetalle(${JSON.stringify(s).replace(/'/g, "&apos;")})'>
                         Ver detalles
                       </button>
                     </div>

@@ -4,7 +4,7 @@
     <base target="_top">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <?!= include('CSS'); ?>
   </head>
   <body>
@@ -14,26 +14,32 @@
 
     <nav class="navbar navbar-expand-lg mb-4">
       <div class="container">
-        <a class="navbar-brand" href="#"><i class="fas fa-chart-line me-2"></i>Dashboard</a>
+        <a class="navbar-brand" href="#"><i class="fas fa-chart-line me-2"></i>Dashboard BitFix</a>
         <div class="ms-auto d-flex align-items-center">
           <a href="<?= getScriptUrl() ?>?page=admin" class="btn btn-outline-light btn-sm me-2">Volver al Panel</a>
-          <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+          <button type="button" class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
         </div>
       </div>
     </nav>
 
     <div class="container py-4">
       <div class="row g-4 mb-4">
-        <div class="col-12">
-          <div class="card p-3">
-             <h5 class="card-title"><i class="fas fa-money-bill-wave me-2"></i>Cobros Mensuales (Abonos + Anticipos + Pagos)</h5>
-             <div id="chart_collections" style="width: 100%; height: 400px;"></div>
+        <div class="col-md-6">
+          <div class="card h-100 p-3 shadow-sm">
+             <h5 class="card-title text-center"><i class="fas fa-chart-pie me-2 text-danger"></i>Estatus Global</h5>
+             <canvas id="chart_status"></canvas>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card h-100 p-3 shadow-sm">
+             <h5 class="card-title text-center"><i class="fas fa-money-bill-trend-up me-2 text-success"></i>Ingresos Diarios</h5>
+             <canvas id="chart_income"></canvas>
           </div>
         </div>
         <div class="col-12">
-          <div class="card p-3">
-             <h5 class="card-title"><i class="fas fa-user-tie me-2"></i>Trabajos por Supervisor y Estatus</h5>
-             <div id="chart_supervisors" style="width: 100%; height: 400px;"></div>
+          <div class="card p-3 shadow-sm">
+             <h5 class="card-title text-center"><i class="fas fa-user-gear me-2 text-primary"></i>Rendimiento por Supervisor</h5>
+             <canvas id="chart_performance" style="max-height: 400px;"></canvas>
           </div>
         </div>
       </div>
@@ -42,68 +48,93 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?!= include('JS'); ?>
     <script>
-      google.charts.load('current', {'packages':['corechart', 'bar']});
-      google.charts.setOnLoadCallback(drawCharts);
-
       function drawCharts() {
+        const userStr = sessionStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : { rol: '' };
+
         showLoading(true);
         google.script.run
           .withFailureHandler(handleGlobalError)
           .withSuccessHandler(function(data) {
             showLoading(false);
-            drawCollectionsChart(data.dailyCollections);
-            drawSupervisorsChart(data.supervisorStats);
+            renderStatusChart(data);
+            renderIncomeChart(data.dailyCollections);
+            renderPerformanceChart(data.supervisorStats);
           })
-          .getDashboardData();
+          .getDashboardData(user.rol);
       }
 
-      function drawCollectionsChart(dailyData) {
-        const dataArray = [['Día', 'Total Cobrado']];
-        const days = Object.keys(dailyData).sort();
-        days.forEach(day => {
-          dataArray.push([day, dailyData[day]]);
+      function renderStatusChart(fullData) {
+        const stats = {
+          "Pendiente": 0, "En reparación": 0, "Listo": 0, "Entregado": 0, "Cancelado": 0
+        };
+        Object.values(fullData.supervisorStats).forEach(s => {
+          for(let k in stats) stats[k] += s[k];
         });
 
-        const data = google.visualization.arrayToDataTable(dataArray);
-        const options = {
-          title: 'Total Cobrado por Día',
-          legend: { position: 'none' },
-          hAxis: { title: 'Día/Mes' },
-          vAxis: { title: 'Monto ($)' },
-          colors: ['#2ecc71']
-        };
-
-        const chart = new google.visualization.ColumnChart(document.getElementById('chart_collections'));
-        chart.draw(data, options);
+        new Chart(document.getElementById('chart_status'), {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(stats),
+            datasets: [{
+              data: Object.values(stats),
+              backgroundColor: ['#f39c12', '#343A40', '#2ecc71', '#7f8c8d', '#e74c3c']
+            }]
+          }
+        });
       }
 
-      function drawSupervisorsChart(supStats) {
-        const dataArray = [['Supervisor', 'Pendiente', 'En reparación', 'Listo', 'Entregado', 'Cancelado']];
+      function renderIncomeChart(dailyData) {
+        const labels = Object.keys(dailyData).sort();
+        new Chart(document.getElementById('chart_income'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Recaudado ($)',
+              data: labels.map(l => dailyData[l]),
+              borderColor: '#e94560',
+              backgroundColor: 'rgba(233, 69, 96, 0.1)',
+              fill: true,
+              tension: 0.3
+            }]
+          }
+        });
+      }
+
+      function renderPerformanceChart(supStats) {
         const supervisors = Object.keys(supStats);
-        supervisors.forEach(sup => {
-          const s = supStats[sup];
-          dataArray.push([sup, s.Pendiente, s['En reparación'], s.Listo, s.Entregado, s.Cancelado]);
+        const statusKeys = ["Pendiente", "En reparación", "Listo", "Entregado", "Cancelado"];
+        const colors = ['#f39c12', '#343A40', '#2ecc71', '#7f8c8d', '#e74c3c'];
+
+        const datasets = statusKeys.map((status, i) => ({
+          label: status,
+          data: supervisors.map(sup => supStats[sup][status]),
+          backgroundColor: colors[i]
+        }));
+
+        new Chart(document.getElementById('chart_performance'), {
+          type: 'bar',
+          data: {
+            labels: supervisors,
+            datasets: datasets
+          },
+          options: {
+            indexAxis: 'y',
+            scales: { x: { stacked: true }, y: { stacked: true } }
+          }
         });
-
-        if (supervisors.length === 0) {
-           document.getElementById('chart_supervisors').innerHTML = '<p class="text-center py-5">No hay datos de asignación disponibles.</p>';
-           return;
-        }
-
-        const data = google.visualization.arrayToDataTable(dataArray);
-        const options = {
-          title: 'Productividad por Supervisor',
-          isStacked: true,
-          hAxis: { title: 'Supervisor' },
-          vAxis: { title: 'Equipos' }
-        };
-
-        const chart = new google.visualization.BarChart(document.getElementById('chart_supervisors'));
-        chart.draw(data, options);
       }
 
       window.addEventListener('load', function() {
+        const userStr = sessionStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : null;
+        if (!user || user.rol !== 'Administrador') {
+           window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+           return;
+        }
         inicializarTema();
+        drawCharts();
       });
     </script>
   </body>

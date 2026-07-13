@@ -69,6 +69,35 @@
                   </div>
                 </div>
 
+                <div class="mb-3">
+                   <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="recoleccionCheck" required>
+                      <label class="form-check-label small" for="recoleccionCheck">
+                        <b>Aviso de recolección:</b> <?= getDisclaimer() ?>
+                      </label>
+                   </div>
+                </div>
+
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <label class="form-label">¿Tiene garantía?</label>
+                    <select name="garantia" class="form-select" onchange="toggleGarantiaFecha(this.value)">
+                       <option value="No">No</option>
+                       <option value="Sí">Sí</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6" id="venceGarantiaCol" style="display: none;">
+                    <label class="form-label">Fecha de Vencimiento</label>
+                    <input type="date" name="venceGarantia" class="form-control">
+                  </div>
+                </div>
+
+                <div class="mb-4">
+                  <label class="form-label">Fotos del equipo (Máx 3)</label>
+                  <input type="file" id="fotoInput" class="form-control" accept="image/*" multiple onchange="validarFotos(this)">
+                  <div id="fotoPreview" class="mt-2 d-flex gap-2"></div>
+                </div>
+
                 <div class="d-grid">
                   <button type="submit" class="btn btn-primary btn-lg">Registrar Servicio</button>
                 </div>
@@ -85,10 +114,10 @@
               <p class="mb-5 text-muted">Se ha enviado un correo de confirmación al cliente.</p>
 
               <div class="d-flex justify-content-center gap-3">
-                <button class="btn btn-outline-dark" onclick="imprimirTicket('completo')">
+                <button type="button" class="btn btn-outline-dark" onclick="imprimirTicket('completo')">
                   <i class="fas fa-print me-2"></i>Ticket Cliente
                 </button>
-                <button class="btn btn-outline-dark" onclick="imprimirTicket('corto')">
+                <button type="button" class="btn btn-outline-dark" onclick="imprimirTicket('corto')">
                   <i class="fas fa-tag me-2"></i>Etiqueta
                 </button>
               </div>
@@ -104,6 +133,36 @@
     <?!= include('JS'); ?>
     <script>
       let currentFolio = '';
+      let fotosBase64 = [];
+
+      function toggleGarantiaFecha(val) {
+        document.getElementById('venceGarantiaCol').style.display = (val === 'Sí') ? 'block' : 'none';
+      }
+
+      function validarFotos(input) {
+        fotosBase64 = [];
+        const preview = document.getElementById('fotoPreview');
+        preview.innerHTML = '';
+
+        if (input.files.length > 3) {
+          showAlert('Máximo 3 fotos permitidas.', 'warning');
+          input.value = '';
+          return;
+        }
+
+        Array.from(input.files).forEach(file => {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            fotosBase64.push(e.target.result);
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.height = '80px';
+            img.className = 'rounded border';
+            preview.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        });
+      }
 
       function autoCompletar() {
         const tel = document.getElementById('telInput').value;
@@ -133,7 +192,10 @@
           estadoEquipo: this.estadoEquipo.value,
           anticipo: this.anticipo.value,
           abono: this.abono.value,
-          pagoTotal: this.pagoTotal.value
+          pagoTotal: this.pagoTotal.value,
+          garantia: this.garantia.value,
+          venceGarantia: this.venceGarantia.value,
+          fotos: fotosBase64
         };
 
         google.script.run

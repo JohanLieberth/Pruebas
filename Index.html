@@ -14,21 +14,14 @@
       </div>
     </div>
 
-    <nav class="navbar navbar-expand-lg mb-4">
+    <nav class="navbar navbar-expand-lg mb-4 shadow-sm">
       <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="<?= getScriptUrl() ?>">
           <img id="headerLogo" src="" alt="Logo" style="height: 40px; margin-right: 10px; display: none;">
           <span id="systemName">BitFix</span>
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="<?= getScriptUrl() ?>?page=login">Acceso / Portal Cliente</a>
-            </li>
-          </ul>
+        <div class="ms-auto d-flex align-items-center">
+            <a class="btn btn-outline-light btn-sm" href="<?= getScriptUrl() ?>?page=login">Acceso / Portal Cliente</a>
         </div>
       </div>
     </nav>
@@ -61,7 +54,7 @@
                     <p>¿Quieres saber cómo va tu reparación? Ingresa tu folio abajo.</p>
                     <div class="input-group">
                       <input type="text" id="folioInput" class="form-control" placeholder="Ej: BF-00001">
-                      <button class="btn btn-secondary" type="button" onclick="consultarFolio()">Consultar</button>
+                      <button type="button" class="btn btn-secondary" type="button" onclick="consultarFolio()">Consultar</button>
                     </div>
                   </div>
                 </div>

@@ -68,10 +68,11 @@
   function logout() {
     sessionStorage.clear();
     localStorage.clear();
+    const url = '<?= getScriptUrl() ?>?page=login';
     if (window.top && window.top.location) {
-      window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+      window.top.location.href = url;
     } else {
-      window.location.href = '<?= getScriptUrl() ?>?page=login';
+      window.location.href = url;
     }
   }
 

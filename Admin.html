@@ -23,7 +23,7 @@
     <nav class="navbar navbar-expand-lg mb-4">
       <div class="container">
         <a class="navbar-brand" href="#"><i class="fas fa-user-shield me-2"></i>Admin Panel</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar">
+        <button type="button" class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="adminNavbar">
@@ -37,7 +37,7 @@
           </ul>
           <div class="ms-auto d-flex align-items-center">
             <span class="me-3 d-none d-md-inline" id="adminName"></span>
-            <button class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+            <button type="button" class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
           </div>
         </div>
       </div>
@@ -110,13 +110,13 @@
               <a href="<?= getScriptUrl() ?>?page=registro" class="btn btn-outline-primary">
                 <i class="fas fa-plus me-2"></i>Registro Nuevo
               </a>
-              <button class="btn btn-outline-success" onclick="exportarCSV()">
+              <button type="button" class="btn btn-outline-success" onclick="exportarCSV()">
                 <i class="fas fa-file-export me-2"></i>Exportar CSV
               </button>
-              <button class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#configModal">
+              <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#configModal">
                 <i class="fas fa-cog me-2"></i>Configuración
               </button>
-              <button class="btn btn-primary" onclick="cargarServicios()">
+              <button type="button" class="btn btn-primary" onclick="cargarServicios()">
                 <i class="fas fa-sync-alt me-2"></i>Actualizar
               </button>
             </div>
@@ -412,22 +412,23 @@
                 <td>${formatStatus(s["Estatus (admin)"])}</td>
                 <td class="fw-bold text-success col-total">${s["Total ($)"] ? '$' + s["Total ($)"] : '-'}</td>
                 <td>
-                  <button class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
+                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
                     <i class="fas fa-edit"></i>
                   </button>
                   <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
+                    <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
                       <i class="fas fa-print"></i>
                     </button>
                     <ul class="dropdown-menu shadow">
-                      <li><a class="dropdown-item" href="#" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</a></li>
-                      <li><a class="dropdown-item" href="#" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</a></li>
+                      <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</button></li>
+                      <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</button></li>
                       <li><hr class="dropdown-divider"></li>
-                      <li><a class="dropdown-item" href="#" onclick="abrirReenvio('${s.Folio}')"><i class="fas fa-envelope me-2"></i>Reenviar Correo</a></li>
+                      <li><button type="button" class="dropdown-item" onclick="abrirReenvio('${s.Folio}')"><i class="fas fa-envelope me-2"></i>Reenviar Correo</button></li>
+                      <li><button type="button" class="dropdown-item" onclick="notificarWhatsApp('${s.Folio}', '${s["Teléfono"]}')"><i class="fab fa-whatsapp me-2"></i>WhatsApp</button></li>
                     </ul>
                   </div>
                   ${currentUser.rol === 'Administrador' ? `
-                    <button class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
                       <i class="fas fa-trash"></i>
                     </button>
                   ` : ''}
@@ -586,6 +587,19 @@
             downloadCSV(base64, 'servicios_bitfix_' + new Date().toLocaleDateString() + '.csv');
           })
           .exportToCSV();
+      }
+
+      function notificarWhatsApp(folio, tel) {
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+             showLoading(false);
+             if (res.success) {
+               showAlert('Notificación de WhatsApp registrada.', 'success');
+             }
+          })
+          .enviarNotificacionWhatsApp(folio, tel);
       }
 
     </script>

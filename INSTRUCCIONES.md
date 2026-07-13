@@ -9,6 +9,8 @@ Sigue estos pasos para poner en marcha tu Sistema de Administración de Servicio
    - `Usuarios_Admin`: `Email` | `Contraseña` | `Rol` | `Nombre`.
    - `Usuarios_Clientes`: `Email` | `Contraseña` | `Nombre` | `Teléfono` | `Fecha de Registro`.
    - `Config`: `Parámetro` | `Valor`.
+   - `Confirmaciones`: `Folio` | `Fecha de Confirmación` | `Cliente`.
+   - `Notificaciones`: `Fecha` | `Tipo` | `Folio` | `Destinatario` | `Estatus`.
 3. Agrega un usuario administrador en `Usuarios_Admin`:
    - Ejemplo: `admin@correo.com` | `admin123` | `Administrador` | `Super Admin`
 
@@ -26,6 +28,7 @@ Sigue estos pasos para poner en marcha tu Sistema de Administración de Servicio
    - `Imprimir.html`
    - `CSS.html`
    - `JS.html`
+   - `Confirmar.html`
 
 ## 3. Despliegue
 1. Haz clic en el botón azul **Implementar > Nueva implementación**.

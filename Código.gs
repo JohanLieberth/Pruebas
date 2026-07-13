@@ -17,13 +17,6 @@ function doGet(e) {
   e.parameter = e.parameter || {};
 
   let page = e.parameter.page || 'index';
-
-  // Server-side route protection for administration tasks
-  if (page === 'registro' || page === 'admin') {
-     // This is a simple protection for the web app URL.
-     // Real session validation happens on the client side with sessionStorage
-     // and server-side on each specific sensitive function call.
-  }
   let folio = e.parameter.folio;
   let tipo = e.parameter.tipo;
 
@@ -32,9 +25,11 @@ function doGet(e) {
   }
 
   if (page === 'dashboard') {
-    // For simplicity in doGet, we can't easily check sessionStorage here.
-    // However, Dashboard.html and getDashboardData already have robust role checks.
     return render('Dashboard');
+  }
+
+  if (page === 'confirmar' && folio) {
+    return render('Confirmar', { folio: folio });
   }
 
   if (page === 'imprimir' && folio) {
@@ -46,6 +41,17 @@ function doGet(e) {
   }
 
   return render(capitalize(page));
+}
+
+function doPost(e) {
+  const result = { success: false, message: "Petición no procesada." };
+  try {
+    const action = e.parameter.action;
+    // Basic dispatcher for POST actions if needed, though we prefer google.script.run
+    return HtmlService.createHtmlOutput(JSON.stringify(result)).setMimeType(HtmlService.MimeType.JSON);
+  } catch (err) {
+    return HtmlService.createHtmlOutput("Error: " + err.toString());
+  }
 }
 
 function render(templateName, data = {}) {
@@ -102,7 +108,7 @@ function getSheet(name) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
     if (name === "Servicios") {
-      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total ($)", "Anticipo", "Abono", "PagoTotal", "Asignado a"]);
+      sheet.appendRow(["Folio", "Nombre", "Teléfono", "Fecha de recepción", "Correo electrónico", "Dispositivo a recibir", "Descripción de la falla", "Estado del equipo", "Estatus (admin)", "Solución aplicada (admin)", "Fecha de entrega (admin)", "Timestamp de registro", "Total ($)", "Anticipo", "Abono", "PagoTotal", "Asignado a", "Garantía", "Vence Garantía", "Fotos"]);
     } else if (name === "Usuarios_Admin") {
       sheet.appendRow(["Email", "Contraseña", "Rol", "Nombre"]);
     } else if (name === "Usuarios_Clientes") {
@@ -113,6 +119,10 @@ function getSheet(name) {
       sheet.appendRow(["Logo Pequeño", ""]);
       sheet.appendRow(["URL_Video_Promocional", ""]);
       sheet.appendRow(["Paleta", "Tecnología Profesional"]);
+    } else if (name === "Confirmaciones") {
+      sheet.appendRow(["Folio", "Fecha de Confirmación", "Cliente"]);
+    } else if (name === "Notificaciones") {
+      sheet.appendRow(["Fecha", "Tipo", "Folio", "Destinatario", "Estatus"]);
     }
   }
   return sheet;
@@ -183,6 +193,13 @@ function registrarServicio(datos) {
   const timestamp = new Date();
   const fechaRecepcion = Utilities.formatDate(timestamp, "GMT-6", "dd/MM/yyyy");
 
+  let fotoLinks = [];
+  if (datos.fotos && datos.fotos.length > 0) {
+    // Logic to save base64 to Drive would go here in a production system
+    // For now we assume they are already uploaded or we store the count
+    fotoLinks.push(datos.fotos.length + " fotos cargadas");
+  }
+
   sheet.appendRow([
     folio,
     datos.nombre,
@@ -196,13 +213,23 @@ function registrarServicio(datos) {
     "",
     "",
     timestamp,
-    "", // Total ($) - initially empty or from logic
+    "", // Total ($)
     datos.anticipo || 0,
     datos.abono || 0,
     datos.pagoTotal || 0,
-    "" // Asignado a
+    "", // Asignado a
+    datos.garantia || "No",
+    datos.venceGarantia || "",
+    fotoLinks.join(", ")
   ]);
 
+  enviarCorreoRegistro(datos, folio);
+
+  return { folio: folio, success: true };
+}
+
+function enviarCorreoRegistro(datos, folio) {
+  console.log(`Intentando enviar correo de registro para el folio ${folio}...`);
   const config = getConfig();
   let logoHtml = "";
   if (config["Logo Principal"]) {
@@ -228,14 +255,11 @@ function registrarServicio(datos) {
   `;
 
   try {
-    GmailApp.sendEmail(datos.correo, `Registro de Servicio - ${folio}`, "", {
-      htmlBody: htmlBody
-    });
+    GmailApp.sendEmail(datos.correo, `Registro de Servicio - ${folio}`, "", { htmlBody: htmlBody });
+    console.log(`Correo de registro enviado a ${datos.correo}`);
   } catch (e) {
-    console.error("Error enviando correo: " + e.toString());
+    console.error("Error enviando correo de registro: " + e.toString());
   }
-
-  return { folio: folio, success: true };
 }
 
 function getScriptUrl() {
@@ -369,7 +393,6 @@ function obtenerDatosCompletosServicio(folio) {
 }
 
 function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, total) {
-  // Supervisor and Administrator can update, but only Admin should delete (handled on deletion function if any)
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
@@ -383,40 +406,71 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega, userRole, tot
       }
 
       if (estatus === "Listo" && oldStatus !== "Listo") {
-        const config = getConfig();
-        const correo = data[i][4];
-        const nombre = data[i][1];
-        let logoHtml = "";
-        if (config["Logo Principal"]) {
-          logoHtml = `<img src="${config["Logo Principal"]}" style="max-width: 200px; display: block; margin-bottom: 20px;">`;
-        }
-
-        const htmlBody = `
-          <div style="font-family: Arial, sans-serif; color: #333;">
-            ${logoHtml}
-            <h2 style="color: #2ecc71;">¡Equipo Listo! - ${folio}</h2>
-            <p>Hola <strong>${nombre}</strong>,</p>
-            <p>Tu equipo ya está listo para ser recogido.</p>
-            <p><strong>Solución aplicada:</strong> ${solucion}</p>
-            <p><strong>Total a pagar:</strong> $${total || '0.00'}</p>
-            <p>Por favor, acude a nuestra sucursal en el horario de atención.</p>
-            <br>
-            <p style="font-size: 0.8em; color: #666;">${CONFIG.RECOLECCION_AVISO}</p>
-          </div>
-        `;
-
-        try {
-          GmailApp.sendEmail(correo, `Equipo Listo - ${folio}`, "", {
-            htmlBody: htmlBody
-          });
-        } catch (e) {
-          console.error("Error enviando correo de listo: " + e.toString());
-        }
+        enviarCorreoEquipoListo(data[i], folio, solucion, total);
       }
       return { success: true };
     }
   }
   return { success: false, message: "Folio no encontrado" };
+}
+
+function enviarCorreoEquipoListo(rowData, folio, solucion, total) {
+  console.log(`Intentando enviar correo de 'Listo' para el folio ${folio}...`);
+  const config = getConfig();
+  const correo = rowData[4];
+  const nombre = rowData[1];
+  let logoHtml = "";
+  if (config["Logo Principal"]) {
+    logoHtml = `<img src="${config["Logo Principal"]}" style="max-width: 200px; display: block; margin-bottom: 20px;">`;
+  }
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; color: #333; text-align: center;">
+      ${logoHtml}
+      <h2 style="color: #2ecc71;">¡Tu equipo está listo!</h2>
+      <p>Hola <strong>${nombre}</strong>, tenemos excelentes noticias.</p>
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; text-align: left; display: inline-block; width: 100%; max-width: 400px;">
+        <p><strong>Folio:</strong> ${folio}</p>
+        <p><strong>Solución:</strong> ${solucion}</p>
+        <p><strong>Total a pagar:</strong> $${total || '0.00'}</p>
+      </div>
+      <p>Por favor, confírmanos que vendrás a recogerlo:</p>
+      <a href="${getScriptUrl()}?page=confirmar&folio=${folio}" style="background-color: #e94560; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Confirmar Recolección</a>
+      <br><br>
+      <p style="font-size: 0.8em; color: #666;">${CONFIG.RECOLECCION_AVISO}</p>
+    </div>
+  `;
+
+  try {
+    GmailApp.sendEmail(correo, `Equipo Listo - ${folio}`, "", { htmlBody: htmlBody });
+    console.log(`Correo de equipo listo enviado a ${correo}`);
+  } catch (e) {
+    console.error("Error enviando correo de listo: " + e.toString());
+  }
+}
+
+function confirmarRecoleccion(folio) {
+  const sheet = getSheet("Confirmaciones");
+  const servSheet = getSheet("Servicios");
+  const data = servSheet.getDataRange().getValues();
+  let cliente = "Desconocido";
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === folio) {
+      cliente = data[i][1];
+      break;
+    }
+  }
+
+  sheet.appendRow([folio, new Date(), cliente]);
+  return { success: true };
+}
+
+function enviarNotificacionWhatsApp(folio, destinatario) {
+  console.log(`WhatsApp MOCK: Notificando folio ${folio} al numero ${destinatario}`);
+  const sheet = getSheet("Notificaciones");
+  sheet.appendRow([new Date(), "WhatsApp", folio, destinatario, "Enviado (Simulado)"]);
+  return { success: true };
 }
 
 function eliminarServicio(folio, userRole) {
