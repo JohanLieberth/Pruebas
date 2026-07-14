@@ -642,8 +642,8 @@ function getUsuariosAdminSheet() {
   sheet = ss.insertSheet("Usuarios_Admin");
   sheet.getRange(1, 1, 1, 4).setValues([["Email", "Contraseña", "Rol", "Nombre"]]).setFontWeight("bold").setBackground("#f3f3f3");
   // Registros iniciales para pruebas
-  sheet.getRange(2, 1, 1, 4).setValues([["admin@mujeresseguras.com", "admin123", "Administrador", "Admin de Prueba"]]);
-  sheet.getRange(3, 1, 1, 4).setValues([["supervisor@mujeresseguras.com", "super123", "Supervisor", "Supervisor de Prueba"]]);
+  sheet.getRange(2, 1, 1, 4).setValues([["admin@gestion-contratos.com", "admin123", "Administrador", "Admin de Prueba"]]);
+  sheet.getRange(3, 1, 1, 4).setValues([["supervisor@gestion-contratos.com", "super123", "Supervisor", "Supervisor de Prueba"]]);
   return sheet;
 }
 
