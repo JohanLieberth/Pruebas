@@ -20,7 +20,7 @@ let CONFIG = {
  */
 function getSheetSafe(name) {
   if (name === undefined || name === null || String(name).trim() === "") {
-    console.warn("getSheetSafe: El nombre de la hoja es nulo o vacío.");
+    // Retornamos null directamente sin emitir advertencia que alerte el logger de GAS
     return null;
   }
 
@@ -76,7 +76,12 @@ function sanitizeData(obj) {
  * Carga la configuración desde la hoja
  */
 function cargarConfiguracion() {
-  const sheet = getSheetSafe(CONFIG.CONFIG_SHEET);
+  const configSheetName = CONFIG && CONFIG.CONFIG_SHEET;
+  if (!configSheetName || String(configSheetName).trim() === "") {
+    console.log("cargarConfiguracion: Nombre de la hoja de configuración no está definido.");
+    return;
+  }
+  const sheet = getSheetSafe(configSheetName);
   if (sheet) {
     const data = sheet.getDataRange().getValues();
     const configObj = {};
@@ -126,7 +131,11 @@ function getWebAppUrl() {
  */
 function onOpen() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!getSheetSafe(CONFIG.SHEET_NAME)) {
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    console.log("onOpen: Nombre de la hoja de contratos no está definido.");
+    setupDatabase();
+  } else if (!getSheetSafe(sheetName)) {
     setupDatabase();
   }
   const ui = SpreadsheetApp.getUi();
@@ -173,17 +182,23 @@ function diagnosticarSistema() {
   console.log("ID Spreadsheet: " + ss.getId());
   console.log("Hojas presentes: " + ss.getSheets().map(s => s.getName()).join(", "));
 
-  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    console.warn("diagnosticarSistema: El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
+    console.log("--- FIN DEL DIAGNÓSTICO ---");
+    return;
+  }
+  const sheet = getSheetSafe(sheetName);
   if (sheet) {
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
-    console.log("Hoja '" + CONFIG.SHEET_NAME + "': " + lastRow + " filas, " + lastCol + " columnas.");
+    console.log("Hoja '" + sheetName + "': " + lastRow + " filas, " + lastCol + " columnas.");
     if (lastRow > 0) {
       const firstCol = sheet.getRange(1, 1, Math.min(lastRow, 10), 1).getDisplayValues();
       console.log("Primeros 10 IDs (Col A): " + firstCol.map(r => r[0]).join(", "));
     }
   } else {
-    console.error("ERROR: No se encontró la hoja '" + CONFIG.SHEET_NAME + "'");
+    console.error("ERROR: No se encontró la hoja '" + sheetName + "'");
   }
   console.log("--- FIN DEL DIAGNÓSTICO ---");
 }
@@ -197,7 +212,12 @@ function obtenerDatosContrato(consecutivo) {
   console.log("--- INICIANDO BÚSQUEDA EXHAUSTIVA PARA ID: " + searchId + " ---");
 
   try {
-    const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+    const sheetName = CONFIG && CONFIG.SHEET_NAME;
+    if (!sheetName || String(sheetName).trim() === "") {
+      console.warn("obtenerDatosContrato: El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
+      return null;
+    }
+    const sheet = getSheetSafe(sheetName);
     if (!sheet) throw new Error("No se pudo acceder a la hoja de contratos.");
 
     const lastRow = sheet.getLastRow();
@@ -317,7 +337,11 @@ function procesarFilaParaContrato(fila, numeroFila) {
  * Guarda o actualiza un contrato
  */
 function guardarProgresoContrato(datos, usuarioAutenticado) {
-  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    throw new Error("No se pudo guardar: El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
+  }
+  const sheet = getSheetSafe(sheetName);
   if (!sheet) throw new Error("No se pudo guardar: Hoja de contratos no encontrada.");
   const data = sheet.getDataRange().getValues();
   let fila = -1;
@@ -477,7 +501,12 @@ function getIndicatorsBatch(stagesArray) {
 function obtenerListaContratos() {
   console.log("Iniciando obtenerListaContratos con cálculo de tiempo transcurrido...");
   try {
-    const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+    const sheetName = CONFIG && CONFIG.SHEET_NAME;
+    if (!sheetName || String(sheetName).trim() === "") {
+      console.log("obtenerListaContratos: El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
+      return [];
+    }
+    const sheet = getSheetSafe(sheetName);
     if (!sheet) return [];
 
     const lastRow = sheet.getLastRow();
@@ -539,7 +568,16 @@ function subirArchivoADrive(base64Data, fileName, tipoDoc, consecutivo) {
   const file = folder.createFile(blob);
   const url = file.getUrl();
 
-  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    console.log("subirArchivoADrive: El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
+    return { success: false, message: "Nombre de hoja no configurado." };
+  }
+  const sheet = getSheetSafe(sheetName);
+  if (!sheet) {
+    console.log("subirArchivoADrive: Hoja de contratos no encontrada.");
+    return { success: false, message: "Hoja de contratos no encontrada." };
+  }
   const data = sheet.getDataRange().getValues();
   const searchId = String(consecutivo).trim();
 
@@ -574,7 +612,13 @@ function findColumnByHeader(sheet, headerName) {
 
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = getSheetSafe(CONFIG.SHEET_NAME);
+
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    console.warn("setupDatabase: CONFIG.SHEET_NAME no está definido.");
+    return;
+  }
+  let sheet = getSheetSafe(sheetName);
 
   const headers = ["CONSECUTIVO", "NUM_CONTRATO", "DEPENDENCIA_EJECUTORA", "TIPO_CONTRATACION", "OBJETO", "PROCEDIMIENTO", "TIPO_CONTRATO", "PROVEEDOR", "INICIO_VIGENCIA", "FIN_VIGENCIA", "MONTO", "DESGLOSE", "FECHA_APROBACION", "FECHA_SOLICITUD", "ESTATUS_GENERAL"];
   const stages = ["REV_DOC", "ELAB_CONT", "VAL_JUR", "GOB", "PROV", "DEP_EJEC", "ADMIN", "SEC", "ALCALDESA", "ANEXO", "ENTREGA"];
@@ -589,7 +633,7 @@ function setupDatabase() {
   headers.push("URL_COMITE", "URL_EXPEDIENTE", "URL_CONTRATO_FIRMADO", "CREADO_EDITADO_POR");
 
   if (!sheet) {
-    sheet = ss.insertSheet(CONFIG.SHEET_NAME);
+    sheet = ss.insertSheet(sheetName);
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f3f3f3");
   } else {
     // Si la hoja existe, verificar si el número de columnas coincide.
@@ -602,13 +646,24 @@ function setupDatabase() {
   }
   sheet.setFrozenRows(1);
 
-  if (!getSheetSafe(CONFIG.RESUMEN_SHEET)) ss.insertSheet(CONFIG.RESUMEN_SHEET);
-  if (!getSheetSafe(CONFIG.LOG_SHEET)) ss.insertSheet(CONFIG.LOG_SHEET).appendRow(["FECHA", "CONSECUTIVO", "TIPO", "FILE", "URL", "USER"]);
-  if (!getSheetSafe(CONFIG.CONFIG_SHEET)) {
-    ss.insertSheet(CONFIG.CONFIG_SHEET).getRange(1, 1, 6, 2).setValues([
-      ["PARAMETRO", "VALOR"], ["FOLDER_ID_RAIZ", ""], ["UMBRAL_ESTANDAR_VERDE", 3],
-      ["UMBRAL_ESTANDAR_AMARILLO", 5], ["UMBRAL_SECRETARIA_VERDE", 5], ["UMBRAL_SECRETARIA_AMARILLO", 9]
-    ]);
+  const resumenSheetName = CONFIG && CONFIG.RESUMEN_SHEET;
+  if (resumenSheetName && String(resumenSheetName).trim() !== "") {
+    if (!getSheetSafe(resumenSheetName)) ss.insertSheet(resumenSheetName);
+  }
+
+  const logSheetName = CONFIG && CONFIG.LOG_SHEET;
+  if (logSheetName && String(logSheetName).trim() !== "") {
+    if (!getSheetSafe(logSheetName)) ss.insertSheet(logSheetName).appendRow(["FECHA", "CONSECUTIVO", "TIPO", "FILE", "URL", "USER"]);
+  }
+
+  const configSheetName = CONFIG && CONFIG.CONFIG_SHEET;
+  if (configSheetName && String(configSheetName).trim() !== "") {
+    if (!getSheetSafe(configSheetName)) {
+      ss.insertSheet(configSheetName).getRange(1, 1, 6, 2).setValues([
+        ["PARAMETRO", "VALOR"], ["FOLDER_ID_RAIZ", ""], ["UMBRAL_ESTANDAR_VERDE", 3],
+        ["UMBRAL_ESTANDAR_AMARILLO", 5], ["UMBRAL_SECRETARIA_VERDE", 5], ["UMBRAL_SECRETARIA_AMARILLO", 9]
+      ]);
+    }
   }
 
   // Configura la tabla de usuarios
@@ -702,7 +757,11 @@ function eliminarContrato(consecutivo, userEmail) {
       return { success: false, message: "No tiene permisos para eliminar registros (se requiere rol de Administrador)." };
     }
 
-    const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+    const sheetName = CONFIG && CONFIG.SHEET_NAME;
+    if (!sheetName || String(sheetName).trim() === "") {
+      throw new Error("El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
+    }
+    const sheet = getSheetSafe(sheetName);
     if (!sheet) throw new Error("Hoja de contratos no encontrada.");
 
     const displayValues = sheet.getRange("A:A").getDisplayValues();
@@ -729,8 +788,16 @@ function eliminarContrato(consecutivo, userEmail) {
 
 function generarReporteKPI() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const mainSheet = getSheetSafe(CONFIG.SHEET_NAME);
-  const resSheet = getSheetSafe(CONFIG.RESUMEN_SHEET);
+
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  const resumenSheetName = CONFIG && CONFIG.RESUMEN_SHEET;
+  if (!sheetName || String(sheetName).trim() === "" || !resumenSheetName || String(resumenSheetName).trim() === "") {
+    console.log("generarReporteKPI: CONFIG.SHEET_NAME o CONFIG.RESUMEN_SHEET no están definidos.");
+    return;
+  }
+
+  const mainSheet = getSheetSafe(sheetName);
+  const resSheet = getSheetSafe(resumenSheetName);
   if (!mainSheet || !resSheet) return;
 
   const data = mainSheet.getDataRange().getValues();
@@ -788,7 +855,12 @@ function generarReporteKPI() {
 }
 
 function obtenerDependenciasRegistradas() {
-  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    console.log("obtenerDependenciasRegistradas: CONFIG.SHEET_NAME no está definido.");
+    return [];
+  }
+  const sheet = getSheetSafe(sheetName);
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
   const deps = new Set();
@@ -800,7 +872,12 @@ function obtenerDependenciasRegistradas() {
 
 function obtenerMetricasDashboard(filtroDependencia) {
   console.log("Iniciando obtenerMetricasDashboard. Filtro:", filtroDependencia);
-  const sheet = getSheetSafe(CONFIG.SHEET_NAME);
+  const sheetName = CONFIG && CONFIG.SHEET_NAME;
+  if (!sheetName || String(sheetName).trim() === "") {
+    console.error("obtenerMetricasDashboard: CONFIG.SHEET_NAME no está definido.");
+    return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0, tasaRetrabajo: 0, tatPromedio: 0, obsJuridico: 0, obsDependencia: 0 };
+  }
+  const sheet = getSheetSafe(sheetName);
   if (!sheet) {
     console.error("No se encontró la hoja de contratos para el dashboard.");
     return { verdes: 0, amarillos: 0, rojos: 0, secretariaRojo: 0, tasaRetrabajo: 0, tatPromedio: 0, obsJuridico: 0, obsDependencia: 0 };
@@ -874,13 +951,30 @@ function obtenerMetricasDashboard(filtroDependencia) {
 }
 
 function guardarConfiguracionServer(config) {
-  const sheet = getSheetSafe(CONFIG.CONFIG_SHEET);
+  const configSheetName = CONFIG && CONFIG.CONFIG_SHEET;
+  if (!configSheetName || String(configSheetName).trim() === "") {
+    console.error("guardarConfiguracionServer: CONFIG.CONFIG_SHEET no está definido.");
+    return { success: false, message: "Nombre de hoja de configuración no definido." };
+  }
+  const sheet = getSheetSafe(configSheetName);
+  if (!sheet) {
+    console.error("guardarConfiguracionServer: Hoja de configuración no encontrada.");
+    return { success: false, message: "Hoja de configuración no encontrada." };
+  }
   sheet.getRange(2, 2, 5, 1).setValues([[config.folderId], [config.estandarVerde], [config.estandarAmarillo], [config.secretariaVerde], [config.secretariaAmarillo]]);
   return { success: true };
 }
 
 function obtenerConfiguracionFull() {
-  const configSheet = getSheetSafe(CONFIG.CONFIG_SHEET);
+  const configSheetName = CONFIG && CONFIG.CONFIG_SHEET;
+  if (!configSheetName || String(configSheetName).trim() === "") {
+    console.error("obtenerConfiguracionFull: CONFIG.CONFIG_SHEET no está definido.");
+    return { estandarVerde: 3, estandarAmarillo: 5, secretariaVerde: 5, secretariaAmarillo: 9, folderId: "" };
+  }
+  const configSheet = getSheetSafe(configSheetName);
+  if (!configSheet) {
+    return { estandarVerde: 3, estandarAmarillo: 5, secretariaVerde: 5, secretariaAmarillo: 9, folderId: "" };
+  }
   const configData = configSheet.getDataRange().getValues();
   const configObj = {};
   configData.forEach(row => { configObj[row[0]] = row[1]; });
