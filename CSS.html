@@ -92,24 +92,33 @@
   }
 
   .table {
-    background-color: white;
+    background-color: #ffffff;
     border-radius: 4px;
+    color: #1a1a2e; /* High contrast text */
+    font-size: 14px; /* Minimum 14px for cells */
+  }
+
+  .table td {
+    padding: 12px 12px !important; /* Minimum padding */
+    vertical-align: middle;
   }
 
   .table-hover tbody tr:hover {
-    background-color: #f1f3f5;
+    background-color: #e9ecef !important;
+    color: #000000 !important;
   }
 
   .table-striped tbody tr:nth-of-type(odd) {
-    background-color: #fdfdfe;
+    background-color: #f8f9fa;
   }
 
   .table thead th {
-    background-color: #f8f9fa;
-    color: #495057;
-    border-bottom: 2px solid #dee2e6;
-    font-size: 0.85rem;
+    background-color: #1a1a2e !important; /* Dark header for contrast */
+    color: #ffffff !important;
+    border-bottom: 2px solid #e94560;
+    font-size: 15px; /* Minimum 15px for headers */
     text-transform: uppercase;
+    padding: 12px 12px !important;
   }
 
   .form-control, .form-select {

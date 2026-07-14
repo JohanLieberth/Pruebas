@@ -133,8 +133,8 @@
                 <th>Folio</th>
                 <th>Fecha</th>
                 <th>Cliente</th>
-                <th style="width: 150px;">Dispositivo</th>
-                <th style="width: 250px;">Falla</th>
+                <th>Dispositivo</th>
+                <th>Falla</th>
                 <th class="col-asignacion" style="display: none;">Asignado a</th>
                 <th>Estatus</th>
                 <th class="col-total">Total</th>
@@ -406,19 +406,11 @@
 
               const tdDispositivo = document.createElement('td');
               tdDispositivo.className = 'small';
-              tdDispositivo.style.maxWidth = '150px';
-              tdDispositivo.style.overflow = 'hidden';
-              tdDispositivo.style.textOverflow = 'ellipsis';
-              tdDispositivo.style.whiteSpace = 'nowrap';
               tdDispositivo.textContent = s["Dispositivo a recibir"];
               tdDispositivo.title = s["Dispositivo a recibir"];
 
               const tdFalla = document.createElement('td');
               tdFalla.className = 'small';
-              tdFalla.style.maxWidth = '250px';
-              tdFalla.style.overflow = 'hidden';
-              tdFalla.style.textOverflow = 'ellipsis';
-              tdFalla.style.whiteSpace = 'nowrap';
               tdFalla.textContent = s["Descripción de la falla"];
               tdFalla.title = s["Descripción de la falla"];
 
