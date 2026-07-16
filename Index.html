@@ -198,34 +198,22 @@
         <div class="col-lg-6 col-12">
           <div class="card shadow-sm border-0 mb-3">
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-              <span class="fw-bold"><i class="fa-solid fa-video me-2"></i>Cámara en Vivo</span>
-              <span class="badge bg-danger p-2" id="scanner-status-badge">Apagado</span>
+              <span class="fw-bold"><i class="fa-solid fa-camera me-2"></i>Escáner de Cámara Remoto</span>
+              <span class="badge bg-success p-2">Soporte Completo</span>
             </div>
-            <div class="card-body p-0 position-relative bg-black" style="min-height: 250px;">
+            <div class="card-body text-center p-4 bg-light-soft">
+              <div class="icon-circle bg-light-primary text-primary mb-3 mx-auto">
+                <i class="fa-solid fa-expand fa-2x"></i>
+              </div>
+              <h5 class="fw-bold text-dark">Lector en Ventana de Nivel Superior</h5>
+              <p class="text-muted small">Debido a restricciones de seguridad del iframe de Google, el escáner se ejecuta en una pestaña segura independiente para poder obtener acceso físico a la cámara de tu celular.</p>
 
-              <!-- Contenedor de la cámara (Html5Qrcode) -->
-              <div id="reader" style="width: 100%;"></div>
-
-              <!-- Mensaje de inicio de cámara u error -->
-              <div id="scanner-placeholder" class="text-center text-white d-flex flex-column justify-content-center align-items-center p-4 position-absolute w-100 h-100 top-0 start-0">
-                <i class="fa-solid fa-barcode fa-4x text-light-muted mb-3"></i>
-                <p class="mb-3 px-3">Inicia la cámara para comenzar a escanear códigos de barras o QR.</p>
-                <button type="button" class="btn btn-primary px-4 shadow" onclick="startScanner()">
-                  <i class="fa-solid fa-play me-2"></i>Iniciar Cámara
+              <div class="d-grid gap-2 col-10 mx-auto mt-3 mb-2">
+                <button type="button" class="btn btn-primary btn-lg fw-bold shadow-sm" onclick="startScanner()">
+                  <i class="fa-solid fa-camera-retro me-2"></i>Iniciar Cámara Lector
                 </button>
               </div>
-            </div>
-            <div class="card-footer bg-light d-flex flex-wrap gap-2 justify-content-between align-items-center">
-              <button type="button" class="btn btn-outline-danger btn-sm" id="btn-stop-scanner" onclick="stopScanner()" disabled>
-                <i class="fa-solid fa-stop me-1"></i>Detener Cámara
-              </button>
-
-              <div class="d-flex align-items-center gap-1">
-                <label for="camera-select" class="small text-muted mb-0 me-1">Cámara:</label>
-                <select id="camera-select" class="form-select form-select-sm" style="max-width: 180px;" onchange="restartScannerWithSelectedCamera()">
-                  <option value="">Seleccionando...</option>
-                </select>
-              </div>
+              <span class="text-xs text-muted d-block mt-2 small"><i class="fa-solid fa-circle-info me-1"></i>Habilita las ventanas emergentes si es requerido.</span>
             </div>
           </div>
 

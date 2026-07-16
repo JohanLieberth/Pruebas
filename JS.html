@@ -15,6 +15,7 @@ let paginacionActual = 1;
 let paginacionLimite = 10;
 let xlsxMapeadoTemp = []; // Datos de Excel listos para subir
 let ubicacionesUnicas = []; // Ubicaciones cargadas dinámicamente para filtros
+let webAppUrl = ""; // URL de la Web App obtenida de manera dinámica
 
 // Al iniciar el documento
 document.addEventListener("DOMContentLoaded", function() {
@@ -22,6 +23,35 @@ document.addEventListener("DOMContentLoaded", function() {
   cargarEstadisticasInicio();
   // Por defecto mostrar sección inicio
   showSection('inicio');
+
+  // Obtener URL de la Web App para el escáner de nivel superior
+  google.script.run
+    .withSuccessHandler(function(url) {
+      webAppUrl = url;
+    })
+    .getScriptUrl();
+
+  // 1. Escuchar mensajes del escáner externo vía BroadcastChannel
+  try {
+    const channel = new BroadcastChannel("smr_scanner_channel");
+    channel.onmessage = function(event) {
+      if (event.data && event.data.codigo) {
+        procesarCodigoEtiqueta(event.data.codigo);
+        mostrarAlerta("Código capturado desde ventana de escáner: " + event.data.codigo, "success");
+      }
+    };
+  } catch (e) {
+    console.warn("BroadcastChannel no soportado en este navegador: ", e);
+  }
+
+  // 2. Escuchar mensajes del escáner externo vía localStorage (evento 'storage' para navegadores más antiguos o fallback)
+  window.addEventListener("storage", function(event) {
+    if (event.key === "smr_scanned_code" && event.newValue) {
+      procesarCodigoEtiqueta(event.newValue);
+      mostrarAlerta("Código capturado desde ventana de escáner: " + event.newValue, "success");
+      localStorage.removeItem("smr_scanned_code"); // Limpiar valor
+    }
+  });
 });
 
 /**
@@ -170,83 +200,38 @@ function showSection(sectionId) {
 function startScanner() {
   limpiarResultadosEscaner();
 
-  // Asegurar que el contenedor esté listo y mostrar UI de cámara activa
-  document.getElementById("scanner-placeholder").classList.add("d-none");
+  // Debido al bloqueo estricto del Permissions-Policy en el iframe sandbox de Google,
+  // implementamos el workaround de abrir el escáner en una ventana de nivel superior.
+  const urlDestino = (webAppUrl || "") ? (webAppUrl + "?vista=scanner") : "";
 
-  // Validar soporte básico de cámara
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    mostrarAlerta("Tu navegador o entorno de seguridad (iframe) no soporta el acceso directo a la cámara. Por favor utiliza la captura manual.", "warning");
-    document.getElementById("scanner-placeholder").classList.remove("d-none");
-    actualizarEstatusEscaner(false);
-    return;
+  if (!urlDestino) {
+    showLoader("Obteniendo enlace seguro del servidor...");
+    google.script.run
+      .withSuccessHandler(function(url) {
+        hideLoader();
+        webAppUrl = url;
+        abrirVentanaEscaneo(url + "?vista=scanner");
+      })
+      .withFailureHandler(function() {
+        hideLoader();
+        mostrarAlerta("No se pudo obtener la URL de redirección del servidor. Por favor, reintenta o usa la captura manual.", "danger");
+      })
+      .getScriptUrl();
+  } else {
+    abrirVentanaEscaneo(urlDestino);
   }
+}
 
-  showLoader("Solicitando permisos de acceso a la cámara...");
+function abrirVentanaEscaneo(url) {
+  // Intentar abrir el escáner fuera del iframe de Apps Script
+  const nuevaVentana = window.open(url, "_blank");
 
-  // 1. Solicitar permisos explícitamente vía getUserMedia primero (asociado a un gesto directo del usuario)
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-    .then(stream => {
-      hideLoader();
-      // Detener los tracks de inmediato para liberar el dispositivo físico de cámara para html5-qrcode
-      stream.getTracks().forEach(track => track.stop());
-
-      // Instanciar html5-qrcode
-      if (!scannerInstance) {
-        scannerInstance = new Html5Qrcode("reader");
-      }
-
-      // Solicitar cámaras disponibles
-      return Html5Qrcode.getCameras();
-    })
-    .then(devices => {
-      if (!devices) return; // Si ocurrió algún error previo capturado en el flujo
-
-      if (devices && devices.length > 0) {
-        // Llenar selector de cámaras
-        const select = document.getElementById("camera-select");
-        select.innerHTML = "";
-
-        devices.forEach((device, index) => {
-          const option = document.createElement("option");
-          option.value = device.id;
-          option.textContent = device.label || `Cámara ${index + 1}`;
-          select.appendChild(option);
-        });
-
-        // Preferir la cámara trasera ("environment") por defecto
-        let backCam = devices.find(device =>
-          device.label.toLowerCase().includes("back") ||
-          device.label.toLowerCase().includes("trasera") ||
-          device.label.toLowerCase().includes("environment")
-        );
-
-        const selectedCamId = backCam ? backCam.id : devices[0].id;
-        select.value = selectedCamId;
-        currentCameraId = selectedCamId;
-
-        iniciarFlujoCamara(selectedCamId);
-      } else {
-        throw new Error("No se detectaron cámaras físicas utilizables en este dispositivo.");
-      }
-    })
-    .catch(err => {
-      hideLoader();
-      document.getElementById("scanner-placeholder").classList.remove("d-none");
-
-      let mensajeError = "No se pudo acceder a la cámara. ";
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        mensajeError += "Permiso denegado por el usuario o bloqueado por la política de permisos del documento (iframe). Por favor, asegúrate de abrir la Web App vía HTTPS (enlace de producción /exec y no de desarrollo /dev) y permitir el acceso en la configuración de privacidad de tu navegador. Utiliza la captura manual como alternativa.";
-      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        mensajeError += "No se encontró ningún hardware de cámara disponible en este dispositivo.";
-      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-        mensajeError += "La cámara ya está siendo utilizada por otra pestaña, navegador o aplicación. Por favor ciérrala e inténtalo de nuevo.";
-      } else {
-        mensajeError += "Detalle: " + (err.message || err);
-      }
-
-      mostrarAlerta(mensajeError, "danger");
-      actualizarEstatusEscaner(false);
-    });
+  if (!nuevaVentana || nuevaVentana.closed || typeof nuevaVentana.closed === 'undefined') {
+    // El navegador bloqueó la ventana emergente / pop-up
+    mostrarAlerta("¡Ventana emergente bloqueada! Por favor, permite las ventanas emergentes (pop-ups) para este sitio en tu navegador y presiona 'Iniciar Cámara' de nuevo.", "warning");
+  } else {
+    mostrarAlerta("Se ha abierto el escáner en una nueva ventana de nivel superior. Escanea el código allí y el resultado se cargará automáticamente en esta pantalla principal.", "info");
+  }
 }
 
 function iniciarFlujoCamara(cameraId) {

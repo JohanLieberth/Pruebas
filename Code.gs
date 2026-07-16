@@ -41,11 +41,33 @@ function doGet(e) {
   // Asegurar que las hojas y encabezados existan al arrancar
   inicializarBaseDatos();
 
+  // Validar si se solicita la vista ligera del escáner (workaround para iframe y Permissions-Policy)
+  const vista = e && e.parameter && (e.parameter.vista || e.parameter.page);
+
+  if (vista === "scanner") {
+    return HtmlService.createTemplateFromFile("Scanner")
+      .evaluate()
+      .setTitle("Escáner de Cámara - Mejora Regulatoria")
+      .addMetaTag("viewport", "width=device-width, initial-scale=1")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   return HtmlService.createTemplateFromFile("Index")
     .evaluate()
     .setTitle("Sistema de Inventario - Mejora Regulatoria")
     .addMetaTag("viewport", "width=device-width, initial-scale=1")
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+/**
+ * Retorna la URL de publicación de la Web App para poder abrir el escáner en ventana de nivel superior
+ */
+function getScriptUrl() {
+  try {
+    return ScriptApp.getService().getUrl();
+  } catch (e) {
+    return "";
+  }
 }
 
 /**

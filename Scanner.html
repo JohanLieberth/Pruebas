@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Lector de Inventario SMR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+
+  <!-- Bootstrap 5 CSS via CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- FontAwesome Icons via CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      background-color: #1a1a2e;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .scanner-card {
+      background-color: #161625;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    #reader {
+      width: 100%;
+      background-color: #000;
+      border: none !important;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #reader__scan_region {
+      background-color: #000 !important;
+    }
+    /* Estilos del feedback de lectura */
+    .scan-success-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(22, 160, 133, 0.95);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
+      border-radius: 12px;
+    }
+    .pulse-glow {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    #reader__dashboard {
+      background: #222235 !important;
+      padding: 10px !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      color: #fff !important;
+    }
+    #reader__dashboard_section_csr button {
+      background-color: #16a085 !important;
+      color: white !important;
+      border: none !important;
+      padding: 6px 12px !important;
+      border-radius: 6px !important;
+      font-weight: 600 !important;
+    }
+  </style>
+</head>
+<body class="p-3">
+
+  <!-- Header -->
+  <header class="text-center py-2 mb-3 border-bottom border-secondary">
+    <h5 class="fw-bold text-success mb-0">
+      <i class="fa-solid fa-camera-retro me-2"></i>Escáner de Nivel Superior - SMR
+    </h5>
+    <p class="small text-muted mb-0">Subdirección de Mejora Regulatoria</p>
+  </header>
+
+  <!-- Contenedor Principal -->
+  <main class="container-fluid flex-grow-1 d-flex flex-column justify-content-center p-0" style="max-width: 500px;">
+
+    <!-- Alertas locales de permisos -->
+    <div id="local-alert" class="alert alert-warning d-none mb-3" role="alert"></div>
+
+    <div class="card scanner-card shadow-lg position-relative">
+
+      <!-- Cuerpo del Lector -->
+      <div class="card-body p-3">
+
+        <!-- Pantalla de Éxito temporal -->
+        <div id="success-overlay" class="scan-success-overlay d-none">
+          <i class="fa-solid fa-circle-check fa-4x text-white mb-3 pulse-glow"></i>
+          <h4 class="fw-bold">¡Código Leído Exitosamente!</h4>
+          <p class="lead mb-4">No. INV: <strong id="success-code-text" class="bg-dark px-3 py-1 rounded text-warning">BF-1000</strong></p>
+
+          <div class="d-grid gap-2 w-100">
+            <button type="button" class="btn btn-light btn-lg fw-bold" onclick="reiniciarEscaneo()">
+              <i class="fa-solid fa-arrows-rotate me-2"></i>Escanear Otro
+            </button>
+            <button type="button" class="btn btn-outline-light" onclick="cerrarLector()">
+              <i class="fa-solid fa-xmark me-2"></i>Cerrar Escáner
+            </button>
+          </div>
+        </div>
+
+        <div id="reader" style="width: 100%;"></div>
+
+        <!-- Placeholder antes de encender la cámara -->
+        <div id="camera-placeholder" class="text-center py-5">
+          <i class="fa-solid fa-barcode fa-4x text-secondary mb-3"></i>
+          <p class="px-3 text-muted">Para escanear códigos de barras o QR de etiquetas de patrimonio, pulsa el botón para solicitar permisos y activar tu cámara.</p>
+
+          <div class="d-grid gap-2 col-10 mx-auto">
+            <button type="button" id="btn-activar-camara" class="btn btn-success btn-lg fw-bold shadow" onclick="solicitarPermisoYComenzar()">
+              <i class="fa-solid fa-circle-play me-2"></i>Activar Cámara
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer de Tarjeta con Selector de Cámara y Controles -->
+      <div class="card-footer bg-dark border-0 p-3 d-flex flex-column gap-2">
+        <div class="d-flex align-items-center justify-content-between gap-2" id="controls-panel" style="display: none !important;">
+          <span class="small text-muted"><i class="fa-solid fa-video me-1"></i>Cámara:</span>
+          <select id="camera-select" class="form-select form-select-sm bg-secondary text-white border-0" style="max-width: 220px;" onchange="cambiarCamara(this.value)">
+            <option value="">Selecciona dispositivo...</option>
+          </select>
+        </div>
+
+        <!-- Entrada manual de fallback en caso de falla de hardware -->
+        <div class="mt-2 pt-2 border-top border-secondary">
+          <form onsubmit="event.preventDefault(); enviarCodigoManual();" class="input-group input-group-sm">
+            <input type="text" id="manual-code-input" class="form-control bg-dark text-white border-secondary" placeholder="Escribe No. INV. manual..." required>
+            <button type="submit" class="btn btn-primary fw-bold">
+              <i class="fa-solid fa-share me-1"></i>Enviar
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer con instrucciones -->
+  <footer class="text-center py-3 text-muted small mt-3">
+    <p class="mb-0">Este escáner se ejecuta en el nivel superior para garantizar los permisos de hardware. Al leer un código, la ventana principal del inventario lo procesará al instante.</p>
+  </footer>
+
+  <!-- HTML5 QR Code Loader -->
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <script>
+    let scanner = null;
+    let isRunning = false;
+
+    // Al cargar la vista ligera, nos aseguramos que se muestre limpia
+    window.addEventListener("load", function() {
+      // Intentar auto-iniciar si el navegador ya recuerda el permiso (sutil, sin bloquear)
+      navigator.permissions.query({ name: 'camera' }).then(res => {
+        if (res.state === 'granted') {
+          solicitarPermisoYComenzar();
+        }
+      }).catch(e => {
+        // Ignorar, fallará silenciosamente y requerirá gesto táctil
+      });
+    });
+
+    /**
+     * Paso 1: Solicitar permisos explícitos de cámara mediante getUserMedia
+     */
+    function solicitarPermisoYComenzar() {
+      const alertDiv = document.getElementById("local-alert");
+      alertDiv.classList.add("d-none");
+
+      const btn = document.getElementById("btn-activar-camara");
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Solicitando acceso...`;
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => {
+          // Detener de inmediato los tracks temporales para liberar el hardware
+          stream.getTracks().forEach(track => track.stop());
+
+          // Ocultar placeholder e instanciar
+          document.getElementById("camera-placeholder").classList.add("d-none");
+
+          if (!scanner) {
+            scanner = new Html5Qrcode("reader");
+          }
+
+          // Buscar cámaras disponibles
+          return Html5Qrcode.getCameras();
+        })
+        .then(devices => {
+          if (devices && devices.length > 0) {
+            // Llenar select
+            const select = document.getElementById("camera-select");
+            select.innerHTML = "";
+            devices.forEach((device, index) => {
+              const opt = document.createElement("option");
+              opt.value = device.id;
+              opt.textContent = device.label || `Cámara ${index + 1}`;
+              select.appendChild(opt);
+            });
+
+            // Mostrar el panel de control
+            document.getElementById("controls-panel").style.setProperty("display", "flex", "important");
+
+            // Buscar la cámara trasera
+            let backCam = devices.find(d =>
+              d.label.toLowerCase().includes("back") ||
+              d.label.toLowerCase().includes("trasera") ||
+              d.label.toLowerCase().includes("environment")
+            );
+
+            const activeCamId = backCam ? backCam.id : devices[0].id;
+            select.value = activeCamId;
+
+            iniciarLector(activeCamId);
+          } else {
+            throw new Error("No se detectaron cámaras físicas utilizables.");
+          }
+        })
+        .catch(err => {
+          btn.disabled = false;
+          btn.innerHTML = `<i class="fa-solid fa-circle-play me-2"></i>Activar Cámara`;
+
+          let mensaje = "No se pudo acceder al hardware de cámara. ";
+          if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+            mensaje += "Permiso denegado por el usuario o bloqueado por políticas de privacidad de su navegador. Por favor compruebe la barra de direcciones y otorgue el acceso.";
+          } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+            mensaje += "No se detectó ninguna cámara instalada en este dispositivo.";
+          } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+            mensaje += "La cámara ya está siendo utilizada por otra pestaña o aplicación. Ciérrela y vuelva a intentarlo.";
+          } else {
+            mensaje += "Detalle técnico: " + (err.message || err);
+          }
+
+          alertDiv.textContent = mensaje;
+          alertDiv.classList.remove("d-none");
+        });
+    }
+
+    /**
+     * Paso 2: Iniciar html5-qrcode
+     */
+    function iniciarLector(cameraId) {
+      if (isRunning) {
+        scanner.stop().then(() => {
+          comenzarFlujo(cameraId);
+        });
+      } else {
+        comenzarFlujo(cameraId);
+      }
+    }
+
+    function comenzarFlujo(cameraId) {
+      const config = {
+        fps: 15,
+        qrbox: function(width, height) {
+          const minSize = Math.min(width, height);
+          const boxSize = Math.floor(minSize * 0.7);
+          return { width: boxSize, height: Math.floor(boxSize * 0.5) };
+        },
+        aspectRatio: 1.0
+      };
+
+      scanner.start(
+        cameraId,
+        config,
+        onCodeRead,
+        onCodeFailure
+      )
+      .then(() => {
+        isRunning = true;
+      })
+      .catch(err => {
+        console.error("Error al arrancar scanner: ", err);
+      });
+    }
+
+    function onCodeRead(text, result) {
+      // Detener cámara temporalmente para dar feedback visual
+      if (scanner && isRunning) {
+        scanner.stop().then(() => {
+          isRunning = false;
+        });
+      }
+
+      // Proporcionar feedback háptico (vibración) si es soportado
+      if (navigator.vibrate) {
+        navigator.vibrate(150);
+      }
+
+      // Enviar resultado
+      enviarCodigo(text);
+    }
+
+    function onCodeFailure(err) {
+      // Silencioso para optimizar frames de video
+    }
+
+    function cambiarCamara(val) {
+      if (val) {
+        iniciarLector(val);
+      }
+    }
+
+    /**
+     * Paso 3: Enviar el código a la ventana principal utilizando BroadcastChannel y localStorage
+     */
+    function enviarCodigo(codigo) {
+      if (!codigo) return;
+      const noInv = String(codigo).trim();
+
+      // 1. Enviar vía BroadcastChannel para comunicación en vivo instantánea
+      try {
+        const channel = new BroadcastChannel("smr_scanner_channel");
+        channel.postMessage({ codigo: noInv });
+      } catch (e) {
+        console.error("BroadcastChannel error: ", e);
+      }
+
+      // 2. Enviar vía localStorage (fuerza el evento 'storage' en el iframe matriz)
+      try {
+        localStorage.setItem("smr_scanned_code", noInv);
+        localStorage.setItem("smr_scanned_time", String(Date.now()));
+      } catch (e) {
+        console.error("LocalStorage error: ", e);
+      }
+
+      // Mostrar pantalla de lectura exitosa
+      document.getElementById("success-code-text").textContent = noInv;
+      document.getElementById("success-overlay").classList.remove("d-none");
+    }
+
+    function enviarCodigoManual() {
+      const input = document.getElementById("manual-code-input");
+      const val = input.value.trim();
+      if (val) {
+        enviarCodigo(val);
+        input.value = "";
+      }
+    }
+
+    function reiniciarEscaneo() {
+      document.getElementById("success-overlay").classList.add("d-none");
+      const select = document.getElementById("camera-select");
+      if (select.value) {
+        iniciarLector(select.value);
+      } else {
+        solicitarPermisoYComenzar();
+      }
+    }
+
+    function cerrarLector() {
+      try {
+        window.close();
+      } catch (e) {
+        // Si no puede cerrar la pestaña, alertar al usuario
+        alert("Escaneo guardado. Ya puedes regresar a la pestaña principal del Inventario.");
+      }
+    }
+  </script>
+</body>
+</html>
