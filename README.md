@@ -96,3 +96,20 @@ El Excel de Patrimonio puede contener encabezados con variaciones de nombre, ace
 *   **FontAwesome 6**: Biblioteca iconográfica de alta calidad visual.
 *   **SheetJS (xlsx.js)**: Motor cliente de procesamiento y generación de archivos Excel.
 *   **html5-qrcode**: Motor de captura de vídeo para decodificación de códigos de barras y QR.
+
+---
+
+## ⚠️ Errores conocidos y Troubleshooting
+
+A continuación se detallan los errores reportados comunes en el entorno de consola del navegador y su diagnóstico de resolución:
+
+### 1. Error de Cámara: `[Violation] Permissions policy violation: camera is not allowed in this document.`
+*   **Causa**: Google Apps Script ejecuta las aplicaciones web dentro de un sandbox (`iframe`) propiedad de Google. Algunos navegadores bloquean el acceso al hardware de cámara a través de iframes si no se inicia explícitamente mediante una acción directa del usuario y con llamadas estructuradas.
+*   **Corrección Aplicada**: El sistema realiza ahora una petición de permisos explícita (`navigator.mediaDevices.getUserMedia`) enlazada a un gesto de usuario (el botón físico "Iniciar Cámara") antes de inicializar la librería `html5-qrcode`. Esto fuerza el prompt nativo de permisos del navegador de inmediato. Al concederse el acceso, se liberan los canales de video previos (`stream.getTracks().forEach(...)`) y se arranca el lector en la resolución nativa.
+*   **Recomendación**: Asegúrese de desplegar y abrir siempre la Web App bajo el enlace de producción que termina en `/exec` (con protocolo seguro HTTPS), ya que los entornos locales o de desarrollo `/dev` limitan los permisos de cámara por seguridad.
+
+### 2. Errores de `content.js` o Extensiones:
+*   `Uncaught (in promise) TypeError: Cannot read properties of null (reading 'classList') at ... (content.js:2)`
+*   `[Violation] Permissions policy violation: unload is not allowed in this document. (content.js:2)`
+*   **Causa**: Estos avisos y errores provienen del script inyectado `content.js` que pertenece a extensiones del navegador activas en el dispositivo local (tales como traductores automáticos, gestores de contraseñas, bloqueadores de anuncios o antivirus). No son del proyecto ni afectan de ninguna forma la estabilidad, lógica o rendimiento del sistema de inventario.
+*   **Cómo verificarlo**: Puede confirmar que se trata de ruido externo abriendo el enlace de la Web App en una pestaña en modo **Incógnito** de su navegador con todas las extensiones deshabilitadas. Verá que la consola se mantiene totalmente libre de estos dos avisos de `content.js`.

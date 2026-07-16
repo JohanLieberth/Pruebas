@@ -173,14 +173,34 @@ function startScanner() {
   // Asegurar que el contenedor esté listo y mostrar UI de cámara activa
   document.getElementById("scanner-placeholder").classList.add("d-none");
 
-  // Instanciar html5-qrcode
-  if (!scannerInstance) {
-    scannerInstance = new Html5Qrcode("reader");
+  // Validar soporte básico de cámara
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    mostrarAlerta("Tu navegador o entorno de seguridad (iframe) no soporta el acceso directo a la cámara. Por favor utiliza la captura manual.", "warning");
+    document.getElementById("scanner-placeholder").classList.remove("d-none");
+    actualizarEstatusEscaner(false);
+    return;
   }
 
-  // Solicitar cámaras disponibles
-  Html5Qrcode.getCameras()
+  showLoader("Solicitando permisos de acceso a la cámara...");
+
+  // 1. Solicitar permisos explícitamente vía getUserMedia primero (asociado a un gesto directo del usuario)
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then(stream => {
+      hideLoader();
+      // Detener los tracks de inmediato para liberar el dispositivo físico de cámara para html5-qrcode
+      stream.getTracks().forEach(track => track.stop());
+
+      // Instanciar html5-qrcode
+      if (!scannerInstance) {
+        scannerInstance = new Html5Qrcode("reader");
+      }
+
+      // Solicitar cámaras disponibles
+      return Html5Qrcode.getCameras();
+    })
     .then(devices => {
+      if (!devices) return; // Si ocurrió algún error previo capturado en el flujo
+
       if (devices && devices.length > 0) {
         // Llenar selector de cámaras
         const select = document.getElementById("camera-select");
@@ -206,12 +226,25 @@ function startScanner() {
 
         iniciarFlujoCamara(selectedCamId);
       } else {
-        throw new Error("No se detectaron cámaras en este dispositivo.");
+        throw new Error("No se detectaron cámaras físicas utilizables en este dispositivo.");
       }
     })
     .catch(err => {
+      hideLoader();
       document.getElementById("scanner-placeholder").classList.remove("d-none");
-      mostrarAlerta("No se pudo acceder a la cámara. Revisa los permisos e inténtalo de nuevo. Detalle: " + err.message, "danger");
+
+      let mensajeError = "No se pudo acceder a la cámara. ";
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        mensajeError += "Permiso denegado por el usuario o bloqueado por la política de permisos del documento (iframe). Por favor, asegúrate de abrir la Web App vía HTTPS (enlace de producción /exec y no de desarrollo /dev) y permitir el acceso en la configuración de privacidad de tu navegador. Utiliza la captura manual como alternativa.";
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        mensajeError += "No se encontró ningún hardware de cámara disponible en este dispositivo.";
+      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+        mensajeError += "La cámara ya está siendo utilizada por otra pestaña, navegador o aplicación. Por favor ciérrala e inténtalo de nuevo.";
+      } else {
+        mensajeError += "Detalle: " + (err.message || err);
+      }
+
+      mostrarAlerta(mensajeError, "danger");
       actualizarEstatusEscaner(false);
     });
 }
