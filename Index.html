@@ -17,6 +17,11 @@
 
   <!-- Estilos Personalizados Incluidos -->
   <?!= include("CSS"); ?>
+
+  <!-- Variable del scriptlet inyectada del servidor para redirección fallback del escáner (?noinv=XXXX) -->
+  <script>
+    const initialNoInvQuery = "<?= noinvQuery ?>";
+  </script>
 </head>
 <body>
 

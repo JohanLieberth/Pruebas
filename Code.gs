@@ -52,8 +52,11 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  return HtmlService.createTemplateFromFile("Index")
-    .evaluate()
+  // Crear plantilla para Index.html y pasar el parámetro ?noinv como variable del scriptlet (fallback de redirección del escáner)
+  const template = HtmlService.createTemplateFromFile("Index");
+  template.noinvQuery = (e && e.parameter && e.parameter.noinv) || "";
+
+  return template.evaluate()
     .setTitle("Sistema de Inventario - Mejora Regulatoria")
     .addMetaTag("viewport", "width=device-width, initial-scale=1")
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);

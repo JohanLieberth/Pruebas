@@ -19,10 +19,21 @@ let webAppUrl = ""; // URL de la Web App obtenida de manera dinámica
 
 // Al iniciar el documento
 document.addEventListener("DOMContentLoaded", function() {
+  // Diagnóstico obligatorio de contexto de ejecución (iframe sandbox de Google)
+  const esIframe = window.self !== window.top;
+  console.log("Inventario SMR - ¿Ejecutando dentro de un iframe sandbox de Google?:", esIframe);
+
   inicializarIdentidadUsuario();
   cargarEstadisticasInicio();
-  // Por defecto mostrar sección inicio
-  showSection('inicio');
+
+  // Por defecto mostrar sección inicio, a menos que venga redireccionado por fallback del escáner (?noinv=XXXX)
+  if (typeof initialNoInvQuery !== "undefined" && initialNoInvQuery !== "") {
+    showSection('escanear');
+    procesarCodigoEtiqueta(initialNoInvQuery);
+    mostrarAlerta("Código cargado desde redirección de escáner: " + initialNoInvQuery, "success");
+  } else {
+    showSection('inicio');
+  }
 
   // Obtener URL de la Web App para el escáner de nivel superior
   google.script.run
@@ -31,9 +42,9 @@ document.addEventListener("DOMContentLoaded", function() {
     })
     .getScriptUrl();
 
-  // 1. Escuchar mensajes del escáner externo vía BroadcastChannel
+  // 1. Escuchar mensajes del escáner externo vía BroadcastChannel ("inventario-smr")
   try {
-    const channel = new BroadcastChannel("smr_scanner_channel");
+    const channel = new BroadcastChannel("inventario-smr");
     channel.onmessage = function(event) {
       if (event.data && event.data.codigo) {
         procesarCodigoEtiqueta(event.data.codigo);

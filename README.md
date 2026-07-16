@@ -105,10 +105,14 @@ A continuación se detallan los errores reportados comunes en el entorno de cons
 
 ### 1. Error de Cámara: `[Violation] Permissions policy violation: camera is not allowed in this document.`
 *   **Causa**: Google Apps Script ejecuta las aplicaciones web dentro de un iframe sandbox (`script.google.com` -> `*.googleusercontent.com`) de forma predeterminada. Debido a las políticas de seguridad estrictas de los navegadores modernos, el acceso a la cámara mediante `getUserMedia` está completamente prohibido por la directiva `Permissions-Policy` dentro de iframes externos, imposibilitando la activación del hardware directamente en la interfaz embebida.
-*   **Solución en Dos Capas (Workaround Definitivo)**:
-    1.  **Vista Ligera Desacoplada (`Scanner.html`)**: En `Code.gs`, la función `doGet(e)` detecta el parámetro de URL `?vista=scanner` y sirve una interfaz HTML minimalista e independiente del iframe que carga únicamente el lector. Al abrirse fuera de un iframe como ventana principal (`top-level`), el navegador sí permite solicitar y conceder permisos al dispositivo físico de forma normal.
-    2.  **Comunicación en Tiempo Real**: Cuando el lector en la ventana superior escanea una etiqueta válida, transfiere el código instantáneamente a la ventana matriz del inventario usando `BroadcastChannel` y un fallback redundante basado en el evento `'storage'` de `localStorage`. La pantalla principal del iframe recibe el código e inicia la búsqueda de inmediato sin recargar la página.
-*   **Recomendación**: Permita la apertura de ventanas emergentes (pop-ups) en su navegador para este sitio. Asegúrese de abrir siempre la Web App mediante la URL de producción terminada en `/exec` bajo protocolo seguro HTTPS.
+*   **Solución en Dos Capas (Workaround Definitivo - v3)**:
+    1.  **Detección de Contexto y Vista Desacoplada (`Scanner.html`)**: El sistema evalúa en tiempo real si está atrapado dentro del iframe de Google (`window.self !== window.top`). En caso afirmativo, evita inicializar la cámara para prevenir los avisos de violación de políticas en consola y, en su lugar, instruye al usuario a iniciar la cámara mediante un botón táctil. Esto abre la Web App en una ventana o pestaña de nivel superior (`Scanner.html`) enviando el parámetro `?vista=scanner`.
+    2.  **Autorización Segura y Despliegue de Cámara**: En esta ventana de nivel superior (fuera del iframe de Google), el navegador sí tiene permisos nativos para llamar a `navigator.mediaDevices.getUserMedia` y activar el lector de `html5-qrcode` utilizando la cámara trasera (`facingMode: "environment"`).
+    3.  **Handoff Multi-Canal del Resultado**: Cuando se detecta un código, se transfiere de inmediato a la pestaña principal en este orden de prioridad:
+        *   **A)** Mediante el canal dedicado `BroadcastChannel('inventario-smr')`.
+        *   **B)** Mediante el evento `'storage'` de `localStorage`.
+        *   **C)** **Redirección de Fallback**: Si el navegador bloquea la comunicación en segundo plano, el escáner muestra un botón grande **"Usar este número en Inventario"** que redirige la pestaña principal a `/exec?noinv=XXXX`. Al cargar, el scriptlet de `Code.gs` inyecta la variable y el sistema ejecuta la búsqueda automática de inmediato.
+*   **Recomendación**: Permita la apertura de ventanas emergentes (pop-ups) en su navegador para este sitio y verifique el candado de permisos en la barra de direcciones de su navegador. Asegúrese de abrir siempre la Web App mediante la URL de producción terminada en `/exec` bajo protocolo seguro HTTPS.
 
 ### 2. Errores de `content.js` o Extensiones:
 *   `Uncaught (in promise) TypeError: Cannot read properties of null (reading 'classList') at ... (content.js:2)`

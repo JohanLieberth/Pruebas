@@ -109,6 +109,10 @@
             <button type="button" class="btn btn-light btn-lg fw-bold" onclick="reiniciarEscaneo()">
               <i class="fa-solid fa-arrows-rotate me-2"></i>Escanear Otro
             </button>
+            <!-- Botón de Redirección Fallback para asegurar funcionamiento si el navegador bloquea la comunicación cruzada -->
+            <button type="button" class="btn btn-warning btn-lg fw-bold text-dark" onclick="redireccionarFallback()">
+              <i class="fa-solid fa-share-from-square me-2"></i>Usar este número en Inventario
+            </button>
             <button type="button" class="btn btn-outline-light" onclick="cerrarLector()">
               <i class="fa-solid fa-xmark me-2"></i>Cerrar Escáner
             </button>
@@ -164,6 +168,13 @@
   <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <script>
+    // Variables dinámicas inyectadas de GAS para redirecciones fallback
+    const webAppUrl = "<?!= getScriptUrl() ?>";
+
+    // Diagnóstico obligatorio de contexto de ejecución (iframe vs top-level)
+    const esIframe = window.self !== window.top;
+    console.log("Escáner Standalone - ¿Está ejecutándose dentro de un iframe sandbox de Google?:", esIframe);
+
     let scanner = null;
     let isRunning = false;
 
@@ -189,6 +200,9 @@
       const btn = document.getElementById("btn-activar-camara");
       btn.disabled = true;
       btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Solicitando acceso...`;
+
+      // Diagnóstico antes de getUserMedia
+      console.log("Iniciando getUserMedia. Contexto: ¿Es iframe?:", window.self !== window.top);
 
       navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
         .then(stream => {
@@ -241,7 +255,7 @@
 
           let mensaje = "No se pudo acceder al hardware de cámara. ";
           if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-            mensaje += "Permiso denegado por el usuario o bloqueado por políticas de privacidad de su navegador. Por favor compruebe la barra de direcciones y otorgue el acceso.";
+            mensaje += "Permiso denegado por el usuario o bloqueado por las políticas de privacidad de su navegador. Por favor compruebe los permisos haciendo clic en el icono del candado en la barra de direcciones de su navegador y conceda el acceso.";
           } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
             mensaje += "No se detectó ninguna cámara instalada en este dispositivo.";
           } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
@@ -327,9 +341,9 @@
       if (!codigo) return;
       const noInv = String(codigo).trim();
 
-      // 1. Enviar vía BroadcastChannel para comunicación en vivo instantánea
+      // 1. Enviar vía BroadcastChannel ("inventario-smr") para comunicación en vivo instantánea
       try {
-        const channel = new BroadcastChannel("smr_scanner_channel");
+        const channel = new BroadcastChannel("inventario-smr");
         channel.postMessage({ codigo: noInv });
       } catch (e) {
         console.error("BroadcastChannel error: ", e);
@@ -346,6 +360,18 @@
       // Mostrar pantalla de lectura exitosa
       document.getElementById("success-code-text").textContent = noInv;
       document.getElementById("success-overlay").classList.remove("d-none");
+    }
+
+    /**
+     * Redirección Fallback para transferir el código si falla la comunicación asíncrona
+     */
+    function redireccionarFallback() {
+      const noInv = document.getElementById("success-code-text").textContent;
+      if (noInv && webAppUrl) {
+        window.location.href = webAppUrl + "?noinv=" + encodeURIComponent(noInv);
+      } else if (noInv) {
+        window.location.search = "?noinv=" + encodeURIComponent(noInv);
+      }
     }
 
     function enviarCodigoManual() {
