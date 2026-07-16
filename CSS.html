@@ -1,0 +1,210 @@
+<style>
+/* ==========================================
+   ESTILOS GENERALES Y PALETA DE COLORES
+   ========================================== */
+:root {
+  --primary-color: #1a1a2e;       /* Azul Marino Oscuro */
+  --accent-color: #16a085;        /* Verde Esmeralda Regulación */
+  --light-bg: #f8f9fa;            /* Gris Claro Fondo */
+  --high-contrast-text: #111111;  /* Texto en alto contraste */
+  --danger-color: #c0392b;        /* Rojo Alerta */
+  --warning-color: #f39c12;       /* Amarillo / Naranja Advertencia */
+  --card-border-radius: 12px;
+}
+
+body {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: var(--light-bg);
+  color: var(--high-contrast-text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================
+   BARRA DE NAVEGACIÓN Y CABECERA
+   ========================================== */
+.navbar-custom {
+  background-color: var(--primary-color) !important;
+}
+
+.navbar-brand span {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.nav-link {
+  font-weight: 500;
+  padding: 0.5rem 1rem !important;
+  border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+}
+
+.nav-link:hover, .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff !important;
+}
+
+.bg-dark-accent {
+  background-color: rgba(22, 160, 133, 0.2);
+  border: 1px solid rgba(22, 160, 133, 0.4);
+}
+
+/* ==========================================
+   LOYOUT Y SECCIONES
+   ========================================== */
+.app-section {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* ==========================================
+   BOTONES Y ACCIONES RÁPIDAS
+   ========================================== */
+.btn-hover {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+.icon-circle {
+  width: 65px;
+  height: 65px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-light-primary {
+  background-color: rgba(26, 26, 46, 0.1);
+}
+
+.bg-light-success {
+  background-color: rgba(22, 160, 133, 0.1);
+}
+
+.bg-light-warning {
+  background-color: rgba(243, 156, 18, 0.1);
+}
+
+/* ==========================================
+   TARJETAS Y TABLAS RESPONSIVAS
+   ========================================== */
+.card {
+  border-radius: var(--card-border-radius);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.table {
+  font-size: 0.95rem;
+}
+
+.table-dark {
+  background-color: var(--primary-color) !important;
+}
+
+.bg-light-soft {
+  background-color: #f1f3f5;
+}
+
+.table-responsive {
+  max-width: 100%;
+}
+
+/* Zebra Striping */
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Evitar desbordes de texto */
+.text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================
+   MODAL DE LOADER GLOBAL
+   ========================================== */
+#global-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.opacity-90 {
+  opacity: 0.95;
+}
+
+/* ==========================================
+   ESCÁNER DE CÁMARA (HTML5-QRCODE)
+   ========================================== */
+#reader {
+  border: none !important;
+  border-radius: var(--card-border-radius);
+  overflow: hidden;
+  background-color: #000;
+}
+
+#reader__scan_region {
+  background-color: #000 !important;
+}
+
+/* Bordes animados o decorativos en el área de escaneo */
+#reader__dashboard {
+  background: #f8f9fa !important;
+  padding: 10px !important;
+  border-top: 1px solid #ccc !important;
+}
+
+#reader__dashboard_section_csr button {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  border: none !important;
+  padding: 6px 12px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+}
+
+/* ==========================================
+   OTRAS MEJORAS VISUALES
+   ========================================== */
+.border-dashed {
+  border: 2px dashed #ccc !important;
+}
+
+.uppercase {
+  text-transform: uppercase;
+}
+
+.fw-semibold {
+  font-weight: 500;
+}
+
+.shadow-xs {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Animación sutil de pulso para feedback */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.pulse-animation {
+  animation: pulse 1s infinite;
+}
+</style>

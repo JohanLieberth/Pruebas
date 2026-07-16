@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Inventario - Subdirección de Mejora Regulatoria</title>
+  <!-- Responsive Meta Tag -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+
+  <!-- Bootstrap 5 CSS via CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- FontAwesome Icons via CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts (Roboto) -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Estilos Personalizados Incluidos -->
+  <?!= include("CSS"); ?>
+</head>
+<body>
+
+  <!-- Barra de Navegación Responsiva -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="#" onclick="showSection('inicio')">
+        <i class="fa-solid fa-boxes-stacked me-2"></i>
+        <span>SMR - Inventario</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" id="nav-inicio" href="#" onclick="showSection('inicio')">
+              <i class="fa-solid fa-house me-1"></i> Inicio
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-escanear" href="#" onclick="showSection('escanear')">
+              <i class="fa-solid fa-camera me-1"></i> Escanear
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-buscar" href="#" onclick="showSection('buscar')">
+              <i class="fa-solid fa-magnifying-glass me-1"></i> Buscar
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-alta" href="#" onclick="showSection('alta')">
+              <i class="fa-solid fa-circle-plus me-1"></i> Alta / Levantamiento
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-cargar-excel" href="#" onclick="showSection('cargar-excel')">
+              <i class="fa-solid fa-file-excel me-1"></i> Cargar Excel
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-listado" href="#" onclick="showSection('listado')">
+              <i class="fa-solid fa-list me-1"></i> Listado
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-bitacora" href="#" onclick="showSection('bitacora')">
+              <i class="fa-solid fa-clock-rotate-left me-1"></i> Bitácora
+            </a>
+          </li>
+        </ul>
+
+        <!-- Identificador de Usuario en Navbar -->
+        <span class="navbar-text ms-3 text-white bg-dark-accent px-3 py-1 rounded-pill d-block text-center mt-2 mt-lg-0" id="navbar-user-display">
+          <i class="fa-solid fa-user me-1"></i> <span id="current-user-name">Identificando...</span>
+        </span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Loader Global -->
+  <div id="global-loader" class="d-none">
+    <div class="text-center text-white bg-dark p-4 rounded shadow-lg opacity-90">
+      <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+      <h5 class="mt-3 mb-0" id="loader-message">Procesando solicitud...</h5>
+    </div>
+  </div>
+
+  <div class="container my-4">
+
+    <!-- Alertas Dinámicas -->
+    <div id="alert-container"></div>
+
+    <!-- ================= SECCIÓN: INICIO ================= -->
+    <section id="section-inicio" class="app-section">
+      <div class="row align-items-center mb-4">
+        <div class="col-md-8">
+          <h1 class="display-6 text-primary fw-bold mb-1">Subdirección de Mejora Regulatoria</h1>
+          <p class="lead text-muted">Sistema de Gestión de Inventario</p>
+        </div>
+        <div class="col-md-4 text-md-end text-start">
+          <div class="card bg-light p-3 shadow-sm border-0">
+            <div class="d-flex align-items-center">
+              <i class="fa-solid fa-id-card fa-2x text-primary me-3"></i>
+              <div>
+                <h6 class="mb-0 fw-bold text-dark">Operador Activo:</h6>
+                <p class="mb-0 text-secondary" id="active-user-details">Cargando...</p>
+                <a href="#" class="text-decoration-none small text-primary" onclick="cambiarNombreUsuario()"><i class="fa-solid fa-pen-to-square me-1"></i>Cambiar nombre</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accesos Directos o Dashboard -->
+      <div class="row g-4 mb-4">
+        <div class="col-12 col-md-4">
+          <div class="card h-100 shadow-sm border-0 border-top border-primary border-4 btn-hover" onclick="showSection('escanear')">
+            <div class="card-body text-center p-4">
+              <div class="icon-circle bg-light-primary text-primary mb-3 mx-auto">
+                <i class="fa-solid fa-camera fa-2x"></i>
+              </div>
+              <h5 class="card-title fw-bold">Escáner de Cámara</h5>
+              <p class="card-text text-muted">Usa la cámara de tu dispositivo o un lector externo para escanear las etiquetas de inventario.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="card h-100 shadow-sm border-0 border-top border-success border-4 btn-hover" onclick="showSection('buscar')">
+            <div class="card-body text-center p-4">
+              <div class="icon-circle bg-light-success text-success mb-3 mx-auto">
+                <i class="fa-solid fa-magnifying-glass fa-2x"></i>
+              </div>
+              <h5 class="card-title fw-bold">Búsqueda Rápida</h5>
+              <p class="card-text text-muted">Busca por Número de Inventario o Número de Serie de manera parcial o exacta con acceso a edición.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="card h-100 shadow-sm border-0 border-top border-warning border-4 btn-hover" onclick="showSection('listado')">
+            <div class="card-body text-center p-4">
+              <div class="icon-circle bg-light-warning text-warning mb-3 mx-auto">
+                <i class="fa-solid fa-file-excel fa-2x"></i>
+              </div>
+              <h5 class="card-title fw-bold">Listar y Exportar</h5>
+              <p class="card-text text-muted">Visualiza el inventario completo, aplica filtros avanzados y expórtalo a Excel para Patrimonio.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen Estadístico Rápido -->
+      <div class="card shadow-sm border-0 mb-4 bg-light-soft">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Resumen General de Inventario</h5>
+          <div class="row g-3 text-center">
+            <div class="col-6 col-md-3">
+              <div class="p-3 bg-white rounded shadow-xs">
+                <h3 class="fw-bold text-primary mb-1" id="stat-total">0</h3>
+                <span class="text-muted small uppercase fw-semibold">Artículos Totales</span>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-3 bg-white rounded shadow-xs">
+                <h3 class="fw-bold text-success mb-1" id="stat-bueno">0</h3>
+                <span class="text-muted small uppercase fw-semibold">Bueno / Regular</span>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-3 bg-white rounded shadow-xs">
+                <h3 class="fw-bold text-danger mb-1" id="stat-malo">0</h3>
+                <span class="text-muted small uppercase fw-semibold">Malo</span>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-3 bg-white rounded shadow-xs">
+                <h3 class="fw-bold text-secondary mb-1" id="stat-baja">0</h3>
+                <span class="text-muted small uppercase fw-semibold">Baja Lógica</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SECCIÓN: ESCANEAR ================= -->
+    <section id="section-escanear" class="app-section d-none">
+      <div class="row mb-3">
+        <div class="col">
+          <h2 class="fw-bold text-dark"><i class="fa-solid fa-camera text-primary me-2"></i>Escáner con Cámara</h2>
+          <p class="text-muted">Escanea el código de barras o QR de la etiqueta "No. INV." de patrimonio para recuperar o dar de alta el artículo.</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <!-- Columna del Escáner -->
+        <div class="col-lg-6 col-12">
+          <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+              <span class="fw-bold"><i class="fa-solid fa-video me-2"></i>Cámara en Vivo</span>
+              <span class="badge bg-danger p-2" id="scanner-status-badge">Apagado</span>
+            </div>
+            <div class="card-body p-0 position-relative bg-black" style="min-height: 250px;">
+
+              <!-- Contenedor de la cámara (Html5Qrcode) -->
+              <div id="reader" style="width: 100%;"></div>
+
+              <!-- Mensaje de inicio de cámara u error -->
+              <div id="scanner-placeholder" class="text-center text-white d-flex flex-column justify-content-center align-items-center p-4 position-absolute w-100 h-100 top-0 start-0">
+                <i class="fa-solid fa-barcode fa-4x text-light-muted mb-3"></i>
+                <p class="mb-3 px-3">Inicia la cámara para comenzar a escanear códigos de barras o QR.</p>
+                <button type="button" class="btn btn-primary px-4 shadow" onclick="startScanner()">
+                  <i class="fa-solid fa-play me-2"></i>Iniciar Cámara
+                </button>
+              </div>
+            </div>
+            <div class="card-footer bg-light d-flex flex-wrap gap-2 justify-content-between align-items-center">
+              <button type="button" class="btn btn-outline-danger btn-sm" id="btn-stop-scanner" onclick="stopScanner()" disabled>
+                <i class="fa-solid fa-stop me-1"></i>Detener Cámara
+              </button>
+
+              <div class="d-flex align-items-center gap-1">
+                <label for="camera-select" class="small text-muted mb-0 me-1">Cámara:</label>
+                <select id="camera-select" class="form-select form-select-sm" style="max-width: 180px;" onchange="restartScannerWithSelectedCamera()">
+                  <option value="">Seleccionando...</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Captura Manual Alternativa -->
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-keyboard me-2 text-primary"></i>Captura / Búsqueda Manual</h6>
+              <form id="form-scan-manual" onsubmit="event.preventDefault(); buscarManualDesdeEscaner();">
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
+                  <input type="text" class="form-control" id="scan-manual-no-inv" placeholder="Ingresa No. INV. manualmente" required>
+                  <button type="submit" class="btn btn-dark">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i>Buscar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columna de Resultados / Edición del Escáner -->
+        <div class="col-lg-6 col-12">
+          <!-- Alerta de Escáner -->
+          <div id="scan-feedback" class="alert alert-info d-none mb-3 d-flex align-items-center">
+            <i class="fa-solid fa-circle-info fa-lg me-3"></i>
+            <div>
+              <strong id="scan-feedback-title">Código leído:</strong>
+              <span id="scan-feedback-code">Ninguno</span>
+            </div>
+          </div>
+
+          <!-- Contenedor Dinámico de Resultados -->
+          <div id="scan-result-container" class="card shadow-sm border-0 d-none">
+
+            <!-- Cabecera de Estado del Artículo -->
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center" id="scan-result-header">
+              <span class="fw-bold" id="scan-result-title"><i class="fa-solid fa-circle-check me-2"></i>Artículo Encontrado</span>
+              <span class="badge bg-white text-success fw-bold px-2 py-1" id="scan-result-badge-noinv">INV-XXXX</span>
+            </div>
+
+            <div class="card-body">
+              <!-- Información del Artículo -->
+              <div class="bg-light p-3 rounded mb-3 border-start border-4 border-success" id="scan-result-info-box">
+                <h5 class="fw-bold text-dark mb-1" id="scan-info-descripcion">Descripción del artículo</h5>
+                <p class="text-secondary small mb-3">Marca: <strong id="scan-info-marca">-</strong> | Modelo: <strong id="scan-info-modelo">-</strong> | Serie: <strong id="scan-info-serie">-</strong></p>
+
+                <div class="row g-2 text-dark">
+                  <div class="col-6">
+                    <span class="small text-muted d-block">Estado (Patrimonio):</span>
+                    <strong id="scan-info-estado" class="badge bg-secondary">-</strong>
+                  </div>
+                  <div class="col-6">
+                    <span class="small text-muted d-block">Ubicación (Patrimonio):</span>
+                    <strong id="scan-info-ubicacion">-</strong>
+                  </div>
+                  <div class="col-6 mt-2">
+                    <span class="small text-muted d-block">Resguardado Por:</span>
+                    <strong id="scan-info-resguardado">-</strong>
+                  </div>
+                  <div class="col-6 mt-2">
+                    <span class="small text-muted d-block">Importe ($):</span>
+                    <strong id="scan-info-importe">-</strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Formulario de Actualización en el Acto (Core Levantamiento) -->
+              <form id="form-scan-update" onsubmit="event.preventDefault(); guardarActualizacionEscaner();">
+                <input type="hidden" id="scan-update-no-inv">
+                <input type="hidden" id="scan-update-no">
+
+                <div class="row g-3">
+                  <div class="col-md-6 col-12">
+                    <label class="form-label fw-semibold text-dark">Ubicación Real <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="scan-real-ubicacion" required placeholder="Ej. Oficina A-2">
+                  </div>
+                  <div class="col-md-6 col-12">
+                    <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="scan-real-resguardante" required placeholder="Nombre completo">
+                  </div>
+                  <div class="col-md-6 col-12">
+                    <label class="form-label fw-semibold text-dark">Estado Real <span class="text-danger">*</span></label>
+                    <select class="form-select fw-bold" id="scan-real-estado" required>
+                      <option value="BUENO">BUENO</option>
+                      <option value="REGULAR">REGULAR</option>
+                      <option value="MALO">MALO</option>
+                      <option value="BAJA">BAJA</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 col-12">
+                    <label class="form-label fw-semibold text-dark">Campos editables rápidos:</label>
+                    <div class="d-grid gap-1">
+                      <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="toggleFormCamposScanExtra()">
+                        <i class="fa-solid fa-sliders me-2"></i>Editar otros campos (Marca, Serie, etc.)
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Campos Extra Expandibles para Escaneo -->
+                  <div class="col-12 d-none" id="scan-extra-campos">
+                    <div class="border p-3 rounded bg-light-soft">
+                      <h6 class="fw-bold text-dark border-bottom pb-1 mb-2">Campos Adicionales</h6>
+                      <div class="row g-2">
+                        <div class="col-6">
+                          <label class="form-label small text-dark mb-1">Descripción</label>
+                          <input type="text" class="form-control form-control-sm" id="scan-extra-descripcion">
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label small text-dark mb-1">Serie</label>
+                          <input type="text" class="form-control form-control-sm" id="scan-extra-serie">
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label small text-dark mb-1">Marca</label>
+                          <input type="text" class="form-control form-control-sm" id="scan-extra-marca">
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label small text-dark mb-1">Modelo</label>
+                          <input type="text" class="form-control form-control-sm" id="scan-extra-modelo">
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label small text-dark mb-1">Importe ($)</label>
+                          <input type="number" step="0.01" class="form-control form-control-sm" id="scan-extra-importe">
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label small text-dark mb-1">Estado (Patrimonio)</label>
+                          <select class="form-select form-select-sm" id="scan-extra-estado">
+                            <option value="BUENO">BUENO</option>
+                            <option value="REGULAR">REGULAR</option>
+                            <option value="MALO">MALO</option>
+                            <option value="BAJA">BAJA</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Botonera de Acciones -->
+                  <div class="col-12 mt-4">
+                    <div class="d-flex flex-wrap gap-2 justify-content-between">
+                      <button type="submit" class="btn btn-success flex-fill py-2 fw-bold shadow-sm">
+                        <i class="fa-solid fa-circle-check me-2"></i>Corroborar e Informar
+                      </button>
+                      <button type="button" class="btn btn-warning py-2 px-3 fw-bold shadow-sm text-dark" id="btn-scan-baja" onclick="darDeBajaScan()">
+                        <i class="fa-solid fa-ban me-1"></i>Dar de Baja
+                      </button>
+                      <button type="button" class="btn btn-danger py-2 px-3 fw-bold shadow-sm" id="btn-scan-delete" onclick="eliminarFisicoScan()">
+                        <i class="fa-solid fa-trash me-1"></i>Eliminar Físico
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Contenedor Dinámico: NO EXISTE EL ARTÍCULO (Ofrecer ALTA) -->
+          <div id="scan-not-found-container" class="card shadow-sm border-0 d-none">
+            <div class="card-header bg-warning text-dark fw-bold d-flex align-items-center">
+              <i class="fa-solid fa-triangle-exclamation me-2"></i>Artículo No Registrado
+            </div>
+            <div class="card-body text-center p-4">
+              <h5 class="fw-bold text-dark">El código escaneado no está en la base de datos</h5>
+              <p class="text-muted">El número de inventario <strong class="text-primary" id="scan-not-found-code">-</strong> no coincide con ningún registro de patrimonio. ¿Deseas darlo de alta en este momento?</p>
+
+              <div class="d-grid gap-2 col-md-8 mx-auto mt-3">
+                <button type="button" class="btn btn-primary" onclick="altaRapidaDesdeEscaner()">
+                  <i class="fa-solid fa-circle-plus me-2"></i>Dar de Alta (Levantamiento)
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="limpiarResultadosEscaner()">
+                  <i class="fa-solid fa-xmark me-2"></i>Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SECCIÓN: BUSCAR ================= -->
+    <section id="section-buscar" class="app-section d-none">
+      <div class="row mb-3">
+        <div class="col">
+          <h2 class="fw-bold text-dark"><i class="fa-solid fa-magnifying-glass text-primary me-2"></i>Búsqueda de Inventario</h2>
+          <p class="text-muted">Busca artículos filtrando por Número de Inventario o por Número de Serie. Puedes realizar búsquedas exactas o coincidencias parciales.</p>
+        </div>
+      </div>
+
+      <!-- Filtros de búsqueda -->
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+          <form id="form-buscar" onsubmit="event.preventDefault(); buscarArticulosPorCriterio();">
+            <div class="row g-3 align-items-end">
+              <div class="col-12 col-md-3">
+                <label class="form-label fw-semibold text-dark">Criterio de búsqueda:</label>
+                <select id="buscar-criterio" class="form-select">
+                  <option value="NO_INV">Por No. INV. (Número de Inventario)</option>
+                  <option value="SERIE">Por Número de Serie (SERIE)</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-5">
+                <label class="form-label fw-semibold text-dark">Texto a buscar:</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                  <input type="text" id="buscar-texto" class="form-control" placeholder="Escribe el número o serie..." required>
+                </div>
+              </div>
+              <div class="col-12 col-md-2">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="buscar-exacto">
+                  <label class="form-check-label text-dark fw-semibold" for="buscar-exacto">
+                    Búsqueda Exacta
+                  </label>
+                </div>
+              </div>
+              <div class="col-12 col-md-2">
+                <button type="submit" class="btn btn-primary w-100 py-2 shadow-sm">
+                  <i class="fa-solid fa-magnifying-glass me-2"></i>Buscar
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Resultados de Búsqueda -->
+      <div class="card shadow-sm border-0 mb-4 d-none" id="buscar-resultados-card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <span class="fw-bold text-dark"><i class="fa-solid fa-list-ol me-2 text-primary"></i>Resultados de la Búsqueda</span>
+          <span class="badge bg-secondary p-2" id="buscar-resultados-conteo">0 registros</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th>No. INV.</th>
+                  <th>Descripción</th>
+                  <th>Serie</th>
+                  <th>Marca</th>
+                  <th>Modelo</th>
+                  <th>Estado Real</th>
+                  <th>Ubicación Real</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="buscar-resultados-tbody">
+                <!-- Se llena con JS -->
+              </tbody>
+            </table>
+          </div>
+          <div id="buscar-vacio-msg" class="text-center p-5 d-none">
+            <i class="fa-solid fa-folder-open fa-3x text-muted mb-3"></i>
+            <h5>No se encontraron artículos que coincidan con la búsqueda.</h5>
+            <p class="text-muted mb-0">Verifica el número o serie e intenta de nuevo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SECCIÓN: ALTA / LEVANTAMIENTO ================= -->
+    <section id="section-alta" class="app-section d-none">
+      <div class="row mb-3">
+        <div class="col">
+          <h2 class="fw-bold text-dark"><i class="fa-solid fa-circle-plus text-primary me-2"></i>Alta / Levantamiento de Artículo</h2>
+          <p class="text-muted">Ingresa los datos para registrar un nuevo artículo en la base de datos del inventario.</p>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+          <form id="form-alta-articulo" onsubmit="event.preventDefault(); guardarAltaArticulo();">
+            <div class="row g-3">
+              <h5 class="fw-bold border-bottom pb-2 text-primary mb-2"><i class="fa-solid fa-barcode me-2"></i>Identificadores Básicos</h5>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">No. INV (Número de Inventario) <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="alta-no-inv" required placeholder="Ej. 100000000010" onblur="verificarExistenciaAlta(this.value)">
+                <div class="form-text text-danger d-none" id="alta-duplicado-error">El No. INV ya existe en el sistema.</div>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">No. Correlativo (Interno/Opcional)</label>
+                <input type="number" class="form-control" id="alta-no" placeholder="Autogenerado si se deja vacío">
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">No. de Serie <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="alta-serie" required placeholder="Ej. SN-XXXXXX o N/A">
+              </div>
+
+              <h5 class="fw-bold border-bottom pb-2 text-primary mt-4 mb-2"><i class="fa-solid fa-circle-info me-2"></i>Características y Detalles</h5>
+
+              <div class="col-12">
+                <label class="form-label fw-semibold text-dark">Descripción del artículo <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="alta-descripcion" required rows="2" placeholder="Ej. COMPUTADORA PORTATIL HP PROBOOK..."></textarea>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Marca <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="alta-marca" required placeholder="Ej. HP, LENOVO, etc.">
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Modelo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="alta-modelo" required placeholder="Ej. PROBOOK 450 G8">
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Importe ($) <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" class="form-control" id="alta-importe" required placeholder="0.00">
+              </div>
+
+              <h5 class="fw-bold border-bottom pb-2 text-primary mt-4 mb-2"><i class="fa-solid fa-building me-2"></i>Datos de Patrimonio (Histórico/Asignado)</h5>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Estado (Patrimonio)</label>
+                <select class="form-select" id="alta-estado">
+                  <option value="BUENO" selected>BUENO</option>
+                  <option value="REGULAR">REGULAR</option>
+                  <option value="MALO">MALO</option>
+                  <option value="BAJA">BAJA</option>
+                </select>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Ubicación (Patrimonio)</label>
+                <input type="text" class="form-control" id="alta-ubicacion" placeholder="Ej. SUBDIRECCION DE MEJORA REGULATORIA">
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Resguardado Por (Patrimonio)</label>
+                <input type="text" class="form-control" id="alta-resguardado" placeholder="Nombre de resguardante oficial">
+              </div>
+
+              <h5 class="fw-bold border-bottom pb-2 text-primary mt-4 mb-2"><i class="fa-solid fa-map-location-dot me-2"></i>Datos de Levantamiento Real</h5>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Estado Real <span class="text-danger">*</span></label>
+                <select class="form-select fw-bold" id="alta-estado-real" required>
+                  <option value="BUENO" selected>BUENO</option>
+                  <option value="REGULAR">REGULAR</option>
+                  <option value="MALO">MALO</option>
+                  <option value="BAJA">BAJA</option>
+                </select>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Ubicación Real <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="alta-ubicacion-real" required placeholder="Ej. Oficina Central / Escritorio 3">
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="alta-resguardante-real" required placeholder="Ej. Juan Pérez López">
+              </div>
+
+              <div class="col-12 mt-4">
+                <hr>
+                <div class="d-flex justify-content-end gap-2">
+                  <button type="button" class="btn btn-outline-secondary px-4 py-2" onclick="limpiarFormularioAlta()"><i class="fa-solid fa-eraser me-2"></i>Limpiar</button>
+                  <button type="submit" class="btn btn-primary px-5 py-2 fw-bold" id="btn-submit-alta"><i class="fa-solid fa-floppy-disk me-2"></i>Guardar Artículo</button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SECCIÓN: CARGAR EXCEL ================= -->
+    <section id="section-cargar-excel" class="app-section d-none">
+      <div class="row mb-3">
+        <div class="col">
+          <h2 class="fw-bold text-dark"><i class="fa-solid fa-file-excel text-primary me-2"></i>Carga Inicial desde Excel (Patrimonio)</h2>
+          <p class="text-muted">Sube el archivo de Excel (.xlsx o .xls) proporcionado por el área de Patrimonio. El sistema mapeará y normalizará las columnas automáticamente.</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <!-- Tarjeta de Carga -->
+        <div class="col-lg-5 col-12">
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white fw-bold"><i class="fa-solid fa-upload me-2 text-primary"></i>Carga del Archivo</div>
+            <div class="card-body p-4">
+
+              <!-- Formulario de Subida -->
+              <form id="form-cargar-excel">
+                <div class="mb-4">
+                  <label for="excel-file-input" class="form-label fw-semibold text-dark">Selecciona archivo Excel (.xlsx / .xls):</label>
+                  <input class="form-control" type="file" id="excel-file-input" accept=".xlsx, .xls" required onchange="procesarArchivoExcelLocal()">
+                  <div class="form-text">Usamos SheetJS para procesar y validar el archivo directamente en tu navegador.</div>
+                </div>
+
+                <div class="mb-4">
+                  <label class="form-label fw-semibold text-dark d-block">Si el "No. INV." ya existe en el sistema:</label>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="duplicados-radio" id="radio-omitir" value="OMIT" checked>
+                    <label class="form-check-label text-dark" for="radio-omitir">
+                      <strong class="text-warning">Omitir</strong> (No sobrescribir)
+                    </label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="duplicados-radio" id="radio-actualizar" value="UPDATE">
+                    <label class="form-check-label text-dark" for="radio-actualizar">
+                      <strong class="text-success">Actualizar / Sobrescribir</strong>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="d-grid">
+                  <button type="button" class="btn btn-success py-2 fw-bold" id="btn-importar-excel" onclick="importarJSONAlServidor()" disabled>
+                    <i class="fa-solid fa-cloud-arrow-up me-2"></i>Subir a Google Sheets
+                  </button>
+                </div>
+              </form>
+
+            </div>
+          </div>
+
+          <!-- Información de Mapeo de Columnas -->
+          <div class="card bg-light border-0 shadow-sm">
+            <div class="card-body p-4">
+              <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-circle-info me-2 text-info"></i>Normalización del Excel</h6>
+              <p class="small text-muted mb-3">La carga es tolerante a acentos, mayúsculas, minúsculas y espacios. Se buscan y asocian automáticamente las columnas bajo el siguiente mapeo:</p>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered bg-white small mb-0">
+                  <thead class="table-secondary">
+                    <tr>
+                      <th>Columna Oficial Interna</th>
+                      <th>Posibles Encabezados en el Excel de Patrimonio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>No.</td><td>No., Número, Id</td></tr>
+                    <tr><td>No. INV.</td><td>No. INV., No. Inventario, Numero Inventario, Etiqueta</td></tr>
+                    <tr><td>DESCRIPCION</td><td>DESCRIPCION, Descripción, Articulo</td></tr>
+                    <tr><td>SERIE</td><td>SERIE, No. Serie, Serie, Numero de serie</td></tr>
+                    <tr><td>MODELO</td><td>MODELO, Modelo</td></tr>
+                    <tr><td>MARCA</td><td>MARCA, Marca</td></tr>
+                    <tr><td>ESTADO</td><td>ESTADO, Estado, Estado Patrimonio</td></tr>
+                    <tr><td>IMPORTE</td><td>IMPORTE, Importe, Valor, Costo</td></tr>
+                    <tr><td>UBICACION</td><td>UBICACIÓN, Ubicacion, Ubicación</td></tr>
+                    <tr><td>RESGUARDADO</td><td>RESGUARDADO, Resguardado, Resguardo</td></tr>
+                    <tr><td>RESGUARDANTE_REAL</td><td>Resguardante real, Resguardante_real, Resguardante</td></tr>
+                    <tr><td>UBICACION_REAL</td><td>Ubicación real, Ubicacion_real, Ubicacion real</td></tr>
+                    <tr><td>ESTADO_REAL</td><td>Estado real, Estado_real, Estado real</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columna de Resultados / Vista Previa -->
+        <div class="col-lg-7 col-12">
+
+          <!-- Resumen de Archivo Cargado -->
+          <div class="card shadow-sm border-0 d-none" id="excel-resumen-card">
+            <div class="card-header bg-success text-white fw-bold"><i class="fa-solid fa-file-invoice me-2"></i>Resumen de Validación</div>
+            <div class="card-body p-4">
+
+              <div class="row text-center mb-3">
+                <div class="col-4">
+                  <div class="p-2 border rounded bg-light">
+                    <h4 class="fw-bold mb-0 text-dark" id="excel-total-filas">0</h4>
+                    <span class="small text-muted">Filas Válidas</span>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="p-2 border rounded bg-light">
+                    <h4 class="fw-bold mb-0 text-dark" id="excel-columnas-mapeadas">0</h4>
+                    <span class="small text-muted">Columnas Mapeadas</span>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="p-2 border rounded bg-light">
+                    <h4 class="fw-bold mb-0 text-dark" id="excel-filas-vacias">0</h4>
+                    <span class="small text-muted">Filas Omitidas</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alert alert-success d-flex align-items-center d-none" id="excel-importacion-exito-alert">
+                <i class="fa-solid fa-circle-check fa-lg me-3"></i>
+                <div>
+                  <strong>Carga Procesada Exitosamente:</strong><br>
+                  Nuevos: <span id="resumen-nuevos">0</span> | Actualizados: <span id="resumen-actualizados">0</span> | Omitidos: <span id="resumen-omitidos">0</span>.
+                </div>
+              </div>
+
+              <h6 class="fw-bold mb-2">Vista Previa de los primeros 5 registros mapeados:</h6>
+              <div class="table-responsive border rounded bg-white">
+                <table class="table table-sm table-striped mb-0 text-nowrap small">
+                  <thead class="table-light">
+                    <tr>
+                      <th>No. INV.</th>
+                      <th>Descripción</th>
+                      <th>Serie</th>
+                      <th>Marca</th>
+                      <th>Modelo</th>
+                      <th>Estado</th>
+                      <th>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody id="excel-preview-tbody">
+                    <!-- Se llena vía JS -->
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Mensaje Esperando Archivo -->
+          <div class="text-center p-5 border-dashed rounded bg-light" id="excel-esperando-msg">
+            <i class="fa-solid fa-file-excel fa-4x text-light-muted mb-3"></i>
+            <h5>Esperando archivo de Excel de Patrimonio...</h5>
+            <p class="text-muted">Sube tu archivo para ver el resumen de validación y habilitar el botón de carga.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SECCIÓN: LISTADO COMPLETO ================= -->
+    <section id="section-listado" class="app-section d-none">
+      <div class="row align-items-center mb-3">
+        <div class="col-12 col-md-6">
+          <h2 class="fw-bold text-dark mb-1"><i class="fa-solid fa-list text-primary me-2"></i>Inventario Completo</h2>
+          <p class="text-muted mb-0">Listado total con paginación, filtros interactivos y descarga.</p>
+        </div>
+        <div class="col-12 col-md-6 text-md-end text-start mt-2 mt-md-0 d-flex flex-wrap gap-2 justify-content-md-end">
+          <button type="button" class="btn btn-outline-success" onclick="exportarExcelSheetJS()">
+            <i class="fa-solid fa-file-excel me-2"></i>Exportar Excel
+          </button>
+          <button type="button" class="btn btn-outline-dark" onclick="exportarCSV()">
+            <i class="fa-solid fa-file-csv me-2"></i>Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros Avanzados -->
+      <div class="card shadow-sm border-0 mb-4 bg-light-soft">
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-3">
+              <label class="form-label small fw-bold text-dark">Filtrar por Estado (Real):</label>
+              <select id="filtro-estado" class="form-select" onchange="aplicarFiltrosYListar()">
+                <option value="">-- Todos los Estados --</option>
+                <option value="BUENO">BUENO</option>
+                <option value="REGULAR">REGULAR</option>
+                <option value="MALO">MALO</option>
+                <option value="BAJA">BAJA (Baja Lógica)</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <label class="form-label small fw-bold text-dark">Filtrar por Ubicación (Real):</label>
+              <select id="filtro-ubicacion" class="form-select" onchange="aplicarFiltrosYListar()">
+                <option value="">-- Todas las Ubicaciones --</option>
+                <!-- Se llena dinámicamente -->
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label small fw-bold text-dark">Filtro Rápido (Cualquier campo):</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fa-solid fa-filter"></i></span>
+                <input type="text" id="filtro-rapido" class="form-control" placeholder="Escribe para buscar en vivo..." oninput="aplicarFiltrosYListar()">
+              </div>
+            </div>
+
+            <div class="col-12 col-md-2">
+              <button type="button" class="btn btn-secondary w-100" onclick="limpiarFiltrosCompleto()">
+                <i class="fa-solid fa-filter-circle-xmark me-2"></i>Limpiar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Listado -->
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+          <span class="fw-bold"><i class="fa-solid fa-table me-2 text-primary"></i>Artículos Registrados</span>
+          <span class="badge bg-primary p-2" id="listado-conteo">0 de 0 registros</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th>No.</th>
+                  <th>No. INV.</th>
+                  <th>Descripción</th>
+                  <th>Serie</th>
+                  <th>Marca</th>
+                  <th>Modelo</th>
+                  <th>Ubicación Real</th>
+                  <th>Estado Real</th>
+                  <th>Última Actualización</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="listado-tbody">
+                <!-- Se llena dinámicamente con JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mensaje Vacío -->
+          <div id="listado-vacio-msg" class="text-center p-5 d-none">
+            <i class="fa-solid fa-triangle-exclamation fa-3x text-warning mb-3"></i>
+            <h5>No hay registros para mostrar.</h5>
+            <p class="text-muted mb-0">Prueba ajustando los filtros de búsqueda o registra un nuevo artículo.</p>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        <div class="card-footer bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-1">
+            <span class="small text-muted me-2">Mostrar:</span>
+            <select id="paginacion-limite" class="form-select form-select-sm" style="width: 80px;" onchange="cambiarLimitePaginacion(this.value)">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+
+          <nav aria-label="Navegacion de paginas">
+            <ul class="pagination pagination-sm mb-0" id="listado-paginacion-ul">
+              <!-- Se inyecta dinámicamente -->
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SECCIÓN: BITÁCORA ================= -->
+    <section id="section-bitacora" class="app-section d-none">
+      <div class="row align-items-center mb-3">
+        <div class="col">
+          <h2 class="fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i>Bitácora de Operaciones</h2>
+          <p class="text-muted">Registro histórico en tiempo real de todas las transacciones, altas, ediciones, bajas o cargas masivas realizadas en la aplicación.</p>
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-outline-dark" onclick="cargarDatosBitacora(true)">
+            <i class="fa-solid fa-rotate me-1"></i>Actualizar
+          </button>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0 align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th style="width: 15%;">Fecha</th>
+                  <th style="width: 20%;">Usuario / Operador</th>
+                  <th style="width: 15%;">Acción</th>
+                  <th style="width: 15%;">No. INV.</th>
+                  <th style="width: 35%;">Detalle del Cambio</th>
+                </tr>
+              </thead>
+              <tbody id="bitacora-tbody">
+                <!-- Se llena con JS -->
+              </tbody>
+            </table>
+          </div>
+          <div id="bitacora-vacia-msg" class="text-center p-5 d-none">
+            <i class="fa-solid fa-clock fa-3x text-muted mb-3"></i>
+            <h5>La bitácora de operaciones está vacía.</h5>
+            <p class="text-muted mb-0">Cualquier cambio realizado se registrará de inmediato aquí.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div> <!-- Cierre container -->
+
+
+  <!-- ================= MODAL DE EDICIÓN (CRUD MODIFICACIÓN) ================= -->
+  <div class="modal fade" id="modal-editar-articulo" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalEditarTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold" id="modalEditarTitle"><i class="fa-solid fa-pen-to-square me-2 text-primary"></i>Modificar Artículo de Inventario</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="form-editar-articulo" onsubmit="event.preventDefault(); guardarEdicionArticulo();">
+          <div class="modal-body">
+
+            <input type="hidden" id="edit-no">
+
+            <div class="row g-3">
+              <h6 class="fw-bold text-primary border-bottom pb-1 mb-2">Identificadores Oficiales</h6>
+
+              <div class="col-md-6 col-12">
+                <label class="form-label fw-semibold text-dark">No. INV. (Etiqueta Patrimonio) <span class="text-danger">*</span></label>
+                <input type="text" class="form-control bg-light" id="edit-no-inv" readonly required>
+                <div class="form-text">El número de inventario actúa como llave única de base de datos.</div>
+              </div>
+
+              <div class="col-md-6 col-12">
+                <label class="form-label fw-semibold text-dark">Número de Serie <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="edit-serie" required>
+              </div>
+
+              <h6 class="fw-bold text-primary border-bottom pb-1 mt-4 mb-2">Información de Patrimonio</h6>
+
+              <div class="col-12">
+                <label class="form-label fw-semibold text-dark">Descripción <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="edit-descripcion" required rows="2"></textarea>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Marca <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="edit-marca" required>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Modelo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="edit-modelo" required>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Importe ($) <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" class="form-control" id="edit-importe" required>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Estado (Patrimonio)</label>
+                <select class="form-select" id="edit-estado">
+                  <option value="BUENO">BUENO</option>
+                  <option value="REGULAR">REGULAR</option>
+                  <option value="MALO">MALO</option>
+                  <option value="BAJA">BAJA</option>
+                </select>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Ubicación (Patrimonio)</label>
+                <input type="text" class="form-control" id="edit-ubicacion">
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Resguardado Por (Patrimonio)</label>
+                <input type="text" class="form-control" id="edit-resguardado">
+              </div>
+
+              <h6 class="fw-bold text-primary border-bottom pb-1 mt-4 mb-2">Datos del Levantamiento Real</h6>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Estado Real <span class="text-danger">*</span></label>
+                <select class="form-select fw-bold" id="edit-estado-real" required>
+                  <option value="BUENO">BUENO</option>
+                  <option value="REGULAR">REGULAR</option>
+                  <option value="MALO">MALO</option>
+                  <option value="BAJA">BAJA</option>
+                </select>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Ubicación Real <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="edit-ubicacion-real" required>
+              </div>
+
+              <div class="col-md-4 col-12">
+                <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="edit-resguardante-real" required>
+              </div>
+
+            </div>
+
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4"><i class="fa-solid fa-floppy-disk me-2"></i>Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= MODAL IDENTIFICACIÓN DE OPERADOR (USUARIO MANUAL) ================= -->
+  <div class="modal fade" id="modal-user-identity" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalUserTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0">
+        <div class="modal-header bg-primary text-white text-center d-block">
+          <h5 class="modal-title fw-bold m-0" id="modalUserTitle"><i class="fa-solid fa-users me-2"></i>Identificación de Operador</h5>
+        </div>
+        <form onsubmit="event.preventDefault(); guardarUsuarioManual();">
+          <div class="modal-body p-4 text-center">
+            <i class="fa-solid fa-user-gear fa-4x text-primary-light mb-3"></i>
+            <p class="text-dark">Para registrar correctamente todas las actividades e ingresos en la <strong>Bitácora de Operaciones</strong>, por favor indica tu nombre completo o de departamento:</p>
+
+            <div class="mt-3">
+              <input type="text" class="form-control form-control-lg text-center" id="user-identity-input" required placeholder="Escribe tu Nombre / Área..." minlength="3">
+            </div>
+          </div>
+          <div class="modal-footer bg-light d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg fw-bold">Comenzar a Trabajar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Dependencias Externas en Cliente via CDN -->
+
+  <!-- SheetJS (xlsx) via CDN para manipulación de Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- HTML5 QR Code Scanner via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- Bootstrap 5 JS Bundle (incluye Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Script Principal de Lógica de Cliente -->
+  <?!= include("JS"); ?>
+
+</body>
+</html>

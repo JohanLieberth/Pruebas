@@ -1,0 +1,1553 @@
+<script>
+/**
+ * Sistema de Inventario - Subdirección de Mejora Regulatoria
+ * Lógica de Cliente (JS.html)
+ */
+
+// Variables de estado global de la aplicación
+let currentUser = ""; // Nombre del operador/usuario activo
+let scannerInstance = null; // Instancia de Html5Qrcode
+let isScannerRunning = false;
+let currentCameraId = "";
+let listadoCompleto = []; // Cache en cliente para el Listado de Inventario
+let listadoFiltrado = []; // Resultados después de aplicar filtros
+let paginacionActual = 1;
+let paginacionLimite = 10;
+let xlsxMapeadoTemp = []; // Datos de Excel listos para subir
+let ubicacionesUnicas = []; // Ubicaciones cargadas dinámicamente para filtros
+
+// Al iniciar el documento
+document.addEventListener("DOMContentLoaded", function() {
+  inicializarIdentidadUsuario();
+  cargarEstadisticasInicio();
+  // Por defecto mostrar sección inicio
+  showSection('inicio');
+});
+
+/**
+ * ==========================================
+ * 1. IDENTIDAD DE USUARIO (SESIÓN / MANUAL)
+ * ==========================================
+ */
+function inicializarIdentidadUsuario() {
+  showLoader("Obteniendo información del servidor...");
+  // Intentar obtener usuario desde Session de Google Apps Script
+  google.script.run
+    .withSuccessHandler(function(email) {
+      if (email) {
+        currentUser = email;
+        guardarUsuarioIdentificado(email, false);
+      } else {
+        // No se pudo obtener sesión activa (Web App ejecutada como creador, o acceso anónimo)
+        // Buscar en localStorage local
+        const savedUser = localStorage.getItem("smr_inventario_user");
+        if (savedUser && savedUser.trim().length >= 3) {
+          currentUser = savedUser;
+          guardarUsuarioIdentificado(savedUser, true);
+        } else {
+          hideLoader();
+          // Forzar modal de identificación de usuario
+          const modalEl = document.getElementById("modal-user-identity");
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al conectar con el servidor: " + err.message, "danger");
+      // Intentar recuperar de localStorage si falla conexión inicial
+      const savedUser = localStorage.getItem("smr_inventario_user");
+      if (savedUser) {
+        currentUser = savedUser;
+        guardarUsuarioIdentificado(savedUser, true);
+      }
+    })
+    .getActiveUserEmail();
+}
+
+function guardarUsuarioIdentificado(userName, guardarEnLocal) {
+  currentUser = userName;
+  if (guardarEnLocal) {
+    localStorage.setItem("smr_inventario_user", userName);
+  }
+
+  // Actualizar UI
+  document.getElementById("current-user-name").textContent = userName;
+  document.getElementById("active-user-details").textContent = userName;
+
+  // Cerrar modal si estuviera abierto
+  const modalEl = document.getElementById("modal-user-identity");
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) {
+    modalInstance.hide();
+  }
+  hideLoader();
+}
+
+function guardarUsuarioManual() {
+  const inputVal = document.getElementById("user-identity-input").value;
+  if (inputVal && inputVal.trim().length >= 3) {
+    guardarUsuarioIdentificado(inputVal.trim(), true);
+    // Registrar el ingreso en la bitácora
+    google.script.run.registrarBitacora("INGRESO_WEB", "", "Sesión iniciada por el operador", inputVal.trim());
+    cargarEstadisticasInicio();
+  } else {
+    alert("Por favor escribe un nombre válido de al menos 3 caracteres.");
+  }
+}
+
+function cambiarNombreUsuario() {
+  const modalEl = document.getElementById("modal-user-identity");
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById("user-identity-input").value = currentUser;
+  modal.show();
+}
+
+
+/**
+ * ==========================================
+ * 2. ENRUTADOR DE VISTAS (SECCIONES)
+ * ==========================================
+ */
+function showSection(sectionId) {
+  // Ocultar todas las secciones
+  const sections = document.querySelectorAll(".app-section");
+  sections.forEach(s => s.classList.add("d-none"));
+
+  // Desactivar todos los links de navegación
+  const navLinks = document.querySelectorAll(".nav-link");
+  navLinks.forEach(l => l.classList.remove("active"));
+
+  // Mostrar la sección seleccionada
+  const activeSection = document.getElementById("section-" + sectionId);
+  if (activeSection) {
+    activeSection.classList.remove("d-none");
+  }
+
+  // Activar link respectivo
+  const activeLink = document.getElementById("nav-" + sectionId);
+  if (activeLink) {
+    activeLink.classList.add("active");
+  }
+
+  // Acciones secundarias al cambiar de sección
+  if (sectionId !== 'escanear') {
+    stopScanner(); // Apagar cámara si el usuario sale de escanear
+  } else {
+    // Si entra a escanear, enfocar entrada manual
+    setTimeout(() => {
+      document.getElementById("scan-manual-no-inv").focus();
+    }, 300);
+  }
+
+  if (sectionId === 'listado') {
+    cargarListadoInventario();
+  } else if (sectionId === 'bitacora') {
+    cargarDatosBitacora();
+  } else if (sectionId === 'inicio') {
+    cargarEstadisticasInicio();
+  } else if (sectionId === 'buscar') {
+    setTimeout(() => {
+      document.getElementById("buscar-texto").focus();
+    }, 300);
+  }
+
+  // Cerrar menú responsivo colapsable de bootstrap al hacer click
+  const navbarCollapse = document.getElementById("navbarNav");
+  if (navbarCollapse.classList.contains("show")) {
+    const bsCollapse = new bootstrap.Collapse(navbarCollapse);
+    bsCollapse.hide();
+  }
+}
+
+
+/**
+ * ==========================================
+ * 3. CONTROLADOR DEL ESCÁNER CON CÁMARA
+ * ==========================================
+ */
+function startScanner() {
+  limpiarResultadosEscaner();
+
+  // Asegurar que el contenedor esté listo y mostrar UI de cámara activa
+  document.getElementById("scanner-placeholder").classList.add("d-none");
+
+  // Instanciar html5-qrcode
+  if (!scannerInstance) {
+    scannerInstance = new Html5Qrcode("reader");
+  }
+
+  // Solicitar cámaras disponibles
+  Html5Qrcode.getCameras()
+    .then(devices => {
+      if (devices && devices.length > 0) {
+        // Llenar selector de cámaras
+        const select = document.getElementById("camera-select");
+        select.innerHTML = "";
+
+        devices.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.id;
+          option.textContent = device.label || `Cámara ${index + 1}`;
+          select.appendChild(option);
+        });
+
+        // Preferir la cámara trasera ("environment") por defecto
+        let backCam = devices.find(device =>
+          device.label.toLowerCase().includes("back") ||
+          device.label.toLowerCase().includes("trasera") ||
+          device.label.toLowerCase().includes("environment")
+        );
+
+        const selectedCamId = backCam ? backCam.id : devices[0].id;
+        select.value = selectedCamId;
+        currentCameraId = selectedCamId;
+
+        iniciarFlujoCamara(selectedCamId);
+      } else {
+        throw new Error("No se detectaron cámaras en este dispositivo.");
+      }
+    })
+    .catch(err => {
+      document.getElementById("scanner-placeholder").classList.remove("d-none");
+      mostrarAlerta("No se pudo acceder a la cámara. Revisa los permisos e inténtalo de nuevo. Detalle: " + err.message, "danger");
+      actualizarEstatusEscaner(false);
+    });
+}
+
+function iniciarFlujoCamara(cameraId) {
+  if (isScannerRunning) {
+    scannerInstance.stop().then(() => {
+      encenderLector(cameraId);
+    });
+  } else {
+    encenderLector(cameraId);
+  }
+}
+
+function encenderLector(cameraId) {
+  // Configuración del escáner
+  const config = {
+    fps: 15,
+    qrbox: function(width, height) {
+      // Ajuste responsivo de la caja de escaneo
+      const minSize = Math.min(width, height);
+      const boxSize = Math.floor(minSize * 0.7);
+      return { width: boxSize, height: Math.floor(boxSize * 0.5) }; // Más ancho para códigos de barras horizontales
+    },
+    aspectRatio: 1.0
+  };
+
+  scannerInstance.start(
+    cameraId,
+    config,
+    onScanSuccess,
+    onScanFailure
+  )
+  .then(() => {
+    isScannerRunning = true;
+    actualizarEstatusEscaner(true);
+  })
+  .catch(err => {
+    document.getElementById("scanner-placeholder").classList.remove("d-none");
+    mostrarAlerta("Error al iniciar flujo de cámara: " + err, "danger");
+    actualizarEstatusEscaner(false);
+  });
+}
+
+function stopScanner() {
+  if (scannerInstance && isScannerRunning) {
+    scannerInstance.stop()
+      .then(() => {
+        isScannerRunning = false;
+        actualizarEstatusEscaner(false);
+        document.getElementById("scanner-placeholder").classList.remove("d-none");
+      })
+      .catch(err => {
+        console.error("Error al apagar cámara: ", err);
+      });
+  }
+}
+
+function restartScannerWithSelectedCamera() {
+  const select = document.getElementById("camera-select");
+  if (select.value) {
+    currentCameraId = select.value;
+    iniciarFlujoCamara(select.value);
+  }
+}
+
+function actualizarEstatusEscaner(encendido) {
+  const badge = document.getElementById("scanner-status-badge");
+  const stopBtn = document.getElementById("btn-stop-scanner");
+
+  if (encendido) {
+    badge.textContent = "ESCANEO ACTIVO";
+    badge.className = "badge bg-success p-2 pulse-animation";
+    stopBtn.disabled = false;
+  } else {
+    badge.textContent = "Apagado";
+    badge.className = "badge bg-danger p-2";
+    stopBtn.disabled = true;
+  }
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+  // Evitar lecturas duplicadas seguidas muy rápido si ya se está procesando
+  stopScanner();
+
+  // Feedback visual sonoro/vibración si el dispositivo lo soporta
+  if (navigator.vibrate) {
+    navigator.vibrate(150);
+  }
+
+  procesarCodigoEtiqueta(decodedText);
+}
+
+function onScanFailure(error) {
+  // Este callback se dispara por cada frame fallido, normalmente se deja silencioso
+  // para evitar spam en consola y saturación de procesamiento
+}
+
+function procesarCodigoEtiqueta(codigo) {
+  if (!codigo) return;
+  const noInv = String(codigo).trim();
+
+  // Mostrar feedback en UI
+  const feedback = document.getElementById("scan-feedback");
+  feedback.classList.remove("d-none");
+  document.getElementById("scan-feedback-code").textContent = noInv;
+
+  showLoader("Buscando artículo en inventario...");
+
+  google.script.run
+    .withSuccessHandler(function(articulo) {
+      hideLoader();
+
+      const resContainer = document.getElementById("scan-result-container");
+      const notFoundContainer = document.getElementById("scan-not-found-container");
+
+      if (articulo) {
+        // EL ARTÍCULO EXISTE EN LA HOJA
+        notFoundContainer.classList.add("d-none");
+        resContainer.classList.remove("d-none");
+
+        // Cabecera
+        document.getElementById("scan-result-badge-noinv").textContent = articulo["No. INV."];
+        document.getElementById("scan-result-title").innerHTML = `<i class="fa-solid fa-circle-check me-2"></i>Artículo Encontrado`;
+        document.getElementById("scan-result-header").className = "card-header bg-success text-white d-flex justify-content-between align-items-center";
+
+        // Detalle de solo lectura
+        document.getElementById("scan-info-descripcion").textContent = articulo["DESCRIPCION"] || "(Sin descripción)";
+        document.getElementById("scan-info-marca").textContent = articulo["MARCA"] || "N/A";
+        document.getElementById("scan-info-modelo").textContent = articulo["MODELO"] || "N/A";
+        document.getElementById("scan-info-serie").textContent = articulo["SERIE"] || "N/A";
+
+        // Estado Badge
+        const estadoBadge = document.getElementById("scan-info-estado");
+        estadoBadge.textContent = articulo["ESTADO"] || "BUENO";
+        if (articulo["ESTADO"] === "BUENO") estadoBadge.className = "badge bg-success";
+        else if (articulo["ESTADO"] === "REGULAR") estadoBadge.className = "badge bg-warning text-dark";
+        else if (articulo["ESTADO"] === "MALO") estadoBadge.className = "badge bg-danger";
+        else if (articulo["ESTADO"] === "BAJA") estadoBadge.className = "badge bg-dark";
+        else estadoBadge.className = "badge bg-secondary";
+
+        document.getElementById("scan-info-ubicacion").textContent = articulo["UBICACION"] || "No especificada";
+        document.getElementById("scan-info-resguardado").textContent = articulo["RESGUARDADO"] || "N/A";
+        document.getElementById("scan-info-importe").textContent = articulo["IMPORTE"] !== undefined ? parseFloat(articulo["IMPORTE"]).toFixed(2) : "0.00";
+
+        // Llenar Formulario de Actualización Real
+        document.getElementById("scan-update-no-inv").value = articulo["No. INV."];
+        document.getElementById("scan-update-no").value = articulo["No."];
+        document.getElementById("scan-real-ubicacion").value = articulo["UBICACION_REAL"] || articulo["UBICACION"] || "";
+        document.getElementById("scan-real-resguardante").value = articulo["RESGUARDANTE_REAL"] || articulo["RESGUARDADO"] || "";
+        document.getElementById("scan-real-estado").value = articulo["ESTADO_REAL"] || articulo["ESTADO"] || "BUENO";
+
+        // Llenar campos extra por si el usuario los expande
+        document.getElementById("scan-extra-descripcion").value = articulo["DESCRIPCION"] || "";
+        document.getElementById("scan-extra-serie").value = articulo["SERIE"] || "";
+        document.getElementById("scan-extra-marca").value = articulo["MARCA"] || "";
+        document.getElementById("scan-extra-modelo").value = articulo["MODELO"] || "";
+        document.getElementById("scan-extra-importe").value = articulo["IMPORTE"] || 0;
+        document.getElementById("scan-extra-estado").value = articulo["ESTADO"] || "BUENO";
+
+        // Contraer sección de campos extra por defecto
+        document.getElementById("scan-extra-campos").classList.add("d-none");
+
+      } else {
+        // EL ARTÍCULO NO EXISTE
+        resContainer.classList.add("d-none");
+        notFoundContainer.classList.remove("d-none");
+        document.getElementById("scan-not-found-code").textContent = noInv;
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al buscar artículo escaneado: " + err.message, "danger");
+    })
+    .buscarPorNoInv(noInv);
+}
+
+function buscarManualDesdeEscaner() {
+  const code = document.getElementById("scan-manual-no-inv").value;
+  if (code && code.trim().length > 0) {
+    procesarCodigoEtiqueta(code.trim());
+  }
+}
+
+function toggleFormCamposScanExtra() {
+  const div = document.getElementById("scan-extra-campos");
+  div.classList.toggle("d-none");
+}
+
+function limpiarResultadosEscaner() {
+  document.getElementById("scan-feedback").classList.add("d-none");
+  document.getElementById("scan-result-container").classList.add("d-none");
+  document.getElementById("scan-not-found-container").classList.add("d-none");
+  document.getElementById("scan-manual-no-inv").value = "";
+}
+
+/**
+ * Guarda la verificación rápida / actualización desde el escáner
+ */
+function guardarActualizacionEscaner() {
+  const noInv = document.getElementById("scan-update-no-inv").value;
+  const no = document.getElementById("scan-update-no").value;
+
+  // Recoger valores
+  const ubicacionReal = document.getElementById("scan-real-ubicacion").value.trim();
+  const resguardanteReal = document.getElementById("scan-real-resguardante").value.trim();
+  const estadoReal = document.getElementById("scan-real-estado").value;
+
+  const articuloActualizado = {
+    "No. INV.": noInv,
+    "No.": no,
+    "UBICACION_REAL": ubicacionReal,
+    "RESGUARDANTE_REAL": resguardanteReal,
+    "ESTADO_REAL": estadoReal
+  };
+
+  // Si los campos extra son visibles, o si fueron editados, los incluimos también
+  const extraCamposVisible = !document.getElementById("scan-extra-campos").classList.contains("d-none");
+  if (extraCamposVisible) {
+    articuloActualizado["DESCRIPCION"] = document.getElementById("scan-extra-descripcion").value.trim();
+    articuloActualizado["SERIE"] = document.getElementById("scan-extra-serie").value.trim();
+    articuloActualizado["MARCA"] = document.getElementById("scan-extra-marca").value.trim();
+    articuloActualizado["MODELO"] = document.getElementById("scan-extra-modelo").value.trim();
+    articuloActualizado["IMPORTE"] = parseFloat(document.getElementById("scan-extra-importe").value) || 0;
+    articuloActualizado["ESTADO"] = document.getElementById("scan-extra-estado").value;
+  }
+
+  showLoader("Guardando actualización del levantamiento...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+      mostrarAlerta("¡Información del artículo '" + noInv + "' guardada y verificada!", "success");
+      limpiarResultadosEscaner();
+      cargarEstadisticasInicio();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al guardar levantamiento: " + err.message, "danger");
+    })
+    .actualizarArticulo(articuloActualizado, currentUser);
+}
+
+/**
+ * Ejecuta la baja lógica rápida desde la ficha del escáner
+ */
+function darDeBajaScan() {
+  const noInv = document.getElementById("scan-update-no-inv").value;
+  if (!noInv) return;
+
+  if (confirm(`¿Estás seguro de que deseas dar de BAJA lógica el artículo con No. INV. ${noInv}?\nSu estado real se actualizará a 'BAJA'.`)) {
+    showLoader("Procesando baja del artículo...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("El artículo fue dado de baja exitosamente.", "warning");
+        limpiarResultadosEscaner();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al dar de baja: " + err.message, "danger");
+      })
+      .bajaArticulo(noInv, currentUser);
+  }
+}
+
+/**
+ * Ejecuta la eliminación física desde la ficha de escaneo
+ */
+function eliminarFisicoScan() {
+  const noInv = document.getElementById("scan-update-no-inv").value;
+  if (!noInv) return;
+
+  if (confirm(`¡ADVERTENCIA DE ELIMINACIÓN FÍSICA!\n¿Estás completamente seguro de eliminar PERMANENTEMENTE el artículo con No. INV. ${noInv} de la base de datos?\nEsta acción no se puede deshacer.`)) {
+    showLoader("Eliminando registro de la base de datos...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("El registro fue eliminado de forma permanente.", "danger");
+        limpiarResultadosEscaner();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al eliminar: " + err.message, "danger");
+      })
+      .eliminarArticulo(noInv, currentUser);
+  }
+}
+
+/**
+ * Abre el formulario de alta precargando el No. INV. escaneado
+ */
+function altaRapidaDesdeEscaner() {
+  const noInv = document.getElementById("scan-not-found-code").textContent;
+  limpiarFormularioAlta();
+
+  // Asignar No. INV escaneado
+  document.getElementById("alta-no-inv").value = noInv;
+
+  // Cambiar a sección Alta
+  showSection("alta");
+}
+
+
+/**
+ * ==========================================
+ * 4. BÚSQUEDA RAPIDA CON CRITERIOS
+ * ==========================================
+ */
+function buscarArticulosPorCriterio() {
+  const criterio = document.getElementById("buscar-criterio").value;
+  const texto = document.getElementById("buscar-texto").value.trim();
+  const esExacto = document.getElementById("buscar-exacto").checked;
+
+  if (!texto) {
+    alert("Por favor introduce un texto de búsqueda.");
+    return;
+  }
+
+  showLoader("Realizando búsqueda en la base de datos...");
+
+  const exitoCallback = function(resultados) {
+    hideLoader();
+
+    // Si viene solo un objeto de buscarPorNoInv exacto, convertirlo a arreglo
+    const dataArray = Array.isArray(resultados) ? resultados : (resultados ? [resultados] : []);
+
+    const cardResultados = document.getElementById("buscar-resultados-card");
+    const tbody = document.getElementById("buscar-resultados-tbody");
+    const vacioMsg = document.getElementById("buscar-vacio-msg");
+    const conteoBadge = document.getElementById("buscar-resultados-conteo");
+
+    cardResultados.classList.remove("d-none");
+    tbody.innerHTML = "";
+
+    conteoBadge.textContent = `${dataArray.length} registros`;
+
+    if (dataArray.length === 0) {
+      vacioMsg.classList.remove("d-none");
+    } else {
+      vacioMsg.classList.add("d-none");
+
+      dataArray.forEach(item => {
+        const tr = document.createElement("tr");
+
+        // Clases de badge estado
+        let estadoClass = "badge bg-secondary";
+        const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+        if (estReal === "BUENO") estadoClass = "badge bg-success";
+        else if (estReal === "REGULAR") estadoClass = "badge bg-warning text-dark";
+        else if (estReal === "MALO") estadoClass = "badge bg-danger";
+        else if (estReal === "BAJA") estadoClass = "badge bg-dark";
+
+        tr.innerHTML = `
+          <td><strong class="text-primary">${item["No. INV."]}</strong></td>
+          <td class="text-ellipsis" style="max-width: 250px;" title="${item["DESCRIPCION"]}">${item["DESCRIPCION"] || ""}</td>
+          <td>${item["SERIE"] || ""}</td>
+          <td>${item["MARCA"] || ""}</td>
+          <td>${item["MODELO"] || ""}</td>
+          <td><span class="${estadoClass}">${estReal}</span></td>
+          <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
+          <td class="text-center">
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-primary" onclick="abrirModalEdicion('${item["No. INV."]}')" title="Modificar / Editar">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button type="button" class="btn btn-warning" onclick="bajaLogicaBuscar('${item["No. INV."]}')" title="Dar de Baja">
+                <i class="fa-solid fa-ban"></i>
+              </button>
+              <button type="button" class="btn btn-danger" onclick="eliminarFisicoBuscar('${item["No. INV."]}')" title="Eliminar Registro">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  };
+
+  const fallaCallback = function(err) {
+    hideLoader();
+    mostrarAlerta("Error al realizar búsqueda: " + err.message, "danger");
+  };
+
+  if (criterio === "NO_INV") {
+    // Si es búsqueda exacta por No. INV usamos buscarPorNoInv directamente, si no creamos un filtro manual
+    if (esExacto) {
+      google.script.run.withSuccessHandler(exitoCallback).withFailureHandler(fallaCallback).buscarPorNoInv(texto);
+    } else {
+      // Usar función del servidor de filtros parciales
+      google.script.run.withSuccessHandler(exitoCallback).withFailureHandler(fallaCallback).buscarPorNoInvFiltros(texto, false);
+    }
+  } else {
+    // Búsqueda por Serie
+    google.script.run.withSuccessHandler(exitoCallback).withFailureHandler(fallaCallback).buscarPorSerie(texto, esExacto);
+  }
+}
+
+function bajaLogicaBuscar(noInv) {
+  if (confirm(`¿Estás seguro de que deseas dar de BAJA lógica el artículo No. INV. ${noInv}?`)) {
+    showLoader("Procesando baja lógica...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo dado de baja.", "warning");
+        buscarArticulosPorCriterio(); // Recargar búsqueda activa
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al procesar baja lógica: " + err.message, "danger");
+      })
+      .bajaArticulo(noInv, currentUser);
+  }
+}
+
+function eliminarFisicoBuscar(noInv) {
+  if (confirm(`¡ADVERTENCIA DE ELIMINACIÓN FÍSICA!\n¿Estás completamente seguro de eliminar PERMANENTEMENTE el artículo No. INV. ${noInv}?\nEsta acción eliminará físicamente la fila en Google Sheets.`)) {
+    showLoader("Eliminando fila...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo eliminado físicamente.", "danger");
+        buscarArticulosPorCriterio(); // Recargar búsqueda activa
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al eliminar físicamente: " + err.message, "danger");
+      })
+      .eliminarArticulo(noInv, currentUser);
+  }
+}
+
+
+/**
+ * ==========================================
+ * 5. CRUD: ALTA / LEVANTAMIENTO
+ * ==========================================
+ */
+function verificarExistenciaAlta(noInv) {
+  if (!noInv) return;
+  const noInvStr = String(noInv).trim();
+  if (noInvStr === "") return;
+
+  google.script.run
+    .withSuccessHandler(function(existe) {
+      const errorDiv = document.getElementById("alta-duplicado-error");
+      const btn = document.getElementById("btn-submit-alta");
+      if (existe) {
+        errorDiv.classList.remove("d-none");
+        btn.disabled = true;
+      } else {
+        errorDiv.classList.add("d-none");
+        btn.disabled = false;
+      }
+    })
+    .buscarPorNoInv(noInvStr);
+}
+
+function guardarAltaArticulo() {
+  const noInv = document.getElementById("alta-no-inv").value.trim();
+  const no = parseInt(document.getElementById("alta-no").value) || "";
+  const serie = document.getElementById("alta-serie").value.trim();
+  const descripcion = document.getElementById("alta-descripcion").value.trim();
+  const marca = document.getElementById("alta-marca").value.trim();
+  const modelo = document.getElementById("alta-modelo").value.trim();
+  const importe = parseFloat(document.getElementById("alta-importe").value) || 0;
+  const estado = document.getElementById("alta-estado").value;
+  const ubicacion = document.getElementById("alta-ubicacion").value.trim();
+  const resguardado = document.getElementById("alta-resguardado").value.trim();
+
+  const estadoReal = document.getElementById("alta-estado-real").value;
+  const ubicacionReal = document.getElementById("alta-ubicacion-real").value.trim();
+  const resguardanteReal = document.getElementById("alta-resguardante-real").value.trim();
+
+  const nuevoArticulo = {
+    "No. INV.": noInv,
+    "No.": no,
+    "SERIE": serie,
+    "DESCRIPCION": descripcion,
+    "MARCA": marca,
+    "MODELO": modelo,
+    "IMPORTE": importe,
+    "ESTADO": estado,
+    "UBICACION": ubicacion,
+    "RESGUARDADO": resguardado,
+    "ESTADO_REAL": estadoReal,
+    "UBICACION_REAL": ubicacionReal,
+    "RESGUARDANTE_REAL": resguardanteReal
+  };
+
+  showLoader("Registrando nuevo artículo...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+      mostrarAlerta("¡Artículo registrado exitosamente! No. INV.: " + res.noInv, "success");
+      limpiarFormularioAlta();
+      cargarEstadisticasInicio();
+      showSection("listado"); // Redirigir al listado para verificar
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al registrar artículo: " + err.message, "danger");
+    })
+    .guardarArticulo(nuevoArticulo, currentUser);
+}
+
+function limpiarFormularioAlta() {
+  document.getElementById("form-alta-articulo").reset();
+  document.getElementById("alta-duplicado-error").classList.add("d-none");
+  document.getElementById("btn-submit-alta").disabled = false;
+}
+
+
+/**
+ * ==========================================
+ * 6. CARGA DE EXCEL DESDE PATRIMONIO (SHEETJS)
+ * ==========================================
+ */
+function procesarArchivoExcelLocal() {
+  const fileInput = document.getElementById("excel-file-input");
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  showLoader("Validando y normalizando archivo Excel localmente...");
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      // Tomar la primera hoja de cálculo
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+
+      // Convertir a JSON crudo de filas
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+      if (rawRows.length === 0) {
+        throw new Error("El archivo de Excel está vacío.");
+      }
+
+      // Buscar la fila de encabezados y mapearla
+      // Buscaremos una fila que tenga términos clave como "inv", "descrip", "serie" para tolerar filas de títulos anteriores
+      let headerRowIndex = -1;
+      let headersMapeados = [];
+
+      for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+        const fila = rawRows[i];
+        const tieneNoInv = fila.some(celda => {
+          const str = String(celda).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return str.includes("inv") || str.includes("inventario");
+        });
+        const tieneDesc = fila.some(celda => {
+          const str = String(celda).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return str.includes("descrip") || str.includes("articulo");
+        });
+
+        if (tieneNoInv && tieneDesc) {
+          headerRowIndex = i;
+          headersMapeados = fila.map(h => String(h).trim());
+          break;
+        }
+      }
+
+      // Si no detectó encabezados clave, usar la primera fila por defecto
+      if (headerRowIndex === -1) {
+        headerRowIndex = 0;
+        headersMapeados = rawRows[0].map(h => String(h).trim());
+      }
+
+      // Configurar reglas tolerantes a acentos, mayúsculas, espacios para asociar columnas
+      const normalizarHeadersMap = {
+        "No.": ["no", "no.", "numero", "id"],
+        "No. INV.": ["no inv", "no. inv.", "no inventario", "numero inventario", "etiqueta", "noinv"],
+        "DESCRIPCION": ["descripcion", "descripción", "articulo", "concepto", "nombre"],
+        "SERIE": ["serie", "no serie", "no. serie", "numero de serie"],
+        "MODELO": ["modelo"],
+        "MARCA": ["marca"],
+        "ESTADO": ["estado", "estado patrimonio"],
+        "IMPORTE": ["importe", "valor", "costo", "precio"],
+        "UBICACION": ["ubicacion", "ubicación"],
+        "RESGUARDADO": ["resguardado", "resguardo", "resguardante"],
+        "RESGUARDANTE_REAL": ["resguardante real", "resguardante_real"],
+        "UBICACION_REAL": ["ubicacion real", "ubicación real", "ubicacion_real"],
+        "ESTADO_REAL": ["estado real", "estado_real"]
+      };
+
+      // Encontrar correspondencia de índices
+      const mapaIndicesExcel = {}; // internoHeader -> indexEnExcel
+
+      Object.keys(normalizarHeadersMap).forEach(internoHeader => {
+        const variantes = normalizarHeadersMap[internoHeader];
+
+        const foundIndex = headersMapeados.findIndex(excelHeader => {
+          const normExcel = String(excelHeader).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+
+          return variantes.some(variente => {
+            const normVariante = variente.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+            return normExcel === normVariante || normExcel.includes(normVariante);
+          });
+        });
+
+        if (foundIndex !== -1) {
+          mapaIndicesExcel[internoHeader] = foundIndex;
+        }
+      });
+
+      // Validar que tengamos al menos la columna obligatoria No. INV. y DESCRIPCION
+      if (mapaIndicesExcel["No. INV."] === undefined) {
+        throw new Error("No se pudo detectar de manera automática la columna de 'No. INV.' o 'Número de Inventario'. Por favor verifica los encabezados del archivo.");
+      }
+
+      // Procesar filas de datos (posteriores al headerRowIndex)
+      const registrosMapeados = [];
+      let totalFilasOmitidas = 0;
+
+      for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+        const fila = rawRows[i];
+
+        // Ignorar filas totalmente vacías
+        const estaVacia = fila.every(celda => String(celda).trim() === "");
+        if (estaVacia) {
+          totalFilasOmitidas++;
+          continue;
+        }
+
+        // Extraer No. INV para validar obligatoriedad
+        const noInvVal = fila[mapaIndicesExcel["No. INV."]];
+        if (!noInvVal || String(noInvVal).trim() === "") {
+          totalFilasOmitidas++;
+          continue; // Ignorar si no tiene identificador de inventario
+        }
+
+        // Crear objeto mapeado
+        const itemMapeado = {};
+
+        // Mapear cada columna si el índice está definido en el archivo
+        Object.keys(mapaIndicesExcel).forEach(internoHeader => {
+          const idxExcel = mapaIndicesExcel[internoHeader];
+          let valor = fila[idxExcel];
+
+          // Tratamiento de importes para que sean numéricos limpios
+          if (internoHeader === "IMPORTE") {
+            if (typeof valor === "string") {
+              valor = parseFloat(valor.replace(/[^0-9.-]/g, "")) || 0;
+            } else if (typeof valor !== "number") {
+              valor = 0;
+            }
+          }
+
+          itemMapeado[internoHeader] = valor !== undefined ? String(valor).trim() : "";
+        });
+
+        registrosMapeados.push(itemMapeado);
+      }
+
+      // Guardar en cache temporal de subida
+      xlsxMapeadoTemp = registrosMapeados;
+
+      // Mostrar resumen en UI
+      document.getElementById("excel-esperando-msg").classList.add("d-none");
+      document.getElementById("excel-resumen-card").classList.remove("d-none");
+      document.getElementById("excel-importacion-exito-alert").classList.add("d-none");
+
+      document.getElementById("excel-total-filas").textContent = registrosMapeados.length;
+      document.getElementById("excel-columnas-mapeadas").textContent = Object.keys(mapaIndicesExcel).length;
+      document.getElementById("excel-filas-vacias").textContent = totalFilasOmitidas;
+
+      // Llenar vista previa de los primeros 5
+      const previewTbody = document.getElementById("excel-preview-tbody");
+      previewTbody.innerHTML = "";
+
+      const limitePreview = Math.min(registrosMapeados.length, 5);
+      for (let k = 0; k < limitePreview; k++) {
+        const r = registrosMapeados[k];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${r["No. INV."] || ""}</strong></td>
+          <td class="text-ellipsis" style="max-width: 150px;">${r["DESCRIPCION"] || ""}</td>
+          <td>${r["SERIE"] || ""}</td>
+          <td>${r["MARCA"] || ""}</td>
+          <td>${r["MODELO"] || ""}</td>
+          <td>${r["ESTADO"] || ""}</td>
+          <td>$${parseFloat(r["IMPORTE"] || 0).toFixed(2)}</td>
+        `;
+        previewTbody.appendChild(tr);
+      }
+
+      // Habilitar botón de importación
+      document.getElementById("btn-importar-excel").disabled = false;
+      hideLoader();
+
+    } catch (err) {
+      hideLoader();
+      alert("Error al procesar archivo: " + err.message);
+      document.getElementById("excel-esperando-msg").classList.remove("d-none");
+      document.getElementById("excel-resumen-card").classList.add("d-none");
+      document.getElementById("btn-importar-excel").disabled = true;
+      xlsxMapeadoTemp = [];
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+function importarJSONAlServidor() {
+  if (xlsxMapeadoTemp.length === 0) {
+    alert("No hay registros cargados para importar.");
+    return;
+  }
+
+  // Obtener opción de duplicados
+  let radioOpt = "OMIT";
+  if (document.getElementById("radio-actualizar").checked) {
+    radioOpt = "UPDATE";
+  }
+
+  showLoader(`Importando y guardando ${xlsxMapeadoTemp.length} registros en la hoja de cálculo de Google. Esto puede tomar unos segundos...`);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+
+      // Mostrar alerta de éxito
+      const exitoAlert = document.getElementById("excel-importacion-exito-alert");
+      exitoAlert.classList.remove("d-none");
+      document.getElementById("resumen-nuevos").textContent = res.nuevos;
+      document.getElementById("resumen-actualizados").textContent = res.actualizados;
+      document.getElementById("resumen-omitidos").textContent = res.omitidos;
+
+      // Deshabilitar botón para evitar re-envíos duplicados accidentales
+      document.getElementById("btn-importar-excel").disabled = true;
+      document.getElementById("excel-file-input").value = "";
+      xlsxMapeadoTemp = [];
+
+      cargarEstadisticasInicio();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al subir registros de Excel al servidor: " + err.message, "danger");
+    })
+    .cargarExcel(xlsxMapeadoTemp, radioOpt, currentUser);
+}
+
+
+/**
+ * ==========================================
+ * 7. LISTADO COMPLETO, FILTROS Y PAGINACIÓN
+ * ==========================================
+ */
+function cargarListadoInventario() {
+  showLoader("Cargando listado completo de inventario...");
+  google.script.run
+    .withSuccessHandler(function(articulos) {
+      listadoCompleto = articulos || [];
+
+      // Obtener lista única de ubicaciones para el filtro de ubicaciones reales
+      const setUbi = new Set();
+      listadoCompleto.forEach(item => {
+        const ubi = item["UBICACION_REAL"] || item["UBICACION"];
+        if (ubi && String(ubi).trim() !== "") {
+          setUbi.add(String(ubi).trim());
+        }
+      });
+
+      ubicacionesUnicas = Array.from(setUbi).sort();
+
+      // Llenar selector de filtros de ubicación
+      const ubiSelect = document.getElementById("filtro-ubicacion");
+      const seleccionActual = ubiSelect.value;
+
+      ubiSelect.innerHTML = `<option value="">-- Todas las Ubicaciones --</option>`;
+      ubicacionesUnicas.forEach(u => {
+        const option = document.createElement("option");
+        option.value = u;
+        option.textContent = u;
+        ubiSelect.appendChild(option);
+      });
+
+      if (ubicacionesUnicas.includes(seleccionActual)) {
+        ubiSelect.value = seleccionActual;
+      }
+
+      aplicarFiltrosYListar();
+      hideLoader();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al obtener listado de inventario: " + err.message, "danger");
+    })
+    .listarArticulos();
+}
+
+function aplicarFiltrosYListar() {
+  const fEstado = document.getElementById("filtro-estado").value;
+  const fUbi = document.getElementById("filtro-ubicacion").value;
+  const fRapido = document.getElementById("filtro-rapido").value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  listadoFiltrado = listadoCompleto.filter(item => {
+    // 1. Filtrar por Estado Real (o patrimonio si no tiene real)
+    const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+    if (fEstado && estReal !== fEstado) {
+      return false;
+    }
+
+    // 2. Filtrar por Ubicación Real (o patrimonio si no tiene)
+    const ubiReal = item["UBICACION_REAL"] || item["UBICACION"] || "";
+    if (fUbi && ubiReal !== fUbi) {
+      return false;
+    }
+
+    // 3. Filtro rápido de texto libre sobre múltiples columnas
+    if (fRapido) {
+      const matchText = `${item["No. INV."]} ${item["DESCRIPCION"]} ${item["SERIE"]} ${item["MARCA"]} ${item["MODELO"]} ${ubiReal} ${item["RESGUARDANTE_REAL"]} ${item["RESGUARDADO"]}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+      if (matchText.indexOf(fRapido) === -1) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Reiniciar a página 1 al filtrar
+  paginacionActual = 1;
+  renderizarListadoTabla();
+}
+
+function renderizarListadoTabla() {
+  const tbody = document.getElementById("listado-tbody");
+  const vacioMsg = document.getElementById("listado-vacio-msg");
+  const conteoBadge = document.getElementById("listado-conteo");
+
+  tbody.innerHTML = "";
+
+  const totalItems = listadoFiltrado.length;
+  conteoBadge.textContent = `${totalItems} de ${listadoCompleto.length} registros`;
+
+  if (totalItems === 0) {
+    vacioMsg.classList.remove("d-none");
+    document.getElementById("listado-paginacion-ul").innerHTML = "";
+    return;
+  }
+
+  vacioMsg.classList.add("d-none");
+
+  // Calcular límites de paginación
+  const inicioIdx = (paginacionActual - 1) * paginacionLimite;
+  const finIdx = Math.min(inicioIdx + paginacionLimite, totalItems);
+
+  const itemsPagina = listadoFiltrado.slice(inicioIdx, finIdx);
+
+  itemsPagina.forEach(item => {
+    const tr = document.createElement("tr");
+
+    // Formatear estado real
+    const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+    let estadoClass = "badge bg-secondary";
+    if (estReal === "BUENO") estadoClass = "badge bg-success";
+    else if (estReal === "REGULAR") estadoClass = "badge bg-warning text-dark";
+    else if (estReal === "MALO") estadoClass = "badge bg-danger";
+    else if (estReal === "BAJA") estadoClass = "badge bg-dark";
+
+    tr.innerHTML = `
+      <td>${item["No."] || ""}</td>
+      <td><strong class="text-primary">${item["No. INV."]}</strong></td>
+      <td class="text-ellipsis" style="max-width: 250px;" title="${item["DESCRIPCION"]}">${item["DESCRIPCION"] || ""}</td>
+      <td>${item["SERIE"] || ""}</td>
+      <td>${item["MARCA"] || ""}</td>
+      <td>${item["MODELO"] || ""}</td>
+      <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
+      <td><span class="${estadoClass}">${estReal}</span></td>
+      <td class="small text-secondary">${item["ULTIMA_ACTUALIZACION"] || ""}</td>
+      <td class="text-center">
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-primary" onclick="abrirModalEdicion('${item["No. INV."]}')" title="Editar">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button type="button" class="btn btn-warning" onclick="bajaLogicaListado('${item["No. INV."]}')" title="Dar de Baja">
+            <i class="fa-solid fa-ban"></i>
+          </button>
+          <button type="button" class="btn btn-danger" onclick="eliminarFisicoListado('${item["No. INV."]}')" title="Eliminar Permanente">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Dibujar paginador
+  renderizarControlesPaginacion(totalItems);
+}
+
+function renderizarControlesPaginacion(totalItems) {
+  const totalPaginas = Math.ceil(totalItems / paginacionLimite);
+  const ul = document.getElementById("listado-paginacion-ul");
+  ul.innerHTML = "";
+
+  if (totalPaginas <= 1) return;
+
+  // Botón Anterior
+  const liPrev = document.createElement("li");
+  liPrev.className = `page-item ${paginacionActual === 1 ? 'disabled' : ''}`;
+  liPrev.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${paginacionActual - 1})">Anterior</a>`;
+  ul.appendChild(liPrev);
+
+  // Páginas numeradas
+  // Para optimizar en pantallas móviles limitamos a mostrar un máximo de 5 páginas alrededor de la activa
+  let startPage = Math.max(1, paginacionActual - 2);
+  let endPage = Math.min(totalPaginas, startPage + 4);
+  if (endPage - startPage < 4) {
+    startPage = Math.max(1, endPage - 4);
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    const li = document.createElement("li");
+    li.className = `page-item ${paginacionActual === i ? 'active' : ''}`;
+    li.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${i})">${i}</a>`;
+    ul.appendChild(li);
+  }
+
+  // Botón Siguiente
+  const liNext = document.createElement("li");
+  liNext.className = `page-item ${paginacionActual === totalPaginas ? 'disabled' : ''}`;
+  liNext.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${paginacionActual + 1})">Siguiente</a>`;
+  ul.appendChild(liNext);
+}
+
+function cambiarPagina(pagina) {
+  paginacionActual = pagina;
+  renderizarListadoTabla();
+}
+
+function cambiarLimitePaginacion(nuevoLimite) {
+  paginacionLimite = parseInt(nuevoLimite);
+  paginacionActual = 1;
+  renderizarListadoTabla();
+}
+
+function limpiarFiltrosCompleto() {
+  document.getElementById("filtro-estado").value = "";
+  document.getElementById("filtro-ubicacion").value = "";
+  document.getElementById("filtro-rapido").value = "";
+  aplicarFiltrosYListar();
+}
+
+
+/**
+ * ==========================================
+ * 8. EXPORTACIONES A EXCEL Y CSV (CON CLIENTE)
+ * ==========================================
+ */
+function exportarExcelSheetJS() {
+  if (listadoFiltrado.length === 0) {
+    alert("No hay registros en el listado activo para exportar.");
+    return;
+  }
+
+  showLoader("Generando archivo de Excel...");
+
+  try {
+    // Definir los encabezados oficiales de salida
+    const headers = [
+      "No.",
+      "No. INV.",
+      "DESCRIPCION",
+      "SERIE",
+      "MODELO",
+      "MARCA",
+      "ESTADO",
+      "IMPORTE",
+      "UBICACION",
+      "RESGUARDADO",
+      "RESGUARDANTE_REAL",
+      "UBICACION_REAL",
+      "ESTADO_REAL",
+      "ULTIMA_ACTUALIZACION"
+    ];
+
+    // Preparar filas
+    const rows = listadoFiltrado.map(item => [
+      item["No."] || "",
+      item["No. INV."] || "",
+      item["DESCRIPCION"] || "",
+      item["SERIE"] || "",
+      item["MODELO"] || "",
+      item["MARCA"] || "",
+      item["ESTADO"] || "",
+      parseFloat(item["IMPORTE"] || 0),
+      item["UBICACION"] || "",
+      item["RESGUARDADO"] || "",
+      item["RESGUARDANTE_REAL"] || "",
+      item["UBICACION_REAL"] || "",
+      item["ESTADO_REAL"] || "",
+      item["ULTIMA_ACTUALIZACION"] || ""
+    ]);
+
+    // Insertar headers al inicio
+    rows.unshift(headers);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventario_SMR");
+
+    // Exportar descarga local
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Inventario_SMR_Patrimonio_${fecha}.xlsx`);
+    hideLoader();
+  } catch (err) {
+    hideLoader();
+    alert("Error al exportar Excel: " + err.message);
+  }
+}
+
+function exportarCSV() {
+  if (listadoFiltrado.length === 0) {
+    alert("No hay registros para exportar.");
+    return;
+  }
+
+  showLoader("Generando archivo CSV...");
+
+  try {
+    const headers = [
+      "No.", "No. INV.", "DESCRIPCION", "SERIE", "MODELO", "MARCA", "ESTADO",
+      "IMPORTE", "UBICACION", "RESGUARDADO", "RESGUARDANTE_REAL", "UBICACION_REAL",
+      "ESTADO_REAL", "ULTIMA_ACTUALIZACION"
+    ];
+
+    let csvContent = "\ufeff"; // BOM para asegurar codificación UTF-8 correcta en Excel español
+    csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n";
+
+    listadoFiltrado.forEach(item => {
+      const row = [
+        item["No."] || "",
+        item["No. INV."] || "",
+        item["DESCRIPCION"] || "",
+        item["SERIE"] || "",
+        item["MODELO"] || "",
+        item["MARCA"] || "",
+        item["ESTADO"] || "",
+        item["IMPORTE"] || 0,
+        item["UBICACION"] || "",
+        item["RESGUARDADO"] || "",
+        item["RESGUARDANTE_REAL"] || "",
+        item["UBICACION_REAL"] || "",
+        item["ESTADO_REAL"] || "",
+        item["ULTIMA_ACTUALIZACION"] || ""
+      ];
+      csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",") + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const fecha = new Date().toISOString().split('T')[0];
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Inventario_SMR_Export_${fecha}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    hideLoader();
+  } catch (err) {
+    hideLoader();
+    alert("Error al exportar CSV: " + err.message);
+  }
+}
+
+
+/**
+ * ==========================================
+ * 9. MODIFICACIÓN Y BAJA/ELIMINACIÓN LISTADO
+ * ==========================================
+ */
+function abrirModalEdicion(noInv) {
+  showLoader("Recuperando ficha técnica del artículo...");
+
+  google.script.run
+    .withSuccessHandler(function(articulo) {
+      hideLoader();
+      if (!articulo) {
+        alert("No se encontró el artículo.");
+        return;
+      }
+
+      // Llenar inputs del modal
+      document.getElementById("edit-no").value = articulo["No."] || "";
+      document.getElementById("edit-no-inv").value = articulo["No. INV."];
+      document.getElementById("edit-serie").value = articulo["SERIE"] || "";
+      document.getElementById("edit-descripcion").value = articulo["DESCRIPCION"] || "";
+      document.getElementById("edit-marca").value = articulo["MARCA"] || "";
+      document.getElementById("edit-modelo").value = articulo["MODELO"] || "";
+      document.getElementById("edit-importe").value = articulo["IMPORTE"] || 0;
+      document.getElementById("edit-estado").value = articulo["ESTADO"] || "BUENO";
+      document.getElementById("edit-ubicacion").value = articulo["UBICACION"] || "";
+      document.getElementById("edit-resguardado").value = articulo["RESGUARDADO"] || "";
+
+      document.getElementById("edit-estado-real").value = articulo["ESTADO_REAL"] || articulo["ESTADO"] || "BUENO";
+      document.getElementById("edit-ubicacion-real").value = articulo["UBICACION_REAL"] || articulo["UBICACION"] || "";
+      document.getElementById("edit-resguardante-real").value = articulo["RESGUARDANTE_REAL"] || articulo["RESGUARDADO"] || "";
+
+      // Mostrar modal
+      const modalEl = document.getElementById("modal-editar-articulo");
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      alert("Error al cargar datos del artículo: " + err.message);
+    })
+    .buscarPorNoInv(noInv);
+}
+
+function guardarEdicionArticulo() {
+  const noInv = document.getElementById("edit-no-inv").value;
+  const no = document.getElementById("edit-no").value;
+
+  const articuloEditado = {
+    "No. INV.": noInv,
+    "No.": no,
+    "SERIE": document.getElementById("edit-serie").value.trim(),
+    "DESCRIPCION": document.getElementById("edit-descripcion").value.trim(),
+    "MARCA": document.getElementById("edit-marca").value.trim(),
+    "MODELO": document.getElementById("edit-modelo").value.trim(),
+    "IMPORTE": parseFloat(document.getElementById("edit-importe").value) || 0,
+    "ESTADO": document.getElementById("edit-estado").value,
+    "UBICACION": document.getElementById("edit-ubicacion").value.trim(),
+    "RESGUARDADO": document.getElementById("edit-resguardado").value.trim(),
+
+    "ESTADO_REAL": document.getElementById("edit-estado-real").value,
+    "UBICACION_REAL": document.getElementById("edit-ubicacion-real").value.trim(),
+    "RESGUARDANTE_REAL": document.getElementById("edit-resguardante-real").value.trim()
+  };
+
+  showLoader("Guardando cambios en el servidor...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+
+      // Cerrar modal
+      const modalEl = document.getElementById("modal-editar-articulo");
+      const modalInstance = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+
+      mostrarAlerta("¡Ficha técnica de '" + noInv + "' actualizada!", "success");
+
+      // Recargar listado completo o de búsqueda según donde estemos parados
+      cargarListadoInventario();
+      cargarEstadisticasInicio();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al guardar edición: " + err.message, "danger");
+    })
+    .actualizarArticulo(articuloEditado, currentUser);
+}
+
+function bajaLogicaListado(noInv) {
+  if (confirm(`¿Dar de baja lógica el artículo No. INV. ${noInv}?`)) {
+    showLoader("Dando de baja...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo dado de baja.", "warning");
+        cargarListadoInventario();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al procesar baja lógica: " + err.message, "danger");
+      })
+      .bajaArticulo(noInv, currentUser);
+  }
+}
+
+function eliminarFisicoListado(noInv) {
+  if (confirm(`¡ADVERTENCIA DE ELIMINACIÓN FÍSICA!\n¿Estás completamente seguro de eliminar el artículo No. INV. ${noInv}?\nEsta acción es irreversible.`)) {
+    showLoader("Eliminando físicamente de la hoja de cálculo...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo eliminado permanentemente.", "danger");
+        cargarListadoInventario();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al eliminar físicamente: " + err.message, "danger");
+      })
+      .eliminarArticulo(noInv, currentUser);
+  }
+}
+
+
+/**
+ * ==========================================
+ * 10. CARGA DE BITÁCORA
+ * ==========================================
+ */
+function cargarDatosBitacora(forzarManual) {
+  if (forzarManual) {
+    showLoader("Actualizando bitácora de operaciones...");
+  }
+  google.script.run
+    .withSuccessHandler(function(bitacora) {
+      if (forzarManual) hideLoader();
+
+      const tbody = document.getElementById("bitacora-tbody");
+      const vacioMsg = document.getElementById("bitacora-vacia-msg");
+      tbody.innerHTML = "";
+
+      if (!bitacora || bitacora.length === 0) {
+        vacioMsg.classList.remove("d-none");
+        return;
+      }
+
+      vacioMsg.classList.add("d-none");
+
+      bitacora.forEach(reg => {
+        const tr = document.createElement("tr");
+
+        let badgeAccionClass = "badge bg-secondary";
+        if (reg.Accion === "ALTA") badgeAccionClass = "badge bg-success";
+        else if (reg.Accion === "ACTUALIZACION") badgeAccionClass = "badge bg-info text-dark";
+        else if (reg.Accion === "BAJA") badgeAccionClass = "badge bg-warning text-dark";
+        else if (reg.Accion === "ELIMINACION") badgeAccionClass = "badge bg-danger";
+        else if (reg.Accion === "CARGA_EXCEL") badgeAccionClass = "badge bg-primary";
+
+        tr.innerHTML = `
+          <td class="small">${reg.Fecha || ""}</td>
+          <td class="text-ellipsis small" style="max-width: 150px;" title="${reg.Usuario}">${reg.Usuario || ""}</td>
+          <td><span class="${badgeAccionClass}">${reg.Accion || ""}</span></td>
+          <td><strong>${reg["No. INV."] || "-"}</strong></td>
+          <td class="small" style="word-break: break-word;">${reg.Detalle || ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    })
+    .withFailureHandler(function(err) {
+      if (forzarManual) hideLoader();
+      console.error("Error al obtener bitácora: ", err);
+    })
+    .listarBitacora();
+}
+
+
+/**
+ * ==========================================
+ * 11. DASHBOARD / ESTADÍSTICAS RÁPIDAS
+ * ==========================================
+ */
+function cargarEstadisticasInicio() {
+  google.script.run
+    .withSuccessHandler(function(articulos) {
+      if (!articulos) return;
+
+      let total = articulos.length;
+      let buenosRegulares = 0;
+      let malos = 0;
+      let bajas = 0;
+
+      articulos.forEach(item => {
+        const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+        if (estReal === "BUENO" || estReal === "REGULAR") {
+          buenosRegulares++;
+        } else if (estReal === "MALO") {
+          malos++;
+        } else if (estReal === "BAJA") {
+          bajas++;
+        }
+      });
+
+      document.getElementById("stat-total").textContent = total;
+      document.getElementById("stat-bueno").textContent = buenosRegulares;
+      document.getElementById("stat-malo").textContent = malos;
+      document.getElementById("stat-baja").textContent = bajas;
+    })
+    .listarArticulos();
+}
+
+
+/**
+ * ==========================================
+ * 12. MENSAJES DE ALERTA Y LOADERS
+ * ==========================================
+ */
+function showLoader(message) {
+  document.getElementById("loader-message").textContent = message || "Procesando...";
+  document.getElementById("global-loader").classList.remove("d-none");
+}
+
+function hideLoader() {
+  document.getElementById("global-loader").classList.add("d-none");
+}
+
+function mostrarAlerta(mensaje, tipo) {
+  const container = document.getElementById("alert-container");
+
+  const alertDiv = document.createElement("div");
+  alertDiv.className = `alert alert-${tipo} alert-dismissible fade show shadow-sm d-flex align-items-center pulse-animation`;
+  alertDiv.setAttribute("role", "alert");
+
+  let icon = '<i class="fa-solid fa-circle-info fa-lg me-3"></i>';
+  if (tipo === "success") icon = '<i class="fa-solid fa-circle-check fa-lg me-3"></i>';
+  else if (tipo === "danger") icon = '<i class="fa-solid fa-circle-exclamation fa-lg me-3"></i>';
+  else if (tipo === "warning") icon = '<i class="fa-solid fa-triangle-exclamation fa-lg me-3"></i>';
+
+  alertDiv.innerHTML = `
+    ${icon}
+    <div>${mensaje}</div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  `;
+
+  container.appendChild(alertDiv);
+
+  // Auto descartar después de 8 segundos
+  setTimeout(() => {
+    const bsAlert = new bootstrap.Alert(alertDiv);
+    bsAlert.close();
+  }, 8000);
+}
+</script>
