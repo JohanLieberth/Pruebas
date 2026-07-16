@@ -41,17 +41,6 @@ function doGet(e) {
   // Asegurar que las hojas y encabezados existan al arrancar
   inicializarBaseDatos();
 
-  // Validar si se solicita la vista ligera del escáner (workaround para iframe y Permissions-Policy)
-  const vista = e && e.parameter && (e.parameter.vista || e.parameter.page);
-
-  if (vista === "scanner") {
-    return HtmlService.createTemplateFromFile("Scanner")
-      .evaluate()
-      .setTitle("Escáner de Cámara - Mejora Regulatoria")
-      .addMetaTag("viewport", "width=device-width, initial-scale=1")
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-
   // Crear plantilla para Index.html y pasar el parámetro ?noinv como variable del scriptlet (fallback de redirección del escáner)
   const template = HtmlService.createTemplateFromFile("Index");
   template.noinvQuery = (e && e.parameter && e.parameter.noinv) || "";

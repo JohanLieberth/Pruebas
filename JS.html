@@ -208,135 +208,376 @@ function showSection(sectionId) {
  * 3. CONTROLADOR DEL ESCÁNER CON CÁMARA
  * ==========================================
  */
+// Exponer callback global sincrónico para la comunicación directa del pop-up
+window.procesarCodigoEtiquetaDesdePopup = function(codigo) {
+  if (codigo) {
+    procesarCodigoEtiqueta(codigo);
+    mostrarAlerta("Código capturado desde ventana del escáner: " + codigo, "success");
+  }
+};
+
 function startScanner() {
   limpiarResultadosEscaner();
 
-  // Debido al bloqueo estricto del Permissions-Policy en el iframe sandbox de Google,
-  // implementamos el workaround de abrir el escáner en una ventana de nivel superior.
-  const urlDestino = (webAppUrl || "") ? (webAppUrl + "?vista=scanner") : "";
+  // CAUSA RAÍZ: Google Apps Script sirve SIEMPRE la Web App dentro de un iframe sandbox (*.googleusercontent.com)
+  // incluso si se abre en una pestaña nueva con /exec. Esto prohíbe la cámara a nivel de la política Permissions-Policy del iframe.
+  // SOLUCIÓN DEFINTIVA (Opción A): Abrir una ventana emergente 'about:blank' (nivel superior puro) e inyectarle el HTML
+  // completo del escáner de cámara. No hereda el iframe ni la Permissions-Policy restrictiva de Google.
 
-  if (!urlDestino) {
-    showLoader("Obteniendo enlace seguro del servidor...");
-    google.script.run
-      .withSuccessHandler(function(url) {
-        hideLoader();
-        webAppUrl = url;
-        abrirVentanaEscaneo(url + "?vista=scanner");
-      })
-      .withFailureHandler(function() {
-        hideLoader();
-        mostrarAlerta("No se pudo obtener la URL de redirección del servidor. Por favor, reintenta o usa la captura manual.", "danger");
-      })
-      .getScriptUrl();
-  } else {
-    abrirVentanaEscaneo(urlDestino);
+  const popup = window.open("", "smr_camera_scanner", "width=500,height=600,scrollbars=yes,resizable=yes");
+
+  if (!popup || popup.closed || typeof popup.closed === "undefined") {
+    mostrarAlerta("¡Ventana emergente bloqueada! Por favor, permite las ventanas emergentes (pop-ups) de este sitio en la barra de direcciones de tu navegador y vuelve a presionar 'Iniciar Cámara Lector'.", "warning");
+    return;
   }
-}
 
-function abrirVentanaEscaneo(url) {
-  // Intentar abrir el escáner fuera del iframe de Apps Script
-  const nuevaVentana = window.open(url, "_blank");
+  mostrarAlerta("Se ha abierto la ventana del escáner en nivel superior de forma segura. Escanea la etiqueta allí para transferir el código aquí.", "info");
 
-  if (!nuevaVentana || nuevaVentana.closed || typeof nuevaVentana.closed === 'undefined') {
-    // El navegador bloqueó la ventana emergente / pop-up
-    mostrarAlerta("¡Ventana emergente bloqueada! Por favor, permite las ventanas emergentes (pop-ups) para este sitio en tu navegador y presiona 'Iniciar Cámara' de nuevo.", "warning");
-  } else {
-    mostrarAlerta("Se ha abierto el escáner en una nueva ventana de nivel superior. Escanea el código allí y el resultado se cargará automáticamente en esta pantalla principal.", "info");
-  }
-}
+  // Inyectar el HTML autocontenido del escáner en la ventana about:blank
+  const htmlScannerLayout = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Escáner de Inventario SMR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background-color: #1a1a2e;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+      font-family: system-ui, sans-serif;
+    }
+    .scanner-card {
+      background-color: #161625;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    #reader {
+      width: 100%;
+      background-color: #000;
+      border: none !important;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #reader__scan_region {
+      background-color: #000 !important;
+    }
+    #reader__dashboard {
+      background: #222235 !important;
+      padding: 10px !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      color: #fff !important;
+    }
+    #reader__dashboard_section_csr button {
+      background-color: #16a085 !important;
+      color: white !important;
+      border: none !important;
+      padding: 6px 12px !important;
+      border-radius: 6px !important;
+      font-weight: 600 !important;
+    }
+    .success-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(22, 160, 133, 0.95);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
+      border-radius: 16px;
+    }
+    .pulse-glow {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
 
-function iniciarFlujoCamara(cameraId) {
-  if (isScannerRunning) {
-    scannerInstance.stop().then(() => {
-      encenderLector(cameraId);
-    });
-  } else {
-    encenderLector(cameraId);
-  }
-}
+  <header class="text-center py-2 mb-3 border-bottom border-secondary">
+    <h5 class="fw-bold text-success mb-0">
+      <i class="fa-solid fa-camera-retro me-2"></i>Escáner de Cámara Nivel Superior
+    </h5>
+    <p class="small text-muted mb-0">Subdirección de Mejora Regulatoria</p>
+  </header>
 
-function encenderLector(cameraId) {
-  // Configuración del escáner
-  const config = {
-    fps: 15,
-    qrbox: function(width, height) {
-      // Ajuste responsivo de la caja de escaneo
-      const minSize = Math.min(width, height);
-      const boxSize = Math.floor(minSize * 0.7);
-      return { width: boxSize, height: Math.floor(boxSize * 0.5) }; // Más ancho para códigos de barras horizontales
-    },
-    aspectRatio: 1.0
+  <main class="container-fluid flex-grow-1 d-flex flex-column justify-content-center p-0" style="max-width: 450px;">
+    <div id="local-alert" class="alert alert-warning d-none mb-3" role="alert"></div>
+
+    <div class="card scanner-card shadow-lg position-relative">
+      <div class="card-body p-3">
+
+        <!-- Éxito -->
+        <div id="success-overlay" class="success-overlay d-none">
+          <i class="fa-solid fa-circle-check fa-4x text-white mb-3 pulse-glow"></i>
+          <h4 class="fw-bold">¡Código Leído!</h4>
+          <p class="lead mb-4">No. INV: <strong id="success-code-text" class="bg-dark px-3 py-1 rounded text-warning">-</strong></p>
+
+          <div class="d-grid gap-2 w-100">
+            <button type="button" class="btn btn-light btn-lg fw-bold" onclick="reiniciarEscaneo()">
+              <i class="fa-solid fa-arrows-rotate me-2"></i>Escanear Otro
+            </button>
+            <button type="button" class="btn btn-warning btn-lg fw-bold text-dark" onclick="enviarFallbackRedireccion()">
+              <i class="fa-solid fa-share-from-square me-2"></i>Usar este número en Inventario
+            </button>
+            <button type="button" class="btn btn-outline-light" onclick="cerrarLector()">
+              <i class="fa-solid fa-xmark me-2"></i>Cerrar Escáner
+            </button>
+          </div>
+        </div>
+
+        <div id="reader" style="width: 100%;"></div>
+
+        <!-- Placeholder -->
+        <div id="camera-placeholder" class="text-center py-5">
+          <i class="fa-solid fa-barcode fa-4x text-secondary mb-3"></i>
+          <p class="px-3 text-muted">Solicita los permisos nativos de cámara para poder escanear las etiquetas de patrimonio.</p>
+          <div class="d-grid gap-2 col-10 mx-auto">
+            <button type="button" id="btn-activar-camara" class="btn btn-success btn-lg fw-bold shadow" onclick="solicitarPermisosYComenzar()">
+              <i class="fa-solid fa-circle-play me-2"></i>Activar Cámara
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer manual fallback -->
+      <div class="card-footer bg-dark border-0 p-3">
+        <div id="controls-panel" class="d-flex align-items-center justify-content-between gap-2 mb-2" style="display: none !important;">
+          <span class="small text-muted"><i class="fa-solid fa-video me-1"></i>Cámara:</span>
+          <select id="camera-select" class="form-select form-select-sm bg-secondary text-white border-0" style="max-width: 200px;" onchange="cambiarCamara(this.value)">
+            <option value="">Seleccionando...</option>
+          </select>
+        </div>
+
+        <div class="pt-2 border-top border-secondary">
+          <form onsubmit="event.preventDefault(); enviarManual();" class="input-group input-group-sm">
+            <input type="text" id="manual-code" class="form-control bg-dark text-white border-secondary" placeholder="Escribe No. INV. manual..." required>
+            <button type="submit" class="btn btn-primary fw-bold">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-2 text-muted small mt-3">
+    <p class="mb-0">Ejecutando en ventana about:blank de nivel superior. Sincroniza en vivo sin heredar las restricciones de iframe de Google.</p>
+  </footer>
+
+</body>
+</html>
+  `;
+
+  popup.document.write(htmlScannerLayout);
+
+  // Escribir los scripts de forma dinámica y secuencial para evitar que el analizador HTML de index/GAppsScript se confunda
+  // con etiquetas </script> literales que romperían la carga de la aplicación matriz.
+  const scriptLoader = popup.document.createElement("script");
+  scriptLoader.src = "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js";
+
+  scriptLoader.onload = function() {
+    const scriptLogica = popup.document.createElement("script");
+    scriptLogica.textContent = `
+      let scanner = null;
+      let isRunning = false;
+      const webAppUrl = "${webAppUrl || ''}";
+
+      function solicitarPermisosYComenzar() {
+        const alertDiv = document.getElementById("local-alert");
+        alertDiv.classList.add("d-none");
+        const btn = document.getElementById("btn-activar-camara");
+        btn.disabled = true;
+        btn.innerHTML = "Solicitando acceso...";
+
+        console.log("Escáner Inyectado - ¿Ejecutando en iframe?:", window.self !== window.top);
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+          .then(stream => {
+            stream.getTracks().forEach(track => track.stop());
+            document.getElementById("camera-placeholder").classList.add("d-none");
+
+            if (!scanner) {
+              scanner = new Html5Qrcode("reader");
+            }
+            return Html5Qrcode.getCameras();
+          })
+          .then(devices => {
+            if (devices && devices.length > 0) {
+              const select = document.getElementById("camera-select");
+              select.innerHTML = "";
+              devices.forEach((device, index) => {
+                const opt = document.createElement("option");
+                opt.value = device.id;
+                opt.textContent = device.label || "Cámara " + (index + 1);
+                select.appendChild(opt);
+              });
+
+              document.getElementById("controls-panel").style.setProperty("display", "flex", "important");
+
+              let backCam = devices.find(d =>
+                d.label.toLowerCase().includes("back") ||
+                d.label.toLowerCase().includes("trasera") ||
+                d.label.toLowerCase().includes("environment")
+              );
+
+              const activeCamId = backCam ? backCam.id : devices[0].id;
+              select.value = activeCamId;
+
+              iniciarLector(activeCamId);
+            } else {
+              throw new Error("No se detectaron cámaras físicas.");
+            }
+          })
+          .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = "<i class='fa-solid fa-circle-play me-2'></i>Activar Cámara";
+
+            let msg = "No se pudo acceder a la cámara. ";
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+              msg += "Permiso denegado por el usuario o bloqueado por políticas de privacidad de su navegador. Por favor compruebe los permisos haciendo clic en el icono del candado en la barra de direcciones de su navegador y conceda el acceso.";
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+              msg += "No hay hardware de cámara disponible en este dispositivo.";
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+              msg += "La cámara ya está siendo utilizada por otra pestaña, navegador o aplicación.";
+            } else {
+              msg += err.message || err;
+            }
+            alertDiv.textContent = msg;
+            alertDiv.classList.remove("d-none");
+          });
+      }
+
+      function iniciarLector(cameraId) {
+        if (isRunning) {
+          scanner.stop().then(() => comenzarFlujo(cameraId));
+        } else {
+          comenzarFlujo(cameraId);
+        }
+      }
+
+      function comenzarFlujo(cameraId) {
+        const config = {
+          fps: 15,
+          qrbox: function(width, height) {
+            const min = Math.min(width, height);
+            const boxSize = Math.floor(min * 0.7);
+            return { width: boxSize, height: Math.floor(boxSize * 0.5) };
+          },
+          aspectRatio: 1.0
+        };
+
+        scanner.start(cameraId, config, onCodeRead, () => {})
+          .then(() => { isRunning = true; })
+          .catch(err => { console.error(err); });
+      }
+
+      function onCodeRead(text) {
+        if (scanner && isRunning) {
+          scanner.stop().then(() => { isRunning = false; });
+        }
+        if (navigator.vibrate) {
+          navigator.vibrate(150);
+        }
+        enviarCodigo(text);
+      }
+
+      function cambiarCamara(val) {
+        if (val) iniciarLector(val);
+      }
+
+      function enviarCodigo(codigo) {
+        if (!codigo) return;
+        const noInv = String(codigo).trim();
+
+        // 1. Enviar directamente vía window.opener (Capa 1: Comunicación sincrónica instantánea)
+        try {
+          if (window.opener && typeof window.opener.procesarCodigoEtiquetaDesdePopup === "function") {
+            window.opener.procesarCodigoEtiquetaDesdePopup(noInv);
+          }
+        } catch (e) {
+          console.warn("Error con window.opener: ", e);
+        }
+
+        // 2. Enviar vía BroadcastChannel ("inventario-smr")
+        try {
+          const channel = new BroadcastChannel("inventario-smr");
+          channel.postMessage({ codigo: noInv });
+        } catch (e) {
+          console.warn("BroadcastChannel error: ", e);
+        }
+
+        // 3. Enviar vía localStorage
+        try {
+          localStorage.setItem("smr_scanned_code", noInv);
+          localStorage.setItem("smr_scanned_time", String(Date.now()));
+        } catch (e) {
+          console.warn("LocalStorage error: ", e);
+        }
+
+        document.getElementById("success-code-text").textContent = noInv;
+        document.getElementById("success-overlay").classList.remove("d-none");
+      }
+
+      function enviarManual() {
+        const input = document.getElementById("manual-code");
+        const val = input.value.trim();
+        if (val) {
+          enviarCodigo(val);
+          input.value = "";
+        }
+      }
+
+      function enviarFallbackRedireccion() {
+        const code = document.getElementById("success-code-text").textContent;
+        if (code && webAppUrl) {
+          window.opener.location.href = webAppUrl + "?noinv=" + encodeURIComponent(code);
+          window.close();
+        } else if (code) {
+          alert("Enlace seguro no disponible. Por favor copia este número: " + code);
+        }
+      }
+
+      function reiniciarEscaneo() {
+        document.getElementById("success-overlay").classList.add("d-none");
+        const select = document.getElementById("camera-select");
+        if (select.value) iniciarLector(select.value);
+        else solicitarPermisosYComenzar();
+      }
+
+      function cerrarLector() {
+        window.close();
+      }
+
+      // Intentar auto-iniciar si ya hay permisos previos guardados
+      navigator.permissions.query({ name: "camera" }).then(res => {
+        if (res.state === "granted") {
+          solicitarPermisosYComenzar();
+        }
+      }).catch(e => {});
+    `;
+    popup.document.body.appendChild(scriptLogica);
   };
 
-  scannerInstance.start(
-    cameraId,
-    config,
-    onScanSuccess,
-    onScanFailure
-  )
-  .then(() => {
-    isScannerRunning = true;
-    actualizarEstatusEscaner(true);
-  })
-  .catch(err => {
-    document.getElementById("scanner-placeholder").classList.remove("d-none");
-    mostrarAlerta("Error al iniciar flujo de cámara: " + err, "danger");
-    actualizarEstatusEscaner(false);
-  });
-}
-
-function stopScanner() {
-  if (scannerInstance && isScannerRunning) {
-    scannerInstance.stop()
-      .then(() => {
-        isScannerRunning = false;
-        actualizarEstatusEscaner(false);
-        document.getElementById("scanner-placeholder").classList.remove("d-none");
-      })
-      .catch(err => {
-        console.error("Error al apagar cámara: ", err);
-      });
-  }
-}
-
-function restartScannerWithSelectedCamera() {
-  const select = document.getElementById("camera-select");
-  if (select.value) {
-    currentCameraId = select.value;
-    iniciarFlujoCamara(select.value);
-  }
-}
-
-function actualizarEstatusEscaner(encendido) {
-  const badge = document.getElementById("scanner-status-badge");
-  const stopBtn = document.getElementById("btn-stop-scanner");
-
-  if (encendido) {
-    badge.textContent = "ESCANEO ACTIVO";
-    badge.className = "badge bg-success p-2 pulse-animation";
-    stopBtn.disabled = false;
-  } else {
-    badge.textContent = "Apagado";
-    badge.className = "badge bg-danger p-2";
-    stopBtn.disabled = true;
-  }
-}
-
-function onScanSuccess(decodedText, decodedResult) {
-  // Evitar lecturas duplicadas seguidas muy rápido si ya se está procesando
-  stopScanner();
-
-  // Feedback visual sonoro/vibración si el dispositivo lo soporta
-  if (navigator.vibrate) {
-    navigator.vibrate(150);
-  }
-
-  procesarCodigoEtiqueta(decodedText);
-}
-
-function onScanFailure(error) {
-  // Este callback se dispara por cada frame fallido, normalmente se deja silencioso
-  // para evitar spam en consola y saturación de procesamiento
+  popup.document.head.appendChild(scriptLoader);
+  popup.document.close();
 }
 
 function procesarCodigoEtiqueta(codigo) {

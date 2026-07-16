@@ -104,15 +104,17 @@ El Excel de Patrimonio puede contener encabezados con variaciones de nombre, ace
 A continuación se detallan los errores reportados comunes en el entorno de consola del navegador y su diagnóstico de resolución:
 
 ### 1. Error de Cámara: `[Violation] Permissions policy violation: camera is not allowed in this document.`
-*   **Causa**: Google Apps Script ejecuta las aplicaciones web dentro de un iframe sandbox (`script.google.com` -> `*.googleusercontent.com`) de forma predeterminada. Debido a las políticas de seguridad estrictas de los navegadores modernos, el acceso a la cámara mediante `getUserMedia` está completamente prohibido por la directiva `Permissions-Policy` dentro de iframes externos, imposibilitando la activación del hardware directamente en la interfaz embebida.
-*   **Solución en Dos Capas (Workaround Definitivo - v3)**:
-    1.  **Detección de Contexto y Vista Desacoplada (`Scanner.html`)**: El sistema evalúa en tiempo real si está atrapado dentro del iframe de Google (`window.self !== window.top`). En caso afirmativo, evita inicializar la cámara para prevenir los avisos de violación de políticas en consola y, en su lugar, instruye al usuario a iniciar la cámara mediante un botón táctil. Esto abre la Web App en una ventana o pestaña de nivel superior (`Scanner.html`) enviando el parámetro `?vista=scanner`.
-    2.  **Autorización Segura y Despliegue de Cámara**: En esta ventana de nivel superior (fuera del iframe de Google), el navegador sí tiene permisos nativos para llamar a `navigator.mediaDevices.getUserMedia` y activar el lector de `html5-qrcode` utilizando la cámara trasera (`facingMode: "environment"`).
-    3.  **Handoff Multi-Canal del Resultado**: Cuando se detecta un código, se transfiere de inmediato a la pestaña principal en este orden de prioridad:
-        *   **A)** Mediante el canal dedicado `BroadcastChannel('inventario-smr')`.
-        *   **B)** Mediante el evento `'storage'` de `localStorage`.
-        *   **C)** **Redirección de Fallback**: Si el navegador bloquea la comunicación en segundo plano, el escáner muestra un botón grande **"Usar este número en Inventario"** que redirige la pestaña principal a `/exec?noinv=XXXX`. Al cargar, el scriptlet de `Code.gs` inyecta la variable y el sistema ejecuta la búsqueda automática de inmediato.
-*   **Recomendación**: Permita la apertura de ventanas emergentes (pop-ups) en su navegador para este sitio y verifique el candado de permisos en la barra de direcciones de su navegador. Asegúrese de abrir siempre la Web App mediante la URL de producción terminada en `/exec` bajo protocolo seguro HTTPS.
+*   **Causa**: Google Apps Script sirve SIEMPRE la Web App dentro de un iframe sandbox (`script.google.com` embebe `userCodeAppPanel` en `*.googleusercontent.com`), INCLUSO cuando se abre la URL `/exec` directamente en una pestaña nueva del navegador. Debido a las políticas de seguridad estrictas de los navegadores modernos, el acceso a la cámara mediante `getUserMedia` está completamente prohibido por la directiva `Permissions-Policy` de este iframe permanente, imposibilitando la activación del hardware de video en cualquier subpágina servida por la Web App.
+*   **Solución Definitiva e Infalible (Opción A - Inyección en about:blank)**:
+    1.  **Apertura de Ventana `about:blank`**: Al presionar "Iniciar Cámara Lector" (acción enlazada a un gesto real del usuario), el sistema abre una ventana emergente en blanco (`about:blank`) de nivel superior puro mediante `window.open`. Al ser un documento en blanco local del navegador, **NO hereda el iframe ni la Permissions-Policy restrictiva de Google**.
+    2.  **Inyección Dinámica de Código**: El script del cliente inyecta dinámicamente todo el HTML, CSS (Bootstrap 5) y JS (`html5-qrcode`) autocontenido directamente en la ventana `about:blank` usando `popup.document.write()`.
+    3.  **Autorización y Captura Directa**: Fuera de la restricción del iframe, el navegador solicita los permisos nativos de la cámara (`navigator.mediaDevices.getUserMedia`) con éxito, permitiendo un escaneo fluido de las etiquetas mediante la cámara trasera (`facingMode: "environment"`).
+    4.  **Handoff Sincrónico del Resultado**: Cuando se lee un código, se devuelve inmediatamente a la pestaña principal en este orden de prioridad:
+        *   **A)** Con llamada directa al hilo principal: `window.opener.procesarCodigoEtiquetaDesdePopup(noInv)`.
+        *   **B)** Con el canal dedicado `BroadcastChannel('inventario-smr')`.
+        *   **C)** Con el evento `'storage'` de `localStorage`.
+        *   **D)** **Redirección de Fallback**: Si el navegador limita la comunicación cruzada, el botón **"Usar este número en Inventario"** redirige de inmediato la pestaña matriz del inventario a `/exec?noinv=XXXX`, cargando los datos al instante gracias al scriptlet dinámico de `Code.gs`.
+*   **Recomendación**: Permita la apertura de ventanas emergentes (pop-ups) en su navegador para este sitio y otorgue el permiso nativo de cámara cuando lo solicite la ventana emergente.
 
 ### 2. Errores de `content.js` o Extensiones:
 *   `Uncaught (in promise) TypeError: Cannot read properties of null (reading 'classList') at ... (content.js:2)`
