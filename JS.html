@@ -1928,21 +1928,28 @@ function captureAndProcess() {
 // Función para procesar la imagen con Apps Script
 function processImageForInventory(imageData) {
   showLoader("Procesando foto capturada mediante OCR...");
+  updateStatus("Procesando foto capturada mediante OCR...", "info");
   google.script.run
     .withSuccessHandler(function(result) {
       hideLoader();
       if (result.success) {
-        document.getElementById('inventory-number').value = result.inventoryNumber;
+        const invInput = document.getElementById('inventory-number');
+        if (invInput) {
+          invInput.value = result.inventoryNumber;
+        }
+        updateStatus("¡OCR Procesado! Código detectado: " + result.inventoryNumber, "success");
         mostrarAlerta("¡OCR Procesado! Código detectado: " + result.inventoryNumber, "success");
         // Buscar información del activo
         searchInventory(result.inventoryNumber);
       } else {
+        updateStatus("No se pudo procesar la imagen: " + result.error, "error");
         mostrarAlerta('No se pudo procesar la imagen: ' + result.error, "danger");
       }
     })
     .withFailureHandler(function(error) {
       hideLoader();
       console.error('Error en el procesamiento:', error);
+      updateStatus("Error en el servidor: " + error.message, "error");
       mostrarAlerta('Error al procesar la imagen. Por favor, intenta de nuevo.', "danger");
     })
     .processImageForOCR(imageData);
@@ -1952,19 +1959,25 @@ function processImageForInventory(imageData) {
 function searchInventory(inventoryNumber) {
   if (!inventoryNumber) return;
   showLoader("Buscando activo '" + inventoryNumber + "'...");
+  updateStatus("Buscando activo '" + inventoryNumber + "'...", "info");
   google.script.run
     .withSuccessHandler(function(res) {
       hideLoader();
       if (res.success && res.data) {
+        updateStatus("Información encontrada para el número: " + inventoryNumber, "success");
+        // Renderizar la información del activo localmente en el results-container
+        displayInventoryData(res.data);
         // Cargar y rellenar toda la información del activo en la pantalla principal
         procesarCodigoEtiqueta(inventoryNumber);
       } else {
+        updateStatus("No se encontró información para el número: " + inventoryNumber, "warning");
         mostrarAlerta("No se encontró el número '" + inventoryNumber + "' en el inventario.", "warning");
       }
     })
     .withFailureHandler(function(error) {
       hideLoader();
       console.error('Error en la búsqueda:', error);
+      updateStatus("Error en la búsqueda: " + error.message, "error");
     })
     .searchInventoryNumber(inventoryNumber);
 }
@@ -1987,4 +2000,182 @@ function habilitarLectorAuxiliarLocal() {
     startScanner();
   }
 }
+
+/**
+ * ==========================================
+ * 14. INICIALIZADORES SEGUROS CONTRA ELEMENTOS NULL (EVITA TYPEERROR)
+ * ==========================================
+ */
+// Función de inicialización segura
+function initializeApp() {
+  try {
+    // Esperar a que el DOM esté completamente cargado
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupElements);
+    } else {
+      setupElements();
+    }
+  } catch (error) {
+    console.error('Error en inicialización:', error);
+  }
+}
+
+// Configurar elementos con verificación de existencia
+function setupElements() {
+  try {
+    // Verificar cada elemento antes de usar
+    const elements = {
+      scannerVideo: document.getElementById('scanner-video'),
+      scannerCanvas: document.getElementById('scanner-canvas'),
+      scannerContainer: document.getElementById('scanner-container'),
+      captureBtn: document.getElementById('capture-btn'),
+      inventoryInput: document.getElementById('inventory-number'),
+      searchBtn: document.getElementById('search-btn'),
+      resultsContainer: document.getElementById('results-container'),
+      statusMessage: document.getElementById('status-message')
+    };
+
+    // Verificar que todos los elementos existan
+    for (const [key, element] of Object.entries(elements)) {
+      if (!element) {
+        console.warn(`Elemento ${key} no encontrado en el DOM`);
+        // Crear elemento si no existe
+        elements[key] = createElement(key);
+      }
+    }
+
+    // Configurar event listeners solo si los elementos existen
+    if (elements.captureBtn) {
+      elements.captureBtn.onclick = captureAndProcess;
+    }
+
+    if (elements.searchBtn) {
+      elements.searchBtn.onclick = searchByInventory;
+    }
+
+    // Ocultar el contenedor de la cámara inicialmente
+    if (elements.scannerContainer) {
+      elements.scannerContainer.style.display = 'none';
+    }
+
+    // Mostrar mensaje de estado
+    updateStatus('Sistema listo para usar', 'success');
+
+  } catch (error) {
+    console.error('Error en setupElements:', error);
+    updateStatus('Error al inicializar el sistema', 'error');
+  }
+}
+
+// Función helper para crear elementos faltantes
+function createElement(elementKey) {
+  const elementMap = {
+    'scannerVideo': () => {
+      const video = document.createElement('video');
+      video.id = 'scanner-video';
+      video.autoplay = true;
+      video.playsinline = true;
+      video.style.width = '100%';
+      video.style.maxWidth = '640px';
+      return video;
+    },
+    'scannerCanvas': () => {
+      const canvas = document.createElement('canvas');
+      canvas.id = 'scanner-canvas';
+      canvas.style.display = 'none';
+      return canvas;
+    },
+    'scannerContainer': () => {
+      const container = document.createElement('div');
+      container.id = 'scanner-container';
+      container.style.display = 'none';
+      container.style.margin = '20px 0';
+      return container;
+    },
+    'captureBtn': () => {
+      const btn = document.createElement('button');
+      btn.id = 'capture-btn';
+      btn.className = 'btn btn-primary';
+      btn.textContent = '📸 Capturar Foto';
+      btn.style.margin = '10px 5px';
+      return btn;
+    },
+    'inventoryInput': () => {
+      const input = document.createElement('input');
+      input.id = 'inventory-number';
+      input.type = 'text';
+      input.placeholder = 'Número de inventario';
+      input.style.margin = '10px 5px';
+      input.style.padding = '8px';
+      return input;
+    },
+    'searchBtn': () => {
+      const btn = document.createElement('button');
+      btn.id = 'search-btn';
+      btn.className = 'btn btn-secondary';
+      btn.textContent = '🔍 Buscar';
+      btn.style.margin = '10px 5px';
+      return btn;
+    }
+  };
+
+  if (elementMap[elementKey]) {
+    const element = elementMap[elementKey]();
+    document.body.appendChild(element);
+    return element;
+  }
+  return null;
+}
+
+// Función segura para actualizar estado
+function updateStatus(message, type = 'info') {
+  const statusElement = document.getElementById('status-message');
+  if (statusElement) {
+    statusElement.textContent = message;
+    statusElement.className = `text-xs mt-2 border-start border-3 border-info ps-2 text-start status-${type}`;
+  } else {
+    console.log(`Status (${type}): ${message}`);
+  }
+}
+
+// Función de búsqueda vinculada por evento para el searchBtn
+function searchByInventory() {
+  const input = document.getElementById('inventory-number');
+  if (input) {
+    const value = input.value.trim();
+    if (value) {
+      searchInventory(value);
+    } else {
+      updateStatus('Por favor ingresa un número de inventario', 'warning');
+    }
+  }
+}
+
+// Función para mostrar los datos encontrados en una tarjeta responsiva
+function displayInventoryData(data) {
+  const resultsContainer = document.getElementById('results-container');
+  if (!resultsContainer) return;
+
+  resultsContainer.innerHTML = '';
+  resultsContainer.style.display = 'block';
+
+  const html = `
+    <div class="inventory-card bg-light p-3 rounded border border-secondary mt-3">
+      <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fa-solid fa-circle-info text-primary me-2"></i>Información del Activo Encontrado</h6>
+      <table class="table table-sm table-striped table-bordered small mb-0 bg-white">
+        ${Object.entries(data).map(([key, value]) => `
+          <tr>
+            <td><strong>${key}</strong></td>
+            <td>${value || 'No especificado'}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  `;
+
+  resultsContainer.innerHTML = html;
+}
+
+// Arrancar inicialización de la app
+initializeApp();
 </script>
