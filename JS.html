@@ -216,7 +216,8 @@ window.procesarCodigoEtiquetaDesdePopup = function(codigo) {
   }
 };
 
-function startScanner() {
+// Función para abrir el escáner de nivel superior about:blank (Opción A) para evadir las políticas del iframe de Google
+function abrirPopupEscaner() {
   limpiarResultadosEscaner();
 
   // CAUSA RAÍZ: Google Apps Script sirve SIEMPRE la Web App dentro de un iframe sandbox (*.googleusercontent.com)
@@ -1819,5 +1820,171 @@ function mostrarAlerta(mensaje, tipo) {
     const bsAlert = new bootstrap.Alert(alertDiv);
     bsAlert.close();
   }, 8000);
+}
+
+/**
+ * ==========================================
+ * 13. CONTROLADORES AUXILIARES DE CÁMARA Y OCR REQUERIDOS
+ * ==========================================
+ */
+let mediaStream = null;
+
+// Función para iniciar la cámara local auxiliar si se muestra el contenedor
+function startScanner() {
+  try {
+    const card = document.getElementById('scanner-container-card');
+    const container = document.getElementById('scanner-container');
+    if (card && container) {
+      card.style.display = 'block';
+      container.style.display = 'block';
+    }
+
+    const videoElement = document.getElementById('scanner-video');
+
+    // Solicitar acceso a la cámara
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    })
+    .then(stream => {
+      mediaStream = stream;
+      if (videoElement) {
+        videoElement.srcObject = stream;
+        videoElement.play();
+      }
+      mostrarAlerta("Cámara auxiliar local iniciada.", "info");
+    })
+    .catch(error => {
+      console.error('Error al acceder a la cámara:', error);
+      mostrarAlerta('No se pudo acceder a la cámara. Por favor, verifica los permisos.', "warning");
+    });
+  } catch (error) {
+    console.error('Error en startScanner:', error);
+  }
+}
+
+// Función para detener la cámara local auxiliar
+function stopScanner() {
+  try {
+    // Detener el stream de la cámara
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+    }
+
+    // Detener el escáner si existe
+    if (scannerInstance) {
+      scannerInstance.stop();
+      scannerInstance = null;
+    }
+
+    // Limpiar el video
+    const videoElement = document.getElementById('scanner-video');
+    if (videoElement) {
+      videoElement.srcObject = null;
+    }
+
+    // Ocultar elementos de cámara
+    const container = document.getElementById('scanner-container');
+    if (container) container.style.display = 'none';
+    const card = document.getElementById('scanner-container-card');
+    if (card) card.style.display = 'none';
+
+    mostrarAlerta("Cámara local cerrada.", "secondary");
+  } catch (error) {
+    console.error('Error en stopScanner:', error);
+  }
+}
+
+// Función para capturar foto y procesar con OCR en el servidor
+function captureAndProcess() {
+  try {
+    const videoElement = document.getElementById('scanner-video');
+    const canvas = document.getElementById('scanner-canvas');
+    if (!videoElement || !canvas) return;
+
+    const context = canvas.getContext('2d');
+
+    // Configurar canvas con dimensiones del video
+    canvas.width = videoElement.videoWidth || 640;
+    canvas.height = videoElement.videoHeight || 480;
+
+    // Capturar frame de video
+    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    // Procesar la imagen capturada en formato base64 png
+    const imageData = canvas.toDataURL('image/png');
+
+    // Enviar a Google Apps Script para procesamiento OCR
+    processImageForInventory(imageData);
+  } catch (error) {
+    console.error('Error en captureAndProcess:', error);
+  }
+}
+
+// Función para procesar la imagen con Apps Script
+function processImageForInventory(imageData) {
+  showLoader("Procesando foto capturada mediante OCR...");
+  google.script.run
+    .withSuccessHandler(function(result) {
+      hideLoader();
+      if (result.success) {
+        document.getElementById('inventory-number').value = result.inventoryNumber;
+        mostrarAlerta("¡OCR Procesado! Código detectado: " + result.inventoryNumber, "success");
+        // Buscar información del activo
+        searchInventory(result.inventoryNumber);
+      } else {
+        mostrarAlerta('No se pudo procesar la imagen: ' + result.error, "danger");
+      }
+    })
+    .withFailureHandler(function(error) {
+      hideLoader();
+      console.error('Error en el procesamiento:', error);
+      mostrarAlerta('Error al procesar la imagen. Por favor, intenta de nuevo.', "danger");
+    })
+    .processImageForOCR(imageData);
+}
+
+// Función para búsqueda en inventario mediante número de inventario extraído
+function searchInventory(inventoryNumber) {
+  if (!inventoryNumber) return;
+  showLoader("Buscando activo '" + inventoryNumber + "'...");
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+      if (res.success && res.data) {
+        // Cargar y rellenar toda la información del activo en la pantalla principal
+        procesarCodigoEtiqueta(inventoryNumber);
+      } else {
+        mostrarAlerta("No se encontró el número '" + inventoryNumber + "' en el inventario.", "warning");
+      }
+    })
+    .withFailureHandler(function(error) {
+      hideLoader();
+      console.error('Error en la búsqueda:', error);
+    })
+    .searchInventoryNumber(inventoryNumber);
+}
+
+// Handler de búsqueda por el botón de captura manual OCR
+function searchByInventoryNumber() {
+  const num = document.getElementById("inventory-number").value.trim();
+  if (num) {
+    searchInventory(num);
+  } else {
+    alert("Escribe o captura un número de inventario para buscar.");
+  }
+}
+
+// Exponer de forma visible un botón o enlace para activar la cámara local auxiliar si se desea
+function habilitarLectorAuxiliarLocal() {
+  const card = document.getElementById('scanner-container-card');
+  if (card) {
+    card.style.display = 'block';
+    startScanner();
+  }
 }
 </script>

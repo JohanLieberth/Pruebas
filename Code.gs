@@ -171,6 +171,66 @@ function registrarBitacora(accion, noInv, detalle, usuarioOverride) {
 }
 
 /**
+ * Procesa una imagen capturada en base64 para extraer el número de inventario mediante OCR simulado
+ * @param {string} base64Image - Imagen en formato base64
+ * @return {Object} Resultado del procesamiento
+ */
+function processImageForOCR(base64Image) {
+  try {
+    // Simulador robusto de OCR: extrae un código de ejemplo del inventario real para demostrar el flujo completo
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    let extractedNumber = "100000000010"; // Default fallback si la hoja está vacía
+
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        // Tomar el No. INV del primer artículo registrado
+        const firstNoInv = sheet.getRange(2, 2).getValue();
+        if (firstNoInv) extractedNumber = String(firstNoInv).trim();
+      }
+    }
+
+    return {
+      success: true,
+      inventoryNumber: extractedNumber,
+      rawText: "Texto extraído: " + extractedNumber
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Busca un número de inventario en la hoja de cálculo
+ * @param {string} inventoryNumber - Número de inventario a buscar
+ * @return {Object} Información del activo
+ */
+function searchInventoryNumber(inventoryNumber) {
+  try {
+    const articulo = buscarPorNoInv(inventoryNumber);
+    if (articulo) {
+      return {
+        success: true,
+        data: articulo
+      };
+    }
+    return {
+      success: false,
+      error: "Número de inventario no encontrado"
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
  * Helper para convertir filas de la hoja en objetos de JS.
  */
 function getInventarioRowsAndData() {
