@@ -389,7 +389,7 @@ function startScanner() {
   popup.document.write(htmlScannerLayout);
 
   // Escribir los scripts de forma dinámica y secuencial para evitar que el analizador HTML de index/GAppsScript se confunda
-  // con etiquetas </script> literales que romperían la carga de la aplicación matriz.
+  // con etiquetas de cierre de script (como <\/script>) literales que romperían la carga de la aplicación matriz.
   const scriptLoader = popup.document.createElement("script");
   scriptLoader.src = "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js";
 

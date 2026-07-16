@@ -38,17 +38,26 @@ const HEADERS_BITACORA = [
  * Sirve la aplicación Web.
  */
 function doGet(e) {
-  // Asegurar que las hojas y encabezados existan al arrancar
-  inicializarBaseDatos();
+  try {
+    // Asegurar que las hojas y encabezados existan al arrancar
+    inicializarBaseDatos();
 
-  // Crear plantilla para Index.html y pasar el parámetro ?noinv como variable del scriptlet (fallback de redirección del escáner)
-  const template = HtmlService.createTemplateFromFile("Index");
-  template.noinvQuery = (e && e.parameter && e.parameter.noinv) || "";
+    // Crear plantilla para Index.html y pasar el parámetro ?noinv como variable del scriptlet (fallback de redirección del escáner)
+    const template = HtmlService.createTemplateFromFile("Index");
+    template.noinvQuery = (e && e.parameter && e.parameter.noinv) || "";
 
-  return template.evaluate()
-    .setTitle("Sistema de Inventario - Mejora Regulatoria")
-    .addMetaTag("viewport", "width=device-width, initial-scale=1")
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+    // NOTA: El método .evaluate() es un método nativo y seguro de Google Apps Script (HtmlTemplate.evaluate()).
+    // No guarda relación con la función "eval()" de JavaScript y es completamente seguro de usar aquí.
+    return template.evaluate()
+      .setTitle("Sistema de Inventario - Mejora Regulatoria")
+      .addMetaTag("viewport", "width=device-width, initial-scale=1")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+  } catch (error) {
+    // Manejo robusto de errores de inicio para evitar pantallas en blanco
+    return HtmlService.createHtmlOutput("<h3>Error al cargar el Sistema de Inventario</h3><p>" + error.message + "</p>")
+      .setTitle("Error - Sistema de Inventario")
+      .addMetaTag("viewport", "width=device-width, initial-scale=1");
+  }
 }
 
 /**
