@@ -1824,172 +1824,487 @@ function mostrarAlerta(mensaje, tipo) {
 
 /**
  * ==========================================
- * 13. CONTROLADORES AUXILIARES DE CÁMARA Y OCR REQUERIDOS
+ * 13. CONTROLADORES AUXILIARES DE CÁMARA Y OCR REQUERIDOS (V5)
  * ==========================================
  */
 let mediaStream = null;
+window.scannerActive = false;
+let currentImageData = null;
 
-// Función para iniciar la cámara local auxiliar si se muestra el contenedor
+// Función para iniciar la cámara con validación de Permissions API e instrucciones en español
 function startScanner() {
   try {
-    const card = document.getElementById('scanner-container-card');
-    const container = document.getElementById('scanner-container');
-    if (card && container) {
-      card.style.display = 'block';
-      container.style.display = 'block';
+    // Verificar si el navegador soporta getUserMedia
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      updateStatus('❌ Tu navegador no soporta el acceso directo a la cámara', 'error');
+      showManualInputFallback();
+      return;
     }
 
-    const videoElement = document.getElementById('scanner-video');
+    // Mostrar mensaje de espera
+    updateStatus('📷 Solicitando permisos de cámara...', 'info');
 
-    // Solicitar acceso a la cámara
-    navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'environment',
-        width: { ideal: 640 },
-        height: { ideal: 480 }
-      }
-    })
+    // Activar tarjeta contenedora
+    const card = document.getElementById('scanner-container-card');
+    if (card) {
+      card.style.display = 'block';
+    }
+
+    // Verificar permisos mediante Permissions API primero si está disponible
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'camera' })
+        .then(permissionStatus => {
+          console.log('Estado de permiso de cámara:', permissionStatus.state);
+
+          if (permissionStatus.state === 'denied') {
+            updateStatus('⚠️ Permiso de cámara denegado. Por favor, usa la entrada manual.', 'error');
+            showManualInputFallback();
+            return;
+          }
+
+          // Proceder a solicitar acceso real de cámara
+          requestCameraAccess();
+        })
+        .catch(error => {
+          console.warn('Permissions API no soportada, intentando acceso directo:', error);
+          requestCameraAccess();
+        });
+    } else {
+      // Acceso directo directo en navegadores antiguos
+      requestCameraAccess();
+    }
+  } catch (error) {
+    console.error('Error en startScanner:', error);
+    updateStatus('❌ Error al iniciar: ' + error.message, 'error');
+    showManualInputFallback();
+  }
+}
+
+// Función para solicitar acceso físico a la cámara
+function requestCameraAccess() {
+  const videoElement = document.getElementById('scanner-video');
+  const container = document.getElementById('scanner-container');
+
+  if (!videoElement || !container) {
+    updateStatus('❌ Elementos de cámara no encontrados en el DOM', 'error');
+    return;
+  }
+
+  // Limpiar stream anterior
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream = null;
+  }
+
+  // Configuración ideal para captura de código de barras / QR de patrimonio
+  const constraints = {
+    video: {
+      facingMode: 'environment',
+      width: { ideal: 640 },
+      height: { ideal: 480 }
+    },
+    audio: false
+  };
+
+  // Obtener stream
+  navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
       mediaStream = stream;
-      if (videoElement) {
-        videoElement.srcObject = stream;
-        videoElement.play();
-      }
-      mostrarAlerta("Cámara auxiliar local iniciada.", "info");
+      window.currentStream = stream; // Guardar también en variable window para redundancia requerida
+      videoElement.srcObject = stream;
+
+      videoElement.onloadedmetadata = () => {
+        videoElement.play()
+          .then(() => {
+            container.style.display = 'block';
+            window.scannerActive = true;
+            updateStatus('✅ Cámara activa - Listo para capturar', 'success');
+
+            // Mostrar y activar botón de captura de foto
+            const captureBtn = document.getElementById('capture-btn');
+            if (captureBtn) {
+              captureBtn.style.display = 'inline-block';
+              captureBtn.disabled = false;
+            }
+          })
+          .catch(error => {
+            console.error('Error al reproducir video:', error);
+            updateStatus('⚠️ Error al reproducir video: ' + error.message, 'error');
+          });
+      };
     })
     .catch(error => {
       console.error('Error al acceder a la cámara:', error);
-      mostrarAlerta('No se pudo acceder a la cámara. Por favor, verifica los permisos.', "warning");
+      handleCameraError(error);
     });
-  } catch (error) {
-    console.error('Error en startScanner:', error);
-  }
 }
 
-// Función para detener la cámara local auxiliar
-function stopScanner() {
-  try {
-    // Detener el stream de la cámara
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => track.stop());
-      mediaStream = null;
-    }
+// Manejo robusto de errores de cámara mapeados en español
+function handleCameraError(error) {
+  let message = '';
+  let solution = '';
 
-    // Detener el escáner si existe
-    if (scannerInstance) {
-      scannerInstance.stop();
-      scannerInstance = null;
-    }
-
-    // Limpiar el video
-    const videoElement = document.getElementById('scanner-video');
-    if (videoElement) {
-      videoElement.srcObject = null;
-    }
-
-    // Ocultar elementos de cámara
-    const container = document.getElementById('scanner-container');
-    if (container) container.style.display = 'none';
-    const card = document.getElementById('scanner-container-card');
-    if (card) card.style.display = 'none';
-
-    mostrarAlerta("Cámara local cerrada.", "secondary");
-  } catch (error) {
-    console.error('Error en stopScanner:', error);
+  switch (error.name) {
+    case 'NotAllowedError':
+      message = '⚠️ Permiso denegado por el navegador o bloqueado por iframe de Google';
+      solution = '🔹 Por favor, concede permisos de cámara haciendo clic en el icono del candado en la barra de direcciones.\n🔹 Alternativamente, usa el buscador manual de inventario.';
+      break;
+    case 'NotFoundError':
+      message = '❌ No se encontró cámara instalada en el dispositivo';
+      solution = '🔹 Conecta un dispositivo de cámara o usa el campo de entrada manual.';
+      break;
+    case 'NotReadableError':
+      message = '❌ No se puede acceder a la cámara física';
+      solution = '🔹 Asegúrate de que otra pestaña, navegador o aplicación no esté utilizando la cámara actualmente.';
+      break;
+    case 'OverconstrainedError':
+      message = '❌ Configuración de resolución de cámara no compatible';
+      solution = '🔹 Usa la entrada manual de inventario como fallback.';
+      break;
+    case 'SecurityError':
+      message = '🔒 Error de seguridad al acceder';
+      solution = '🔹 Concede permisos en tu barra de direcciones del navegador o usa entrada manual.';
+      break;
+    default:
+      message = '❌ Error al abrir la cámara: ' + error.message;
+      solution = '🔹 Por favor ingresa el No. de Inventario manualmente.';
   }
+
+  updateStatus(message, 'error');
+  showManualInputFallback();
+  console.log('Solución recomendada:', solution);
+  mostrarAlerta(message + ". Solución: " + solution, "warning");
 }
 
-// Función para capturar foto y procesar con OCR en el servidor
+// Mostrar fallback para entrada manual si la cámara se bloquea
+function showManualInputFallback() {
+  const fallbackContainer = document.getElementById('manual-fallback');
+  if (!fallbackContainer) {
+    const container = document.createElement('div');
+    container.id = 'manual-fallback';
+    container.className = 'fallback-container mt-3';
+    document.body.appendChild(container);
+  }
+
+  const container = document.getElementById('manual-fallback');
+  container.innerHTML = `
+    <div class="fallback-card p-3 rounded border border-warning bg-light-warning">
+      <h5 class="fw-bold text-dark"><i class="fa-solid fa-keyboard me-2"></i>Entrada Manual de Fallback</h5>
+      <p class="small text-muted mb-3">La cámara no se pudo activar. Por favor, escribe el Número de Inventario manualmente para consultar la base de datos:</p>
+      <div class="input-group input-group-sm mb-2" style="max-width: 320px;">
+        <input type="text" id="manual-inventory-input" class="form-control" placeholder="Ej: BF-100000010">
+        <button type="button" onclick="searchManualEntry()" class="btn btn-primary">🔍 Buscar</button>
+      </div>
+      <div id="manual-result"></div>
+    </div>
+  `;
+  container.style.display = 'block';
+}
+
+// Búsqueda de activo mediante el panel de entrada manual fallback
+function searchManualEntry() {
+  const input = document.getElementById('manual-inventory-input');
+  if (!input) return;
+
+  const value = input.value.trim();
+  if (!value) {
+    updateStatus('⚠️ Ingresa un número de inventario', 'warning');
+    return;
+  }
+
+  // Llenar el campo principal e iniciar búsqueda
+  const mainInput = document.getElementById('inventory-number');
+  if (mainInput) {
+    mainInput.value = value;
+  }
+
+  searchInventoryNumber(value);
+}
+
+// Capturar frame de cámara y procesar OCR simulado/real
 function captureAndProcess() {
   try {
     const videoElement = document.getElementById('scanner-video');
     const canvas = document.getElementById('scanner-canvas');
-    if (!videoElement || !canvas) return;
 
+    if (!videoElement || !canvas) {
+      updateStatus('❌ Elementos de captura no disponibles', 'error');
+      return;
+    }
+
+    if (!window.scannerActive || !mediaStream) {
+      updateStatus('⚠️ Cámara no activa. Inicia la cámara primero.', 'warning');
+      return;
+    }
+
+    // Mostrar estado de captura
+    updateStatus('📸 Capturando imagen...', 'info');
+
+    // Configurar canvas
     const context = canvas.getContext('2d');
-
-    // Configurar canvas con dimensiones del video
     canvas.width = videoElement.videoWidth || 640;
     canvas.height = videoElement.videoHeight || 480;
 
-    // Capturar frame de video
+    // Capturar frame de video actual
     context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-    // Procesar la imagen capturada en formato base64 png
-    const imageData = canvas.toDataURL('image/png');
+    // Convertir a jpeg base64 con compresión optimizada
+    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+    currentImageData = imageData;
+
+    // Mostrar previsualización local
+    showImagePreview(imageData);
+
+    // Iniciar procesamiento OCR en el servidor
+    updateStatus('🔄 Procesando imagen...', 'info');
+    showLoadingIndicator(true);
 
     // Enviar a Google Apps Script para procesamiento OCR
-    processImageForInventory(imageData);
+    google.script.run
+      .withSuccessHandler(function(result) {
+        showLoadingIndicator(false);
+        handleOCRResult(result);
+      })
+      .withFailureHandler(function(error) {
+        showLoadingIndicator(false);
+        console.error('Error en OCR:', error);
+        updateStatus('❌ Error al procesar: ' + error.message, 'error');
+        showManualInputFallback();
+      })
+      .processImageForOCR(imageData);
+
   } catch (error) {
     console.error('Error en captureAndProcess:', error);
+    updateStatus('❌ Error al capturar: ' + error.message, 'error');
+    showLoadingIndicator(false);
   }
 }
 
-// Función para procesar la imagen con Apps Script
-function processImageForInventory(imageData) {
-  showLoader("Procesando foto capturada mediante OCR...");
-  updateStatus("Procesando foto capturada mediante OCR...", "info");
-  google.script.run
-    .withSuccessHandler(function(result) {
-      hideLoader();
-      if (result.success) {
-        const invInput = document.getElementById('inventory-number');
-        if (invInput) {
-          invInput.value = result.inventoryNumber;
-        }
-        updateStatus("¡OCR Procesado! Código detectado: " + result.inventoryNumber, "success");
-        mostrarAlerta("¡OCR Procesado! Código detectado: " + result.inventoryNumber, "success");
-        // Buscar información del activo
-        searchInventory(result.inventoryNumber);
-      } else {
-        updateStatus("No se pudo procesar la imagen: " + result.error, "error");
-        mostrarAlerta('No se pudo procesar la imagen: ' + result.error, "danger");
-      }
-    })
-    .withFailureHandler(function(error) {
-      hideLoader();
-      console.error('Error en el procesamiento:', error);
-      updateStatus("Error en el servidor: " + error.message, "error");
-      mostrarAlerta('Error al procesar la imagen. Por favor, intenta de nuevo.', "danger");
-    })
-    .processImageForOCR(imageData);
-}
+// Manejar resultado del OCR
+function handleOCRResult(result) {
+  if (result.success) {
+    const inventoryNumber = result.inventoryNumber || result.number || '';
 
-// Función para búsqueda en inventario mediante número de inventario extraído
-function searchInventory(inventoryNumber) {
-  if (!inventoryNumber) return;
-  showLoader("Buscando activo '" + inventoryNumber + "'...");
-  updateStatus("Buscando activo '" + inventoryNumber + "'...", "info");
-  google.script.run
-    .withSuccessHandler(function(res) {
-      hideLoader();
-      if (res.success && res.data) {
-        updateStatus("Información encontrada para el número: " + inventoryNumber, "success");
-        // Renderizar la información del activo localmente en el results-container
-        displayInventoryData(res.data);
-        // Cargar y rellenar toda la información del activo en la pantalla principal
-        procesarCodigoEtiqueta(inventoryNumber);
-      } else {
-        updateStatus("No se encontró información para el número: " + inventoryNumber, "warning");
-        mostrarAlerta("No se encontró el número '" + inventoryNumber + "' en el inventario.", "warning");
-      }
-    })
-    .withFailureHandler(function(error) {
-      hideLoader();
-      console.error('Error en la búsqueda:', error);
-      updateStatus("Error en la búsqueda: " + error.message, "error");
-    })
-    .searchInventoryNumber(inventoryNumber);
-}
+    if (inventoryNumber) {
+      updateStatus('✅ Número detectado: ' + inventoryNumber, 'success');
 
-// Handler de búsqueda por el botón de captura manual OCR
-function searchByInventoryNumber() {
-  const num = document.getElementById("inventory-number").value.trim();
-  if (num) {
-    searchInventory(num);
+      // Llenar el input principal de inventario
+      const inventoryInput = document.getElementById('inventory-number');
+      if (inventoryInput) {
+        inventoryInput.value = inventoryNumber;
+      }
+
+      // Iniciar búsqueda automática del activo en la base de datos
+      updateStatus('🔍 Buscando información en Google Sheets...', 'info');
+      searchInventoryNumber(inventoryNumber);
+    } else {
+      updateStatus('⚠️ No se pudo extraer un número de inventario legible de la foto', 'warning');
+      showManualInputFallback();
+    }
   } else {
-    alert("Escribe o captura un número de inventario para buscar.");
+    updateStatus('❌ Error en OCR: ' + (result.error || 'Error desconocido'), 'error');
+    showManualInputFallback();
   }
+}
+
+// Mostrar previsualización de la foto tomada
+function showImagePreview(imageData) {
+  let previewContainer = document.getElementById('preview-container');
+  if (!previewContainer) {
+    previewContainer = document.createElement('div');
+    previewContainer.id = 'preview-container';
+    document.querySelector('.scanner-controls').before(previewContainer);
+  }
+
+  previewContainer.innerHTML = `
+    <div style="background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0;" class="border rounded">
+      <h6 style="margin: 0 0 10px 0;" class="fw-bold text-dark">📷 Captura tomada:</h6>
+      <img src="${imageData}" alt="Captura" class="img-fluid rounded" style="max-width: 160px; border: 1px solid #ddd;">
+      <div style="margin-top: 10px;">
+        <button type="button" class="btn btn-secondary btn-xs" onclick="retakePhoto()" style="padding: 5px 15px; font-size: 12px;">
+          🔄 Tomar otra
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Buscar No. INV en Google Sheets con notificaciones flotantes temporales
+function searchInventoryNumber(inventoryNumber) {
+  try {
+    if (!inventoryNumber || inventoryNumber.trim() === '') {
+      updateStatus('⚠️ Número de inventario vacío', 'warning');
+      return;
+    }
+
+    showLoadingIndicator(true);
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        showLoadingIndicator(false);
+        if (response.success && response.data) {
+          displayInventoryData(response.data);
+          updateStatus('✅ Información encontrada para: ' + inventoryNumber, 'success');
+
+          // Sincronizar con el formulario de levantamiento principal
+          procesarCodigoEtiqueta(inventoryNumber);
+
+          // Mostrar notificación flotante
+          showNotification('✅ Inventario encontrado', 'success');
+        } else {
+          updateStatus('⚠️ No se encontró información para el número: ' + inventoryNumber, 'warning');
+          clearResults();
+          showNotification('⚠️ No encontrado', 'warning');
+        }
+      })
+      .withFailureHandler(function(error) {
+        showLoadingIndicator(false);
+        console.error('Error en búsqueda:', error);
+        updateStatus('❌ Error en búsqueda: ' + error.message, 'error');
+        showNotification('❌ Error en la búsqueda', 'error');
+      })
+      .searchInventoryNumber(inventoryNumber.trim());
+
+  } catch (error) {
+    console.error('Error en searchInventoryNumber:', error);
+    updateStatus('❌ Error al buscar: ' + error.message, 'error');
+    showLoadingIndicator(false);
+  }
+}
+
+// Mostrar notificaciones flotantes temporales en la pantalla principal
+function showNotification(message, type = 'info') {
+  let notification = document.getElementById('notification');
+  if (!notification) {
+    notification = document.createElement('div');
+    notification.id = 'notification';
+    document.body.appendChild(notification);
+  }
+
+  const colors = {
+    success: '#16a085',
+    error: '#c0392b',
+    warning: '#f39c12',
+    info: '#1a1a2e'
+  };
+
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 12px 24px;
+    background: ${colors[type] || '#16a085'};
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 10000;
+    font-weight: bold;
+    animation: slideIn 0.3s ease-out;
+    max-width: 400px;
+  `;
+  notification.textContent = message;
+  notification.style.display = 'block';
+
+  // Ocultar automáticamente después de 4 segundos
+  clearTimeout(notification.timeout);
+  notification.timeout = setTimeout(() => {
+    notification.style.display = 'none';
+  }, 4000);
+}
+
+// Retomar foto: limpia y reinicia cámara
+function retakePhoto() {
+  const previewContainer = document.getElementById('preview-container');
+  if (previewContainer) {
+    previewContainer.innerHTML = '';
+  }
+
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream = null;
+  }
+
+  requestCameraAccess();
+}
+
+// Detener la cámara local auxiliar y apagar video
+function stopCamera() {
+  try {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+    }
+    if (window.currentStream) {
+      window.currentStream.getTracks().forEach(track => track.stop());
+      window.currentStream = null;
+    }
+
+    const videoElement = document.getElementById('scanner-video');
+    if (videoElement) {
+      videoElement.srcObject = null;
+      videoElement.pause();
+    }
+
+    const container = document.getElementById('scanner-container');
+    if (container) {
+      container.style.display = 'none';
+    }
+    const card = document.getElementById('scanner-container-card');
+    if (card) {
+      card.style.display = 'none';
+    }
+
+    window.scannerActive = false;
+    updateStatus('✅ Cámara detenida', 'info');
+
+    const captureBtn = document.getElementById('capture-btn');
+    if (captureBtn) {
+      captureBtn.style.display = 'none';
+      captureBtn.disabled = true;
+    }
+
+    const previewContainer = document.getElementById('preview-container');
+    if (previewContainer) {
+      previewContainer.innerHTML = '';
+    }
+
+  } catch (error) {
+    console.error('Error en stopCamera:', error);
+  }
+}
+
+// Detener la cámara con stopScanner para compatibilidad completa
+function stopScanner() {
+  stopCamera();
+}
+
+// Búsqueda manual desde el campo de texto
+function searchByInventory() {
+  const input = document.getElementById('inventory-number');
+  if (!input) return;
+
+  const value = input.value.trim();
+  if (!value) {
+    updateStatus('⚠️ Ingresa un número de inventario', 'warning');
+    input.focus();
+    return;
+  }
+
+  searchInventoryNumber(value);
+}
+
+// Limpiar resultados locales de búsqueda
+function clearResults() {
+  const resultsContainer = document.getElementById('results-container');
+  if (resultsContainer) {
+    resultsContainer.innerHTML = '';
+    resultsContainer.style.display = 'none';
+  }
+  const inventoryInput = document.getElementById('inventory-number');
+  if (inventoryInput) {
+    inventoryInput.value = '';
+  }
+  updateStatus('Resultados limpiados', 'info');
 }
 
 // Exponer de forma visible un botón o enlace para activar la cámara local auxiliar si se desea
@@ -2009,7 +2324,6 @@ function habilitarLectorAuxiliarLocal() {
 // Función de inicialización segura
 function initializeApp() {
   try {
-    // Esperar a que el DOM esté completamente cargado
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', setupElements);
     } else {
@@ -2023,7 +2337,6 @@ function initializeApp() {
 // Configurar elementos con verificación de existencia
 function setupElements() {
   try {
-    // Verificar cada elemento antes de usar
     const elements = {
       scannerVideo: document.getElementById('scanner-video'),
       scannerCanvas: document.getElementById('scanner-canvas'),
@@ -2039,7 +2352,6 @@ function setupElements() {
     for (const [key, element] of Object.entries(elements)) {
       if (!element) {
         console.warn(`Elemento ${key} no encontrado en el DOM`);
-        // Crear elemento si no existe
         elements[key] = createElement(key);
       }
     }
@@ -2058,7 +2370,6 @@ function setupElements() {
       elements.scannerContainer.style.display = 'none';
     }
 
-    // Mostrar mensaje de estado
     updateStatus('Sistema listo para usar', 'success');
 
   } catch (error) {
@@ -2067,7 +2378,7 @@ function setupElements() {
   }
 }
 
-// Función helper para crear elementos faltantes
+// Función helper para crear elementos faltantes de manera segura
 function createElement(elementKey) {
   const elementMap = {
     'scannerVideo': () => {
@@ -2127,27 +2438,24 @@ function createElement(elementKey) {
   return null;
 }
 
-// Función segura para actualizar estado
-function updateStatus(message, type = 'info') {
-  const statusElement = document.getElementById('status-message');
-  if (statusElement) {
-    statusElement.textContent = message;
-    statusElement.className = `text-xs mt-2 border-start border-3 border-info ps-2 text-start status-${type}`;
-  } else {
-    console.log(`Status (${type}): ${message}`);
-  }
-}
-
-// Función de búsqueda vinculada por evento para el searchBtn
-function searchByInventory() {
-  const input = document.getElementById('inventory-number');
-  if (input) {
-    const value = input.value.trim();
-    if (value) {
-      searchInventory(value);
-    } else {
-      updateStatus('Por favor ingresa un número de inventario', 'warning');
+// Mostrar indicador de carga
+function showLoadingIndicator(show) {
+  let loader = document.getElementById('loading-indicator');
+  if (show) {
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.id = 'loading-indicator';
+      loader.innerHTML = `
+        <div class="loader-container">
+          <div class="loader-spinner"></div>
+          <p class="text-white text-center mt-2">Procesando...</p>
+        </div>
+      `;
+      document.body.appendChild(loader);
     }
+    loader.style.display = 'flex';
+  } else if (loader) {
+    loader.style.display = 'none';
   }
 }
 
@@ -2175,6 +2483,22 @@ function displayInventoryData(data) {
 
   resultsContainer.innerHTML = html;
 }
+
+// Estilos de animación para slideIn inyectados
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+document.head.appendChild(styleSheet);
 
 // Arrancar inicialización de la app
 initializeApp();

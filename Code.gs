@@ -48,16 +48,97 @@ function doGet(e) {
 
     // NOTA: El método .evaluate() es un método nativo y seguro de Google Apps Script (HtmlTemplate.evaluate()).
     // No guarda relación con la función "eval()" de JavaScript y es completamente seguro de usar aquí.
-    return template.evaluate()
+    const htmlOutput = template.evaluate()
       .setTitle("Sistema de Inventario - Mejora Regulatoria")
-      .addMetaTag("viewport", "width=device-width, initial-scale=1")
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+      .setFaviconUrl("https://www.google.com/favicon.ico")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL) // Permitir visualización en iframe con compatibilidad extendida
+      .addMetaTag("viewport", "width=device-width, initial-scale=1");
+
+    // Agregar políticas de permisos para mejorar acceso a cámara
+    htmlOutput.addMetaTag("referrer", "no-referrer");
+
+    return htmlOutput;
   } catch (error) {
     // Manejo robusto de errores de inicio para evitar pantallas en blanco
     return HtmlService.createHtmlOutput("<h3>Error al cargar el Sistema de Inventario</h3><p>" + error.message + "</p>")
       .setTitle("Error - Sistema de Inventario")
       .addMetaTag("viewport", "width=device-width, initial-scale=1");
   }
+}
+
+/**
+ * Función para verificar permisos de cámara (Opción A de GAS Web App)
+ */
+function checkCameraPermissions() {
+  try {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <base target="_top">
+          <script>
+            if (navigator.permissions && navigator.permissions.query) {
+              navigator.permissions.query({name: 'camera'})
+                .then(permissionStatus => {
+                  console.log('Estado de permiso de cámara:', permissionStatus.state);
+                  if (permissionStatus.state === 'granted') {
+                    google.script.run.permisoConcedido();
+                  } else if (permissionStatus.state === 'prompt') {
+                    navigator.mediaDevices.getUserMedia({ video: true })
+                      .then(stream => {
+                        stream.getTracks().forEach(track => track.stop());
+                        google.script.run.permisoConcedido();
+                      })
+                      .catch(error => {
+                        console.error('Error al solicitar permiso:', error);
+                        google.script.run.permisoDenegado(error.message);
+                      });
+                  } else {
+                    google.script.run.permisoDenegado('Permiso denegado por el navegador');
+                  }
+                })
+                .catch(error => {
+                  console.error('Error al verificar permisos:', error);
+                  navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                      stream.getTracks().forEach(track => track.stop());
+                      google.script.run.permisoConcedido();
+                    })
+                    .catch(err => {
+                      google.script.run.permisoDenegado(err.message);
+                    });
+                });
+            } else {
+              navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                  stream.getTracks().forEach(track => track.stop());
+                  google.script.run.permisoConcedido();
+                })
+                .catch(error => {
+                  google.script.run.permisoDenegado(error.message);
+                });
+            }
+          <\/script>
+        </head>
+        <body>
+          <p>Verificando permisos de cámara...</p>
+        </body>
+      </html>
+    `;
+    return HtmlService.createHtmlOutput(html);
+  } catch (error) {
+    console.error('Error en checkCameraPermissions:', error);
+    return false;
+  }
+}
+
+// Callbacks para permisos de cámara
+function permisoConcedido() {
+  return { success: true, message: 'Permiso de cámara concedido' };
+}
+
+function permisoDenegado(error) {
+  return { success: false, error: error };
 }
 
 /**
