@@ -361,4 +361,251 @@ body {
   margin-top: 0;
   color: #856404;
 }
+
+/* ==========================================
+   ESTILOS PREMIUM PARA ESCÁNER OCR TESSERACT
+   ========================================== */
+.camera-viewer {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 4/3;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.camera-viewer video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+#overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scan-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 75%;
+  height: 45%;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.35);
+}
+
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(to right, transparent, #00ff00, transparent);
+  animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+/* ESTADOS DE MENSAJES Y NOTIFICACIONES */
+.status-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.status-message {
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.status-info {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border-left: 4px solid #1a73e8;
+}
+
+.status-success {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border-left: 4px solid #2d9248;
+}
+
+.status-error {
+  background: #ffebee;
+  color: #b71c1c;
+  border-left: 4px solid #d33426;
+}
+
+.status-loading {
+  background: #fff3e0;
+  color: #e65100;
+  border-left: 4px solid #ff9800;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.detected-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  border: 1px dashed #ccc;
+}
+
+.detected-number .label {
+  font-weight: 600;
+  color: #666;
+}
+
+.detected-number .value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1a73e8;
+  font-family: 'Courier New', monospace;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* CARDS DE RESULTADOS */
+.result-card {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  background-color: #ffffff;
+}
+
+.result-card.success {
+  border-color: #2d9248;
+}
+
+.result-card.error {
+  border-color: #d33426;
+}
+
+.result-header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.result-card.success .result-header {
+  background: #e8f5e9;
+}
+
+.result-card.error .result-header {
+  background: #ffebee;
+}
+
+.result-header .icon {
+  font-size: 1.5rem;
+}
+
+.result-header h4 {
+  margin: 0;
+  font-weight: 700;
+}
+
+.result-body {
+  padding: 20px;
+}
+
+.result-row {
+  display: flex;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.result-row:last-child {
+  border-bottom: none;
+}
+
+.result-row .label {
+  font-weight: 600;
+  min-width: 180px;
+  color: #666;
+}
+
+.result-row .value {
+  flex: 1;
+}
+
+.result-row .value.highlight {
+  font-weight: 700;
+  color: #1a73e8;
+}
+
+/* HISTORIAL */
+.history-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-bottom: 1px solid #f0f0f0;
+  border-radius: 6px;
+  margin-bottom: 5px;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.history-item.found {
+  background: #f1f8e9;
+  border-left: 4px solid #2d9248;
+}
+
+.history-item.not-found {
+  background: #fce4ec;
+  border-left: 4px solid #d33426;
+}
+
+.history-icon {
+  font-size: 1.2rem;
+}
+
+.history-number {
+  font-weight: 700;
+  color: #333;
+  min-width: 60px;
+}
+
+.history-desc {
+  flex: 1;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.history-date {
+  font-size: 0.8rem;
+  color: #999;
+}
 </style>

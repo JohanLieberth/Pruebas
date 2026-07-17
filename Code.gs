@@ -249,6 +249,67 @@ function registrarBitacora(accion, noInv, detalle, usuarioOverride) {
 }
 
 /**
+ * Busca un número de inventario en la hoja de cálculo
+ * @param {string} numeroInventario - Número a buscar
+ * @returns {Object} Datos del inventario o null si no se encuentra
+ */
+function buscarPorNumeroInventario(numeroInventario) {
+  try {
+    if (!numeroInventario || String(numeroInventario).trim() === '') {
+      return null;
+    }
+
+    // Buscar usando nuestra función robusta existente
+    const articulo = buscarPorNoInv(String(numeroInventario).trim());
+    if (articulo) {
+      return {
+        numero: articulo["No. INV."],
+        descripcion: articulo["DESCRIPCION"] || "",
+        ubicacion: articulo["UBICACION_REAL"] || articulo["UBICACION"] || "",
+        cantidad: 1,
+        observaciones: "Resguardante real: " + (articulo["RESGUARDANTE_REAL"] || articulo["RESGUARDADO"] || "N/A"),
+        fila: articulo._sheetRowIndex
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error en buscarPorNumeroInventario:', error);
+    return null;
+  }
+}
+
+/**
+ * Limpia el número de inventario (elimina caracteres no numéricos)
+ * @param {string} numero - Número a limpiar
+ * @returns {string} Número limpio
+ */
+function limpiarNumeroInventario(numero) {
+  if (!numero) return '';
+  return String(numero).replace(/[^0-9]/g, '');
+}
+
+/**
+ * Obtiene todo el inventario (para búsquedas avanzadas)
+ */
+function obtenerTodoInventario() {
+  try {
+    const listado = listarArticulos();
+    return listado.map(item => ({
+      numero: item["No. INV."],
+      descripcion: item["DESCRIPCION"] || "",
+      ubicacion: item["UBICACION_REAL"] || item["UBICACION"] || "",
+      cantidad: 1,
+      observaciones: "Resguardante real: " + (item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "N/A"),
+      fila: item._sheetRowIndex
+    }));
+  } catch (error) {
+    console.error('Error al obtener todo el inventario:', error);
+    return [];
+  }
+}
+
+/**
  * Procesa una imagen capturada en base64 para extraer el número de inventario mediante OCR simulado
  * @param {string} base64Image - Imagen en formato base64
  * @return {Object} Resultado del procesamiento
