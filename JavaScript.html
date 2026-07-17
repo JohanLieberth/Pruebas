@@ -1572,40 +1572,47 @@ function limpiarFiltrosCompleto() {
 let currentQrInstance = null;
 let currentQrItem = null;
 
-function abrirGeneradorQR(noInv) {
-  // Buscar el artículo en nuestro listado completo cargado localmente
-  const item = listadoCompleto.find(i => i["No. INV."] === noInv);
-  if (!item) {
-    mostrarAlerta("No se encontró la información del artículo.", "danger");
-    return;
-  }
-
-  currentQrItem = item;
-
-  // Rellenar información visual en el modal
-  document.getElementById("qr-info-no-inv").textContent = item["No. INV."] || "";
-  document.getElementById("qr-info-desc").textContent = item["DESCRIPCION"] || "Sin descripción";
-  document.getElementById("qr-info-serie").textContent = "Serie: " + (item["SERIE"] || "N/A");
-
-  // Limpiar el contenedor del QR anterior
-  const qrContainer = document.getElementById("qr-code-element");
-  qrContainer.innerHTML = "";
-
-  // Construir JSON compacto con la información del artículo
-  const compactPayload = {
-    no_inv: item["No. INV."],
-    desc: (item["DESCRIPCION"] || "").substring(0, 50),
-    serie: item["SERIE"] || "",
-    marca: item["MARCA"] || "",
-    modelo: item["MODELO"] || "",
-    estado: item["ESTADO_REAL"] || item["ESTADO"] || "BUENO",
-    ubicacion: item["UBICACION_REAL"] || item["UBICACION"] || ""
-  };
-
-  const payloadString = JSON.stringify(compactPayload);
-
-  // Crear el nuevo código QR (mínimo 200x200px)
+/**
+ * Función auxiliar para renderizar el código QR y abrir el modal con la información de un artículo.
+ * @param {Object} item - El objeto del artículo con sus propiedades.
+ */
+function renderizarQRConItem(item) {
   try {
+    // Validar de manera proactiva que el artículo y sus datos esenciales existan
+    if (!item) {
+      mostrarAlerta("No se proporcionó información de artículo válida.", "danger");
+      return;
+    }
+    if (!item["No. INV."] && String(item["No. INV."]).trim() === "") {
+      mostrarAlerta("El artículo seleccionado no contiene un Número de Inventario ('No. INV.') válido.", "danger");
+      return;
+    }
+
+    currentQrItem = item;
+
+    // Rellenar información visual en el modal
+    document.getElementById("qr-info-no-inv").textContent = item["No. INV."] || "";
+    document.getElementById("qr-info-desc").textContent = item["DESCRIPCION"] || "Sin descripción";
+    document.getElementById("qr-info-serie").textContent = "Serie: " + (item["SERIE"] || "N/A");
+
+    // Limpiar el contenedor del QR anterior
+    const qrContainer = document.getElementById("qr-code-element");
+    qrContainer.innerHTML = "";
+
+    // Construir JSON compacto con la información del artículo para codificar en el QR
+    const compactPayload = {
+      no_inv: item["No. INV."],
+      desc: (item["DESCRIPCION"] || "").substring(0, 50),
+      serie: item["SERIE"] || "",
+      marca: item["MARCA"] || "",
+      modelo: item["MODELO"] || "",
+      estado: item["ESTADO_REAL"] || item["ESTADO"] || "BUENO",
+      ubicacion: item["UBICACION_REAL"] || item["UBICACION"] || ""
+    };
+
+    const payloadString = JSON.stringify(compactPayload);
+
+    // Crear el nuevo código QR (mínimo de 200x200px) utilizando QRCode.js
     currentQrInstance = new QRCode(qrContainer, {
       text: payloadString,
       width: 200,
@@ -1614,15 +1621,62 @@ function abrirGeneradorQR(noInv) {
       colorLight: "#ffffff",
       correctLevel: QRCode.CorrectLevel.M
     });
-  } catch (error) {
-    console.error("Error creando el código QR:", error);
-    qrContainer.innerHTML = "<p class='text-danger'>Error al generar el QR. Por favor intente de nuevo.</p>";
-  }
 
-  // Abrir el modal de Bootstrap
-  const modalEl = document.getElementById("modal-generar-qr");
-  const modalInstance = new bootstrap.Modal(modalEl);
-  modalInstance.show();
+    // Abrir el modal de Bootstrap
+    const modalEl = document.getElementById("modal-generar-qr");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error en renderizarQRConItem:", error);
+    mostrarAlerta("Error al renderizar el código QR: " + error.message, "danger");
+  }
+}
+
+/**
+ * Función principal para generar el código QR de un artículo desde el listado.
+ * Implementa búsqueda local robusta e inmune a discrepancias de tipos de datos,
+ * fallback automático de consulta en tiempo real al servidor en caso de caché vacía o desincronizada,
+ * y control defensivo de excepciones.
+ * @param {string|number} noInv - Número de inventario del artículo seleccionado.
+ */
+function abrirGeneradorQR(noInv) {
+  try {
+    if (!noInv || String(noInv).trim() === "") {
+      mostrarAlerta("Número de inventario inválido o vacío.", "danger");
+      return;
+    }
+
+    // Convertir el parámetro a string para una comparación 100% robusta
+    const searchVal = String(noInv).trim().toLowerCase();
+
+    // Buscar artículo en caché local listadoCompleto
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (item) {
+      renderizarQRConItem(item);
+    } else {
+      // Fallback: Si el artículo no está en caché, solicitar los datos frescos al servidor en tiempo real
+      showLoader("Buscando artículo en el servidor...");
+      google.script.run
+        .withSuccessHandler(function(serverItem) {
+          hideLoader();
+          if (serverItem) {
+            renderizarQRConItem(serverItem);
+          } else {
+            mostrarAlerta("No se encontró ningún artículo con el No. INV. '" + noInv + "' en la base de datos de Google Sheets.", "danger");
+          }
+        })
+        .withFailureHandler(function(error) {
+          hideLoader();
+          console.error("Error en google.script.run.buscarPorNoInv:", error);
+          mostrarAlerta("Error al buscar artículo en el servidor: " + error.message, "danger");
+        })
+        .buscarPorNoInv(noInv);
+    }
+  } catch (error) {
+    console.error("Error en abrirGeneradorQR:", error);
+    mostrarAlerta("Ocurrió un error inesperado al procesar la generación de código QR: " + error.message, "danger");
+  }
 }
 
 function descargarLabelQRPNG() {
