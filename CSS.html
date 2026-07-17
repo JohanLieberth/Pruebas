@@ -608,4 +608,29 @@ body {
   font-size: 0.8rem;
   color: #999;
 }
+
+/* ==========================================
+   ESTILOS DE IMPRESIÓN PARA ETIQUETAS QR
+   ========================================== */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #print-label-container, #print-label-container * {
+    visibility: visible !important;
+  }
+  #print-label-container {
+    position: absolute !important;
+    left: 50% !important;
+    top: 30% !important;
+    transform: translate(-50%, -50%) !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background-color: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
 </style>

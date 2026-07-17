@@ -157,6 +157,59 @@ function include(filename) {
 }
 
 /**
+ * Obtiene y cachea el contenido de un archivo CSS externo para evitar bloqueos CSP y acelerar la carga.
+ * Soporta cacheo en múltiples chunks para esquivar el límite de 100KB de Google CacheService.
+ */
+function getExternalCss(url) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const cacheKey = url.replace(/[^a-zA-Z0-9]/g, "").substring(0, 200);
+
+    // Intentar reconstruir desde caché multi-chunk
+    const chunk1 = cache.get(cacheKey + "_c1");
+    const chunk2 = cache.get(cacheKey + "_c2");
+
+    if (chunk1 && chunk2) {
+      return chunk1 + chunk2;
+    } else if (chunk1 && !url.includes("bootstrap")) {
+      return chunk1;
+    }
+
+    // Si no está en caché, realizar la petición HTTP
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (response.getResponseCode() === 200) {
+      let cssContent = response.getContentText();
+
+      // Corregir referencias de rutas relativas de FontAwesome a URLs absolutas CDN
+      if (url.includes("font-awesome")) {
+        cssContent = cssContent.replace(/url\(\.\.\/webfonts\//g, "url(https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/");
+      }
+
+      // Dividir en chunks de 90KB y guardar en caché por 6 horas (21600 segundos)
+      const chunkSize = 90 * 1024;
+      if (cssContent.length <= chunkSize) {
+        cache.put(cacheKey + "_c1", cssContent, 21600);
+      } else {
+        const c1 = cssContent.substring(0, chunkSize);
+        const c2 = cssContent.substring(chunkSize);
+        cache.put(cacheKey + "_c1", c1, 21600);
+
+        if (c2.length <= chunkSize) {
+          cache.put(cacheKey + "_c2", c2, 21600);
+        } else {
+          cache.put(cacheKey + "_c2", c2.substring(0, chunkSize), 21600);
+          cache.put(cacheKey + "_c3", c2.substring(chunkSize), 21600);
+        }
+      }
+      return cssContent;
+    }
+  } catch (e) {
+    console.error("Error al obtener o cachear CSS externo inline: " + url, e);
+  }
+  return "/* Error al inyectar inline " + url + " */";
+}
+
+/**
  * Obtiene el email de la sesión activa.
  * Si no está disponible (debido a la configuración del despliegue), retorna un string vacío.
  */
