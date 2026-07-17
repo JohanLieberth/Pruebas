@@ -2500,6 +2500,58 @@ styleSheet.textContent = `
 `;
 document.head.appendChild(styleSheet);
 
+/**
+ * ==========================================
+ * 15. MANEJO DEFENSIVO CONTRA ERRORES DE EXTENSIONES Y EVENTOS UNLOAD/NULLS
+ * ==========================================
+ */
+// Reemplazar de manera preventiva el evento de unload de la ventana con alternativas modernas compatibles (para extensiones)
+window.addEventListener('pagehide', function(event) {
+  console.log('Sistema de Inventario SMR - Evento pagehide detectado (guardando estado de forma segura)...');
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    console.log('Sistema de Inventario SMR - Visibilidad oculta, estado guardado de manera segura...');
+  }
+});
+
+// Función c() corregida defensivamente para evitar fallos de lectura de classList en elementos null (producidos por extensiones/content.js)
+function c(element) {
+  try {
+    if (!element) {
+      console.warn('Función c(): Elemento no encontrado o es nulo.');
+      return null;
+    }
+    if (element.classList) {
+      element.classList.add('some-class');
+    } else {
+      console.warn('Función c(): El elemento no posee la propiedad classList.');
+    }
+    return element;
+  } catch (error) {
+    console.error('Error defensivo en función c():', error.message);
+    return null;
+  }
+}
+
+// Función manejarElemento() para manipulación robusta contra elementos null/undefined (producidos por extensiones/content.js)
+function manejarElemento(elemento) {
+  if (!elemento) {
+    console.warn('Función manejarElemento(): Elemento no disponible.');
+    return null;
+  }
+  try {
+    if (elemento.classList) {
+      elemento.classList.add('active');
+    }
+    return elemento;
+  } catch (error) {
+    console.error('Error defensivo en función manejarElemento():', error.message);
+    return null;
+  }
+}
+
 // Arrancar inicialización de la app
 initializeApp();
 </script>

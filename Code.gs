@@ -54,9 +54,6 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL) // Permitir visualización en iframe con compatibilidad extendida
       .addMetaTag("viewport", "width=device-width, initial-scale=1");
 
-    // Agregar políticas de permisos para mejorar acceso a cámara
-    htmlOutput.addMetaTag("referrer", "no-referrer");
-
     return htmlOutput;
   } catch (error) {
     // Manejo robusto de errores de inicio para evitar pantallas en blanco
