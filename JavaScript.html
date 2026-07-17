@@ -17,6 +17,57 @@ let xlsxMapeadoTemp = []; // Datos de Excel listos para subir
 let ubicacionesUnicas = []; // Ubicaciones cargadas dinámicamente para filtros
 let webAppUrl = ""; // URL de la Web App obtenida de manera dinámica
 
+// ============================================
+// FUNCIÓN DE ESTADO UNIFICADA (SOLUCIÓN DEL ERROR)
+// ============================================
+
+/**
+ * Función unificada para actualizar el estado en la UI
+ * Esta función reemplaza a 'updateStatus' que no estaba definida
+ * @param {string} mensaje - Mensaje a mostrar
+ * @param {string} tipo - Tipo de mensaje: 'info', 'success', 'error', 'loading'
+ */
+function updateStatus(mensaje, tipo = 'info') {
+  console.log(`[Status] ${tipo.toUpperCase()}: ${mensaje}`);
+
+  const estadoDiv = document.getElementById('estadoCamara') || document.getElementById('status-message');
+  if (!estadoDiv) {
+    console.warn('Elemento de estado no encontrado en el DOM');
+    return;
+  }
+
+  // Remover clases anteriores
+  estadoDiv.className = 'status-message text-xs mt-2 border-start border-3 border-info ps-2 text-start';
+
+  // Agregar clase según tipo
+  const clases = {
+    'success': 'status-success text-success border-success',
+    'error': 'status-error text-danger border-danger',
+    'loading': 'status-loading text-warning border-warning',
+    'info': 'status-info text-info border-info'
+  };
+
+  const clase = clases[tipo] || 'status-info';
+  estadoDiv.classList.add(clase);
+
+  // Actualizar texto
+  estadoDiv.textContent = mensaje;
+
+  // Si hay un elemento de estado alternativo, actualizarlo también
+  const estadoAlternativo = document.getElementById('estado');
+  if (estadoAlternativo) {
+    estadoAlternativo.textContent = mensaje;
+  }
+}
+
+// Crear alias de compatibilidad global
+window.updateStatus = updateStatus;
+window.updateStatusAlias = updateStatus;
+window.mostrarEstado = updateStatus;
+window.setStatus = updateStatus;
+window.updateUI = updateStatus;
+window.updateUIStatus = updateStatus;
+
 // Al iniciar el documento
 document.addEventListener("DOMContentLoaded", function() {
   // Diagnóstico obligatorio de contexto de ejecución (iframe sandbox de Google)
