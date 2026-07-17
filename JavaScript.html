@@ -23,9 +23,9 @@ let webAppUrl = ""; // URL de la Web App obtenida de manera dinámica
 
 /**
  * Función unificada para actualizar el estado en la UI
- * Esta función reemplaza a 'updateStatus' que no estaba definida
+ * CORREGIDA: Asigna todas las clases mediante className, evitando el error de DOMTokenList
  * @param {string} mensaje - Mensaje a mostrar
- * @param {string} tipo - Tipo de mensaje: 'info', 'success', 'error', 'loading'
+ * @param {string} tipo - Tipo de mensaje: 'info', 'success', 'error', 'warning', 'loading'
  */
 function updateStatus(mensaje, tipo = 'info') {
   console.log(`[Status] ${tipo.toUpperCase()}: ${mensaje}`);
@@ -36,19 +36,21 @@ function updateStatus(mensaje, tipo = 'info') {
     return;
   }
 
-  // Remover clases anteriores
-  estadoDiv.className = 'status-message text-xs mt-2 border-start border-3 border-info ps-2 text-start';
+  let clasesBase = 'status-message text-xs mt-2 border-start border-3 border-info ps-2 text-start';
 
-  // Agregar clase según tipo
-  const clases = {
+  // Mapeo de tipos a clases CSS limpias (sin espacios en tokens de classList)
+  const clasesPorTipo = {
+    'info': 'status-info text-info border-info',
     'success': 'status-success text-success border-success',
     'error': 'status-error text-danger border-danger',
-    'loading': 'status-loading text-warning border-warning',
-    'info': 'status-info text-info border-info'
+    'warning': 'status-warning text-warning border-warning',
+    'loading': 'status-loading text-warning border-warning'
   };
 
-  const clase = clases[tipo] || 'status-info';
-  estadoDiv.classList.add(clase);
+  const claseTipo = clasesPorTipo[tipo] || 'status-info text-info border-info';
+
+  // Asignar todas las clases como string completo a través de className
+  estadoDiv.className = `${clasesBase} ${claseTipo}`;
 
   // Actualizar texto
   estadoDiv.textContent = mensaje;
@@ -60,8 +62,48 @@ function updateStatus(mensaje, tipo = 'info') {
   }
 }
 
+/**
+ * Actualiza el estado con múltiples clases CSS de forma segura
+ * @param {string} mensaje - Mensaje a mostrar
+ * @param {string} tipo - Tipo principal
+ * @param {Array} clasesAdicionales - Array de clases adicionales
+ */
+function updateStatusWithClasses(mensaje, tipo = 'info', clasesAdicionales = []) {
+  console.log(`[Status] ${tipo.toUpperCase()}: ${mensaje}`);
+
+  const estadoDiv = document.getElementById('estadoCamara') || document.getElementById('status-message');
+  if (!estadoDiv) {
+    console.warn('Elemento de estado no encontrado');
+    return;
+  }
+
+  let clases = ['status-message', 'text-xs', 'mt-2', 'border-start', 'border-3', 'ps-2', 'text-start'];
+
+  const clasesPorTipo = {
+    'info': 'status-info',
+    'success': 'status-success',
+    'error': 'status-error',
+    'warning': 'status-warning',
+    'loading': 'status-loading'
+  };
+
+  const claseTipo = clasesPorTipo[tipo] || 'status-info';
+  clases.push(claseTipo);
+
+  if (Array.isArray(clasesAdicionales)) {
+    clases = clases.concat(clasesAdicionales);
+  }
+
+  // Asignar de manera segura
+  estadoDiv.className = clases.join(' ');
+
+  // Actualizar texto
+  estadoDiv.textContent = mensaje;
+}
+
 // Crear alias de compatibilidad global
 window.updateStatus = updateStatus;
+window.updateStatusWithClasses = updateStatusWithClasses;
 window.updateStatusAlias = updateStatus;
 window.mostrarEstado = updateStatus;
 window.setStatus = updateStatus;
