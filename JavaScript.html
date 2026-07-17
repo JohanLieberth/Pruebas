@@ -164,10 +164,29 @@ document.addEventListener("DOMContentLoaded", function() {
  * ==========================================
  */
 function inicializarIdentidadUsuario() {
-  showLoader("Obteniendo información del servidor...");
+  showLoader("Iniciando y obteniendo información del servidor...");
+
+  // Establecer un timeout de respaldo de 6 segundos para ocultar el loader si el servidor tarda o está inactivo
+  const safeTimeout = setTimeout(function() {
+    console.warn("La respuesta del servidor de Apps Script ha tardado más de lo esperado. Ocultando loader preventivamente.");
+    hideLoader();
+    const savedUser = localStorage.getItem("smr_inventario_user");
+    if (savedUser && savedUser.trim().length >= 3) {
+      currentUser = savedUser;
+      guardarUsuarioIdentificado(savedUser, true);
+    } else {
+      const modalEl = document.getElementById("modal-user-identity");
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+  }, 6000);
+
   // Intentar obtener usuario desde Session de Google Apps Script
   google.script.run
     .withSuccessHandler(function(email) {
+      clearTimeout(safeTimeout); // Desactivar timeout de respaldo
       if (email) {
         currentUser = email;
         guardarUsuarioIdentificado(email, false);
@@ -182,12 +201,15 @@ function inicializarIdentidadUsuario() {
           hideLoader();
           // Forzar modal de identificación de usuario
           const modalEl = document.getElementById("modal-user-identity");
-          const modal = new bootstrap.Modal(modalEl);
-          modal.show();
+          if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          }
         }
       }
     })
     .withFailureHandler(function(err) {
+      clearTimeout(safeTimeout); // Desactivar timeout de respaldo
       hideLoader();
       mostrarAlerta("Error al conectar con el servidor: " + err.message, "danger");
       // Intentar recuperar de localStorage si falla conexión inicial
@@ -206,15 +228,20 @@ function guardarUsuarioIdentificado(userName, guardarEnLocal) {
     localStorage.setItem("smr_inventario_user", userName);
   }
 
-  // Actualizar UI
-  document.getElementById("current-user-name").textContent = userName;
-  document.getElementById("active-user-details").textContent = userName;
+  // Actualizar UI con validaciones de existencia para evitar TypeError
+  const nameDisplay = document.getElementById("current-user-name");
+  if (nameDisplay) nameDisplay.textContent = userName;
+
+  const detailsDisplay = document.getElementById("active-user-details");
+  if (detailsDisplay) detailsDisplay.textContent = userName;
 
   // Cerrar modal si estuviera abierto
   const modalEl = document.getElementById("modal-user-identity");
-  const modalInstance = bootstrap.Modal.getInstance(modalEl);
-  if (modalInstance) {
-    modalInstance.hide();
+  if (modalEl) {
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+      modalInstance.hide();
+    }
   }
   hideLoader();
 }
