@@ -1975,8 +1975,8 @@ function startScanner() {
 
 // Función para solicitar acceso físico a la cámara
 function requestCameraAccess() {
-  const videoElement = document.getElementById('scanner-video');
-  const container = document.getElementById('scanner-container');
+  const videoElement = document.getElementById('video');
+  const container = document.getElementById('cameraContainer');
 
   if (!videoElement || !container) {
     updateStatus('❌ Elementos de cámara no encontrados en el DOM', 'error');
@@ -2014,7 +2014,7 @@ function requestCameraAccess() {
             updateStatus('✅ Cámara activa - Listo para capturar', 'success');
 
             // Mostrar y activar botón de captura de foto
-            const captureBtn = document.getElementById('capture-btn');
+            const captureBtn = document.getElementById('btnCapturar');
             if (captureBtn) {
               captureBtn.style.display = 'inline-block';
               captureBtn.disabled = false;
@@ -2117,8 +2117,8 @@ function searchManualEntry() {
 // Capturar frame de cámara y procesar OCR simulado/real
 function captureAndProcess() {
   try {
-    const videoElement = document.getElementById('scanner-video');
-    const canvas = document.getElementById('scanner-canvas');
+    const videoElement = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
 
     if (!videoElement || !canvas) {
       updateStatus('❌ Elementos de captura no disponibles', 'error');
@@ -2332,13 +2332,13 @@ function stopCamera() {
       window.currentStream = null;
     }
 
-    const videoElement = document.getElementById('scanner-video');
+    const videoElement = document.getElementById('video');
     if (videoElement) {
       videoElement.srcObject = null;
       videoElement.pause();
     }
 
-    const container = document.getElementById('scanner-container');
+    const container = document.getElementById('cameraContainer');
     if (container) {
       container.style.display = 'none';
     }
@@ -2350,7 +2350,7 @@ function stopCamera() {
     window.scannerActive = false;
     updateStatus('✅ Cámara detenida', 'info');
 
-    const captureBtn = document.getElementById('capture-btn');
+    const captureBtn = document.getElementById('btnCapturar');
     if (captureBtn) {
       captureBtn.style.display = 'none';
       captureBtn.disabled = true;
@@ -2431,20 +2431,20 @@ function initializeApp() {
 function setupElements() {
   try {
     const elements = {
-      scannerVideo: document.getElementById('scanner-video'),
-      scannerCanvas: document.getElementById('scanner-canvas'),
-      scannerContainer: document.getElementById('scanner-container'),
-      captureBtn: document.getElementById('capture-btn'),
+      scannerVideo: document.getElementById('video'),
+      scannerCanvas: document.getElementById('canvas'),
+      scannerContainer: document.getElementById('cameraContainer'),
+      captureBtn: document.getElementById('btnCapturar'),
       inventoryInput: document.getElementById('inventory-number'),
       searchBtn: document.getElementById('search-btn'),
-      resultsContainer: document.getElementById('results-container'),
-      statusMessage: document.getElementById('status-message')
+      resultsContainer: document.getElementById('resultadoContenido'),
+      statusMessage: document.getElementById('estadoCamara')
     };
 
     // Verificar que todos los elementos existan
     for (const [key, element] of Object.entries(elements)) {
       if (!element) {
-        console.warn(`Elemento ${key} no encontrado en el DOM`);
+        console.warn(`Elemento ${key} no encontrado en el DOM. Creando fallback.`);
         elements[key] = createElement(key);
       }
     }
@@ -2471,12 +2471,12 @@ function setupElements() {
   }
 }
 
-// Función helper para crear elementos faltantes de manera segura
+// Función helper para crear elementos faltantes de manera segura usando IDs reales
 function createElement(elementKey) {
   const elementMap = {
     'scannerVideo': () => {
       const video = document.createElement('video');
-      video.id = 'scanner-video';
+      video.id = 'video';
       video.autoplay = true;
       video.playsinline = true;
       video.style.width = '100%';
@@ -2485,20 +2485,20 @@ function createElement(elementKey) {
     },
     'scannerCanvas': () => {
       const canvas = document.createElement('canvas');
-      canvas.id = 'scanner-canvas';
+      canvas.id = 'canvas';
       canvas.style.display = 'none';
       return canvas;
     },
     'scannerContainer': () => {
       const container = document.createElement('div');
-      container.id = 'scanner-container';
+      container.id = 'cameraContainer';
       container.style.display = 'none';
       container.style.margin = '20px 0';
       return container;
     },
     'captureBtn': () => {
       const btn = document.createElement('button');
-      btn.id = 'capture-btn';
+      btn.id = 'btnCapturar';
       btn.className = 'btn btn-primary';
       btn.textContent = '📸 Capturar Foto';
       btn.style.margin = '10px 5px';
@@ -2520,6 +2520,18 @@ function createElement(elementKey) {
       btn.textContent = '🔍 Buscar';
       btn.style.margin = '10px 5px';
       return btn;
+    },
+    'resultsContainer': () => {
+      const div = document.createElement('div');
+      div.id = 'resultadoContenido';
+      div.className = 'result-content';
+      return div;
+    },
+    'statusMessage': () => {
+      const div = document.createElement('div');
+      div.id = 'estadoCamara';
+      div.className = 'status-message';
+      return div;
     }
   };
 
