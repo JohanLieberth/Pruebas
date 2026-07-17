@@ -1599,18 +1599,10 @@ function renderizarQRConItem(item) {
     const qrContainer = document.getElementById("qr-code-element");
     qrContainer.innerHTML = "";
 
-    // Construir JSON compacto con la información del artículo para codificar en el QR
-    const compactPayload = {
-      no_inv: item["No. INV."],
-      desc: (item["DESCRIPCION"] || "").substring(0, 50),
-      serie: item["SERIE"] || "",
-      marca: item["MARCA"] || "",
-      modelo: item["MODELO"] || "",
-      estado: item["ESTADO_REAL"] || item["ESTADO"] || "BUENO",
-      ubicacion: item["UBICACION_REAL"] || item["UBICACION"] || ""
-    };
-
-    const payloadString = JSON.stringify(compactPayload);
+    // De acuerdo con la Solicitud 1, simplificamos el contenido del código QR
+    // para que exclusivamente codifique el Número de Inventario (ID único del artículo).
+    // Esto optimiza y acelera significativamente el proceso de escaneo interactivo en campo.
+    const payloadString = String(item["No. INV."]).trim();
 
     // Crear el nuevo código QR (mínimo de 200x200px) utilizando QRCode.js
     currentQrInstance = new QRCode(qrContainer, {
