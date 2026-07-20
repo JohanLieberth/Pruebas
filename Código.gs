@@ -8,6 +8,10 @@ function doGet(e) {
   if (page === 'Admin') page = 'Index';
 
   try {
+    // Asegurar que la base de datos y la migración se ejecuten automáticamente
+    setupDatabase();
+    migrarEmpresasExistentes();
+
     return HtmlService.createTemplateFromFile(page)
         .evaluate()
         .setTitle('Mujeres Seguras - Registro de Certificación')
@@ -65,7 +69,8 @@ function setupDatabase() {
     "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
     "Config_Espacios": ["Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps", "Estatus"],
-    "Config_General": ["Clave", "Valor"]
+    "Config_General": ["Clave", "Valor"],
+    "Usuarios": ["Correo", "PasswordHash", "RFC_Asociado", "EsPasswordTemporal", "Activo"]
   };
 
   for (var name in sheets) {
@@ -93,6 +98,161 @@ function validarRFCExistente(rfc) {
     if (data[i][0] === rfc) return true;
   }
   return false;
+}
+
+/**
+ * Valida si un correo electrónico ya existe en la hoja de Usuarios
+ */
+function validarCorreoExistente(correo) {
+  var sheet = getSheetSafe("Usuarios");
+  var data = sheet.getDataRange().getValues();
+  var cClean = String(correo).trim().toLowerCase();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === cClean) return true;
+  }
+  return false;
+}
+
+/**
+ * Genera un hash SHA-256 seguro a partir de una contraseña usando un Salt básico (el correo del usuario)
+ */
+function hashPassword(password, correo) {
+  var salt = String(correo).trim().toLowerCase();
+  var rawInput = password + salt;
+  var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, rawInput, Utilities.Charset.UTF_8);
+  var hexString = "";
+  for (var i = 0; i < rawHash.length; i++) {
+    var hex = (rawHash[i] < 0 ? rawHash[i] + 256 : rawHash[i]).toString(16);
+    if (hex.length === 1) hex = "0" + hex;
+    hexString += hex;
+  }
+  return hexString;
+}
+
+/**
+ * Autentica un usuario con su correo y contraseña
+ */
+function autenticarUsuario(correo, password) {
+  try {
+    var sheet = getSheetSafe("Usuarios");
+    var data = sheet.getDataRange().getValues();
+    var cClean = String(correo).trim().toLowerCase();
+
+    for (var i = 1; i < data.length; i++) {
+      var userCorreo = String(data[i][0]).trim().toLowerCase();
+      if (userCorreo === cClean) {
+        var passwordHash = data[i][1];
+        var rfc = data[i][2];
+        var esTemporal = data[i][3];
+        var activo = data[i][4];
+
+        if (activo !== true && String(activo).toUpperCase() !== "TRUE" && String(activo).toUpperCase() !== "SI" && activo !== 1) {
+          return { success: false, error: "El usuario se encuentra inactivo." };
+        }
+
+        var calculatedHash = hashPassword(password, correo);
+        if (calculatedHash === passwordHash) {
+          // Buscar info de la empresa
+          var userObj = buscarPorRFC(rfc);
+          if (!userObj) {
+            return { success: false, error: "Empresa asociada no encontrada." };
+          }
+          return {
+            success: true,
+            rfc: rfc,
+            correo: userCorreo,
+            nombreEmpresa: userObj.nombreEmpresa,
+            folio: userObj.folio,
+            esPasswordTemporal: (esTemporal === true || String(esTemporal).toUpperCase() === "TRUE" || esTemporal === 1 || String(esTemporal).trim() === "SI")
+          };
+        } else {
+          return { success: false, error: "Contraseña incorrecta." };
+        }
+      }
+    }
+    return { success: false, error: "El correo electrónico no está registrado." };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Cambia la contraseña temporal de un usuario por primera vez
+ */
+function cambiarContrasenaTemporal(correo, nuevaPassword) {
+  try {
+    var sheet = getSheetSafe("Usuarios");
+    var data = sheet.getDataRange().getValues();
+    var cClean = String(correo).trim().toLowerCase();
+
+    for (var i = 1; i < data.length; i++) {
+      var userCorreo = String(data[i][0]).trim().toLowerCase();
+      if (userCorreo === cClean) {
+        var newHash = hashPassword(nuevaPassword, correo);
+        sheet.getRange(i + 1, 2).setValue(newHash); // Update PasswordHash
+        sheet.getRange(i + 1, 4).setValue("FALSE"); // EsPasswordTemporal = false
+        return { success: true };
+      }
+    }
+    return { success: false, error: "Usuario no encontrado." };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Realiza la migración de empresas existentes a la hoja Usuarios,
+ * asignándoles el correo registrado en la empresa y un password temporal (el RFC).
+ */
+function migrarEmpresasExistentes() {
+  try {
+    var sheetEmp = getSheetSafe("Empresas");
+    var empData = sheetEmp.getDataRange().getValues();
+
+    var sheetUser = getSheetSafe("Usuarios");
+    var userRange = sheetUser.getDataRange();
+    var userData = userRange.getValues();
+
+    var registeredRFCs = {};
+    for (var i = 1; i < userData.length; i++) {
+      var rfc = String(userData[i][2]).trim().toUpperCase();
+      if (rfc) {
+        registeredRFCs[rfc] = true;
+      }
+    }
+
+    var migratedCount = 0;
+    for (var j = 1; j < empData.length; j++) {
+      var rfc = String(empData[j][0]).trim().toUpperCase();
+      var correo = String(empData[j][3]).trim();
+
+      if (rfc && correo && !registeredRFCs[rfc]) {
+        // Si el correo ya está en uso por otro usuario, usamos un sufijo o lo omitimos para evitar colisiones
+        var correoFinal = correo;
+        if (validarCorreoExistente(correoFinal)) {
+          correoFinal = rfc.toLowerCase() + "@mujeresseguras.tmp";
+        }
+
+        // Generar password temporal que es el mismo RFC (en minúsculas por simplicidad)
+        var tempPassword = rfc.toLowerCase();
+        var pHash = hashPassword(tempPassword, correoFinal);
+
+        sheetUser.appendRow([
+          correoFinal,
+          pHash,
+          rfc,
+          "TRUE", // EsPasswordTemporal
+          "TRUE"  // Activo
+        ]);
+        migratedCount++;
+      }
+    }
+    if (migratedCount > 0) {
+      console.log("Migración completada. Registros migrados: " + migratedCount);
+    }
+  } catch (e) {
+    console.error("Error durante migración: " + e.toString());
+  }
 }
 
 /**
@@ -126,6 +286,10 @@ function procesarRegistro(data) {
       throw new Error("El RFC ya se encuentra registrado.");
     }
 
+    if (validarCorreoExistente(data.empresa.correo)) {
+      throw new Error("El correo electrónico ya se encuentra registrado.");
+    }
+
     var folio = generarFolio();
     var fecha = new Date();
 
@@ -139,6 +303,17 @@ function procesarRegistro(data) {
       fecha,
       "Pendiente",
       JSON.stringify(data.compromisos)
+    ]);
+
+    // Crear Usuario de acceso
+    var sheetUser = getSheetSafe("Usuarios");
+    var hashedPass = hashPassword(data.empresa.password, data.empresa.correo);
+    sheetUser.appendRow([
+      data.empresa.correo,
+      hashedPass,
+      data.empresa.rfc,
+      "FALSE", // EsPasswordTemporal = false (lo asignó el usuario)
+      "TRUE"   // Activo
     ]);
 
     var firstSucursalId = "";

@@ -4,6 +4,12 @@
 
   // --- Navegación ---
   function showSection(id) {
+    // Control de sesión: evitar acceder al dashboard si no está autenticado
+    if (id === 'user-dashboard' && !currentUser) {
+      alert("Acceso no autorizado. Por favor inicie sesión.");
+      showWelcome();
+      return;
+    }
     var sections = document.querySelectorAll('.step-section');
     for (var i = 0; i < sections.length; i++) {
       sections[i].classList.remove('active');
@@ -147,7 +153,10 @@
     currentUser = null;
     window.idPlanActualizar = null;
     document.getElementById('registroForm').reset();
-    document.getElementById('login-rfc').value = '';
+    if (document.getElementById('login-correo')) document.getElementById('login-correo').value = '';
+    if (document.getElementById('login-password')) document.getElementById('login-password').value = '';
+    if (document.getElementById('change-new-password')) document.getElementById('change-new-password').value = '';
+    if (document.getElementById('change-confirm-password')) document.getElementById('change-confirm-password').value = '';
     document.getElementById('plan-detalle').value = '';
     document.getElementById('plan-archivo').value = '';
     document.getElementById('sucursales-container').innerHTML = '';
@@ -164,14 +173,30 @@
 
     if (current === 1) {
       var rfc = document.getElementById('reg-rfc').value;
+      var correo = document.getElementById('reg-correo').value;
       showLoader(true);
+
       google.script.run
         .withSuccessHandler(function(exists) {
-          showLoader(false);
           if (exists) {
+            showLoader(false);
             alert('Este RFC ya está registrado. Si desea actualizar datos, use la opción "Continuar Registro".');
           } else {
-            transitionToStep(2);
+            // Validar que el correo tampoco exista
+            google.script.run
+              .withSuccessHandler(function(correoExists) {
+                showLoader(false);
+                if (correoExists) {
+                  alert('Este correo electrónico ya está registrado. Por favor use otro o acceda a su cuenta.');
+                } else {
+                  transitionToStep(2);
+                }
+              })
+              .withFailureHandler(function(err) {
+                showLoader(false);
+                alert("Error de conexión: " + err);
+              })
+              .validarCorreoExistente(correo);
           }
         })
         .withFailureHandler(function(err) {
@@ -407,6 +432,16 @@
         alert("RFC inválido.");
         return false;
       }
+      var password = document.getElementById('reg-password').value;
+      var passwordConfirm = document.getElementById('reg-password-confirm').value;
+      if (password.length < 6) {
+        alert("La contraseña debe tener al menos 6 caracteres.");
+        return false;
+      }
+      if (password !== passwordConfirm) {
+        alert("Las contraseñas no coinciden.");
+        return false;
+      }
     }
     if (n === 2) {
       var coordInputs = document.querySelectorAll('.branch-coords');
@@ -458,7 +493,8 @@
         rfc: document.getElementById('reg-rfc').value.toUpperCase(),
         nombreEmpresa: document.querySelector('input[name="nombreEmpresa"]').value,
         telefono: document.querySelector('input[name="telefono"]').value,
-        correo: document.querySelector('input[name="correo"]').value
+        correo: document.querySelector('input[name="correo"]').value,
+        password: document.getElementById('reg-password').value
       },
       sucursales: [],
       compromisos: []
@@ -572,26 +608,75 @@
     window.selectedCourseInfo = { nombre: nombre, fecha: fecha, hora: hora, sede: sede };
   }
 
-  // --- Acceso Posterior ---
-  function accederPorRFC() {
-    var rfc = document.getElementById('login-rfc').value.toUpperCase();
-    if (!rfc) return alert("Ingrese un RFC");
+  // --- Acceso Posterior (Correo y Contraseña) ---
+  function accederPorCorreo() {
+    var correo = document.getElementById('login-correo').value.trim();
+    var contrasena = document.getElementById('login-password').value;
+    if (!correo || !contrasena) return alert("Por favor complete todos los campos.");
     showLoader(true);
 
     google.script.run
-      .withSuccessHandler(function(user) {
-        if (user) {
-          currentUser = user;
-          document.getElementById('dash-empresa').innerText = user.nombreEmpresa;
-          document.getElementById('dash-folio').innerText = user.folio;
+      .withSuccessHandler(function(res) {
+        if (res.success) {
+          // Si tiene password temporal, obligar a cambiarla
+          if (res.esPasswordTemporal) {
+            showLoader(false);
+            window.correoCambioPassword = res.correo;
+            showSection('change-password-section');
+          } else {
+            currentUser = res;
+            document.getElementById('dash-empresa').innerText = res.nombreEmpresa;
+            document.getElementById('dash-folio').innerText = res.folio;
 
-          cargarUbicacionesDropdown(user.rfc);
-          cargarHistorialPlanes(user.rfc);
-          cargarProgresoCapacitacion(user.rfc);
-        } else { showLoader(false); alert("RFC no encontrado."); }
+            cargarUbicacionesDropdown(res.rfc);
+            cargarHistorialPlanes(res.rfc);
+            cargarProgresoCapacitacion(res.rfc);
+          }
+        } else {
+          showLoader(false);
+          alert("Error de acceso: " + res.error);
+        }
       })
-      .withFailureHandler(function(err) { showLoader(false); alert(err); })
-      .buscarPorRFC(rfc);
+      .withFailureHandler(function(err) {
+        showLoader(false);
+        alert("Error de conexión: " + err);
+      })
+      .autenticarUsuario(correo, contrasena);
+  }
+
+  function guardarNuevaContrasena() {
+    var nueva = document.getElementById('change-new-password').value;
+    var confirm = document.getElementById('change-confirm-password').value;
+    if (nueva.length < 6) return alert("La contraseña debe tener al menos 6 caracteres.");
+    if (nueva !== confirm) return alert("Las contraseñas no coinciden.");
+
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res.success) {
+          alert("Contraseña actualizada correctamente. Por favor inicie sesión con su nueva contraseña.");
+          resetApp();
+        } else {
+          showLoader(false);
+          alert("Error: " + res.error);
+        }
+      })
+      .withFailureHandler(function(err) {
+        showLoader(false);
+        alert("Error: " + err);
+      })
+      .cambiarContrasenaTemporal(window.correoCambioPassword, nueva);
+  }
+
+  function accederPorRFC() {
+    // Mantener compatibilidad interna si se llama en algún flujo secundario
+    if (currentUser) {
+      document.getElementById('dash-empresa').innerText = currentUser.nombreEmpresa;
+      document.getElementById('dash-folio').innerText = currentUser.folio;
+      cargarUbicacionesDropdown(currentUser.rfc);
+      cargarHistorialPlanes(currentUser.rfc);
+      cargarProgresoCapacitacion(currentUser.rfc);
+    }
   }
 
   function cargarProgresoCapacitacion(rfc) {
