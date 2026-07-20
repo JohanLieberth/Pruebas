@@ -1077,6 +1077,157 @@
   </div>
 
 
+  <!-- ================= MODAL VER DETALLE COMPLETO (READ-ONLY) ================= -->
+  <div class="modal fade" id="modal-ver-detalle" tabindex="-1" aria-labelledby="modalDetalleTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold" id="modalDetalleTitle"><i class="fa-solid fa-eye me-2 text-primary"></i>Detalle Completo del Artículo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <!-- Galería de fotos del artículo -->
+            <div class="col-md-5 col-12 text-center border-end pe-md-4">
+              <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-images me-1"></i>Galería del Bien</h6>
+              <div id="detalle-fotos-carousel" class="border rounded bg-light p-2 mb-2 d-flex flex-column align-items-center justify-content-center" style="min-height: 200px;">
+                <!-- Se llena dinámicamente con las fotos o un placeholder -->
+              </div>
+            </div>
+
+            <!-- Datos tabulados del artículo -->
+            <div class="col-md-7 col-12">
+              <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-circle-info me-1"></i>Especificaciones del Artículo</h6>
+              <div class="table-responsive">
+                <table class="table table-sm table-striped small align-middle mb-0 text-dark">
+                  <tbody>
+                    <tr><td class="fw-bold" style="width: 35%;">No. INV.</td><td id="det-no-inv" class="text-primary fw-bold"></td></tr>
+                    <tr><td class="fw-bold">No. Correlativo</td><td id="det-no"></td></tr>
+                    <tr><td class="fw-bold">Descripción</td><td id="det-descripcion"></td></tr>
+                    <tr><td class="fw-bold">Serie</td><td id="det-serie"></td></tr>
+                    <tr><td class="fw-bold">Modelo</td><td id="det-modelo"></td></tr>
+                    <tr><td class="fw-bold">Marca</td><td id="det-marca"></td></tr>
+                    <tr><td class="fw-bold">Estado (Patrimonio)</td><td><span id="det-estado" class="badge"></span></td></tr>
+                    <tr><td class="fw-bold">Ubicación (Patri.)</td><td id="det-ubicacion"></td></tr>
+                    <tr><td class="fw-bold">Resguardado</td><td id="det-resguardado"></td></tr>
+                    <tr><td class="fw-bold">Importe</td><td id="det-importe" class="fw-bold text-success"></td></tr>
+                    <tr><td class="fw-bold">Estado Real</td><td><span id="det-estado-real" class="badge"></span></td></tr>
+                    <tr><td class="fw-bold">Ubicación Real</td><td id="det-ubicacion-real" class="fw-bold"></td></tr>
+                    <tr><td class="fw-bold">Resguardante Real</td><td id="det-resguardante-real" class="fw-bold"></td></tr>
+                    <tr><td class="fw-bold">Último Cambio</td><td id="det-actualizacion" class="text-secondary"></td></tr>
+                    <tr><td class="fw-bold">Usuario Operador</td><td id="det-operador" class="text-secondary fw-semibold"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">Entendido / Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= MODAL MOVER / TRASLADAR (TOUCH-FRIENDLY QUICK REASSIGNMENT) ================= -->
+  <div class="modal fade" id="modal-trasladar" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalTrasladarTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold" id="modalTrasladarTitle"><i class="fa-solid fa-arrow-right-arrow-left me-2 text-primary"></i>Trasladar / Mover Artículo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="form-trasladar-articulo" onsubmit="event.preventDefault(); guardarTrasladoArticulo();">
+          <div class="modal-body p-4 text-dark">
+            <input type="hidden" id="trasladar-no-inv">
+
+            <div class="bg-light p-3 rounded border-start border-4 border-primary mb-3">
+              <h6 class="fw-bold mb-1" id="trasladar-lbl-descripcion">Cargando...</h6>
+              <span class="small text-muted">No. INV: <strong id="trasladar-lbl-noinv" class="text-primary"></strong></span>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nueva Ubicación Real <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="trasladar-ubicacion-real" required placeholder="Escriba la nueva ubicación">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nuevo Resguardante Real <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="trasladar-resguardante-real" required placeholder="Escriba el nombre completo">
+            </div>
+
+            <div class="mb-1">
+              <label class="form-label fw-semibold">Nuevo Estado Real <span class="text-danger">*</span></label>
+              <select class="form-select" id="trasladar-estado-real" required>
+                <option value="BUENO">BUENO</option>
+                <option value="REGULAR">REGULAR</option>
+                <option value="MALO">MALO</option>
+                <option value="BAJA">BAJA</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success fw-bold px-4"><i class="fa-solid fa-circle-check me-2"></i>Aplicar Traslado</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= MODAL ADJUNTAR / GESTIONAR FOTOGRAFÍAS (HASTA 3) ================= -->
+  <div class="modal fade" id="modal-fotos" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalFotosTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold" id="modalFotosTitle"><i class="fa-solid fa-camera me-2 text-primary"></i>Fotografías del Bien</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-dark">
+          <input type="hidden" id="fotos-no-inv">
+
+          <div class="bg-light p-3 rounded mb-3 border-start border-4 border-primary">
+            <h6 class="fw-bold mb-1" id="fotos-lbl-descripcion">Cargando...</h6>
+            <span class="small text-muted">No. INV: <strong id="fotos-lbl-noinv" class="text-primary"></strong></span>
+          </div>
+
+          <!-- Listado / miniaturas de fotos subidas -->
+          <h6 class="fw-bold border-bottom pb-1 mb-2"><i class="fa-solid fa-images me-1"></i>Fotos Registradas (Máximo 3)</h6>
+          <div id="fotos-gallery-container" class="row g-2 mb-4 justify-content-center">
+            <!-- Se llena dinámicamente con miniaturas y botones de eliminar -->
+          </div>
+
+          <!-- Formulario para agregar una nueva fotografía -->
+          <div id="fotos-upload-section">
+            <h6 class="fw-bold border-bottom pb-1 mb-2"><i class="fa-solid fa-upload me-1"></i>Agregar Nueva Fotografía</h6>
+            <div class="mb-3">
+              <label for="fotos-file-input" class="form-label small text-muted">Seleccione una imagen (Formatos: PNG, JPG, GIF, WEBP. Máx: 5MB):</label>
+              <input class="form-control" type="file" id="fotos-file-input" accept="image/png, image/jpeg, image/gif, image/webp" onchange="validarYPrevisualizarFotoLocal()">
+            </div>
+
+            <!-- Vista previa local antes de subir -->
+            <div id="fotos-preview-local" class="text-center p-2 border rounded bg-light d-none mb-3">
+              <img id="fotos-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
+              <span class="d-block small text-muted mt-1" id="fotos-preview-info"></span>
+            </div>
+
+            <div class="d-grid">
+              <button type="button" id="btn-fotos-subir" class="btn btn-primary fw-bold" onclick="subirFotoLocalAlServidor()" disabled>
+                <i class="fa-solid fa-cloud-arrow-up me-2"></i>Subir Fotografía a Google Drive
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <!-- ================= MODAL GENERADOR DE ETIQUETA QR COMPACTO ================= -->
   <div class="modal fade" id="modal-generar-qr" tabindex="-1" aria-labelledby="modalQRTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

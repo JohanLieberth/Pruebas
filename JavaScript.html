@@ -967,17 +967,7 @@ function buscarArticulosPorCriterio() {
           <td><span class="${estadoClass}">${estReal}</span></td>
           <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
           <td class="text-center">
-            <div class="btn-group btn-group-sm">
-              <button type="button" class="btn btn-primary" onclick="abrirModalEdicion('${item["No. INV."]}')" title="Modificar / Editar">
-                <i class="fa-solid fa-pen-to-square"></i>
-              </button>
-              <button type="button" class="btn btn-warning" onclick="bajaLogicaBuscar('${item["No. INV."]}')" title="Dar de Baja">
-                <i class="fa-solid fa-ban"></i>
-              </button>
-              <button type="button" class="btn btn-danger" onclick="eliminarFisicoBuscar('${item["No. INV."]}')" title="Eliminar Registro">
-                <i class="fa-solid fa-trash"></i>
-              </button>
-            </div>
+            ${renderizarColumnaAcciones(item["No. INV."])}
           </td>
         `;
         tbody.appendChild(tr);
@@ -1487,20 +1477,7 @@ function renderizarListadoTabla() {
       <td><span class="${estadoClass}">${estReal}</span></td>
       <td class="small text-secondary">${item["ULTIMA_ACTUALIZACION"] || ""}</td>
       <td class="text-center">
-        <div class="btn-group btn-group-sm">
-          <button type="button" class="btn btn-dark" onclick="abrirGeneradorQR('${item["No. INV."]}')" title="Generar QR">
-            <i class="fa-solid fa-qrcode"></i>
-          </button>
-          <button type="button" class="btn btn-primary" onclick="abrirModalEdicion('${item["No. INV."]}')" title="Editar">
-            <i class="fa-solid fa-pen-to-square"></i>
-          </button>
-          <button type="button" class="btn btn-warning" onclick="bajaLogicaListado('${item["No. INV."]}')" title="Dar de Baja">
-            <i class="fa-solid fa-ban"></i>
-          </button>
-          <button type="button" class="btn btn-danger" onclick="eliminarFisicoListado('${item["No. INV."]}')" title="Eliminar Permanente">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
+        ${renderizarColumnaAcciones(item["No. INV."])}
       </td>
     `;
     tbody.appendChild(tr);
@@ -1707,6 +1684,423 @@ function descargarLabelQRPNG() {
 function imprimirLabelQR() {
   // Invocar la impresión del navegador
   window.print();
+}
+
+/**
+ * ==========================================
+ * 7.6 RESPONSIVE ACTIONS & FOTOGRAFÍAS (GOOGLE DRIVE INTEGRATION)
+ * ==========================================
+ */
+
+/**
+ * Renderiza dinámicamente un grupo de acciones responsive (botones con iconos en escritorio, dropdown compacto en móvil)
+ * para un número de inventario específico.
+ */
+function renderizarColumnaAcciones(noInv) {
+  if (!noInv) return "";
+
+  // Escapar comillas para evitar rupturas de string
+  const cleanNoInv = String(noInv).replace(/'/g, "\\'");
+
+  return `
+    <div class="actions-wrapper">
+      <!-- Vista Escritorio y Tablet (Botones compactos circulares en línea horizontal) -->
+      <div class="d-none d-md-flex justify-content-center gap-1">
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEdicion('${cleanNoInv}')" title="✏️ Editar Artículo" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm rounded-circle" onclick="abrirModalVerDetalle('${cleanNoInv}')" title="👁️ Ver Detalle" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+        <button type="button" class="btn btn-outline-success btn-sm rounded-circle" onclick="abrirModalTrasladar('${cleanNoInv}')" title="📋 Mover / Trasladar" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button type="button" class="btn btn-outline-warning btn-sm rounded-circle" onclick="abrirModalFotos('${cleanNoInv}')" title="📎 Fotos del Artículo" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-camera"></i>
+        </button>
+        <button type="button" class="btn btn-outline-dark btn-sm rounded-circle" onclick="abrirGeneradorQR('${cleanNoInv}')" title="📤 Exportar Código QR" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-qrcode"></i>
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-circle" onclick="bajaLogicaListado('${cleanNoInv}')" title="⚠️ Dar de Baja" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-ban"></i>
+        </button>
+      </div>
+
+      <!-- Vista Móvil (Menú desplegableDropdown touch-friendly) -->
+      <div class="d-block d-md-none dropdown">
+        <button class="btn btn-secondary btn-sm dropdown-toggle fw-bold py-1 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fa-solid fa-gears me-1"></i>Acciones
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow">
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalEdicion('${cleanNoInv}')"><i class="fa-solid fa-pen me-2 text-primary"></i>✏️ Editar Artículo</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalVerDetalle('${cleanNoInv}')"><i class="fa-solid fa-eye me-2 text-info"></i>👁️ Ver Detalle</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalTrasladar('${cleanNoInv}')"><i class="fa-solid fa-arrow-right me-2 text-success"></i>📋 Mover / Trasladar</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalFotos('${cleanNoInv}')"><i class="fa-solid fa-camera me-2 text-warning"></i>📎 Gestionar Fotos</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirGeneradorQR('${cleanNoInv}')"><i class="fa-solid fa-qrcode me-2 text-dark"></i>📤 Exportar QR</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item py-2 text-danger fw-bold" href="#" onclick="event.preventDefault(); bajaLogicaListado('${cleanNoInv}')"><i class="fa-solid fa-ban me-2"></i>⚠️ Dar de Baja</a></li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Abre el modal de visualización de detalles completos.
+ */
+function abrirModalVerDetalle(noInv) {
+  try {
+    const searchVal = String(noInv).trim().toLowerCase();
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (!item) {
+      mostrarAlerta("No se pudo cargar el detalle del artículo localmente.", "danger");
+      return;
+    }
+
+    // Rellenar campos del modal
+    document.getElementById("det-no-inv").textContent = item["No. INV."] || "";
+    document.getElementById("det-no").textContent = item["No."] || "";
+    document.getElementById("det-descripcion").textContent = item["DESCRIPCION"] || "";
+    document.getElementById("det-serie").textContent = item["SERIE"] || "";
+    document.getElementById("det-modelo").textContent = item["MODELO"] || "";
+    document.getElementById("det-marca").textContent = item["MARCA"] || "";
+
+    // Badge de estado de patrimonio
+    const badgeEst = document.getElementById("det-estado");
+    const est = item["ESTADO"] || "BUENO";
+    badgeEst.textContent = est;
+    badgeEst.className = "badge " + (est === "BUENO" ? "bg-success" : est === "REGULAR" ? "bg-warning text-dark" : "bg-danger");
+
+    document.getElementById("det-ubicacion").textContent = item["UBICACION"] || "";
+    document.getElementById("det-resguardado").textContent = item["RESGUARDADO"] || "";
+    document.getElementById("det-importe").textContent = "$" + parseFloat(item["IMPORTE"] || 0).toFixed(2);
+
+    // Badge de estado real
+    const badgeEstReal = document.getElementById("det-estado-real");
+    const estReal = item["ESTADO_REAL"] || "BUENO";
+    badgeEstReal.textContent = estReal;
+    badgeEstReal.className = "badge " + (estReal === "BUENO" ? "bg-success" : estReal === "REGULAR" ? "bg-warning text-dark" : "bg-danger");
+
+    document.getElementById("det-ubicacion-real").textContent = item["UBICACION_REAL"] || "";
+    document.getElementById("det-resguardante-real").textContent = item["RESGUARDANTE_REAL"] || "";
+    document.getElementById("det-actualizacion").textContent = item["ULTIMA_ACTUALIZACION"] || "";
+    document.getElementById("det-operador").textContent = item["USUARIO_OPERADOR"] || "Sin registrar";
+
+    // Renderizar galería de fotos
+    const carouselContainer = document.getElementById("detalle-fotos-carousel");
+    carouselContainer.innerHTML = "";
+
+    const fotoIdsStr = item["FOTO_ID"] ? String(item["FOTO_ID"]).trim() : "";
+    const arrayFotos = fotoIdsStr ? fotoIdsStr.split(",") : [];
+
+    if (arrayFotos.length === 0) {
+      carouselContainer.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="fa-solid fa-image fa-3x mb-2 text-light-muted"></i>
+          <p class="small mb-0">No se han adjuntado fotos a este artículo.</p>
+        </div>
+      `;
+    } else {
+      // Mostrar la primera foto grande y miniaturas si hay más
+      let html = `<div class="w-100"><img src="https://docs.google.com/uc?export=view&id=${arrayFotos[0]}" class="img-fluid rounded mb-2 shadow-xs" style="max-height: 180px; object-fit: contain;"></div>`;
+      if (arrayFotos.length > 1) {
+        html += `<div class="d-flex gap-1 justify-content-center">`;
+        arrayFotos.forEach((id, idx) => {
+          html += `<img src="https://docs.google.com/uc?export=view&id=${id}" class="img-thumbnail" style="width: 45px; height: 45px; object-fit: cover; cursor: pointer;" onclick="document.querySelector('#detalle-fotos-carousel img').src = this.src;">`;
+        });
+        html += `</div>`;
+      }
+      carouselContainer.innerHTML = html;
+    }
+
+    const modalEl = document.getElementById("modal-ver-detalle");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al abrir modal detalle:", error);
+  }
+}
+
+/**
+ * Abre el modal para reasignación rápida / traslado de ubicación y resguardo.
+ */
+function abrirModalTrasladar(noInv) {
+  try {
+    const searchVal = String(noInv).trim().toLowerCase();
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (!item) {
+      mostrarAlerta("No se pudo cargar el artículo para el traslado.", "danger");
+      return;
+    }
+
+    document.getElementById("trasladar-no-inv").value = item["No. INV."];
+    document.getElementById("trasladar-lbl-descripcion").textContent = item["DESCRIPCION"] || "";
+    document.getElementById("trasladar-lbl-noinv").textContent = item["No. INV."] || "";
+
+    document.getElementById("trasladar-ubicacion-real").value = item["UBICACION_REAL"] || item["UBICACION"] || "";
+    document.getElementById("trasladar-resguardante-real").value = item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "";
+    document.getElementById("trasladar-estado-real").value = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+
+    const modalEl = document.getElementById("modal-trasladar");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al abrir traslado:", error);
+  }
+}
+
+/**
+ * Guarda los cambios de traslado de un artículo en el servidor.
+ */
+function guardarTrasladoArticulo() {
+  try {
+    const noInv = document.getElementById("trasladar-no-inv").value;
+    const ubicacion = document.getElementById("trasladar-ubicacion-real").value.trim();
+    const resguardante = document.getElementById("trasladar-resguardante-real").value.trim();
+    const estadoReal = document.getElementById("trasladar-estado-real").value;
+
+    if (!ubicacion || !resguardante) {
+      alert("Por favor rellene todos los campos marcados con asterisco (*).");
+      return;
+    }
+
+    // Cerrar modal actual
+    const modalEl = document.getElementById("modal-trasladar");
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) modalInstance.hide();
+
+    showLoader("Procesando traslado de ubicación...");
+
+    // Construir payload de actualización compacto
+    const payload = {
+      "No. INV.": noInv,
+      "UBICACION_REAL": ubicacion,
+      "RESGUARDANTE_REAL": resguardante,
+      "ESTADO_REAL": estadoReal
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          mostrarAlerta("Traslado realizado exitosamente para el artículo: " + noInv, "success");
+          // Forzar recarga completa del listado de inventario
+          cargarListadoInventario();
+        } else {
+          mostrarAlerta("Error al procesar traslado: " + res.message, "danger");
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error del servidor al procesar traslado: " + err.message, "danger");
+      })
+      .actualizarArticulo(payload, currentUser);
+  } catch (error) {
+    hideLoader();
+    console.error("Error en guardarTrasladoArticulo:", error);
+  }
+}
+
+/**
+ * Abre el modal de fotos, cargando el estado actual y listando fotos de Drive.
+ */
+function abrirModalFotos(noInv) {
+  try {
+    const searchVal = String(noInv).trim().toLowerCase();
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (!item) {
+      mostrarAlerta("No se pudo cargar el artículo para gestionar fotos.", "danger");
+      return;
+    }
+
+    document.getElementById("fotos-no-inv").value = item["No. INV."];
+    document.getElementById("fotos-lbl-descripcion").textContent = item["DESCRIPCION"] || "";
+    document.getElementById("fotos-lbl-noinv").textContent = item["No. INV."] || "";
+
+    // Limpiar formulario y vista previa local anterior
+    document.getElementById("fotos-file-input").value = "";
+    document.getElementById("fotos-preview-local").classList.add("d-none");
+    document.getElementById("btn-fotos-subir").disabled = true;
+
+    // Renderizar las fotos existentes de Drive
+    renderizarGaleriaFotosModal(item);
+
+    const modalEl = document.getElementById("modal-fotos");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al abrir modal fotos:", error);
+  }
+}
+
+/**
+ * Renderiza el listado de fotos ya subidas a Drive de un artículo en el modal.
+ */
+function renderizarGaleriaFotosModal(item) {
+  const container = document.getElementById("fotos-gallery-container");
+  container.innerHTML = "";
+
+  const fotoIdsStr = item["FOTO_ID"] ? String(item["FOTO_ID"]).trim() : "";
+  const arrayFotos = fotoIdsStr ? fotoIdsStr.split(",") : [];
+
+  if (arrayFotos.length === 0) {
+    container.innerHTML = `
+      <div class="col-12 text-center py-3 text-muted bg-light border rounded">
+        <i class="fa-solid fa-camera fa-2x mb-1 text-light-muted"></i>
+        <p class="small mb-0">No se han registrado fotografías para este bien.</p>
+      </div>
+    `;
+    // Habilitar sección de subida
+    document.getElementById("fotos-upload-section").style.display = "block";
+  } else {
+    arrayFotos.forEach((id, idx) => {
+      const col = document.createElement("div");
+      col.className = "col-4 text-center position-relative mb-2";
+      col.innerHTML = `
+        <div class="border rounded bg-light p-1 shadow-xs h-100 d-flex flex-column align-items-center justify-content-between">
+          <img src="https://docs.google.com/uc?export=view&id=${id}" class="img-fluid rounded mb-1" style="width: 100%; height: 60px; object-fit: cover;">
+          <button type="button" class="btn btn-outline-danger btn-xs py-0 px-1 font-bold small" onclick="eliminarFotoArticuloJS('${item["No. INV."]}', '${id}')" title="Eliminar Foto" style="font-size: 10px;">
+            <i class="fa-solid fa-trash me-1"></i>Borrar
+          </button>
+        </div>
+      `;
+      container.appendChild(col);
+    });
+
+    // Deshabilitar sección de subida si ya llegamos a 3
+    if (arrayFotos.length >= 3) {
+      document.getElementById("fotos-upload-section").style.display = "none";
+    } else {
+      document.getElementById("fotos-upload-section").style.display = "block";
+    }
+  }
+}
+
+/**
+ * Valida localmente el formato y tamaño del archivo seleccionado por el usuario antes de procesarlo.
+ */
+function validarYPrevisualizarFotoLocal() {
+  const fileInput = document.getElementById("fotos-file-input");
+  const btnSubir = document.getElementById("btn-fotos-subir");
+  const previewDiv = document.getElementById("fotos-preview-local");
+  const previewImg = document.getElementById("fotos-preview-img");
+  const previewInfo = document.getElementById("fotos-preview-info");
+
+  btnSubir.disabled = true;
+  previewDiv.classList.add("d-none");
+
+  if (fileInput.files.length === 0) return;
+
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  const formatosPermitidos = ["png", "jpg", "jpeg", "gif", "webp"];
+  if (formatosPermitidos.indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = "";
+    return;
+  }
+
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = "";
+    return;
+  }
+
+  // Mostrar vista previa local
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+    btnSubir.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Convierte el archivo previsualizado a Base64 y lo envía a Google Drive mediante el servidor de GAS.
+ */
+function subirFotoLocalAlServidor() {
+  const fileInput = document.getElementById("fotos-file-input");
+  if (fileInput.files.length === 0) return;
+
+  const noInv = document.getElementById("fotos-no-inv").value;
+  const file = fileInput.files[0];
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  // Cerrar modal de fotos para dar paso al loader
+  const modalEl = document.getElementById("modal-fotos");
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
+
+  showLoader("Subiendo imagen de evidencia a Google Drive...");
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64Data = e.target.result;
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          mostrarAlerta("Fotografía adjuntada con éxito en Google Drive.", "success");
+
+          // Forzar actualización inmediata del listado local
+          cargarListadoInventario();
+
+          // Reabrir el modal con el listado actualizado después de un breve delay para refrescar
+          setTimeout(() => {
+            abrirModalFotos(noInv);
+          }, 600);
+        } else {
+          mostrarAlerta("Error al subir foto: " + res.message, "danger");
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error de servidor al subir foto: " + err.message, "danger");
+      })
+      .subirFotoArticulo(noInv, base64Data, ext, file.name);
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Solicita la eliminación de una foto en el servidor de GAS.
+ */
+function eliminarFotoArticuloJS(noInv, fileId) {
+  if (!confirm("¿Está seguro de eliminar de forma permanente esta fotografía de evidencia?")) return;
+
+  // Cerrar modal fotos
+  const modalEl = document.getElementById("modal-fotos");
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
+
+  showLoader("Eliminando archivo de Google Drive...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+      if (res.success) {
+        mostrarAlerta("Fotografía eliminada con éxito.", "success");
+        cargarListadoInventario();
+        setTimeout(() => {
+          abrirModalFotos(noInv);
+        }, 600);
+      } else {
+        mostrarAlerta("Error al eliminar fotografía: " + res.message, "danger");
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error de servidor al eliminar fotografía: " + err.message, "danger");
+    })
+    .eliminarFotoArticulo(noInv, fileId);
 }
 
 

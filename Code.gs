@@ -7,7 +7,7 @@
 const SHEET_INVENTARIO = "Inventario";
 const SHEET_BITACORA = "Bitacora";
 
-// Encabezados oficiales de Inventario
+// Encabezados oficiales de Inventario (incluyendo auditoría y fotos para cumplimiento)
 const HEADERS_INVENTARIO = [
   "No.",
   "No. INV.",
@@ -22,8 +22,33 @@ const HEADERS_INVENTARIO = [
   "RESGUARDANTE_REAL",
   "UBICACION_REAL",
   "ESTADO_REAL",
-  "ULTIMA_ACTUALIZACION"
+  "ULTIMA_ACTUALIZACION",
+  "USUARIO_OPERADOR",
+  "FOTO_ID"
 ];
+
+/**
+ * Convierte un email o nombre de usuario en un nombre completo legible para auditoría de operadores.
+ * @param {string} usuario - Identificador del usuario (nombre o email).
+ * @returns {string} Nombre completo formateado y capitalizado.
+ */
+function formatearNombreCompleto(usuario) {
+  if (!usuario) return "Operador Desconocido";
+
+  // Si es un correo electrónico, extraer el prefijo y darle formato
+  if (usuario.indexOf("@") !== -1) {
+    const prefijo = usuario.split("@")[0];
+    const limpio = prefijo.replace(/[\._\-0-9]/g, " ").trim();
+    return limpio.split(" ").map(palabra => {
+      return palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase();
+    }).join(" ");
+  }
+
+  // Si ya es un nombre completo, retornarlo capitalizado
+  return usuario.trim().split(" ").map(palabra => {
+    return palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase();
+  }).join(" ");
+}
 
 // Encabezados oficiales de Bitacora
 const HEADERS_BITACORA = [
@@ -245,6 +270,23 @@ function inicializarBaseDatos() {
         .setFontWeight("bold")
         .setBackground("#1a1a2e")
         .setFontColor("#ffffff");
+    } else {
+      // Auto-migración defensiva: asegurar que existan las nuevas columnas de auditoría y fotos si ya existía la hoja
+      const actualCols = sheetInv.getLastColumn();
+      const actualHeadersRange = sheetInv.getRange(1, 1, 1, actualCols);
+      const actualHeaders = actualHeadersRange.getValues()[0];
+
+      if (actualHeaders.indexOf("USUARIO_OPERADOR") === -1) {
+        // Agregar columna USUARIO_OPERADOR al final de los encabezados
+        sheetInv.getRange(1, actualCols + 1).setValue("USUARIO_OPERADOR")
+          .setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      }
+      if (actualHeaders.indexOf("FOTO_ID") === -1) {
+        // Asegurar que actualColumn se recalcule si ya añadimos USUARIO_OPERADOR
+        const nuevaCols = sheetInv.getLastColumn();
+        sheetInv.getRange(1, nuevaCols + 1).setValue("FOTO_ID")
+          .setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      }
     }
   }
 
@@ -296,6 +338,152 @@ function registrarBitacora(accion, noInv, detalle, usuarioOverride) {
     ]);
   } catch (e) {
     Logger.log("Error al registrar bitácora: " + e.message);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * ==========================================
+ * GOOGLE DRIVE PHOTO INTEGRATION ENDPOINTS
+ * ==========================================
+ */
+
+/**
+ * Obtiene o crea de forma segura la carpeta dedicada en Google Drive para almacenar las fotos de inventario.
+ * @returns {Folder} La carpeta de Google Drive.
+ */
+function obtenerOCrearCarpetaFotos() {
+  const nombreCarpeta = "SMR_Fotos_Inventario";
+  const carpetas = DriveApp.getFoldersByName(nombreCarpeta);
+  if (carpetas.hasNext()) {
+    return carpetas.next();
+  }
+  return DriveApp.createFolder(nombreCarpeta);
+}
+
+/**
+ * Sube una imagen codificada en formato Base64 directamente a Google Drive,
+ * nombrándola con el formato [CÓDIGO_ARTÍCULO]_[FECHA].ext, habilitando acceso público y
+ * guardando la referencia (File ID) en la columna 'FOTO_ID' del artículo (hasta 3 fotos máximas permitidas).
+ * @param {string} noInv - El número de inventario del artículo asociado.
+ * @param {string} base64Data - El string de datos de imagen en formato base64.
+ * @param {string} extension - La extensión del archivo de imagen (png, jpg, jpeg, webp, gif).
+ * @param {string} nombreOriginal - Nombre de archivo original.
+ * @returns {Object} JSON conteniendo estado de éxito, ID del archivo y URL de descarga directa.
+ */
+function subirFotoArticulo(noInv, base64Data, extension, nombreOriginal) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+
+    if (!noInv) throw new Error("No. de inventario inválido.");
+
+    const existente = buscarPorNoInv(noInv);
+    if (!existente) throw new Error("El artículo con No. INV. '" + noInv + "' no existe.");
+
+    // Separar la data base64 de su cabecera si viene tipo data-URI
+    let rawData = base64Data;
+    if (base64Data.indexOf(",") !== -1) {
+      rawData = base64Data.split(",")[1];
+    }
+
+    // Decodificar base64 a blob
+    const decoded = Utilities.base64Decode(rawData);
+
+    // Generar el nombre de archivo solicitado: [CÓDIGO_ARTÍCULO]_[FECHA].ext
+    const fechaStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyyMMdd_HHmmss");
+    const nombreArchivo = `${noInv}_${fechaStr}.${extension}`;
+
+    // Crear el blob con el tipo de mime correcto
+    let mimeType = "image/jpeg";
+    if (extension === "png") mimeType = "image/png";
+    else if (extension === "gif") mimeType = "image/gif";
+    else if (extension === "webp") mimeType = "image/webp";
+
+    const blob = Utilities.newBlob(decoded, mimeType, nombreArchivo);
+
+    // Obtener la carpeta de Drive dedicada
+    const carpeta = obtenerOCrearCarpetaFotos();
+    const archivoDrive = carpeta.createFile(blob);
+    // Habilitar acceso de lectura público por enlace para poder mostrar miniaturas en la interfaz
+    archivoDrive.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const fileId = archivoDrive.getId();
+
+    // Guardar en la hoja de cálculo
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const rowIndex = existente._sheetRowIndex;
+
+    // Obtener las fotos existentes en la columna FOTO_ID (hasta 3 fotos, separadas por comas)
+    let fotosExistentes = existente["FOTO_ID"] ? String(existente["FOTO_ID"]).trim() : "";
+    let arrayFotos = fotosExistentes ? fotosExistentes.split(",") : [];
+
+    if (arrayFotos.length >= 3) {
+      throw new Error("Ya se han subido las 3 fotografías máximas permitidas. Elimine alguna antes de continuar.");
+    }
+
+    arrayFotos.push(fileId);
+    const nuevoValorFotos = arrayFotos.join(",");
+
+    sheet.getRange(rowIndex, 16).setValue(nuevoValorFotos); // Columna 16 es FOTO_ID
+
+    // Agregar cambio en la bitácora
+    const userOperador = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+    registrarBitacora("FOTO_CARGA", noInv, `Fotografía adjuntada. Archivo ID: ${fileId}`, "Sistema");
+
+    return { success: true, fileId: fileId, fileUrl: archivoDrive.getDownloadUrl() };
+  } catch (e) {
+    console.error("Error al subir foto:", e);
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Elimina una foto asociada con el artículo, retirándola de la base de datos de Sheets
+ * y eliminando el archivo correspondiente de Drive de forma permanente.
+ * @param {string} noInv - El número de inventario del artículo asociado.
+ * @param {string} fileId - ID del archivo de Google Drive a eliminar.
+ * @returns {Object} JSON conteniendo estado de éxito.
+ */
+function eliminarFotoArticulo(noInv, fileId) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+
+    const existente = buscarPorNoInv(noInv);
+    if (!existente) throw new Error("El artículo no existe.");
+
+    let fotosExistentes = existente["FOTO_ID"] ? String(existente["FOTO_ID"]).trim() : "";
+    let arrayFotos = fotosExistentes ? fotosExistentes.split(",") : [];
+
+    const index = arrayFotos.indexOf(fileId);
+    if (index !== -1) {
+      arrayFotos.splice(index, 1);
+    }
+
+    const nuevoValorFotos = arrayFotos.join(",");
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    sheet.getRange(existente._sheetRowIndex, 16).setValue(nuevoValorFotos);
+
+    // Eliminar físicamente el archivo en Drive para liberar espacio
+    try {
+      const file = DriveApp.getFileById(fileId);
+      file.setTrashed(true);
+    } catch (err) {
+      console.warn("No se pudo eliminar el archivo en Drive (puede haber sido eliminado antes):", err);
+    }
+
+    registrarBitacora("FOTO_ELIMINAR", noInv, `Fotografía eliminada. Archivo ID: ${fileId}`, "Sistema");
+    return { success: true };
+  } catch (e) {
+    console.error("Error al eliminar foto:", e);
+    return { success: false, message: e.message };
   } finally {
     lock.releaseLock();
   }
@@ -539,6 +727,9 @@ function guardarArticulo(articulo, usuario) {
     }
 
     const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
+    const timestampUser = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+    const userOperador = formatearNombreCompleto(usuario) + " - " + timestampUser;
+    const fotoId = articulo["FOTO_ID"] || "";
 
     const rowValues = [
       numCorrelativo,
@@ -554,7 +745,9 @@ function guardarArticulo(articulo, usuario) {
       articulo["RESGUARDANTE_REAL"] || "",
       articulo["UBICACION_REAL"] || "",
       articulo["ESTADO_REAL"] || "",
-      timestamp
+      timestamp,
+      userOperador,
+      fotoId
     ];
 
     sheet.appendRow(rowValues);
@@ -611,6 +804,16 @@ function actualizarArticulo(articulo, usuario) {
     sheet.getRange(rowIndex, 13).setValue(articulo["ESTADO_REAL"] !== undefined ? articulo["ESTADO_REAL"] : existente["ESTADO_REAL"]);
     sheet.getRange(rowIndex, 14).setValue(timestamp);
 
+    // Escribir auditoría obligatoria de operador
+    const timestampUser = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+    const userOperador = formatearNombreCompleto(usuario) + " - " + timestampUser;
+    sheet.getRange(rowIndex, 15).setValue(userOperador);
+
+    // Escribir ID de Foto si viene adjunto
+    if (articulo["FOTO_ID"] !== undefined) {
+      sheet.getRange(rowIndex, 16).setValue(articulo["FOTO_ID"]);
+    }
+
     // Comparar qué cambió para detallarlo en la bitácora
     let detallesCambio = [];
     const camposMonitoreados = ["DESCRIPCION", "SERIE", "MODELO", "MARCA", "ESTADO", "IMPORTE", "UBICACION", "RESGUARDADO", "RESGUARDANTE_REAL", "UBICACION_REAL", "ESTADO_REAL"];
@@ -654,6 +857,11 @@ function bajaArticulo(noInv, usuario) {
 
     sheet.getRange(rowIndex, 7).setValue("BAJA"); // ESTADO
     sheet.getRange(rowIndex, 14).setValue(timestamp); // ULTIMA_ACTUALIZACION
+
+    // Escribir auditoría obligatoria de operador
+    const timestampUser = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+    const userOperador = formatearNombreCompleto(usuario) + " - " + timestampUser;
+    sheet.getRange(rowIndex, 15).setValue(userOperador);
 
     registrarBitacora("BAJA", noInv, "Baja lógica: Estado cambiado a 'BAJA'", usuario);
     return { success: true, message: "Artículo dado de baja lógicamente." };
@@ -809,6 +1017,11 @@ function cargarExcel(registros, overrideOption, usuario) {
           sheet.getRange(rowIndex, colMap["ESTADO_REAL"]).setValue(reg["ESTADO_REAL"] !== undefined ? reg["ESTADO_REAL"] : existe["ESTADO_REAL"]);
           sheet.getRange(rowIndex, colMap["ULTIMA_ACTUALIZACION"]).setValue(timestamp);
 
+          if (colMap["USUARIO_OPERADOR"]) {
+            const timestampUser = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+            sheet.getRange(rowIndex, colMap["USUARIO_OPERADOR"]).setValue(formatearNombreCompleto(usuario) + " - " + timestampUser);
+          }
+
           actualizadosCont++;
         } else {
           // Omitir registro duplicado
@@ -817,6 +1030,9 @@ function cargarExcel(registros, overrideOption, usuario) {
       } else {
         // Es un registro nuevo. Insertar fila.
         const rowNum = reg["No."] || correlativoActual++;
+
+        const timestampUser = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+        const userOperador = formatearNombreCompleto(usuario) + " - " + timestampUser;
 
         const rowValues = [
           rowNum,
@@ -832,7 +1048,9 @@ function cargarExcel(registros, overrideOption, usuario) {
           reg["RESGUARDANTE_REAL"] || "",
           reg["UBICACION_REAL"] || "",
           reg["ESTADO_REAL"] || "",
-          timestamp
+          timestamp,
+          userOperador,
+          "" // Foto ID vacía inicialmente en carga excel
         ];
 
         sheet.appendRow(rowValues);
