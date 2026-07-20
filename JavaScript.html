@@ -3558,4 +3558,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Arrancar inicialización de la app
 initializeApp();
+
+// Exponer de manera explícita todas las funciones interactivas al ámbito de ventana (window) global
+// para resolver de raíz cualquier problema de 'ReferenceError: showSection is not defined' u otras funciones en iframes sandboxed.
+window.showSection = showSection;
+window.abrirPopupEscaner = abrirPopupEscaner;
+window.altaRapidaDesdeEscaner = altaRapidaDesdeEscaner;
+window.cambiarNombreUsuario = cambiarNombreUsuario;
+window.cargarDatosBitacora = cargarDatosBitacora;
+window.darDeBajaScan = darDeBajaScan;
+window.descargarLabelQRPNG = descargarLabelQRPNG;
+window.eliminarFisicoScan = eliminarFisicoScan;
+window.exportarCSV = exportarCSV;
+window.exportarExcelSheetJS = exportarExcelSheetJS;
+window.habilitarLectorAuxiliarLocal = habilitarLectorAuxiliarLocal;
+window.importarJSONAlServidor = importarJSONAlServidor;
+window.imprimirLabelQR = imprimirLabelQR;
+window.limpiarFiltrosCompleto = limpiarFiltrosCompleto;
+window.limpiarFormularioAlta = limpiarFormularioAlta;
+window.limpiarResultadosEscaner = limpiarResultadosEscaner;
+window.subirFotoLocalAlServidor = subirFotoLocalAlServidor;
+window.toggleFormCamposScanExtra = toggleFormCamposScanExtra;
+
+// Funciones dinámicas del listado de acciones
+window.abrirModalEdicion = abrirModalEdicion;
+window.abrirModalVerDetalle = abrirModalVerDetalle;
+window.abrirModalTrasladar = abrirModalTrasladar;
+window.abrirModalFotos = abrirModalFotos;
+window.abrirGeneradorQR = abrirGeneradorQR;
+window.bajaLogicaListado = bajaLogicaListado;
+window.eliminarFisicoListado = eliminarFisicoListado;
 </script>

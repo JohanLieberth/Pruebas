@@ -77,7 +77,8 @@ function doGet(e) {
       .setTitle("Sistema de Inventario - Mejora Regulatoria")
       .setFaviconUrl("https://www.google.com/favicon.ico")
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL) // Permitir visualización en iframe con compatibilidad extendida
-      .addMetaTag("viewport", "width=device-width, initial-scale=1");
+      .addMetaTag("viewport", "width=device-width, initial-scale=1")
+      .addMetaTag("Content-Security-Policy", "default-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com;");
 
     return htmlOutput;
   } catch (error) {
