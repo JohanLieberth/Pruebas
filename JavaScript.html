@@ -3588,4 +3588,20 @@ window.abrirModalFotos = abrirModalFotos;
 window.abrirGeneradorQR = abrirGeneradorQR;
 window.bajaLogicaListado = bajaLogicaListado;
 window.eliminarFisicoListado = eliminarFisicoListado;
+
+// Interceptor defensivo global contra fallas no controladas en promesas de extensiones de navegador (content.js)
+// Previene de raíz que errores como "Cannot read properties of null (reading 'classList')" rompan el hilo principal.
+window.addEventListener('unhandledrejection', function(event) {
+  try {
+    const errorMsg = event.reason ? String(event.reason.message || event.reason) : "";
+    const errorStack = event.reason && event.reason.stack ? String(event.reason.stack) : "";
+
+    if (errorStack.includes("content.js") || errorMsg.includes("classList") || errorStack.includes("extension")) {
+      event.preventDefault(); // Detener propagación
+      console.warn("SMR Inventario - Capturado de forma segura un error no controlado de extensión (content.js):", errorMsg);
+    }
+  } catch (err) {
+    console.error("Error en interceptor de promesas:", err);
+  }
+});
 </script>
