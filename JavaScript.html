@@ -1475,6 +1475,7 @@ function renderizarListadoTabla() {
       <td>${item["MODELO"] || ""}</td>
       <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
       <td><span class="${estadoClass}">${estReal}</span></td>
+      <td class="small text-secondary">${item["USUARIO_OPERADOR"] || "Sin registrar"}</td>
       <td class="small text-secondary">${item["ULTIMA_ACTUALIZACION"] || ""}</td>
       <td class="text-center">
         ${renderizarColumnaAcciones(item["No. INV."])}

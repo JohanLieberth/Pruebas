@@ -6,18 +6,6 @@
   <!-- Responsive Meta Tag -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
 
-  <!-- CSP actualizado para permitir blobs de cámara de forma segura y CDNs estándar -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' blob:;
-                 style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
-                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
-                 img-src 'self' data: blob:;
-                 connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
-                 font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com;">
-
-  <!-- Política de permisos mejorada para habilitar cámara en iframe -->
-  <meta http-equiv="Permissions-Policy"
-        content="camera=(self), geolocation=(self), microphone=()">
 
   <!-- Inyección segura e inline de CSS externo para cumplimiento estricto de CSP -->
   <style>
@@ -890,6 +878,7 @@
                   <th>Modelo</th>
                   <th>Ubicación Real</th>
                   <th>Estado Real</th>
+                  <th>Usuario / Operador</th>
                   <th>Última Actualización</th>
                   <th class="text-center">Acciones</th>
                 </tr>
