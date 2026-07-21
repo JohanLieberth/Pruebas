@@ -480,20 +480,13 @@ function abrirPopupEscaner() {
 
       </div>
 
-      <!-- Footer manual fallback -->
+      <!-- Footer manual fallback (conservando el selector de cámara nativo e identificador) -->
       <div class="card-footer bg-dark border-0 p-3">
-        <div id="controls-panel" class="d-flex align-items-center justify-content-between gap-2 mb-2" style="display: none !important;">
+        <div id="controls-panel" class="d-flex align-items-center justify-content-between gap-2" style="display: none !important;">
           <span class="small text-muted"><i class="fa-solid fa-video me-1"></i>Cámara:</span>
           <select id="camera-select" class="form-select form-select-sm bg-secondary text-white border-0" style="max-width: 200px;" onchange="cambiarCamara(this.value)">
             <option value="">Seleccionando...</option>
           </select>
-        </div>
-
-        <div class="pt-2 border-top border-secondary">
-          <form onsubmit="event.preventDefault(); enviarManual();" class="input-group input-group-sm">
-            <input type="text" id="manual-code" class="form-control bg-dark text-white border-secondary" placeholder="Escribe No. INV. manual..." required>
-            <button type="submit" class="btn btn-primary fw-bold">Enviar</button>
-          </form>
         </div>
       </div>
     </div>
@@ -797,6 +790,15 @@ function limpiarResultadosEscaner() {
   document.getElementById("scan-result-container").classList.add("d-none");
   document.getElementById("scan-not-found-container").classList.add("d-none");
   document.getElementById("scan-manual-no-inv").value = "";
+
+  // Limpiar campos y previsualizaciones de fotos del Item 1
+  const fileInput = document.getElementById("scan-foto-input");
+  if (fileInput) fileInput.value = "";
+  const previewDiv = document.getElementById("scan-foto-preview-container");
+  if (previewDiv) previewDiv.classList.add("d-none");
+  scanFotoBase64 = "";
+  scanFotoExt = "";
+  scanFotoNombre = "";
 }
 
 /**
@@ -834,10 +836,28 @@ function guardarActualizacionEscaner() {
 
   google.script.run
     .withSuccessHandler(function(res) {
-      hideLoader();
-      mostrarAlerta("¡Información del artículo '" + noInv + "' guardada y verificada!", "success");
-      limpiarResultadosEscaner();
-      cargarEstadisticasInicio();
+      if (scanFotoBase64) {
+        showLoader("Subiendo fotografía a Google Drive...");
+        google.script.run
+          .withSuccessHandler(function() {
+            hideLoader();
+            mostrarAlerta("¡Información de '" + noInv + "' guardada y fotografía de evidencia subida exitosamente!", "success");
+            limpiarResultadosEscaner();
+            cargarEstadisticasInicio();
+          })
+          .withFailureHandler(function(uploadErr) {
+            hideLoader();
+            mostrarAlerta("Levantamiento guardado, pero ocurrió un error al subir la foto: " + uploadErr.message, "warning");
+            limpiarResultadosEscaner();
+            cargarEstadisticasInicio();
+          })
+          .subirFotoArticulo(noInv, scanFotoBase64, scanFotoExt, scanFotoNombre);
+      } else {
+        hideLoader();
+        mostrarAlerta("¡Información del artículo '" + noInv + "' guardada y verificada!", "success");
+        limpiarResultadosEscaner();
+        cargarEstadisticasInicio();
+      }
     })
     .withFailureHandler(function(err) {
       hideLoader();
@@ -1092,11 +1112,31 @@ function guardarAltaArticulo() {
 
   google.script.run
     .withSuccessHandler(function(res) {
-      hideLoader();
-      mostrarAlerta("¡Artículo registrado exitosamente! No. INV.: " + res.noInv, "success");
-      limpiarFormularioAlta();
-      cargarEstadisticasInicio();
-      showSection("listado"); // Redirigir al listado para verificar
+      if (altaFotoBase64 && res.noInv) {
+        showLoader("Subiendo fotografía del bien a Google Drive...");
+        google.script.run
+          .withSuccessHandler(function() {
+            hideLoader();
+            mostrarAlerta("¡Artículo registrado y fotografía de evidencia guardada exitosamente! No. INV.: " + res.noInv, "success");
+            limpiarFormularioAlta();
+            cargarEstadisticasInicio();
+            showSection("listado");
+          })
+          .withFailureHandler(function(uploadErr) {
+            hideLoader();
+            mostrarAlerta("Artículo registrado exitosamente, pero la foto no se pudo subir: " + uploadErr.message, "warning");
+            limpiarFormularioAlta();
+            cargarEstadisticasInicio();
+            showSection("listado");
+          })
+          .subirFotoArticulo(res.noInv, altaFotoBase64, altaFotoExt, altaFotoNombre);
+      } else {
+        hideLoader();
+        mostrarAlerta("¡Artículo registrado exitosamente! No. INV.: " + res.noInv, "success");
+        limpiarFormularioAlta();
+        cargarEstadisticasInicio();
+        showSection("listado"); // Redirigir al listado para verificar
+      }
     })
     .withFailureHandler(function(err) {
       hideLoader();
@@ -1109,6 +1149,15 @@ function limpiarFormularioAlta() {
   document.getElementById("form-alta-articulo").reset();
   document.getElementById("alta-duplicado-error").classList.add("d-none");
   document.getElementById("btn-submit-alta").disabled = false;
+
+  // Limpiar campos y previsualizaciones de fotos del Item 1
+  const fileInput = document.getElementById("alta-foto-input");
+  if (fileInput) fileInput.value = "";
+  const previewDiv = document.getElementById("alta-foto-preview-container");
+  if (previewDiv) previewDiv.classList.add("d-none");
+  altaFotoBase64 = "";
+  altaFotoExt = "";
+  altaFotoNombre = "";
 }
 
 
@@ -2299,20 +2348,51 @@ function guardarEdicionArticulo() {
 
   google.script.run
     .withSuccessHandler(function(res) {
-      hideLoader();
+      if (editFotoBase64) {
+        showLoader("Subiendo nueva fotografía a Google Drive...");
+        google.script.run
+          .withSuccessHandler(function() {
+            hideLoader();
+            const modalEl = document.getElementById("modal-editar-articulo");
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+            mostrarAlerta("¡Ficha técnica de '" + noInv + "' actualizada y foto guardada!", "success");
 
-      // Cerrar modal
-      const modalEl = document.getElementById("modal-editar-articulo");
-      const modalInstance = bootstrap.Modal.getInstance(modalEl);
-      if (modalInstance) {
-        modalInstance.hide();
+            // Limpiar foto de edición
+            const fileInput = document.getElementById("edit-foto-input");
+            if (fileInput) fileInput.value = "";
+            const previewDiv = document.getElementById("edit-foto-preview-container");
+            if (previewDiv) previewDiv.classList.add("d-none");
+            editFotoBase64 = ""; editFotoExt = ""; editFotoNombre = "";
+
+            cargarListadoInventario();
+            cargarEstadisticasInicio();
+          })
+          .withFailureHandler(function(uploadErr) {
+            hideLoader();
+            const modalEl = document.getElementById("modal-editar-articulo");
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+            mostrarAlerta("Edición guardada exitosamente, pero falló la subida de foto: " + uploadErr.message, "warning");
+            cargarListadoInventario();
+            cargarEstadisticasInicio();
+          })
+          .subirFotoArticulo(noInv, editFotoBase64, editFotoExt, editFotoNombre);
+      } else {
+        hideLoader();
+        const modalEl = document.getElementById("modal-editar-articulo");
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+        mostrarAlerta("¡Ficha técnica de '" + noInv + "' actualizada!", "success");
+        cargarListadoInventario();
+        cargarEstadisticasInicio();
       }
-
-      mostrarAlerta("¡Ficha técnica de '" + noInv + "' actualizada!", "success");
-
-      // Recargar listado completo o de búsqueda según donde estemos parados
-      cargarListadoInventario();
-      cargarEstadisticasInicio();
     })
     .withFailureHandler(function(err) {
       hideLoader();
@@ -3589,6 +3669,117 @@ window.abrirModalFotos = abrirModalFotos;
 window.abrirGeneradorQR = abrirGeneradorQR;
 window.bajaLogicaListado = bajaLogicaListado;
 window.eliminarFisicoListado = eliminarFisicoListado;
+
+// Variables globales para fotos de los tres módulos (Item 1)
+let altaFotoBase64 = "";
+let altaFotoExt = "";
+let altaFotoNombre = "";
+
+let editFotoBase64 = "";
+let editFotoExt = "";
+let editFotoNombre = "";
+
+let scanFotoBase64 = "";
+let scanFotoExt = "";
+let scanFotoNombre = "";
+
+function validarYPrevisualizarFotoAlta() {
+  const fileInput = document.getElementById("alta-foto-input");
+  const previewDiv = document.getElementById("alta-foto-preview-container");
+  const previewImg = document.getElementById("alta-foto-preview-img");
+  const previewInfo = document.getElementById("alta-foto-preview-info");
+
+  altaFotoBase64 = ""; altaFotoExt = ""; altaFotoNombre = "";
+  previewDiv.classList.add("d-none");
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (["png", "jpg", "jpeg", "gif", "webp"].indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = ""; return;
+  }
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = ""; return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    altaFotoBase64 = e.target.result; altaFotoExt = ext; altaFotoNombre = file.name;
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+function validarYPrevisualizarFotoEdit() {
+  const fileInput = document.getElementById("edit-foto-input");
+  const previewDiv = document.getElementById("edit-foto-preview-container");
+  const previewImg = document.getElementById("edit-foto-preview-img");
+  const previewInfo = document.getElementById("edit-foto-preview-info");
+
+  editFotoBase64 = ""; editFotoExt = ""; editFotoNombre = "";
+  previewDiv.classList.add("d-none");
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (["png", "jpg", "jpeg", "gif", "webp"].indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = ""; return;
+  }
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = ""; return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    editFotoBase64 = e.target.result; editFotoExt = ext; editFotoNombre = file.name;
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+function validarYPrevisualizarFotoScan() {
+  const fileInput = document.getElementById("scan-foto-input");
+  const previewDiv = document.getElementById("scan-foto-preview-container");
+  const previewImg = document.getElementById("scan-foto-preview-img");
+  const previewInfo = document.getElementById("scan-foto-preview-info");
+
+  scanFotoBase64 = ""; scanFotoExt = ""; scanFotoNombre = "";
+  previewDiv.classList.add("d-none");
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (["png", "jpg", "jpeg", "gif", "webp"].indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = ""; return;
+  }
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = ""; return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    scanFotoBase64 = e.target.result; scanFotoExt = ext; scanFotoNombre = file.name;
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+// Exponer validadores de fotos al window
+window.validarYPrevisualizarFotoAlta = validarYPrevisualizarFotoAlta;
+window.validarYPrevisualizarFotoEdit = validarYPrevisualizarFotoEdit;
+window.validarYPrevisualizarFotoScan = validarYPrevisualizarFotoScan;
 
 // Interceptor defensivo global contra fallas no controladas en promesas de extensiones de navegador (content.js)
 // Previene de raíz que errores como "Cannot read properties of null (reading 'classList')" rompan el hilo principal.

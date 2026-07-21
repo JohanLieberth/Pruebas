@@ -374,6 +374,16 @@
                     </div>
                   </div>
 
+                  <!-- Item 1: Captura/Adjuntar nueva foto en escáner rápido (Móvil & PC) -->
+                  <div class="col-12 mt-3">
+                    <label class="form-label fw-semibold text-dark"><i class="fa-solid fa-camera me-1"></i>Adjuntar Nueva Fotografía (Opcional)</label>
+                    <input class="form-control" type="file" id="scan-foto-input" accept="image/*" capture="camera" onchange="validarYPrevisualizarFotoScan()">
+                    <div id="scan-foto-preview-container" class="text-center p-2 border rounded bg-light d-none mt-2">
+                      <img id="scan-foto-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
+                      <span class="d-block small text-muted mt-1" id="scan-foto-preview-info"></span>
+                    </div>
+                  </div>
+
                   <!-- Campos Extra Expandibles para Escaneo -->
                   <div class="col-12 d-none" id="scan-extra-campos">
                     <div class="border p-3 rounded bg-light-soft">
@@ -631,6 +641,16 @@
               <div class="col-md-4 col-12">
                 <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-resguardante-real" required placeholder="Ej. Juan Pérez López">
+              </div>
+
+              <!-- Item 1: Captura/Adjuntar fotografía de evidencia (Móvil & PC) -->
+              <div class="col-12 mt-3">
+                <label class="form-label fw-semibold text-dark"><i class="fa-solid fa-camera me-1"></i>Fotografía de Evidencia (Opcional)</label>
+                <input class="form-control" type="file" id="alta-foto-input" accept="image/*" capture="camera" onchange="validarYPrevisualizarFotoAlta()">
+                <div id="alta-foto-preview-container" class="text-center p-2 border rounded bg-light d-none mt-2">
+                  <img id="alta-foto-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
+                  <span class="d-block small text-muted mt-1" id="alta-foto-preview-info"></span>
+                </div>
               </div>
 
               <div class="col-12 mt-4">
@@ -1051,6 +1071,16 @@
               <div class="col-md-4 col-12">
                 <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="edit-resguardante-real" required>
+              </div>
+
+              <!-- Item 1: Captura/Adjuntar nueva foto en edición (Móvil & PC) -->
+              <div class="col-12 mt-3">
+                <label class="form-label fw-semibold text-dark"><i class="fa-solid fa-camera me-1"></i>Adjuntar Nueva Fotografía (Opcional)</label>
+                <input class="form-control" type="file" id="edit-foto-input" accept="image/*" capture="camera" onchange="validarYPrevisualizarFotoEdit()">
+                <div id="edit-foto-preview-container" class="text-center p-2 border rounded bg-light d-none mt-2">
+                  <img id="edit-foto-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
+                  <span class="d-block small text-muted mt-1" id="edit-foto-preview-info"></span>
+                </div>
               </div>
 
             </div>
