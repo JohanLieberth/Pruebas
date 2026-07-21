@@ -316,11 +316,14 @@ function showSection(sectionId) {
 
   // Cerrar menú responsivo colapsable de bootstrap al hacer click
   const navbarCollapse = document.getElementById("navbarNav");
-  if (navbarCollapse.classList.contains("show")) {
+  if (navbarCollapse && navbarCollapse.classList && navbarCollapse.classList.contains("show")) {
     const bsCollapse = new bootstrap.Collapse(navbarCollapse);
     bsCollapse.hide();
   }
 }
+
+// Exponer inmediatamente al ámbito de ventana (window) global para prevenir ReferenceError
+window.showSection = showSection;
 
 
 /**
