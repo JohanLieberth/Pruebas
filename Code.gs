@@ -7,6 +7,30 @@
 const SHEET_INVENTARIO = "Inventario";
 const SHEET_BITACORA = "Bitacora";
 
+/**
+ * Obtiene una pestaña del Spreadsheet de forma segura, siendo tolerante a mayúsculas,
+ * minúsculas, espacios adicionales y acentos omitidos o añadidos (ej. "Invetario", "Bitácora").
+ * @param {string} name - El nombre de la pestaña oficial que se busca.
+ * @returns {Sheet|null} El objeto de hoja de cálculo encontrado o null si no existe.
+ */
+function getSheetSafe(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (sheet) return sheet;
+
+  // Normalizar y limpiar para búsqueda insensible a acentos y mayúsculas
+  const searchName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const allSheets = ss.getSheets();
+
+  for (let i = 0; i < allSheets.length; i++) {
+    const sName = allSheets[i].getName().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (sName === searchName || (searchName === "inventario" && sName === "invetario")) {
+      return allSheets[i];
+    }
+  }
+  return null;
+}
+
 // Encabezados oficiales de Inventario (incluyendo auditoría y fotos para cumplimiento)
 const HEADERS_INVENTARIO = [
   "No.",
@@ -253,7 +277,7 @@ function inicializarBaseDatos() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // 1. Pestaña Inventario
-  let sheetInv = ss.getSheetByName(SHEET_INVENTARIO);
+  let sheetInv = getSheetSafe(SHEET_INVENTARIO);
   if (!sheetInv) {
     sheetInv = ss.insertSheet(SHEET_INVENTARIO);
     sheetInv.appendRow(HEADERS_INVENTARIO);
@@ -291,7 +315,7 @@ function inicializarBaseDatos() {
   }
 
   // 2. Pestaña Bitacora
-  let sheetBit = ss.getSheetByName(SHEET_BITACORA);
+  let sheetBit = getSheetSafe(SHEET_BITACORA);
   if (!sheetBit) {
     sheetBit = ss.insertSheet(SHEET_BITACORA);
     sheetBit.appendRow(HEADERS_BITACORA);
@@ -320,10 +344,10 @@ function registrarBitacora(accion, noInv, detalle, usuarioOverride) {
     lock.waitLock(10000);
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheetBit = ss.getSheetByName(SHEET_BITACORA);
+    let sheetBit = getSheetSafe(SHEET_BITACORA);
     if (!sheetBit) {
       inicializarBaseDatos();
-      sheetBit = ss.getSheetByName(SHEET_BITACORA);
+      sheetBit = getSheetSafe(SHEET_BITACORA);
     }
 
     const fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
@@ -413,7 +437,7 @@ function subirFotoArticulo(noInv, base64Data, extension, nombreOriginal) {
 
     // Guardar en la hoja de cálculo
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
 
     // Obtener las fotos existentes en la columna FOTO_ID (hasta 3 fotos, separadas por comas)
@@ -468,7 +492,7 @@ function eliminarFotoArticulo(noInv, fileId) {
     const nuevoValorFotos = arrayFotos.join(",");
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     sheet.getRange(existente._sheetRowIndex, 16).setValue(nuevoValorFotos);
 
     // Eliminar físicamente el archivo en Drive para liberar espacio
@@ -559,7 +583,7 @@ function processImageForOCR(base64Image) {
   try {
     // Simulador robusto de OCR: extrae un código de ejemplo del inventario real para demostrar el flujo completo
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     let extractedNumber = "100000000010"; // Default fallback si la hoja está vacía
 
     if (sheet) {
@@ -615,7 +639,7 @@ function searchInventoryNumber(inventoryNumber) {
  */
 function getInventarioRowsAndData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+  const sheet = getSheetSafe(SHEET_INVENTARIO);
   if (!sheet) return { rows: [], data: [] };
 
   const lastRow = sheet.getLastRow();
@@ -700,7 +724,7 @@ function guardarArticulo(articulo, usuario) {
     lock.waitLock(10000);
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     if (!sheet) inicializarBaseDatos();
 
     const noInv = String(articulo["No. INV."]).trim();
@@ -779,7 +803,7 @@ function actualizarArticulo(articulo, usuario) {
     }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
 
     const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
@@ -851,7 +875,7 @@ function bajaArticulo(noInv, usuario) {
     }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
     const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
 
@@ -886,7 +910,7 @@ function eliminarArticulo(noInv, usuario) {
     }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
 
     sheet.deleteRow(rowIndex);
@@ -915,7 +939,7 @@ function listarArticulos() {
  */
 function listarBitacora() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_BITACORA);
+  const sheet = getSheetSafe(SHEET_BITACORA);
   if (!sheet) return [];
 
   const lastRow = sheet.getLastRow();
@@ -948,10 +972,10 @@ function cargarExcel(registros, overrideOption, usuario) {
     lock.waitLock(15000); // Dar buen margen de bloqueo concurrente
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(SHEET_INVENTARIO);
+    let sheet = getSheetSafe(SHEET_INVENTARIO);
     if (!sheet) {
       inicializarBaseDatos();
-      sheet = ss.getSheetByName(SHEET_INVENTARIO);
+      sheet = getSheetSafe(SHEET_INVENTARIO);
     }
 
     let nuevosCont = 0;
