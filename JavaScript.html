@@ -1451,6 +1451,11 @@ function aplicarFiltrosYListar() {
   const fRapido = document.getElementById("filtro-rapido").value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   listadoFiltrado = listadoCompleto.filter(item => {
+    // Filtrar de forma ultra-defensiva filas completamente vacías o sin No. INV.
+    if (!item || !item["No. INV."] || String(item["No. INV."]).trim() === "") {
+      return false;
+    }
+
     // 1. Filtrar por Estado Real (o patrimonio si no tiene real)
     const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
     if (fEstado && estReal !== fEstado) {
@@ -1528,7 +1533,7 @@ function renderizarListadoTabla() {
       <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
       <td><span class="${estadoClass}">${estReal}</span></td>
       <td class="small text-secondary">${item["USUARIO_OPERADOR"] || "Sin registrar"}</td>
-      <td class="small text-secondary">${item["ULTIMA_ACTUALIZACION"] || ""}</td>
+      <td class="small text-secondary">${item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "Sin asignar"}</td>
       <td class="text-center">
         ${renderizarColumnaAcciones(item["No. INV."])}
       </td>

@@ -902,10 +902,12 @@ function eliminarArticulo(noInv, usuario) {
 
 /**
  * Obtiene la lista completa de artículos para mostrar en la interfaz.
+ * Filtra de forma defensiva registros corruptos o vacíos para asegurar el correcto renderizado del Listado.
  */
 function listarArticulos() {
   const { data } = getInventarioRowsAndData();
-  return data;
+  if (!data) return [];
+  return data.filter(item => item && item["No. INV."] && String(item["No. INV."]).trim() !== "");
 }
 
 /**
