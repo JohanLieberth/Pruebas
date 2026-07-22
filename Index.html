@@ -19,6 +19,12 @@
   <!-- Variable del scriptlet inyectada del servidor para redirección fallback del escáner (?noinv=XXXX) -->
   <script>
     window.initialNoInvQuery = "<?= noinvQuery ?>";
+
+    // Placeholder de navegación inmediato para evitar ReferenceError en clicks tempranos
+    window.showSection = function(sectionId) {
+      console.warn("SMR Inventario - Navegación diferida (esperando a que se cargue la lógica principal de cliente)...");
+      window.deferredSection = sectionId;
+    };
   </script>
 </head>
 <body>

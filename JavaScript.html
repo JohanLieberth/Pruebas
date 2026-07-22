@@ -3651,6 +3651,13 @@ initializeApp();
 // Exponer de manera explícita todas las funciones interactivas al ámbito de ventana (window) global
 // para resolver de raíz cualquier problema de 'ReferenceError: showSection is not defined' u otras funciones en iframes sandboxed.
 window.showSection = showSection;
+
+// Si el usuario intentó navegar antes de cargarse el script completo, redirigirlo de forma automática y fluida
+if (window.deferredSection) {
+  showSection(window.deferredSection);
+  delete window.deferredSection;
+}
+
 window.abrirPopupEscaner = abrirPopupEscaner;
 window.altaRapidaDesdeEscaner = altaRapidaDesdeEscaner;
 window.cambiarNombreUsuario = cambiarNombreUsuario;
