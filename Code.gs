@@ -1105,9 +1105,20 @@ function eliminarArticulo(noInv, usuario) {
  * Filtra de forma defensiva registros corruptos o vacíos para asegurar el correcto renderizado del Listado.
  */
 function listarArticulos() {
-  const { data } = getInventarioRowsAndData();
-  if (!data) return [];
-  return data.filter(item => item && item["No. INV."] && String(item["No. INV."]).trim() !== "");
+  console.log("[Server] Ejecutando listarArticulos()...");
+  try {
+    const { data } = getInventarioRowsAndData();
+    if (!data) {
+      console.warn("[Server] getInventarioRowsAndData() retornó null o vacío.");
+      return [];
+    }
+    const filtered = data.filter(item => item && item["No. INV."] && String(item["No. INV."]).trim() !== "");
+    console.log(`[Server] listarArticulos() retornó ${filtered.length} artículos válidos.`);
+    return filtered;
+  } catch (e) {
+    console.error("[Server] Error en listarArticulos():", e.message);
+    throw new Error(e.message);
+  }
 }
 
 /**

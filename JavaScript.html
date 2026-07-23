@@ -1439,8 +1439,10 @@ function importarJSONAlServidor() {
  */
 function cargarListadoInventario() {
   showLoader("Cargando listado completo de inventario...");
+  console.log("[Client] Solicitando listado de inventario calling listarArticulos()...");
   google.script.run
     .withSuccessHandler(function(articulos) {
+      console.log("[Client] Listado recibido con éxito. Cantidad de artículos:", articulos ? articulos.length : null);
       listadoCompleto = articulos || [];
 
       // Obtener lista única de ubicaciones para el filtro de ubicaciones reales
@@ -1474,6 +1476,7 @@ function cargarListadoInventario() {
       hideLoader();
     })
     .withFailureHandler(function(err) {
+      console.error("[Client] Fallo al cargar listado de inventario:", err);
       hideLoader();
       mostrarAlerta("Error al obtener listado de inventario: " + err.message, "danger");
     })
@@ -2539,9 +2542,14 @@ function cargarDatosBitacora(forzarManual) {
  * ==========================================
  */
 function cargarEstadisticasInicio() {
+  console.log("[Client] Solicitando estadísticas de inicio calling listarArticulos()...");
   google.script.run
     .withSuccessHandler(function(articulos) {
-      if (!articulos) return;
+      console.log("[Client] Estadísticas recibidas con éxito. Cantidad de artículos:", articulos ? articulos.length : null);
+      if (!articulos) {
+        console.warn("[Client] No se recibieron artículos para estadísticas.");
+        return;
+      }
 
       let total = articulos.length;
       let buenosRegulares = 0;
@@ -2563,6 +2571,10 @@ function cargarEstadisticasInicio() {
       document.getElementById("stat-bueno").textContent = buenosRegulares;
       document.getElementById("stat-malo").textContent = malos;
       document.getElementById("stat-baja").textContent = bajas;
+    })
+    .withFailureHandler(function(err) {
+      console.error("[Client] Fallo al cargar estadísticas iniciales:", err);
+      mostrarAlerta("Error al conectar estadísticas: " + err.message, "warning");
     })
     .listarArticulos();
 }
