@@ -8,6 +8,62 @@ const SHEET_INVENTARIO = "Inventario";
 const SHEET_BITACORA = "Bitacora";
 
 /**
+ * Obtiene el objeto Spreadsheet de forma extremadamente segura y resiliente.
+ * Soporta fallbacks automáticos si SpreadsheetApp.getActiveSpreadsheet() retorna null
+ * (como cuando se ejecuta en un script independiente/standalone o tras una migración de cuenta).
+ * @returns {Spreadsheet} El objeto de hoja de cálculo.
+ */
+function getActiveSpreadsheetSafe() {
+  let ss = null;
+  try {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) {
+      // Verificar acceso real
+      ss.getName();
+      return ss;
+    }
+  } catch (e) {
+    console.warn("SpreadsheetApp.getActiveSpreadsheet() falló:", e.message);
+  }
+
+  // Fallback 1: Buscar ID en propiedades de script
+  const props = PropertiesService.getScriptProperties();
+  const storedId = props.getProperty("SPREADSHEET_ID");
+  if (storedId) {
+    try {
+      ss = SpreadsheetApp.openById(storedId);
+      if (ss) return ss;
+    } catch (e) {
+      console.warn("No se pudo abrir el spreadsheet guardado con ID " + storedId + ":", e.message);
+    }
+  }
+
+  // Fallback 2: Buscar en Google Drive por nombre
+  const nombresABuscar = ["InvetarioMR", "InventarioMR", "Inventario", "Invetario"];
+  for (let i = 0; i < nombresABuscar.length; i++) {
+    try {
+      const files = DriveApp.getFilesByName(nombresABuscar[i]);
+      while (files.hasNext()) {
+        const file = files.next();
+        if (file.getMimeType() === MimeType.GOOGLE_SHEETS) {
+          const fileId = file.getId();
+          console.log(`Spreadsheet encontrado en Google Drive por nombre "${nombresABuscar[i]}". ID: ${fileId}`);
+          ss = SpreadsheetApp.openById(fileId);
+          if (ss) {
+            props.setProperty("SPREADSHEET_ID", fileId);
+            return ss;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`Error al buscar o abrir archivo "${nombresABuscar[i]}" en Drive:`, e.message);
+    }
+  }
+
+  throw new Error("No se pudo conectar a ninguna base de datos de Google Sheets. Asegúrese de que el archivo existe y que el script tiene permisos de lectura/escritura.");
+}
+
+/**
  * Obtiene una pestaña del Spreadsheet de forma segura, siendo tolerante a mayúsculas,
  * minúsculas, espacios adicionales y acentos omitidos o añadidos (ej. "Invetario", "Bitácora").
  * @param {string} name - El nombre de la pestaña oficial que se busca.
@@ -18,7 +74,7 @@ function getSheetSafe(name) {
     console.warn("getSheetSafe - Nombre de pestaña inválido o indefinido:", name);
     return null;
   }
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetSafe();
   let sheet = ss.getSheetByName(name);
   if (sheet) return sheet;
 
@@ -94,6 +150,10 @@ function doGet(e) {
   try {
     // Asegurar que las hojas y encabezados existan al arrancar
     inicializarBaseDatos();
+
+    // Ejecutar diagnóstico inicial en segundo plano para auditoría de inicio tras migración
+    console.info("Ejecutando diagnóstico inicial de consistencia de la base de datos...");
+    ejecutarDiagnosticoSMR();
 
     // Crear plantilla para Index.html y pasar el parámetro ?noinv como variable del scriptlet (fallback de redirección del escáner)
     const template = HtmlService.createTemplateFromFile("Index");
@@ -287,7 +347,7 @@ function getActiveUserEmail() {
  * Asegura la existencia de las pestañas requeridas con sus encabezados.
  */
 function inicializarBaseDatos() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetSafe();
 
   // 1. Pestaña Inventario
   let sheetInv = getSheetSafe(SHEET_INVENTARIO);
@@ -356,7 +416,7 @@ function registrarBitacora(accion, noInv, detalle, usuarioOverride) {
     // Esperar hasta 10 segundos por el lock
     lock.waitLock(10000);
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     let sheetBit = getSheetSafe(SHEET_BITACORA);
     if (!sheetBit) {
       inicializarBaseDatos();
@@ -378,6 +438,80 @@ function registrarBitacora(accion, noInv, detalle, usuarioOverride) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Ejecuta un diagnóstico completo del estado del Spreadsheet, las hojas y la accesibilidad.
+ * Útil tras migraciones de cuentas de Google para identificar fallas en permisos, nombres de archivos, etc.
+ * @returns {Object} JSON con el reporte del diagnóstico.
+ */
+function ejecutarDiagnosticoSMR() {
+  const reporte = {
+    fecha: new Date().toISOString(),
+    usuarioActivo: getActiveUserEmail() || "No identificado",
+    spreadsheetConectado: false,
+    spreadsheetNombre: "",
+    spreadsheetId: "",
+    hojasDisponibles: [],
+    errores: [],
+    pasos: []
+  };
+
+  try {
+    reporte.pasos.push("1. Intentando conectar con getActiveSpreadsheetSafe()...");
+    const ss = getActiveSpreadsheetSafe();
+    reporte.spreadsheetConectado = true;
+    reporte.spreadsheetNombre = ss.getName();
+    reporte.spreadsheetId = ss.getId();
+    reporte.pasos.push("Conectado con éxito a: " + reporte.spreadsheetNombre);
+
+    reporte.pasos.push("2. Obteniendo hojas del libro...");
+    const sheets = ss.getSheets();
+    reporte.hojasDisponibles = sheets.map(s => s.getName());
+    reporte.pasos.push(`Hojas encontradas (${sheets.length}): ` + reporte.hojasDisponibles.join(", "));
+
+    reporte.pasos.push("3. Verificando pestaña Inventario de forma segura...");
+    const sheetInv = getSheetSafe(SHEET_INVENTARIO);
+    if (sheetInv) {
+      reporte.pasos.push(`Pestaña de inventario encontrada con el nombre real: "${sheetInv.getName()}"`);
+      const lastRow = sheetInv.getLastRow();
+      const lastCol = sheetInv.getLastColumn();
+      reporte.pasos.push(`Filas totales: ${lastRow}, Columnas totales: ${lastCol}`);
+
+      if (lastRow > 0) {
+        const headers = sheetInv.getRange(1, 1, 1, lastCol).getValues()[0];
+        reporte.pasos.push("Encabezados encontrados: " + headers.join(", "));
+
+        // Verificar No. INV.
+        const idxNoInv = headers.indexOf("No. INV.");
+        if (idxNoInv !== -1) {
+          reporte.pasos.push(`Encabezado 'No. INV.' encontrado correctamente en la columna ${idxNoInv + 1}`);
+        } else {
+          reporte.errores.push("Falta el encabezado obligatorio 'No. INV.' en la pestaña de inventario.");
+        }
+      } else {
+        reporte.errores.push("La hoja de inventario no tiene encabezados ni datos.");
+      }
+    } else {
+      reporte.errores.push(`No se pudo encontrar ninguna pestaña que coincida con "${SHEET_INVENTARIO}"`);
+    }
+
+    reporte.pasos.push("4. Verificando pestaña Bitacora de forma segura...");
+    const sheetBit = getSheetSafe(SHEET_BITACORA);
+    if (sheetBit) {
+      reporte.pasos.push(`Pestaña de bitácora encontrada con el nombre real: "${sheetBit.getName()}"`);
+    } else {
+      reporte.errores.push(`No se pudo encontrar ninguna pestaña que coincida con "${SHEET_BITACORA}"`);
+    }
+
+  } catch (error) {
+    reporte.errores.push("Fallo crítico en el diagnóstico: " + error.message);
+    console.error("Fallo crítico en ejecutarDiagnosticoSMR:", error);
+  }
+
+  console.log("=== REPORTE DE DIAGNÓSTICO SMR ===");
+  console.log(JSON.stringify(reporte, null, 2));
+  return reporte;
 }
 
 /**
@@ -449,7 +583,7 @@ function subirFotoArticulo(noInv, base64Data, extension, nombreOriginal) {
     const fileId = archivoDrive.getId();
 
     // Guardar en la hoja de cálculo
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
 
@@ -504,7 +638,7 @@ function eliminarFotoArticulo(noInv, fileId) {
 
     const nuevoValorFotos = arrayFotos.join(",");
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     sheet.getRange(existente._sheetRowIndex, 16).setValue(nuevoValorFotos);
 
@@ -595,7 +729,7 @@ function obtenerTodoInventario() {
 function processImageForOCR(base64Image) {
   try {
     // Simulador robusto de OCR: extrae un código de ejemplo del inventario real para demostrar el flujo completo
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     let extractedNumber = "100000000010"; // Default fallback si la hoja está vacía
 
@@ -651,32 +785,61 @@ function searchInventoryNumber(inventoryNumber) {
  * Helper para convertir filas de la hoja en objetos de JS.
  */
 function getInventarioRowsAndData() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = getSheetSafe(SHEET_INVENTARIO);
-  if (!sheet) return { rows: [], data: [] };
+  try {
+    const ss = getActiveSpreadsheetSafe();
+    const sheet = getSheetSafe(SHEET_INVENTARIO);
+    if (!sheet) {
+      const errMsg = `La pestaña "${SHEET_INVENTARIO}" no existe en el libro de cálculo "${ss.getName()}".`;
+      console.error(errMsg);
+      throw new Error(errMsg);
+    }
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { rows: [], data: [] };
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    console.log(`[getInventarioRowsAndData] Leyendo desde "${sheet.getName()}". Filas: ${lastRow}, Columnas: ${lastCol}`);
 
-  const range = sheet.getRange(2, 1, lastRow - 1, HEADERS_INVENTARIO.length);
-  const values = range.getValues();
+    if (lastRow < 2) {
+      console.warn("La hoja de inventario no contiene registros de datos (fila de encabezados vacía o incompleta).");
+      return { rows: [], data: [] };
+    }
 
-  const data = values.map((row, index) => {
-    const obj = {};
-    HEADERS_INVENTARIO.forEach((header, i) => {
-      // Formatear fechas si aplica
-      if (header === "ULTIMA_ACTUALIZACION" && row[i] instanceof Date) {
-        obj[header] = Utilities.formatDate(row[i], Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
-      } else {
-        obj[header] = row[i];
-      }
+    // Obtener dinámicamente hasta el menor número de columnas entre el real de la hoja y los encabezados internos oficiales
+    // para evitar fallos de coordenadas fuera de rango "outside the sheet boundaries" si la hoja está recién migrada
+    const colLimit = Math.min(lastCol, HEADERS_INVENTARIO.length);
+    if (colLimit === 0) {
+      console.warn("La hoja de inventario no contiene columnas mapeables.");
+      return { rows: [], data: [] };
+    }
+
+    const range = sheet.getRange(2, 1, lastRow - 1, colLimit);
+    const values = range.getValues();
+
+    const data = values.map((row, index) => {
+      const obj = {};
+      HEADERS_INVENTARIO.forEach((header, i) => {
+        if (i < colLimit) {
+          // Formatear fechas si aplica
+          if (header === "ULTIMA_ACTUALIZACION" && row[i] instanceof Date) {
+            obj[header] = Utilities.formatDate(row[i], Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
+          } else {
+            obj[header] = row[i];
+          }
+        } else {
+          // Rellenar con vacío para columnas que no existan en la hoja actual y evitar TypeError en cliente
+          obj[header] = "";
+        }
+      });
+      // Recordar el índice real de la fila en Sheets (fila 1 son encabezados, el primer registro es fila 2, index + 2)
+      obj._sheetRowIndex = index + 2;
+      return obj;
     });
-    // Recordar el índice real de la fila en Sheets (fila 1 son encabezados, el primer registro es fila 2, index + 2)
-    obj._sheetRowIndex = index + 2;
-    return obj;
-  });
 
-  return { rows: values, data: data };
+    console.log(`[getInventarioRowsAndData] Registros mapeados con éxito: ${data.length}`);
+    return { rows: values, data: data };
+  } catch (error) {
+    console.error("Falla al recuperar datos en getInventarioRowsAndData:", error.message);
+    throw new Error("No se pudieron recuperar los registros de inventario: " + error.message);
+  }
 }
 
 /**
@@ -736,7 +899,7 @@ function guardarArticulo(articulo, usuario) {
   try {
     lock.waitLock(10000);
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     if (!sheet) inicializarBaseDatos();
 
@@ -815,7 +978,7 @@ function actualizarArticulo(articulo, usuario) {
       throw new Error("El artículo con No. INV. '" + noInv + "' no existe en la base de datos.");
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
 
@@ -887,7 +1050,7 @@ function bajaArticulo(noInv, usuario) {
       throw new Error("El artículo con No. INV. '" + noInv + "' no existe.");
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
     const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd HH:mm:ss");
@@ -922,7 +1085,7 @@ function eliminarArticulo(noInv, usuario) {
       throw new Error("El artículo con No. INV. '" + noInv + "' no existe.");
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     const sheet = getSheetSafe(SHEET_INVENTARIO);
     const rowIndex = existente._sheetRowIndex;
 
@@ -951,7 +1114,7 @@ function listarArticulos() {
  * Obtiene los registros de la Bitácora.
  */
 function listarBitacora() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetSafe();
   const sheet = getSheetSafe(SHEET_BITACORA);
   if (!sheet) return [];
 
@@ -984,7 +1147,7 @@ function cargarExcel(registros, overrideOption, usuario) {
   try {
     lock.waitLock(15000); // Dar buen margen de bloqueo concurrente
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetSafe();
     let sheet = getSheetSafe(SHEET_INVENTARIO);
     if (!sheet) {
       inicializarBaseDatos();
