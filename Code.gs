@@ -101,6 +101,15 @@ function doGet(e) {
 
     // NOTA: El método .evaluate() es un método nativo y seguro de Google Apps Script (HtmlTemplate.evaluate()).
     // No guarda relación con la función "eval()" de JavaScript y es completamente seguro de usar aquí.
+    //
+    // DOCUMENTACIÓN SOBRE ADVERTENCIA DE SANDBOX DEL IFRAME DE GOOGLE APPS SCRIPT:
+    // El navegador suele registrar la advertencia: "An iframe which has both allow-scripts and allow-same-origin
+    // for its sandbox attribute can escape its sandboxing". Esto es una restricción interna del motor nativo
+    // de Google Apps Script cuando renderiza el HtmlService en modo Web App. No es posible desactivar o modificar
+    // estos atributos del sandbox desde el código de la aplicación, ya que Google los impone automáticamente por
+    // seguridad para poder comunicar el backend con el frontend mediante `google.script.run`. Para evitar que esta
+    // restricción bloquee el acceso físico a la cámara (Permissions-Policy), se implementó el "Escáner en Ventana
+    // de Nivel Superior", abriendo una pestaña segura 'about:blank' que elude por completo las restricciones del iframe.
     const htmlOutput = template.evaluate()
       .setTitle("Sistema de Inventario - Mejora Regulatoria")
       .setFaviconUrl("https://www.google.com/favicon.ico")

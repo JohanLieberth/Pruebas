@@ -103,6 +103,9 @@ El Excel de Patrimonio puede contener encabezados con variaciones de nombre, ace
 
 A continuación se detallan los errores reportados comunes en el entorno de consola del navegador y su diagnóstico de resolución:
 
+### 0. Advertencia sobre Sandbox del Iframe: `An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.`
+*   **Diagnóstico**: Esta advertencia es emitida nativamente por los navegadores modernos al procesar el entorno en el que Google Apps Script despliega y sirve el `HtmlService` de las Web Apps. Google impone estos atributos en el iframe sandbox para permitir la comunicación segura entre el backend y el frontend. No es un error de la aplicación, es una limitación inherente a Google Apps Script y no afecta en absoluto la funcionalidad de la app.
+
 ### 1. Error de Cámara: `[Violation] Permissions policy violation: camera is not allowed in this document.`
 *   **Causa**: Google Apps Script sirve SIEMPRE la Web App dentro de un iframe sandbox (`script.google.com` embebe `userCodeAppPanel` en `*.googleusercontent.com`), INCLUSO cuando se abre la URL `/exec` directamente en una pestaña nueva del navegador. Debido a las políticas de seguridad estrictas de los navegadores modernos, el acceso a la cámara mediante `getUserMedia` está completamente prohibido por la directiva `Permissions-Policy` de este iframe permanente, imposibilitando la activación del hardware de video en cualquier subpágina servida por la Web App.
 *   **Solución Definitiva e Infalible (Opción A - Inyección en about:blank)**:

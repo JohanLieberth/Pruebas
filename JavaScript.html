@@ -110,8 +110,13 @@ window.setStatus = updateStatus;
 window.updateUI = updateStatus;
 window.updateUIStatus = updateStatus;
 
-// Al iniciar el documento
-document.addEventListener("DOMContentLoaded", function() {
+// Bandera para asegurar una única inicialización del ciclo de vida de la aplicación
+window.isAppInitialized = false;
+
+function inicializarAppCompleta() {
+  if (window.isAppInitialized) return;
+  window.isAppInitialized = true;
+
   // Diagnóstico obligatorio de contexto de ejecución (iframe sandbox de Google)
   const esIframe = window.self !== window.top;
   console.log("Inventario SMR - ¿Ejecutando dentro de un iframe sandbox de Google?:", esIframe);
@@ -156,7 +161,20 @@ document.addEventListener("DOMContentLoaded", function() {
       localStorage.removeItem("smr_scanned_code"); // Limpiar valor
     }
   });
-});
+
+  // Si el usuario intentó navegar antes de cargarse el script completo, redirigirlo de forma automática y fluida
+  if (window.deferredSection) {
+    showSection(window.deferredSection);
+    delete window.deferredSection;
+  }
+}
+
+// Ejecutar inicialización inmediatamente si el DOM ya se cargó, de lo contrario esperar a DOMContentLoaded
+if (document.readyState === "interactive" || document.readyState === "complete") {
+  inicializarAppCompleta();
+} else {
+  document.addEventListener("DOMContentLoaded", inicializarAppCompleta);
+}
 
 /**
  * ==========================================
@@ -266,59 +284,76 @@ function cambiarNombreUsuario() {
 }
 
 
+// Bandera para prevenir navegación repetida o duplicada por clics sucesivos rápidos
+let isNavigating = false;
+
 /**
  * ==========================================
  * 2. ENRUTADOR DE VISTAS (SECCIONES)
  * ==========================================
  */
 function showSection(sectionId) {
-  // Ocultar todas las secciones
-  const sections = document.querySelectorAll(".app-section");
-  sections.forEach(s => s.classList.add("d-none"));
+  if (isNavigating) return;
+  isNavigating = true;
 
-  // Desactivar todos los links de navegación
-  const navLinks = document.querySelectorAll(".nav-link");
-  navLinks.forEach(l => l.classList.remove("active"));
+  try {
+    // Ocultar todas las secciones
+    const sections = document.querySelectorAll(".app-section");
+    sections.forEach(s => s.classList.add("d-none"));
 
-  // Mostrar la sección seleccionada
-  const activeSection = document.getElementById("section-" + sectionId);
-  if (activeSection) {
-    activeSection.classList.remove("d-none");
-  }
+    // Desactivar todos los links de navegación
+    const navLinks = document.querySelectorAll(".nav-link");
+    navLinks.forEach(l => l.classList.remove("active"));
 
-  // Activar link respectivo
-  const activeLink = document.getElementById("nav-" + sectionId);
-  if (activeLink) {
-    activeLink.classList.add("active");
-  }
+    // Mostrar la sección seleccionada
+    const activeSection = document.getElementById("section-" + sectionId);
+    if (activeSection) {
+      activeSection.classList.remove("d-none");
+    }
 
-  // Acciones secundarias al cambiar de sección
-  if (sectionId !== 'escanear') {
-    stopScanner(); // Apagar cámara si el usuario sale de escanear
-  } else {
-    // Si entra a escanear, enfocar entrada manual
+    // Activar link respectivo
+    const activeLink = document.getElementById("nav-" + sectionId);
+    if (activeLink) {
+      activeLink.classList.add("active");
+    }
+
+    // Acciones secundarias al cambiar de sección
+    if (sectionId !== 'escanear') {
+      stopScanner(); // Apagar cámara si el usuario sale de escanear
+    } else {
+      // Si entra a escanear, enfocar entrada manual
+      setTimeout(() => {
+        const manualInput = document.getElementById("scan-manual-no-inv");
+        if (manualInput) manualInput.focus();
+      }, 300);
+    }
+
+    if (sectionId === 'listado') {
+      cargarListadoInventario();
+    } else if (sectionId === 'bitacora') {
+      cargarDatosBitacora();
+    } else if (sectionId === 'inicio') {
+      cargarEstadisticasInicio();
+    } else if (sectionId === 'buscar') {
+      setTimeout(() => {
+        const searchText = document.getElementById("buscar-texto");
+        if (searchText) searchText.focus();
+      }, 300);
+    }
+
+    // Cerrar menú responsivo colapsable de bootstrap al hacer click
+    const navbarCollapse = document.getElementById("navbarNav");
+    if (navbarCollapse && navbarCollapse.classList && navbarCollapse.classList.contains("show")) {
+      const bsCollapse = new bootstrap.Collapse(navbarCollapse);
+      bsCollapse.hide();
+    }
+  } catch (error) {
+    console.error("Error en navegación showSection:", error);
+  } finally {
+    // Liberar bloqueo de navegación con un pequeño retraso
     setTimeout(() => {
-      document.getElementById("scan-manual-no-inv").focus();
-    }, 300);
-  }
-
-  if (sectionId === 'listado') {
-    cargarListadoInventario();
-  } else if (sectionId === 'bitacora') {
-    cargarDatosBitacora();
-  } else if (sectionId === 'inicio') {
-    cargarEstadisticasInicio();
-  } else if (sectionId === 'buscar') {
-    setTimeout(() => {
-      document.getElementById("buscar-texto").focus();
-    }, 300);
-  }
-
-  // Cerrar menú responsivo colapsable de bootstrap al hacer click
-  const navbarCollapse = document.getElementById("navbarNav");
-  if (navbarCollapse && navbarCollapse.classList && navbarCollapse.classList.contains("show")) {
-    const bsCollapse = new bootstrap.Collapse(navbarCollapse);
-    bsCollapse.hide();
+      isNavigating = false;
+    }, 150);
   }
 }
 
@@ -3103,11 +3138,10 @@ function setupElements() {
       statusMessage: document.getElementById('estadoCamara')
     };
 
-    // Verificar que todos los elementos existan
+    // Verificar de forma no intrusiva si los elementos existen (sin crear duplicados en el body)
     for (const [key, element] of Object.entries(elements)) {
       if (!element) {
-        console.warn(`Elemento ${key} no encontrado en el DOM. Creando fallback.`);
-        elements[key] = createElement(key);
+        console.log(`Elemento opcional ${key} no encontrado en el DOM.`);
       }
     }
 
@@ -3133,7 +3167,7 @@ function setupElements() {
   }
 }
 
-// Función helper para crear elementos faltantes de manera segura usando IDs reales
+// Función helper para crear elementos de forma controlada si es necesario (sin append automático a body)
 function createElement(elementKey) {
   const elementMap = {
     'scannerVideo': () => {
@@ -3198,9 +3232,7 @@ function createElement(elementKey) {
   };
 
   if (elementMap[elementKey]) {
-    const element = elementMap[elementKey]();
-    document.body.appendChild(element);
-    return element;
+    return elementMap[elementKey]();
   }
   return null;
 }
