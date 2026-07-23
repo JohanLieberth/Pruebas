@@ -355,15 +355,15 @@
 
                 <div class="row g-3">
                   <div class="col-md-6 col-12">
-                    <label class="form-label fw-semibold text-dark">Ubicación Real <span class="text-danger">*</span></label>
+                    <label class="form-label fw-semibold text-dark" for="scan-real-ubicacion">Ubicación Real <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="scan-real-ubicacion" required placeholder="Ej. Oficina A-2">
                   </div>
                   <div class="col-md-6 col-12">
-                    <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
+                    <label class="form-label fw-semibold text-dark" for="scan-real-resguardante">Resguardante Real <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="scan-real-resguardante" required placeholder="Nombre completo">
                   </div>
                   <div class="col-md-6 col-12">
-                    <label class="form-label fw-semibold text-dark">Estado Real <span class="text-danger">*</span></label>
+                    <label class="form-label fw-semibold text-dark" for="scan-real-estado">Estado Real <span class="text-danger">*</span></label>
                     <select class="form-select fw-bold" id="scan-real-estado" required>
                       <option value="BUENO">BUENO</option>
                       <option value="REGULAR">REGULAR</option>
@@ -372,7 +372,7 @@
                     </select>
                   </div>
                   <div class="col-md-6 col-12">
-                    <label class="form-label fw-semibold text-dark">Campos editables rápidos:</label>
+                    <span class="form-label fw-semibold text-dark d-block mb-2">Campos editables rápidos:</span>
                     <div class="d-grid gap-1">
                       <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="toggleFormCamposScanExtra()">
                         <i class="fa-solid fa-sliders me-2"></i>Editar otros campos (Marca, Serie, etc.)
@@ -382,7 +382,7 @@
 
                   <!-- Item 1: Captura/Adjuntar nueva foto en escáner rápido (Móvil & PC) -->
                   <div class="col-12 mt-3">
-                    <label class="form-label fw-semibold text-dark"><i class="fa-solid fa-camera me-1"></i>Adjuntar Nueva Fotografía (Opcional)</label>
+                    <label class="form-label fw-semibold text-dark" for="scan-foto-input"><i class="fa-solid fa-camera me-1"></i>Adjuntar Nueva Fotografía (Opcional)</label>
                     <input class="form-control" type="file" id="scan-foto-input" accept="image/*" capture="camera" onchange="validarYPrevisualizarFotoScan()">
                     <div id="scan-foto-preview-container" class="text-center p-2 border rounded bg-light d-none mt-2">
                       <img id="scan-foto-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
@@ -396,27 +396,27 @@
                       <h6 class="fw-bold text-dark border-bottom pb-1 mb-2">Campos Adicionales</h6>
                       <div class="row g-2">
                         <div class="col-6">
-                          <label class="form-label small text-dark mb-1">Descripción</label>
+                          <label class="form-label small text-dark mb-1" for="scan-extra-descripcion">Descripción</label>
                           <input type="text" class="form-control form-control-sm" id="scan-extra-descripcion">
                         </div>
                         <div class="col-6">
-                          <label class="form-label small text-dark mb-1">Serie</label>
+                          <label class="form-label small text-dark mb-1" for="scan-extra-serie">Serie</label>
                           <input type="text" class="form-control form-control-sm" id="scan-extra-serie">
                         </div>
                         <div class="col-6">
-                          <label class="form-label small text-dark mb-1">Marca</label>
+                          <label class="form-label small text-dark mb-1" for="scan-extra-marca">Marca</label>
                           <input type="text" class="form-control form-control-sm" id="scan-extra-marca">
                         </div>
                         <div class="col-6">
-                          <label class="form-label small text-dark mb-1">Modelo</label>
+                          <label class="form-label small text-dark mb-1" for="scan-extra-modelo">Modelo</label>
                           <input type="text" class="form-control form-control-sm" id="scan-extra-modelo">
                         </div>
                         <div class="col-6">
-                          <label class="form-label small text-dark mb-1">Importe ($)</label>
+                          <label class="form-label small text-dark mb-1" for="scan-extra-importe">Importe ($)</label>
                           <input type="number" step="0.01" class="form-control form-control-sm" id="scan-extra-importe">
                         </div>
                         <div class="col-6">
-                          <label class="form-label small text-dark mb-1">Estado (Patrimonio)</label>
+                          <label class="form-label small text-dark mb-1" for="scan-extra-estado">Estado (Patrimonio)</label>
                           <select class="form-select form-select-sm" id="scan-extra-estado">
                             <option value="BUENO">BUENO</option>
                             <option value="REGULAR">REGULAR</option>
@@ -486,14 +486,14 @@
           <form id="form-buscar" onsubmit="event.preventDefault(); buscarArticulosPorCriterio();">
             <div class="row g-3 align-items-end">
               <div class="col-12 col-md-3">
-                <label class="form-label fw-semibold text-dark">Criterio de búsqueda:</label>
+                <label class="form-label fw-semibold text-dark" for="buscar-criterio">Criterio de búsqueda:</label>
                 <select id="buscar-criterio" class="form-select">
                   <option value="NO_INV">Por No. INV. (Número de Inventario)</option>
                   <option value="SERIE">Por Número de Serie (SERIE)</option>
                 </select>
               </div>
               <div class="col-12 col-md-5">
-                <label class="form-label fw-semibold text-dark">Texto a buscar:</label>
+                <label class="form-label fw-semibold text-dark" for="buscar-texto">Texto a buscar:</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
                   <input type="text" id="buscar-texto" class="form-control" placeholder="Escribe el número o serie..." required>
@@ -568,47 +568,47 @@
               <h5 class="fw-bold border-bottom pb-2 text-primary mb-2"><i class="fa-solid fa-barcode me-2"></i>Identificadores Básicos</h5>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">No. INV (Número de Inventario) <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-no-inv">No. INV (Número de Inventario) <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-no-inv" required placeholder="Ej. 100000000010" onblur="verificarExistenciaAlta(this.value)">
                 <div class="form-text text-danger d-none" id="alta-duplicado-error">El No. INV ya existe en el sistema.</div>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">No. Correlativo (Interno/Opcional)</label>
+                <label class="form-label fw-semibold text-dark" for="alta-no">No. Correlativo (Interno/Opcional)</label>
                 <input type="number" class="form-control" id="alta-no" placeholder="Autogenerado si se deja vacío">
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">No. de Serie <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-serie">No. de Serie <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-serie" required placeholder="Ej. SN-XXXXXX o N/A">
               </div>
 
               <h5 class="fw-bold border-bottom pb-2 text-primary mt-4 mb-2"><i class="fa-solid fa-circle-info me-2"></i>Características y Detalles</h5>
 
               <div class="col-12">
-                <label class="form-label fw-semibold text-dark">Descripción del artículo <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-descripcion">Descripción del artículo <span class="text-danger">*</span></label>
                 <textarea class="form-control" id="alta-descripcion" required rows="2" placeholder="Ej. COMPUTADORA PORTATIL HP PROBOOK..."></textarea>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Marca <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-marca">Marca <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-marca" required placeholder="Ej. HP, LENOVO, etc.">
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Modelo <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-modelo">Modelo <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-modelo" required placeholder="Ej. PROBOOK 450 G8">
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Importe ($) <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-importe">Importe ($) <span class="text-danger">*</span></label>
                 <input type="number" step="0.01" class="form-control" id="alta-importe" required placeholder="0.00">
               </div>
 
               <h5 class="fw-bold border-bottom pb-2 text-primary mt-4 mb-2"><i class="fa-solid fa-building me-2"></i>Datos de Patrimonio (Histórico/Asignado)</h5>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Estado (Patrimonio)</label>
+                <label class="form-label fw-semibold text-dark" for="alta-estado">Estado (Patrimonio)</label>
                 <select class="form-select" id="alta-estado">
                   <option value="BUENO" selected>BUENO</option>
                   <option value="REGULAR">REGULAR</option>
@@ -618,19 +618,19 @@
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Ubicación (Patrimonio)</label>
+                <label class="form-label fw-semibold text-dark" for="alta-ubicacion">Ubicación (Patrimonio)</label>
                 <input type="text" class="form-control" id="alta-ubicacion" placeholder="Ej. SUBDIRECCION DE MEJORA REGULATORIA">
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Resguardado Por (Patrimonio)</label>
+                <label class="form-label fw-semibold text-dark" for="alta-resguardado">Resguardado Por (Patrimonio)</label>
                 <input type="text" class="form-control" id="alta-resguardado" placeholder="Nombre de resguardante oficial">
               </div>
 
               <h5 class="fw-bold border-bottom pb-2 text-primary mt-4 mb-2"><i class="fa-solid fa-map-location-dot me-2"></i>Datos de Levantamiento Real</h5>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Estado Real <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-estado-real">Estado Real <span class="text-danger">*</span></label>
                 <select class="form-select fw-bold" id="alta-estado-real" required>
                   <option value="BUENO" selected>BUENO</option>
                   <option value="REGULAR">REGULAR</option>
@@ -640,18 +640,18 @@
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Ubicación Real <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-ubicacion-real">Ubicación Real <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-ubicacion-real" required placeholder="Ej. Oficina Central / Escritorio 3">
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="alta-resguardante-real">Resguardante Real <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="alta-resguardante-real" required placeholder="Ej. Juan Pérez López">
               </div>
 
               <!-- Item 1: Captura/Adjuntar fotografía de evidencia (Móvil & PC) -->
               <div class="col-12 mt-3">
-                <label class="form-label fw-semibold text-dark"><i class="fa-solid fa-camera me-1"></i>Fotografía de Evidencia (Opcional)</label>
+                <label class="form-label fw-semibold text-dark" for="alta-foto-input"><i class="fa-solid fa-camera me-1"></i>Fotografía de Evidencia (Opcional)</label>
                 <input class="form-control" type="file" id="alta-foto-input" accept="image/*" capture="camera" onchange="validarYPrevisualizarFotoAlta()">
                 <div id="alta-foto-preview-container" class="text-center p-2 border rounded bg-light d-none mt-2">
                   <img id="alta-foto-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
@@ -697,7 +697,7 @@
                 </div>
 
                 <div class="mb-4">
-                  <label class="form-label fw-semibold text-dark d-block">Si el "No. INV." ya existe en el sistema:</label>
+                  <span class="form-label fw-semibold text-dark d-block mb-2">Si el "No. INV." ya existe en el sistema:</span>
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="duplicados-radio" id="radio-omitir" value="OMIT" checked>
                     <label class="form-check-label text-dark" for="radio-omitir">
@@ -850,7 +850,7 @@
         <div class="card-body">
           <div class="row g-3 align-items-end">
             <div class="col-12 col-md-3">
-              <label class="form-label small fw-bold text-dark">Filtrar por Estado (Real):</label>
+              <label class="form-label small fw-bold text-dark" for="filtro-estado">Filtrar por Estado (Real):</label>
               <select id="filtro-estado" class="form-select" onchange="aplicarFiltrosYListar()">
                 <option value="">-- Todos los Estados --</option>
                 <option value="BUENO">BUENO</option>
@@ -861,7 +861,7 @@
             </div>
 
             <div class="col-12 col-md-3">
-              <label class="form-label small fw-bold text-dark">Filtrar por Ubicación (Real):</label>
+              <label class="form-label small fw-bold text-dark" for="filtro-ubicacion">Filtrar por Ubicación (Real):</label>
               <select id="filtro-ubicacion" class="form-select" onchange="aplicarFiltrosYListar()">
                 <option value="">-- Todas las Ubicaciones --</option>
                 <!-- Se llena dinámicamente -->
@@ -869,7 +869,7 @@
             </div>
 
             <div class="col-12 col-md-4">
-              <label class="form-label small fw-bold text-dark">Filtro Rápido (Cualquier campo):</label>
+              <label class="form-label small fw-bold text-dark" for="filtro-rapido">Filtro Rápido (Cualquier campo):</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="fa-solid fa-filter"></i></span>
                 <input type="text" id="filtro-rapido" class="form-control" placeholder="Escribe para buscar en vivo..." oninput="aplicarFiltrosYListar()">
@@ -926,7 +926,7 @@
         <!-- Paginación -->
         <div class="card-footer bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="d-flex align-items-center gap-1">
-            <span class="small text-muted me-2">Mostrar:</span>
+            <label class="small text-muted me-2" for="paginacion-limite">Mostrar:</label>
             <select id="paginacion-limite" class="form-select form-select-sm" style="width: 80px;" onchange="cambiarLimitePaginacion(this.value)">
               <option value="10" selected>10</option>
               <option value="25">25</option>
@@ -1005,40 +1005,40 @@
               <h6 class="fw-bold text-primary border-bottom pb-1 mb-2">Identificadores Oficiales</h6>
 
               <div class="col-md-6 col-12">
-                <label class="form-label fw-semibold text-dark">No. INV. (Etiqueta Patrimonio) <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-no-inv">No. INV. (Etiqueta Patrimonio) <span class="text-danger">*</span></label>
                 <input type="text" class="form-control bg-light" id="edit-no-inv" readonly required>
                 <div class="form-text">El número de inventario actúa como llave única de base de datos.</div>
               </div>
 
               <div class="col-md-6 col-12">
-                <label class="form-label fw-semibold text-dark">Número de Serie <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-serie">Número de Serie <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="edit-serie" required>
               </div>
 
               <h6 class="fw-bold text-primary border-bottom pb-1 mt-4 mb-2">Información de Patrimonio</h6>
 
               <div class="col-12">
-                <label class="form-label fw-semibold text-dark">Descripción <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-descripcion">Descripción <span class="text-danger">*</span></label>
                 <textarea class="form-control" id="edit-descripcion" required rows="2"></textarea>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Marca <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-marca">Marca <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="edit-marca" required>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Modelo <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-modelo">Modelo <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="edit-modelo" required>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Importe ($) <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-importe">Importe ($) <span class="text-danger">*</span></label>
                 <input type="number" step="0.01" class="form-control" id="edit-importe" required>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Estado (Patrimonio)</label>
+                <label class="form-label fw-semibold text-dark" for="edit-estado">Estado (Patrimonio)</label>
                 <select class="form-select" id="edit-estado">
                   <option value="BUENO">BUENO</option>
                   <option value="REGULAR">REGULAR</option>
@@ -1048,19 +1048,19 @@
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Ubicación (Patrimonio)</label>
+                <label class="form-label fw-semibold text-dark" for="edit-ubicacion">Ubicación (Patrimonio)</label>
                 <input type="text" class="form-control" id="edit-ubicacion">
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Resguardado Por (Patrimonio)</label>
+                <label class="form-label fw-semibold text-dark" for="edit-resguardado">Resguardado Por (Patrimonio)</label>
                 <input type="text" class="form-control" id="edit-resguardado">
               </div>
 
               <h6 class="fw-bold text-primary border-bottom pb-1 mt-4 mb-2">Datos del Levantamiento Real</h6>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Estado Real <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-estado-real">Estado Real <span class="text-danger">*</span></label>
                 <select class="form-select fw-bold" id="edit-estado-real" required>
                   <option value="BUENO">BUENO</option>
                   <option value="REGULAR">REGULAR</option>
@@ -1070,18 +1070,18 @@
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Ubicación Real <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-ubicacion-real">Ubicación Real <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="edit-ubicacion-real" required>
               </div>
 
               <div class="col-md-4 col-12">
-                <label class="form-label fw-semibold text-dark">Resguardante Real <span class="text-danger">*</span></label>
+                <label class="form-label fw-semibold text-dark" for="edit-resguardante-real">Resguardante Real <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="edit-resguardante-real" required>
               </div>
 
               <!-- Item 1: Captura/Adjuntar nueva foto en edición (Móvil & PC) -->
               <div class="col-12 mt-3">
-                <label class="form-label fw-semibold text-dark"><i class="fa-solid fa-camera me-1"></i>Adjuntar Nueva Fotografía (Opcional)</label>
+                <label class="form-label fw-semibold text-dark" for="edit-foto-input"><i class="fa-solid fa-camera me-1"></i>Adjuntar Nueva Fotografía (Opcional)</label>
                 <input class="form-control" type="file" id="edit-foto-input" accept="image/*" capture="camera" onchange="validarYPrevisualizarFotoEdit()">
                 <div id="edit-foto-preview-container" class="text-center p-2 border rounded bg-light d-none mt-2">
                   <img id="edit-foto-preview-img" src="" alt="Vista previa" class="img-thumbnail" style="max-height: 120px;">
@@ -1173,17 +1173,17 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label fw-semibold">Nueva Ubicación Real <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold" for="trasladar-ubicacion-real">Nueva Ubicación Real <span class="text-danger">*</span></label>
               <input type="text" class="form-control" id="trasladar-ubicacion-real" required placeholder="Escriba la nueva ubicación">
             </div>
 
             <div class="mb-3">
-              <label class="form-label fw-semibold">Nuevo Resguardante Real <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold" for="trasladar-resguardante-real">Nuevo Resguardante Real <span class="text-danger">*</span></label>
               <input type="text" class="form-control" id="trasladar-resguardante-real" required placeholder="Escriba el nombre completo">
             </div>
 
             <div class="mb-1">
-              <label class="form-label fw-semibold">Nuevo Estado Real <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold" for="trasladar-estado-real">Nuevo Estado Real <span class="text-danger">*</span></label>
               <select class="form-select" id="trasladar-estado-real" required>
                 <option value="BUENO">BUENO</option>
                 <option value="REGULAR">REGULAR</option>
