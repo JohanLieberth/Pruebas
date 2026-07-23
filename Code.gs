@@ -14,6 +14,10 @@ const SHEET_BITACORA = "Bitacora";
  * @returns {Sheet|null} El objeto de hoja de cálculo encontrado o null si no existe.
  */
 function getSheetSafe(name) {
+  if (!name || typeof name !== "string") {
+    console.warn("getSheetSafe - Nombre de pestaña inválido o indefinido:", name);
+    return null;
+  }
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(name);
   if (sheet) return sheet;
