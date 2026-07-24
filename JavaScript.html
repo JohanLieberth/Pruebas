@@ -1,0 +1,3862 @@
+<script>
+/**
+ * Sistema de Inventario - Subdirección de Mejora Regulatoria
+ * Lógica de Cliente (JS.html)
+ */
+
+// Variables de estado global de la aplicación
+let currentUser = ""; // Nombre del operador/usuario activo
+let scannerInstance = null; // Instancia de Html5Qrcode
+let isScannerRunning = false;
+let currentCameraId = "";
+let listadoCompleto = []; // Cache en cliente para el Listado de Inventario
+let listadoFiltrado = []; // Resultados después de aplicar filtros
+let paginacionActual = 1;
+let paginacionLimite = 10;
+let xlsxMapeadoTemp = []; // Datos de Excel listos para subir
+let ubicacionesUnicas = []; // Ubicaciones cargadas dinámicamente para filtros
+let webAppUrl = ""; // URL de la Web App obtenida de manera dinámica
+
+// ============================================
+// FUNCIÓN DE ESTADO UNIFICADA (SOLUCIÓN DEL ERROR)
+// ============================================
+
+/**
+ * Función unificada para actualizar el estado en la UI
+ * CORREGIDA: Asigna todas las clases mediante className, evitando el error de DOMTokenList
+ * @param {string} mensaje - Mensaje a mostrar
+ * @param {string} tipo - Tipo de mensaje: 'info', 'success', 'error', 'warning', 'loading'
+ */
+function updateStatus(mensaje, tipo = 'info') {
+  console.log(`[Status] ${tipo.toUpperCase()}: ${mensaje}`);
+
+  const estadoDiv = document.getElementById('estadoCamara') || document.getElementById('status-message');
+  if (!estadoDiv) {
+    console.warn('Elemento de estado no encontrado en el DOM');
+    return;
+  }
+
+  let clasesBase = 'status-message text-xs mt-2 border-start border-3 border-info ps-2 text-start';
+
+  // Mapeo de tipos a clases CSS limpias (sin espacios en tokens de classList)
+  const clasesPorTipo = {
+    'info': 'status-info text-info border-info',
+    'success': 'status-success text-success border-success',
+    'error': 'status-error text-danger border-danger',
+    'warning': 'status-warning text-warning border-warning',
+    'loading': 'status-loading text-warning border-warning'
+  };
+
+  const claseTipo = clasesPorTipo[tipo] || 'status-info text-info border-info';
+
+  // Asignar todas las clases como string completo a través de className
+  estadoDiv.className = `${clasesBase} ${claseTipo}`;
+
+  // Actualizar texto
+  estadoDiv.textContent = mensaje;
+
+  // Si hay un elemento de estado alternativo, actualizarlo también
+  const estadoAlternativo = document.getElementById('estado');
+  if (estadoAlternativo) {
+    estadoAlternativo.textContent = mensaje;
+  }
+}
+
+/**
+ * Actualiza el estado con múltiples clases CSS de forma segura
+ * @param {string} mensaje - Mensaje a mostrar
+ * @param {string} tipo - Tipo principal
+ * @param {Array} clasesAdicionales - Array de clases adicionales
+ */
+function updateStatusWithClasses(mensaje, tipo = 'info', clasesAdicionales = []) {
+  console.log(`[Status] ${tipo.toUpperCase()}: ${mensaje}`);
+
+  const estadoDiv = document.getElementById('estadoCamara') || document.getElementById('status-message');
+  if (!estadoDiv) {
+    console.warn('Elemento de estado no encontrado');
+    return;
+  }
+
+  let clases = ['status-message', 'text-xs', 'mt-2', 'border-start', 'border-3', 'ps-2', 'text-start'];
+
+  const clasesPorTipo = {
+    'info': 'status-info',
+    'success': 'status-success',
+    'error': 'status-error',
+    'warning': 'status-warning',
+    'loading': 'status-loading'
+  };
+
+  const claseTipo = clasesPorTipo[tipo] || 'status-info';
+  clases.push(claseTipo);
+
+  if (Array.isArray(clasesAdicionales)) {
+    clases = clases.concat(clasesAdicionales);
+  }
+
+  // Asignar de manera segura
+  estadoDiv.className = clases.join(' ');
+
+  // Actualizar texto
+  estadoDiv.textContent = mensaje;
+}
+
+// Crear alias de compatibilidad global
+window.updateStatus = updateStatus;
+window.updateStatusWithClasses = updateStatusWithClasses;
+window.updateStatusAlias = updateStatus;
+window.mostrarEstado = updateStatus;
+window.setStatus = updateStatus;
+window.updateUI = updateStatus;
+window.updateUIStatus = updateStatus;
+
+// Bandera para asegurar una única inicialización del ciclo de vida de la aplicación
+window.isAppInitialized = false;
+
+function inicializarAppCompleta() {
+  if (window.isAppInitialized) return;
+  window.isAppInitialized = true;
+
+  // Diagnóstico obligatorio de contexto de ejecución (iframe sandbox de Google)
+  const esIframe = window.self !== window.top;
+  console.log("Inventario SMR - ¿Ejecutando dentro de un iframe sandbox de Google?:", esIframe);
+
+  inicializarIdentidadUsuario();
+  cargarEstadisticasInicio();
+
+  // Por defecto mostrar sección inicio, a menos que venga redireccionado por fallback del escáner (?noinv=XXXX)
+  if (typeof window.initialNoInvQuery !== "undefined" && window.initialNoInvQuery !== "") {
+    showSection('escanear');
+    procesarCodigoEtiqueta(window.initialNoInvQuery);
+    mostrarAlerta("Código cargado desde redirección de escáner: " + window.initialNoInvQuery, "success");
+  } else {
+    showSection('inicio');
+  }
+
+  // Obtener URL de la Web App para el escáner de nivel superior
+  google.script.run
+    .withSuccessHandler(function(url) {
+      webAppUrl = url;
+    })
+    .getScriptUrl();
+
+  // 1. Escuchar mensajes del escáner externo vía BroadcastChannel ("inventario-smr")
+  try {
+    const channel = new BroadcastChannel("inventario-smr");
+    channel.onmessage = function(event) {
+      if (event.data && event.data.codigo) {
+        procesarCodigoEtiqueta(event.data.codigo);
+        mostrarAlerta("Código capturado desde ventana de escáner: " + event.data.codigo, "success");
+      }
+    };
+  } catch (e) {
+    console.warn("BroadcastChannel no soportado en este navegador: ", e);
+  }
+
+  // 2. Escuchar mensajes del escáner externo vía localStorage (evento 'storage' para navegadores más antiguos o fallback)
+  window.addEventListener("storage", function(event) {
+    if (event.key === "smr_scanned_code" && event.newValue) {
+      procesarCodigoEtiqueta(event.newValue);
+      mostrarAlerta("Código capturado desde ventana de escáner: " + event.newValue, "success");
+      localStorage.removeItem("smr_scanned_code"); // Limpiar valor
+    }
+  });
+
+  // Si el usuario intentó navegar antes de cargarse el script completo, redirigirlo de forma automática y fluida
+  if (window.deferredSection) {
+    const targetSection = window.deferredSection;
+    delete window.deferredSection;
+
+    // Ocultar el loader de seguridad temprana antes de realizar la navegación real
+    hideLoader();
+    showSection(targetSection);
+  }
+}
+
+// Ejecutar inicialización inmediatamente si el DOM ya se cargó, de lo contrario esperar a DOMContentLoaded
+if (document.readyState === "interactive" || document.readyState === "complete") {
+  inicializarAppCompleta();
+} else {
+  document.addEventListener("DOMContentLoaded", inicializarAppCompleta);
+}
+
+/**
+ * ==========================================
+ * 1. IDENTIDAD DE USUARIO (SESIÓN / MANUAL)
+ * ==========================================
+ */
+function inicializarIdentidadUsuario() {
+  showLoader("Iniciando y obteniendo información del servidor...");
+
+  // Establecer un timeout de respaldo de 6 segundos para ocultar el loader si el servidor tarda o está inactivo
+  const safeTimeout = setTimeout(function() {
+    console.warn("La respuesta del servidor de Apps Script ha tardado más de lo esperado. Ocultando loader preventivamente.");
+    hideLoader();
+    const savedUser = localStorage.getItem("smr_inventario_user");
+    if (savedUser && savedUser.trim().length >= 3) {
+      currentUser = savedUser;
+      guardarUsuarioIdentificado(savedUser, true);
+    } else {
+      const modalEl = document.getElementById("modal-user-identity");
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+  }, 6000);
+
+  // Intentar obtener usuario desde Session de Google Apps Script
+  google.script.run
+    .withSuccessHandler(function(email) {
+      clearTimeout(safeTimeout); // Desactivar timeout de respaldo
+      if (email) {
+        currentUser = email;
+        guardarUsuarioIdentificado(email, false);
+      } else {
+        // No se pudo obtener sesión activa (Web App ejecutada como creador, o acceso anónimo)
+        // Buscar en localStorage local
+        const savedUser = localStorage.getItem("smr_inventario_user");
+        if (savedUser && savedUser.trim().length >= 3) {
+          currentUser = savedUser;
+          guardarUsuarioIdentificado(savedUser, true);
+        } else {
+          hideLoader();
+          // Forzar modal de identificación de usuario
+          const modalEl = document.getElementById("modal-user-identity");
+          if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          }
+        }
+      }
+    })
+    .withFailureHandler(function(err) {
+      clearTimeout(safeTimeout); // Desactivar timeout de respaldo
+      hideLoader();
+      mostrarAlerta("Error al conectar con el servidor: " + err.message, "danger");
+      // Intentar recuperar de localStorage si falla conexión inicial
+      const savedUser = localStorage.getItem("smr_inventario_user");
+      if (savedUser) {
+        currentUser = savedUser;
+        guardarUsuarioIdentificado(savedUser, true);
+      }
+    })
+    .getActiveUserEmail();
+}
+
+function guardarUsuarioIdentificado(userName, guardarEnLocal) {
+  currentUser = userName;
+  if (guardarEnLocal) {
+    localStorage.setItem("smr_inventario_user", userName);
+  }
+
+  // Actualizar UI con validaciones de existencia para evitar TypeError
+  const nameDisplay = document.getElementById("current-user-name");
+  if (nameDisplay) nameDisplay.textContent = userName;
+
+  const detailsDisplay = document.getElementById("active-user-details");
+  if (detailsDisplay) detailsDisplay.textContent = userName;
+
+  // Cerrar modal si estuviera abierto
+  const modalEl = document.getElementById("modal-user-identity");
+  if (modalEl) {
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+      modalInstance.hide();
+    }
+  }
+  hideLoader();
+}
+
+function guardarUsuarioManual() {
+  const inputVal = document.getElementById("user-identity-input").value;
+  if (inputVal && inputVal.trim().length >= 3) {
+    guardarUsuarioIdentificado(inputVal.trim(), true);
+    // Registrar el ingreso en la bitácora
+    google.script.run.registrarBitacora("INGRESO_WEB", "", "Sesión iniciada por el operador", inputVal.trim());
+    cargarEstadisticasInicio();
+  } else {
+    alert("Por favor escribe un nombre válido de al menos 3 caracteres.");
+  }
+}
+
+function cambiarNombreUsuario() {
+  const modalEl = document.getElementById("modal-user-identity");
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById("user-identity-input").value = currentUser;
+  modal.show();
+}
+
+
+// Bandera para prevenir navegación repetida o duplicada por clics sucesivos rápidos
+let isNavigating = false;
+
+/**
+ * ==========================================
+ * 2. ENRUTADOR DE VISTAS (SECCIONES)
+ * ==========================================
+ */
+function showSection(sectionId) {
+  if (isNavigating) return;
+  isNavigating = true;
+
+  try {
+    // Ocultar todas las secciones
+    const sections = document.querySelectorAll(".app-section");
+    sections.forEach(s => s.classList.add("d-none"));
+
+    // Desactivar todos los links de navegación
+    const navLinks = document.querySelectorAll(".nav-link");
+    navLinks.forEach(l => l.classList.remove("active"));
+
+    // Mostrar la sección seleccionada
+    const activeSection = document.getElementById("section-" + sectionId);
+    if (activeSection) {
+      activeSection.classList.remove("d-none");
+    }
+
+    // Activar link respectivo
+    const activeLink = document.getElementById("nav-" + sectionId);
+    if (activeLink) {
+      activeLink.classList.add("active");
+    }
+
+    // Acciones secundarias al cambiar de sección
+    if (sectionId !== 'escanear') {
+      stopScanner(); // Apagar cámara si el usuario sale de escanear
+    } else {
+      // Si entra a escanear, enfocar entrada manual
+      setTimeout(() => {
+        const manualInput = document.getElementById("scan-manual-no-inv");
+        if (manualInput) manualInput.focus();
+      }, 300);
+    }
+
+    if (sectionId === 'listado') {
+      cargarListadoInventario();
+    } else if (sectionId === 'bitacora') {
+      cargarDatosBitacora();
+    } else if (sectionId === 'inicio') {
+      cargarEstadisticasInicio();
+    } else if (sectionId === 'buscar') {
+      setTimeout(() => {
+        const searchText = document.getElementById("buscar-texto");
+        if (searchText) searchText.focus();
+      }, 300);
+    }
+
+    // Cerrar menú responsivo colapsable de bootstrap al hacer click
+    const navbarCollapse = document.getElementById("navbarNav");
+    if (navbarCollapse && navbarCollapse.classList && navbarCollapse.classList.contains("show")) {
+      const bsCollapse = new bootstrap.Collapse(navbarCollapse);
+      bsCollapse.hide();
+    }
+  } catch (error) {
+    console.error("Error en navegación showSection:", error);
+  } finally {
+    // Liberar bloqueo de navegación con un pequeño retraso
+    setTimeout(() => {
+      isNavigating = false;
+    }, 150);
+  }
+}
+
+// Exponer inmediatamente al ámbito de ventana (window) global para prevenir ReferenceError
+window.showSection = showSection;
+
+
+/**
+ * ==========================================
+ * 3. CONTROLADOR DEL ESCÁNER CON CÁMARA
+ * ==========================================
+ */
+// Exponer callback global sincrónico para la comunicación directa del pop-up
+window.procesarCodigoEtiquetaDesdePopup = function(codigo) {
+  if (codigo) {
+    procesarCodigoEtiqueta(codigo);
+    mostrarAlerta("Código capturado desde ventana del escáner: " + codigo, "success");
+  }
+};
+
+// Función para abrir el escáner de nivel superior about:blank (Opción A) para evadir las políticas del iframe de Google
+function abrirPopupEscaner() {
+  limpiarResultadosEscaner();
+
+  // CAUSA RAÍZ: Google Apps Script sirve SIEMPRE la Web App dentro de un iframe sandbox (*.googleusercontent.com)
+  // incluso si se abre en una pestaña nueva con /exec. Esto prohíbe la cámara a nivel de la política Permissions-Policy del iframe.
+  // SOLUCIÓN DEFINTIVA (Opción A): Abrir una ventana emergente 'about:blank' (nivel superior puro) e inyectarle el HTML
+  // completo del escáner de cámara. No hereda el iframe ni la Permissions-Policy restrictiva de Google.
+
+  const popup = window.open("", "smr_camera_scanner", "width=500,height=600,scrollbars=yes,resizable=yes");
+
+  if (!popup || popup.closed || typeof popup.closed === "undefined") {
+    mostrarAlerta("¡Ventana emergente bloqueada! Por favor, permite las ventanas emergentes (pop-ups) de este sitio en la barra de direcciones de tu navegador y vuelve a presionar 'Iniciar Cámara Lector'.", "warning");
+    return;
+  }
+
+  mostrarAlerta("Se ha abierto la ventana del escáner en nivel superior de forma segura. Escanea la etiqueta allí para transferir el código aquí.", "info");
+
+  // Inyectar el HTML autocontenido del escáner en la ventana about:blank
+  const htmlScannerLayout = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Escáner de Inventario SMR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background-color: #1a1a2e;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+      font-family: system-ui, sans-serif;
+    }
+    .scanner-card {
+      background-color: #161625;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    #reader {
+      width: 100%;
+      background-color: #000;
+      border: none !important;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #reader__scan_region {
+      background-color: #000 !important;
+    }
+    #reader__dashboard {
+      background: #222235 !important;
+      padding: 10px !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      color: #fff !important;
+    }
+    #reader__dashboard_section_csr button {
+      background-color: #16a085 !important;
+      color: white !important;
+      border: none !important;
+      padding: 6px 12px !important;
+      border-radius: 6px !important;
+      font-weight: 600 !important;
+    }
+    .success-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(22, 160, 133, 0.95);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
+      border-radius: 16px;
+    }
+    .pulse-glow {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="text-center py-2 mb-3 border-bottom border-secondary">
+    <h5 class="fw-bold text-success mb-0">
+      <i class="fa-solid fa-camera-retro me-2"></i>Escáner de Cámara Nivel Superior
+    </h5>
+    <p class="small text-muted mb-0">Subdirección de Mejora Regulatoria</p>
+  </header>
+
+  <main class="container-fluid flex-grow-1 d-flex flex-column justify-content-center p-0" style="max-width: 450px;">
+    <div id="local-alert" class="alert alert-warning d-none mb-3" role="alert"></div>
+
+    <div class="card scanner-card shadow-lg position-relative">
+      <div class="card-body p-3">
+
+        <!-- Éxito -->
+        <div id="success-overlay" class="success-overlay d-none">
+          <i class="fa-solid fa-circle-check fa-4x text-white mb-3 pulse-glow"></i>
+          <h4 class="fw-bold">¡Código Leído!</h4>
+          <p class="lead mb-4">No. INV: <strong id="success-code-text" class="bg-dark px-3 py-1 rounded text-warning">-</strong></p>
+
+          <div class="d-grid gap-2 w-100">
+            <button type="button" class="btn btn-light btn-lg fw-bold" onclick="reiniciarEscaneo()">
+              <i class="fa-solid fa-arrows-rotate me-2"></i>Escanear Otro
+            </button>
+            <button type="button" class="btn btn-warning btn-lg fw-bold text-dark" onclick="enviarFallbackRedireccion()">
+              <i class="fa-solid fa-share-from-square me-2"></i>Usar este número en Inventario
+            </button>
+            <button type="button" class="btn btn-outline-light" onclick="cerrarLector()">
+              <i class="fa-solid fa-xmark me-2"></i>Cerrar Escáner
+            </button>
+          </div>
+        </div>
+
+        <div id="reader" style="width: 100%;"></div>
+
+        <!-- Placeholder -->
+        <div id="camera-placeholder" class="text-center py-5">
+          <i class="fa-solid fa-barcode fa-4x text-secondary mb-3"></i>
+          <p class="px-3 text-muted">Solicita los permisos nativos de cámara para poder escanear las etiquetas de patrimonio.</p>
+          <div class="d-grid gap-2 col-10 mx-auto">
+            <button type="button" id="btn-activar-camara" class="btn btn-success btn-lg fw-bold shadow" onclick="solicitarPermisosYComenzar()">
+              <i class="fa-solid fa-circle-play me-2"></i>Activar Cámara
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer manual fallback (conservando el selector de cámara nativo e identificador) -->
+      <div class="card-footer bg-dark border-0 p-3">
+        <div id="controls-panel" class="d-flex align-items-center justify-content-between gap-2" style="display: none !important;">
+          <span class="small text-muted"><i class="fa-solid fa-video me-1"></i>Cámara:</span>
+          <select id="camera-select" class="form-select form-select-sm bg-secondary text-white border-0" style="max-width: 200px;" onchange="cambiarCamara(this.value)">
+            <option value="">Seleccionando...</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-2 text-muted small mt-3">
+    <p class="mb-0">Ejecutando en ventana about:blank de nivel superior. Sincroniza en vivo sin heredar las restricciones de iframe de Google.</p>
+  </footer>
+
+</body>
+</html>
+  `;
+
+  popup.document.write(htmlScannerLayout);
+
+  // Escribir los scripts de forma dinámica y secuencial para evitar que el analizador HTML de index/GAppsScript se confunda
+  // con etiquetas de cierre de script (como <\/script>) literales que romperían la carga de la aplicación matriz.
+  const scriptLoader = popup.document.createElement("script");
+  scriptLoader.src = "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js";
+
+  scriptLoader.onload = function() {
+    const scriptLogica = popup.document.createElement("script");
+    scriptLogica.textContent = `
+      let scanner = null;
+      let isRunning = false;
+      const webAppUrl = "${webAppUrl || ''}";
+
+      function solicitarPermisosYComenzar() {
+        const alertDiv = document.getElementById("local-alert");
+        alertDiv.classList.add("d-none");
+        const btn = document.getElementById("btn-activar-camara");
+        btn.disabled = true;
+        btn.innerHTML = "Solicitando acceso...";
+
+        console.log("Escáner Inyectado - ¿Ejecutando en iframe?:", window.self !== window.top);
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+          .then(stream => {
+            stream.getTracks().forEach(track => track.stop());
+            document.getElementById("camera-placeholder").classList.add("d-none");
+
+            if (!scanner) {
+              scanner = new Html5Qrcode("reader");
+            }
+            return Html5Qrcode.getCameras();
+          })
+          .then(devices => {
+            if (devices && devices.length > 0) {
+              const select = document.getElementById("camera-select");
+              select.innerHTML = "";
+              devices.forEach((device, index) => {
+                const opt = document.createElement("option");
+                opt.value = device.id;
+                opt.textContent = device.label || "Cámara " + (index + 1);
+                select.appendChild(opt);
+              });
+
+              document.getElementById("controls-panel").style.setProperty("display", "flex", "important");
+
+              let backCam = devices.find(d =>
+                d.label.toLowerCase().includes("back") ||
+                d.label.toLowerCase().includes("trasera") ||
+                d.label.toLowerCase().includes("environment")
+              );
+
+              const activeCamId = backCam ? backCam.id : devices[0].id;
+              select.value = activeCamId;
+
+              iniciarLector(activeCamId);
+            } else {
+              throw new Error("No se detectaron cámaras físicas.");
+            }
+          })
+          .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = "<i class='fa-solid fa-circle-play me-2'></i>Activar Cámara";
+
+            let msg = "No se pudo acceder a la cámara. ";
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+              msg += "Permiso denegado por el usuario o bloqueado por políticas de privacidad de su navegador. Por favor compruebe los permisos haciendo clic en el icono del candado en la barra de direcciones de su navegador y conceda el acceso.";
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+              msg += "No hay hardware de cámara disponible en este dispositivo.";
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+              msg += "La cámara ya está siendo utilizada por otra pestaña, navegador o aplicación.";
+            } else {
+              msg += err.message || err;
+            }
+            alertDiv.textContent = msg;
+            alertDiv.classList.remove("d-none");
+          });
+      }
+
+      function iniciarLector(cameraId) {
+        if (isRunning) {
+          scanner.stop().then(() => comenzarFlujo(cameraId));
+        } else {
+          comenzarFlujo(cameraId);
+        }
+      }
+
+      function comenzarFlujo(cameraId) {
+        const config = {
+          fps: 15,
+          qrbox: function(width, height) {
+            const min = Math.min(width, height);
+            const boxSize = Math.floor(min * 0.7);
+            return { width: boxSize, height: Math.floor(boxSize * 0.5) };
+          },
+          aspectRatio: 1.0
+        };
+
+        scanner.start(cameraId, config, onCodeRead, () => {})
+          .then(() => { isRunning = true; })
+          .catch(err => { console.error(err); });
+      }
+
+      function onCodeRead(text) {
+        if (scanner && isRunning) {
+          scanner.stop().then(() => { isRunning = false; });
+        }
+        if (navigator.vibrate) {
+          navigator.vibrate(150);
+        }
+        enviarCodigo(text);
+      }
+
+      function cambiarCamara(val) {
+        if (val) iniciarLector(val);
+      }
+
+      function enviarCodigo(codigo) {
+        if (!codigo) return;
+        const noInv = String(codigo).trim();
+
+        // 1. Enviar directamente vía window.opener (Capa 1: Comunicación sincrónica instantánea)
+        try {
+          if (window.opener && typeof window.opener.procesarCodigoEtiquetaDesdePopup === "function") {
+            window.opener.procesarCodigoEtiquetaDesdePopup(noInv);
+          }
+        } catch (e) {
+          console.warn("Error con window.opener: ", e);
+        }
+
+        // 2. Enviar vía BroadcastChannel ("inventario-smr")
+        try {
+          const channel = new BroadcastChannel("inventario-smr");
+          channel.postMessage({ codigo: noInv });
+        } catch (e) {
+          console.warn("BroadcastChannel error: ", e);
+        }
+
+        // 3. Enviar vía localStorage
+        try {
+          localStorage.setItem("smr_scanned_code", noInv);
+          localStorage.setItem("smr_scanned_time", String(Date.now()));
+        } catch (e) {
+          console.warn("LocalStorage error: ", e);
+        }
+
+        document.getElementById("success-code-text").textContent = noInv;
+        document.getElementById("success-overlay").classList.remove("d-none");
+      }
+
+      function enviarManual() {
+        const input = document.getElementById("manual-code");
+        const val = input.value.trim();
+        if (val) {
+          enviarCodigo(val);
+          input.value = "";
+        }
+      }
+
+      function enviarFallbackRedireccion() {
+        const code = document.getElementById("success-code-text").textContent;
+        if (code && webAppUrl) {
+          window.opener.location.href = webAppUrl + "?noinv=" + encodeURIComponent(code);
+          window.close();
+        } else if (code) {
+          alert("Enlace seguro no disponible. Por favor copia este número: " + code);
+        }
+      }
+
+      function reiniciarEscaneo() {
+        document.getElementById("success-overlay").classList.add("d-none");
+        const select = document.getElementById("camera-select");
+        if (select.value) iniciarLector(select.value);
+        else solicitarPermisosYComenzar();
+      }
+
+      function cerrarLector() {
+        window.close();
+      }
+
+      // Intentar auto-iniciar si ya hay permisos previos guardados
+      navigator.permissions.query({ name: "camera" }).then(res => {
+        if (res.state === "granted") {
+          solicitarPermisosYComenzar();
+        }
+      }).catch(e => {});
+    `;
+    popup.document.body.appendChild(scriptLogica);
+  };
+
+  popup.document.head.appendChild(scriptLoader);
+  popup.document.close();
+}
+
+function procesarCodigoEtiqueta(codigo) {
+  if (!codigo) return;
+  const noInv = String(codigo).trim();
+
+  // Mostrar feedback en UI
+  const feedback = document.getElementById("scan-feedback");
+  feedback.classList.remove("d-none");
+  document.getElementById("scan-feedback-code").textContent = noInv;
+
+  showLoader("Buscando artículo en inventario...");
+
+  google.script.run
+    .withSuccessHandler(function(articulo) {
+      hideLoader();
+
+      const resContainer = document.getElementById("scan-result-container");
+      const notFoundContainer = document.getElementById("scan-not-found-container");
+
+      if (articulo) {
+        // EL ARTÍCULO EXISTE EN LA HOJA
+        notFoundContainer.classList.add("d-none");
+        resContainer.classList.remove("d-none");
+
+        // Cabecera
+        document.getElementById("scan-result-badge-noinv").textContent = articulo["No. INV."];
+        document.getElementById("scan-result-title").innerHTML = `<i class="fa-solid fa-circle-check me-2"></i>Artículo Encontrado`;
+        document.getElementById("scan-result-header").className = "card-header bg-success text-white d-flex justify-content-between align-items-center";
+
+        // Detalle de solo lectura
+        document.getElementById("scan-info-descripcion").textContent = articulo["DESCRIPCION"] || "(Sin descripción)";
+        document.getElementById("scan-info-marca").textContent = articulo["MARCA"] || "N/A";
+        document.getElementById("scan-info-modelo").textContent = articulo["MODELO"] || "N/A";
+        document.getElementById("scan-info-serie").textContent = articulo["SERIE"] || "N/A";
+
+        // Estado Badge
+        const estadoBadge = document.getElementById("scan-info-estado");
+        estadoBadge.textContent = articulo["ESTADO"] || "BUENO";
+        if (articulo["ESTADO"] === "BUENO") estadoBadge.className = "badge bg-success";
+        else if (articulo["ESTADO"] === "REGULAR") estadoBadge.className = "badge bg-warning text-dark";
+        else if (articulo["ESTADO"] === "MALO") estadoBadge.className = "badge bg-danger";
+        else if (articulo["ESTADO"] === "BAJA") estadoBadge.className = "badge bg-dark";
+        else estadoBadge.className = "badge bg-secondary";
+
+        document.getElementById("scan-info-ubicacion").textContent = articulo["UBICACION"] || "No especificada";
+        document.getElementById("scan-info-resguardado").textContent = articulo["RESGUARDADO"] || "N/A";
+        document.getElementById("scan-info-importe").textContent = articulo["IMPORTE"] !== undefined ? parseFloat(articulo["IMPORTE"]).toFixed(2) : "0.00";
+
+        // Llenar Formulario de Actualización Real
+        document.getElementById("scan-update-no-inv").value = articulo["No. INV."];
+        document.getElementById("scan-update-no").value = articulo["No."];
+        document.getElementById("scan-real-ubicacion").value = articulo["UBICACION_REAL"] || articulo["UBICACION"] || "";
+        document.getElementById("scan-real-resguardante").value = articulo["RESGUARDANTE_REAL"] || articulo["RESGUARDADO"] || "";
+        document.getElementById("scan-real-estado").value = articulo["ESTADO_REAL"] || articulo["ESTADO"] || "BUENO";
+
+        // Llenar campos extra por si el usuario los expande
+        document.getElementById("scan-extra-descripcion").value = articulo["DESCRIPCION"] || "";
+        document.getElementById("scan-extra-serie").value = articulo["SERIE"] || "";
+        document.getElementById("scan-extra-marca").value = articulo["MARCA"] || "";
+        document.getElementById("scan-extra-modelo").value = articulo["MODELO"] || "";
+        document.getElementById("scan-extra-importe").value = articulo["IMPORTE"] || 0;
+        document.getElementById("scan-extra-estado").value = articulo["ESTADO"] || "BUENO";
+
+        // Contraer sección de campos extra por defecto
+        document.getElementById("scan-extra-campos").classList.add("d-none");
+
+      } else {
+        // EL ARTÍCULO NO EXISTE
+        resContainer.classList.add("d-none");
+        notFoundContainer.classList.remove("d-none");
+        document.getElementById("scan-not-found-code").textContent = noInv;
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al buscar artículo escaneado: " + err.message, "danger");
+    })
+    .buscarPorNoInv(noInv);
+}
+
+function buscarManualDesdeEscaner() {
+  const code = document.getElementById("scan-manual-no-inv").value;
+  if (code && code.trim().length > 0) {
+    procesarCodigoEtiqueta(code.trim());
+  }
+}
+
+function toggleFormCamposScanExtra() {
+  const div = document.getElementById("scan-extra-campos");
+  div.classList.toggle("d-none");
+}
+
+function limpiarResultadosEscaner() {
+  document.getElementById("scan-feedback").classList.add("d-none");
+  document.getElementById("scan-result-container").classList.add("d-none");
+  document.getElementById("scan-not-found-container").classList.add("d-none");
+  document.getElementById("scan-manual-no-inv").value = "";
+
+  // Limpiar campos y previsualizaciones de fotos del Item 1
+  const fileInput = document.getElementById("scan-foto-input");
+  if (fileInput) fileInput.value = "";
+  const previewDiv = document.getElementById("scan-foto-preview-container");
+  if (previewDiv) previewDiv.classList.add("d-none");
+  scanFotoBase64 = "";
+  scanFotoExt = "";
+  scanFotoNombre = "";
+}
+
+/**
+ * Guarda la verificación rápida / actualización desde el escáner
+ */
+function guardarActualizacionEscaner() {
+  const noInv = document.getElementById("scan-update-no-inv").value;
+  const no = document.getElementById("scan-update-no").value;
+
+  // Recoger valores
+  const ubicacionReal = document.getElementById("scan-real-ubicacion").value.trim();
+  const resguardanteReal = document.getElementById("scan-real-resguardante").value.trim();
+  const estadoReal = document.getElementById("scan-real-estado").value;
+
+  const articuloActualizado = {
+    "No. INV.": noInv,
+    "No.": no,
+    "UBICACION_REAL": ubicacionReal,
+    "RESGUARDANTE_REAL": resguardanteReal,
+    "ESTADO_REAL": estadoReal
+  };
+
+  // Si los campos extra son visibles, o si fueron editados, los incluimos también
+  const extraCamposVisible = !document.getElementById("scan-extra-campos").classList.contains("d-none");
+  if (extraCamposVisible) {
+    articuloActualizado["DESCRIPCION"] = document.getElementById("scan-extra-descripcion").value.trim();
+    articuloActualizado["SERIE"] = document.getElementById("scan-extra-serie").value.trim();
+    articuloActualizado["MARCA"] = document.getElementById("scan-extra-marca").value.trim();
+    articuloActualizado["MODELO"] = document.getElementById("scan-extra-modelo").value.trim();
+    articuloActualizado["IMPORTE"] = parseFloat(document.getElementById("scan-extra-importe").value) || 0;
+    articuloActualizado["ESTADO"] = document.getElementById("scan-extra-estado").value;
+  }
+
+  showLoader("Guardando actualización del levantamiento...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (scanFotoBase64) {
+        showLoader("Subiendo fotografía a Google Drive...");
+        google.script.run
+          .withSuccessHandler(function() {
+            hideLoader();
+            mostrarAlerta("¡Información de '" + noInv + "' guardada y fotografía de evidencia subida exitosamente!", "success");
+            limpiarResultadosEscaner();
+            cargarEstadisticasInicio();
+          })
+          .withFailureHandler(function(uploadErr) {
+            hideLoader();
+            mostrarAlerta("Levantamiento guardado, pero ocurrió un error al subir la foto: " + uploadErr.message, "warning");
+            limpiarResultadosEscaner();
+            cargarEstadisticasInicio();
+          })
+          .subirFotoArticulo(noInv, scanFotoBase64, scanFotoExt, scanFotoNombre);
+      } else {
+        hideLoader();
+        mostrarAlerta("¡Información del artículo '" + noInv + "' guardada y verificada!", "success");
+        limpiarResultadosEscaner();
+        cargarEstadisticasInicio();
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al guardar levantamiento: " + err.message, "danger");
+    })
+    .actualizarArticulo(articuloActualizado, currentUser);
+}
+
+/**
+ * Ejecuta la baja lógica rápida desde la ficha del escáner
+ */
+function darDeBajaScan() {
+  const noInv = document.getElementById("scan-update-no-inv").value;
+  if (!noInv) return;
+
+  if (confirm(`¿Estás seguro de que deseas dar de BAJA lógica el artículo con No. INV. ${noInv}?\nSu estado real se actualizará a 'BAJA'.`)) {
+    showLoader("Procesando baja del artículo...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("El artículo fue dado de baja exitosamente.", "warning");
+        limpiarResultadosEscaner();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al dar de baja: " + err.message, "danger");
+      })
+      .bajaArticulo(noInv, currentUser);
+  }
+}
+
+/**
+ * Ejecuta la eliminación física desde la ficha de escaneo
+ */
+function eliminarFisicoScan() {
+  const noInv = document.getElementById("scan-update-no-inv").value;
+  if (!noInv) return;
+
+  if (confirm(`¡ADVERTENCIA DE ELIMINACIÓN FÍSICA!\n¿Estás completamente seguro de eliminar PERMANENTEMENTE el artículo con No. INV. ${noInv} de la base de datos?\nEsta acción no se puede deshacer.`)) {
+    showLoader("Eliminando registro de la base de datos...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("El registro fue eliminado de forma permanente.", "danger");
+        limpiarResultadosEscaner();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al eliminar: " + err.message, "danger");
+      })
+      .eliminarArticulo(noInv, currentUser);
+  }
+}
+
+/**
+ * Abre el formulario de alta precargando el No. INV. escaneado
+ */
+function altaRapidaDesdeEscaner() {
+  const noInv = document.getElementById("scan-not-found-code").textContent;
+  limpiarFormularioAlta();
+
+  // Asignar No. INV escaneado
+  document.getElementById("alta-no-inv").value = noInv;
+
+  // Cambiar a sección Alta
+  showSection("alta");
+}
+
+
+/**
+ * ==========================================
+ * 4. BÚSQUEDA RAPIDA CON CRITERIOS
+ * ==========================================
+ */
+function buscarArticulosPorCriterio() {
+  const criterio = document.getElementById("buscar-criterio").value;
+  const texto = document.getElementById("buscar-texto").value.trim();
+  const esExacto = document.getElementById("buscar-exacto").checked;
+
+  if (!texto) {
+    alert("Por favor introduce un texto de búsqueda.");
+    return;
+  }
+
+  showLoader("Realizando búsqueda en la base de datos...");
+
+  const exitoCallback = function(resultados) {
+    hideLoader();
+
+    // Si viene solo un objeto de buscarPorNoInv exacto, convertirlo a arreglo
+    const dataArray = Array.isArray(resultados) ? resultados : (resultados ? [resultados] : []);
+
+    const cardResultados = document.getElementById("buscar-resultados-card");
+    const tbody = document.getElementById("buscar-resultados-tbody");
+    const vacioMsg = document.getElementById("buscar-vacio-msg");
+    const conteoBadge = document.getElementById("buscar-resultados-conteo");
+
+    cardResultados.classList.remove("d-none");
+    tbody.innerHTML = "";
+
+    conteoBadge.textContent = `${dataArray.length} registros`;
+
+    if (dataArray.length === 0) {
+      vacioMsg.classList.remove("d-none");
+    } else {
+      vacioMsg.classList.add("d-none");
+
+      dataArray.forEach(item => {
+        const tr = document.createElement("tr");
+
+        // Clases de badge estado
+        let estadoClass = "badge bg-secondary";
+        const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+        if (estReal === "BUENO") estadoClass = "badge bg-success";
+        else if (estReal === "REGULAR") estadoClass = "badge bg-warning text-dark";
+        else if (estReal === "MALO") estadoClass = "badge bg-danger";
+        else if (estReal === "BAJA") estadoClass = "badge bg-dark";
+
+        tr.innerHTML = `
+          <td><strong class="text-primary">${item["No. INV."]}</strong></td>
+          <td class="text-ellipsis" style="max-width: 250px;" title="${item["DESCRIPCION"]}">${item["DESCRIPCION"] || ""}</td>
+          <td>${item["SERIE"] || ""}</td>
+          <td>${item["MARCA"] || ""}</td>
+          <td>${item["MODELO"] || ""}</td>
+          <td><span class="${estadoClass}">${estReal}</span></td>
+          <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
+          <td class="text-center">
+            ${renderizarColumnaAcciones(item["No. INV."])}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  };
+
+  const fallaCallback = function(err) {
+    hideLoader();
+    mostrarAlerta("Error al realizar búsqueda: " + err.message, "danger");
+  };
+
+  if (criterio === "NO_INV") {
+    // Si es búsqueda exacta por No. INV usamos buscarPorNoInv directamente, si no creamos un filtro manual
+    if (esExacto) {
+      google.script.run.withSuccessHandler(exitoCallback).withFailureHandler(fallaCallback).buscarPorNoInv(texto);
+    } else {
+      // Usar función del servidor de filtros parciales
+      google.script.run.withSuccessHandler(exitoCallback).withFailureHandler(fallaCallback).buscarPorNoInvFiltros(texto, false);
+    }
+  } else {
+    // Búsqueda por Serie
+    google.script.run.withSuccessHandler(exitoCallback).withFailureHandler(fallaCallback).buscarPorSerie(texto, esExacto);
+  }
+}
+
+function bajaLogicaBuscar(noInv) {
+  if (confirm(`¿Estás seguro de que deseas dar de BAJA lógica el artículo No. INV. ${noInv}?`)) {
+    showLoader("Procesando baja lógica...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo dado de baja.", "warning");
+        buscarArticulosPorCriterio(); // Recargar búsqueda activa
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al procesar baja lógica: " + err.message, "danger");
+      })
+      .bajaArticulo(noInv, currentUser);
+  }
+}
+
+function eliminarFisicoBuscar(noInv) {
+  if (confirm(`¡ADVERTENCIA DE ELIMINACIÓN FÍSICA!\n¿Estás completamente seguro de eliminar PERMANENTEMENTE el artículo No. INV. ${noInv}?\nEsta acción eliminará físicamente la fila en Google Sheets.`)) {
+    showLoader("Eliminando fila...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo eliminado físicamente.", "danger");
+        buscarArticulosPorCriterio(); // Recargar búsqueda activa
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al eliminar físicamente: " + err.message, "danger");
+      })
+      .eliminarArticulo(noInv, currentUser);
+  }
+}
+
+
+/**
+ * ==========================================
+ * 5. CRUD: ALTA / LEVANTAMIENTO
+ * ==========================================
+ */
+function verificarExistenciaAlta(noInv) {
+  if (!noInv) return;
+  const noInvStr = String(noInv).trim();
+  if (noInvStr === "") return;
+
+  google.script.run
+    .withSuccessHandler(function(existe) {
+      const errorDiv = document.getElementById("alta-duplicado-error");
+      const btn = document.getElementById("btn-submit-alta");
+      if (existe) {
+        errorDiv.classList.remove("d-none");
+        btn.disabled = true;
+      } else {
+        errorDiv.classList.add("d-none");
+        btn.disabled = false;
+      }
+    })
+    .buscarPorNoInv(noInvStr);
+}
+
+function guardarAltaArticulo() {
+  const noInv = document.getElementById("alta-no-inv").value.trim();
+  const no = parseInt(document.getElementById("alta-no").value) || "";
+  const serie = document.getElementById("alta-serie").value.trim();
+  const descripcion = document.getElementById("alta-descripcion").value.trim();
+  const marca = document.getElementById("alta-marca").value.trim();
+  const modelo = document.getElementById("alta-modelo").value.trim();
+  const importe = parseFloat(document.getElementById("alta-importe").value) || 0;
+  const estado = document.getElementById("alta-estado").value;
+  const ubicacion = document.getElementById("alta-ubicacion").value.trim();
+  const resguardado = document.getElementById("alta-resguardado").value.trim();
+
+  const estadoReal = document.getElementById("alta-estado-real").value;
+  const ubicacionReal = document.getElementById("alta-ubicacion-real").value.trim();
+  const resguardanteReal = document.getElementById("alta-resguardante-real").value.trim();
+
+  const nuevoArticulo = {
+    "No. INV.": noInv,
+    "No.": no,
+    "SERIE": serie,
+    "DESCRIPCION": descripcion,
+    "MARCA": marca,
+    "MODELO": modelo,
+    "IMPORTE": importe,
+    "ESTADO": estado,
+    "UBICACION": ubicacion,
+    "RESGUARDADO": resguardado,
+    "ESTADO_REAL": estadoReal,
+    "UBICACION_REAL": ubicacionReal,
+    "RESGUARDANTE_REAL": resguardanteReal
+  };
+
+  showLoader("Registrando nuevo artículo...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (altaFotoBase64 && res.noInv) {
+        showLoader("Subiendo fotografía del bien a Google Drive...");
+        google.script.run
+          .withSuccessHandler(function() {
+            hideLoader();
+            mostrarAlerta("¡Artículo registrado y fotografía de evidencia guardada exitosamente! No. INV.: " + res.noInv, "success");
+            limpiarFormularioAlta();
+            cargarEstadisticasInicio();
+            showSection("listado");
+          })
+          .withFailureHandler(function(uploadErr) {
+            hideLoader();
+            mostrarAlerta("Artículo registrado exitosamente, pero la foto no se pudo subir: " + uploadErr.message, "warning");
+            limpiarFormularioAlta();
+            cargarEstadisticasInicio();
+            showSection("listado");
+          })
+          .subirFotoArticulo(res.noInv, altaFotoBase64, altaFotoExt, altaFotoNombre);
+      } else {
+        hideLoader();
+        mostrarAlerta("¡Artículo registrado exitosamente! No. INV.: " + res.noInv, "success");
+        limpiarFormularioAlta();
+        cargarEstadisticasInicio();
+        showSection("listado"); // Redirigir al listado para verificar
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al registrar artículo: " + err.message, "danger");
+    })
+    .guardarArticulo(nuevoArticulo, currentUser);
+}
+
+function limpiarFormularioAlta() {
+  document.getElementById("form-alta-articulo").reset();
+  document.getElementById("alta-duplicado-error").classList.add("d-none");
+  document.getElementById("btn-submit-alta").disabled = false;
+
+  // Limpiar campos y previsualizaciones de fotos del Item 1
+  const fileInput = document.getElementById("alta-foto-input");
+  if (fileInput) fileInput.value = "";
+  const previewDiv = document.getElementById("alta-foto-preview-container");
+  if (previewDiv) previewDiv.classList.add("d-none");
+  altaFotoBase64 = "";
+  altaFotoExt = "";
+  altaFotoNombre = "";
+}
+
+
+/**
+ * ==========================================
+ * 6. CARGA DE EXCEL DESDE PATRIMONIO (SHEETJS)
+ * ==========================================
+ */
+function procesarArchivoExcelLocal() {
+  const fileInput = document.getElementById("excel-file-input");
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  showLoader("Validando y normalizando archivo Excel localmente...");
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      // Tomar la primera hoja de cálculo
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+
+      // Convertir a JSON crudo de filas
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+      if (rawRows.length === 0) {
+        throw new Error("El archivo de Excel está vacío.");
+      }
+
+      // Buscar la fila de encabezados y mapearla
+      // Buscaremos una fila que tenga términos clave como "inv", "descrip", "serie" para tolerar filas de títulos anteriores
+      let headerRowIndex = -1;
+      let headersMapeados = [];
+
+      for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+        const fila = rawRows[i];
+        const tieneNoInv = fila.some(celda => {
+          const str = String(celda).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return str.includes("inv") || str.includes("inventario");
+        });
+        const tieneDesc = fila.some(celda => {
+          const str = String(celda).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return str.includes("descrip") || str.includes("articulo");
+        });
+
+        if (tieneNoInv && tieneDesc) {
+          headerRowIndex = i;
+          headersMapeados = fila.map(h => String(h).trim());
+          break;
+        }
+      }
+
+      // Si no detectó encabezados clave, usar la primera fila por defecto
+      if (headerRowIndex === -1) {
+        headerRowIndex = 0;
+        headersMapeados = rawRows[0].map(h => String(h).trim());
+      }
+
+      // Configurar reglas tolerantes a acentos, mayúsculas, espacios para asociar columnas
+      const normalizarHeadersMap = {
+        "No.": ["no", "no.", "numero", "id"],
+        "No. INV.": ["no inv", "no. inv.", "no inventario", "numero inventario", "etiqueta", "noinv"],
+        "DESCRIPCION": ["descripcion", "descripción", "articulo", "concepto", "nombre"],
+        "SERIE": ["serie", "no serie", "no. serie", "numero de serie"],
+        "MODELO": ["modelo"],
+        "MARCA": ["marca"],
+        "ESTADO": ["estado", "estado patrimonio"],
+        "IMPORTE": ["importe", "valor", "costo", "precio"],
+        "UBICACION": ["ubicacion", "ubicación"],
+        "RESGUARDADO": ["resguardado", "resguardo", "resguardante"],
+        "RESGUARDANTE_REAL": ["resguardante real", "resguardante_real"],
+        "UBICACION_REAL": ["ubicacion real", "ubicación real", "ubicacion_real"],
+        "ESTADO_REAL": ["estado real", "estado_real"]
+      };
+
+      // Encontrar correspondencia de índices
+      const mapaIndicesExcel = {}; // internoHeader -> indexEnExcel
+
+      Object.keys(normalizarHeadersMap).forEach(internoHeader => {
+        const variantes = normalizarHeadersMap[internoHeader];
+
+        const foundIndex = headersMapeados.findIndex(excelHeader => {
+          const normExcel = String(excelHeader).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+
+          return variantes.some(variente => {
+            const normVariante = variente.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+            return normExcel === normVariante || normExcel.includes(normVariante);
+          });
+        });
+
+        if (foundIndex !== -1) {
+          mapaIndicesExcel[internoHeader] = foundIndex;
+        }
+      });
+
+      // Validar que tengamos al menos la columna obligatoria No. INV. y DESCRIPCION
+      if (mapaIndicesExcel["No. INV."] === undefined) {
+        throw new Error("No se pudo detectar de manera automática la columna de 'No. INV.' o 'Número de Inventario'. Por favor verifica los encabezados del archivo.");
+      }
+
+      // Procesar filas de datos (posteriores al headerRowIndex)
+      const registrosMapeados = [];
+      let totalFilasOmitidas = 0;
+
+      for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+        const fila = rawRows[i];
+
+        // Ignorar filas totalmente vacías
+        const estaVacia = fila.every(celda => String(celda).trim() === "");
+        if (estaVacia) {
+          totalFilasOmitidas++;
+          continue;
+        }
+
+        // Extraer No. INV para validar obligatoriedad
+        const noInvVal = fila[mapaIndicesExcel["No. INV."]];
+        if (!noInvVal || String(noInvVal).trim() === "") {
+          totalFilasOmitidas++;
+          continue; // Ignorar si no tiene identificador de inventario
+        }
+
+        // Crear objeto mapeado
+        const itemMapeado = {};
+
+        // Mapear cada columna si el índice está definido en el archivo
+        Object.keys(mapaIndicesExcel).forEach(internoHeader => {
+          const idxExcel = mapaIndicesExcel[internoHeader];
+          let valor = fila[idxExcel];
+
+          // Tratamiento de importes para que sean numéricos limpios
+          if (internoHeader === "IMPORTE") {
+            if (typeof valor === "string") {
+              valor = parseFloat(valor.replace(/[^0-9.-]/g, "")) || 0;
+            } else if (typeof valor !== "number") {
+              valor = 0;
+            }
+          }
+
+          itemMapeado[internoHeader] = valor !== undefined ? String(valor).trim() : "";
+        });
+
+        registrosMapeados.push(itemMapeado);
+      }
+
+      // Guardar en cache temporal de subida
+      xlsxMapeadoTemp = registrosMapeados;
+
+      // Mostrar resumen en UI
+      document.getElementById("excel-esperando-msg").classList.add("d-none");
+      document.getElementById("excel-resumen-card").classList.remove("d-none");
+      document.getElementById("excel-importacion-exito-alert").classList.add("d-none");
+
+      document.getElementById("excel-total-filas").textContent = registrosMapeados.length;
+      document.getElementById("excel-columnas-mapeadas").textContent = Object.keys(mapaIndicesExcel).length;
+      document.getElementById("excel-filas-vacias").textContent = totalFilasOmitidas;
+
+      // Llenar vista previa de los primeros 5
+      const previewTbody = document.getElementById("excel-preview-tbody");
+      previewTbody.innerHTML = "";
+
+      const limitePreview = Math.min(registrosMapeados.length, 5);
+      for (let k = 0; k < limitePreview; k++) {
+        const r = registrosMapeados[k];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${r["No. INV."] || ""}</strong></td>
+          <td class="text-ellipsis" style="max-width: 150px;">${r["DESCRIPCION"] || ""}</td>
+          <td>${r["SERIE"] || ""}</td>
+          <td>${r["MARCA"] || ""}</td>
+          <td>${r["MODELO"] || ""}</td>
+          <td>${r["ESTADO"] || ""}</td>
+          <td>$${parseFloat(r["IMPORTE"] || 0).toFixed(2)}</td>
+        `;
+        previewTbody.appendChild(tr);
+      }
+
+      // Habilitar botón de importación
+      document.getElementById("btn-importar-excel").disabled = false;
+      hideLoader();
+
+    } catch (err) {
+      hideLoader();
+      alert("Error al procesar archivo: " + err.message);
+      document.getElementById("excel-esperando-msg").classList.remove("d-none");
+      document.getElementById("excel-resumen-card").classList.add("d-none");
+      document.getElementById("btn-importar-excel").disabled = true;
+      xlsxMapeadoTemp = [];
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+function importarJSONAlServidor() {
+  if (xlsxMapeadoTemp.length === 0) {
+    alert("No hay registros cargados para importar.");
+    return;
+  }
+
+  // Obtener opción de duplicados
+  let radioOpt = "OMIT";
+  if (document.getElementById("radio-actualizar").checked) {
+    radioOpt = "UPDATE";
+  }
+
+  showLoader(`Importando y guardando ${xlsxMapeadoTemp.length} registros en la hoja de cálculo de Google. Esto puede tomar unos segundos...`);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+
+      // Mostrar alerta de éxito
+      const exitoAlert = document.getElementById("excel-importacion-exito-alert");
+      exitoAlert.classList.remove("d-none");
+      document.getElementById("resumen-nuevos").textContent = res.nuevos;
+      document.getElementById("resumen-actualizados").textContent = res.actualizados;
+      document.getElementById("resumen-omitidos").textContent = res.omitidos;
+
+      // Deshabilitar botón para evitar re-envíos duplicados accidentales
+      document.getElementById("btn-importar-excel").disabled = true;
+      document.getElementById("excel-file-input").value = "";
+      xlsxMapeadoTemp = [];
+
+      cargarEstadisticasInicio();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al subir registros de Excel al servidor: " + err.message, "danger");
+    })
+    .cargarExcel(xlsxMapeadoTemp, radioOpt, currentUser);
+}
+
+
+/**
+ * ==========================================
+ * 7. LISTADO COMPLETO, FILTROS Y PAGINACIÓN
+ * ==========================================
+ */
+function cargarListadoInventario() {
+  showLoader("Cargando listado completo de inventario...");
+  console.log("[Client] Solicitando listado de inventario calling listarArticulos()...");
+  google.script.run
+    .withSuccessHandler(function(articulos) {
+      console.log("[Client] Listado recibido con éxito. Cantidad de artículos:", articulos ? articulos.length : null);
+      listadoCompleto = articulos || [];
+
+      // Obtener lista única de ubicaciones para el filtro de ubicaciones reales
+      const setUbi = new Set();
+      listadoCompleto.forEach(item => {
+        const ubi = item["UBICACION_REAL"] || item["UBICACION"];
+        if (ubi && String(ubi).trim() !== "") {
+          setUbi.add(String(ubi).trim());
+        }
+      });
+
+      ubicacionesUnicas = Array.from(setUbi).sort();
+
+      // Llenar selector de filtros de ubicación
+      const ubiSelect = document.getElementById("filtro-ubicacion");
+      const seleccionActual = ubiSelect.value;
+
+      ubiSelect.innerHTML = `<option value="">-- Todas las Ubicaciones --</option>`;
+      ubicacionesUnicas.forEach(u => {
+        const option = document.createElement("option");
+        option.value = u;
+        option.textContent = u;
+        ubiSelect.appendChild(option);
+      });
+
+      if (ubicacionesUnicas.includes(seleccionActual)) {
+        ubiSelect.value = seleccionActual;
+      }
+
+      aplicarFiltrosYListar();
+      hideLoader();
+    })
+    .withFailureHandler(function(err) {
+      console.error("[Client] Fallo al cargar listado de inventario:", err);
+      hideLoader();
+      mostrarAlerta("Error al obtener listado de inventario: " + err.message, "danger");
+    })
+    .listarArticulos();
+}
+
+function aplicarFiltrosYListar() {
+  const fEstado = document.getElementById("filtro-estado").value;
+  const fUbi = document.getElementById("filtro-ubicacion").value;
+  const fRapido = document.getElementById("filtro-rapido").value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  listadoFiltrado = listadoCompleto.filter(item => {
+    // Filtrar de forma ultra-defensiva filas completamente vacías o sin No. INV.
+    if (!item || !item["No. INV."] || String(item["No. INV."]).trim() === "") {
+      return false;
+    }
+
+    // 1. Filtrar por Estado Real (o patrimonio si no tiene real)
+    const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+    if (fEstado && estReal !== fEstado) {
+      return false;
+    }
+
+    // 2. Filtrar por Ubicación Real (o patrimonio si no tiene)
+    const ubiReal = item["UBICACION_REAL"] || item["UBICACION"] || "";
+    if (fUbi && ubiReal !== fUbi) {
+      return false;
+    }
+
+    // 3. Filtro rápido de texto libre sobre múltiples columnas
+    if (fRapido) {
+      const matchText = `${item["No. INV."]} ${item["DESCRIPCION"]} ${item["SERIE"]} ${item["MARCA"]} ${item["MODELO"]} ${ubiReal} ${item["RESGUARDANTE_REAL"]} ${item["RESGUARDADO"]}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+      if (matchText.indexOf(fRapido) === -1) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Reiniciar a página 1 al filtrar
+  paginacionActual = 1;
+  renderizarListadoTabla();
+}
+
+function renderizarListadoTabla() {
+  const tbody = document.getElementById("listado-tbody");
+  const vacioMsg = document.getElementById("listado-vacio-msg");
+  const conteoBadge = document.getElementById("listado-conteo");
+
+  tbody.innerHTML = "";
+
+  const totalItems = listadoFiltrado.length;
+  conteoBadge.textContent = `${totalItems} de ${listadoCompleto.length} registros`;
+
+  if (totalItems === 0) {
+    vacioMsg.classList.remove("d-none");
+    document.getElementById("listado-paginacion-ul").innerHTML = "";
+    return;
+  }
+
+  vacioMsg.classList.add("d-none");
+
+  // Calcular límites de paginación
+  const inicioIdx = (paginacionActual - 1) * paginacionLimite;
+  const finIdx = Math.min(inicioIdx + paginacionLimite, totalItems);
+
+  const itemsPagina = listadoFiltrado.slice(inicioIdx, finIdx);
+
+  itemsPagina.forEach(item => {
+    const tr = document.createElement("tr");
+
+    // Formatear estado real
+    const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+    let estadoClass = "badge bg-secondary";
+    if (estReal === "BUENO") estadoClass = "badge bg-success";
+    else if (estReal === "REGULAR") estadoClass = "badge bg-warning text-dark";
+    else if (estReal === "MALO") estadoClass = "badge bg-danger";
+    else if (estReal === "BAJA") estadoClass = "badge bg-dark";
+
+    tr.innerHTML = `
+      <td>${item["No."] || ""}</td>
+      <td><strong class="text-primary">${item["No. INV."]}</strong></td>
+      <td class="text-ellipsis" style="max-width: 250px;" title="${item["DESCRIPCION"]}">${item["DESCRIPCION"] || ""}</td>
+      <td>${item["SERIE"] || ""}</td>
+      <td>${item["MARCA"] || ""}</td>
+      <td>${item["MODELO"] || ""}</td>
+      <td>${item["UBICACION_REAL"] || item["UBICACION"] || ""}</td>
+      <td><span class="${estadoClass}">${estReal}</span></td>
+      <td class="small text-secondary">${item["USUARIO_OPERADOR"] || "Sin registrar"}</td>
+      <td class="small text-secondary">${item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "Sin asignar"}</td>
+      <td class="text-center">
+        ${renderizarColumnaAcciones(item["No. INV."])}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Dibujar paginador
+  renderizarControlesPaginacion(totalItems);
+}
+
+function renderizarControlesPaginacion(totalItems) {
+  const totalPaginas = Math.ceil(totalItems / paginacionLimite);
+  const ul = document.getElementById("listado-paginacion-ul");
+  ul.innerHTML = "";
+
+  if (totalPaginas <= 1) return;
+
+  // Botón Anterior
+  const liPrev = document.createElement("li");
+  liPrev.className = `page-item ${paginacionActual === 1 ? 'disabled' : ''}`;
+  liPrev.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${paginacionActual - 1})">Anterior</a>`;
+  ul.appendChild(liPrev);
+
+  // Páginas numeradas
+  // Para optimizar en pantallas móviles limitamos a mostrar un máximo de 5 páginas alrededor de la activa
+  let startPage = Math.max(1, paginacionActual - 2);
+  let endPage = Math.min(totalPaginas, startPage + 4);
+  if (endPage - startPage < 4) {
+    startPage = Math.max(1, endPage - 4);
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    const li = document.createElement("li");
+    li.className = `page-item ${paginacionActual === i ? 'active' : ''}`;
+    li.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${i})">${i}</a>`;
+    ul.appendChild(li);
+  }
+
+  // Botón Siguiente
+  const liNext = document.createElement("li");
+  liNext.className = `page-item ${paginacionActual === totalPaginas ? 'disabled' : ''}`;
+  liNext.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${paginacionActual + 1})">Siguiente</a>`;
+  ul.appendChild(liNext);
+}
+
+function cambiarPagina(pagina) {
+  paginacionActual = pagina;
+  renderizarListadoTabla();
+}
+
+function cambiarLimitePaginacion(nuevoLimite) {
+  paginacionLimite = parseInt(nuevoLimite);
+  paginacionActual = 1;
+  renderizarListadoTabla();
+}
+
+function limpiarFiltrosCompleto() {
+  document.getElementById("filtro-estado").value = "";
+  document.getElementById("filtro-ubicacion").value = "";
+  document.getElementById("filtro-rapido").value = "";
+  aplicarFiltrosYListar();
+}
+
+/**
+ * ==========================================
+ * 7.5 GENERADOR DE ETIQUETAS QR COMPACTO PARA IMPRESIÓN Y DESCARGA
+ * ==========================================
+ */
+// Variable global para almacenar el QR actual
+let currentQrInstance = null;
+let currentQrItem = null;
+
+/**
+ * Función auxiliar para renderizar el código QR y abrir el modal con la información de un artículo.
+ * @param {Object} item - El objeto del artículo con sus propiedades.
+ */
+function renderizarQRConItem(item) {
+  try {
+    // Validar de manera proactiva que el artículo y sus datos esenciales existan
+    if (!item) {
+      mostrarAlerta("No se proporcionó información de artículo válida.", "danger");
+      return;
+    }
+    if (!item["No. INV."] && String(item["No. INV."]).trim() === "") {
+      mostrarAlerta("El artículo seleccionado no contiene un Número de Inventario ('No. INV.') válido.", "danger");
+      return;
+    }
+
+    currentQrItem = item;
+
+    // Rellenar información visual en el modal
+    document.getElementById("qr-info-no-inv").textContent = item["No. INV."] || "";
+    document.getElementById("qr-info-desc").textContent = item["DESCRIPCION"] || "Sin descripción";
+    document.getElementById("qr-info-serie").textContent = "Serie: " + (item["SERIE"] || "N/A");
+
+    // Limpiar el contenedor del QR anterior
+    const qrContainer = document.getElementById("qr-code-element");
+    qrContainer.innerHTML = "";
+
+    // De acuerdo con la Solicitud 1, simplificamos el contenido del código QR
+    // para que exclusivamente codifique el Número de Inventario (ID único del artículo).
+    // Esto optimiza y acelera significativamente el proceso de escaneo interactivo en campo.
+    const payloadString = String(item["No. INV."]).trim();
+
+    // Crear el nuevo código QR (mínimo de 200x200px) utilizando QRCode.js
+    currentQrInstance = new QRCode(qrContainer, {
+      text: payloadString,
+      width: 200,
+      height: 200,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+
+    // Abrir el modal de Bootstrap
+    const modalEl = document.getElementById("modal-generar-qr");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error en renderizarQRConItem:", error);
+    mostrarAlerta("Error al renderizar el código QR: " + error.message, "danger");
+  }
+}
+
+/**
+ * Función principal para generar el código QR de un artículo desde el listado.
+ * Implementa búsqueda local robusta e inmune a discrepancias de tipos de datos,
+ * fallback automático de consulta en tiempo real al servidor en caso de caché vacía o desincronizada,
+ * y control defensivo de excepciones.
+ * @param {string|number} noInv - Número de inventario del artículo seleccionado.
+ */
+function abrirGeneradorQR(noInv) {
+  try {
+    if (!noInv || String(noInv).trim() === "") {
+      mostrarAlerta("Número de inventario inválido o vacío.", "danger");
+      return;
+    }
+
+    // Convertir el parámetro a string para una comparación 100% robusta
+    const searchVal = String(noInv).trim().toLowerCase();
+
+    // Buscar artículo en caché local listadoCompleto
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (item) {
+      renderizarQRConItem(item);
+    } else {
+      // Fallback: Si el artículo no está en caché, solicitar los datos frescos al servidor en tiempo real
+      showLoader("Buscando artículo en el servidor...");
+      google.script.run
+        .withSuccessHandler(function(serverItem) {
+          hideLoader();
+          if (serverItem) {
+            renderizarQRConItem(serverItem);
+          } else {
+            mostrarAlerta("No se encontró ningún artículo con el No. INV. '" + noInv + "' en la base de datos de Google Sheets.", "danger");
+          }
+        })
+        .withFailureHandler(function(error) {
+          hideLoader();
+          console.error("Error en google.script.run.buscarPorNoInv:", error);
+          mostrarAlerta("Error al buscar artículo en el servidor: " + error.message, "danger");
+        })
+        .buscarPorNoInv(noInv);
+    }
+  } catch (error) {
+    console.error("Error en abrirGeneradorQR:", error);
+    mostrarAlerta("Ocurrió un error inesperado al procesar la generación de código QR: " + error.message, "danger");
+  }
+}
+
+function descargarLabelQRPNG() {
+  if (!currentQrItem) return;
+
+  try {
+    // Buscar la imagen generada por qrcode.js
+    const qrContainer = document.getElementById("qr-code-element");
+    const img = qrContainer.querySelector("img");
+    const canvas = qrContainer.querySelector("canvas");
+
+    let imageSrc = "";
+    if (img && img.src) {
+      imageSrc = img.src;
+    } else if (canvas) {
+      imageSrc = canvas.toDataURL("image/png");
+    } else {
+      mostrarAlerta("No se pudo obtener la imagen del QR para descarga.", "danger");
+      return;
+    }
+
+    // Crear enlace temporal de descarga
+    const link = document.createElement("a");
+    link.href = imageSrc;
+    link.download = `QR_${currentQrItem["No. INV."] || "Etiqueta"}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+  } catch (error) {
+    console.error("Error al descargar PNG:", error);
+    mostrarAlerta("Error al intentar descargar la etiqueta como PNG.", "danger");
+  }
+}
+
+function imprimirLabelQR() {
+  // Invocar la impresión del navegador
+  window.print();
+}
+
+/**
+ * ==========================================
+ * 7.6 RESPONSIVE ACTIONS & FOTOGRAFÍAS (GOOGLE DRIVE INTEGRATION)
+ * ==========================================
+ */
+
+/**
+ * Renderiza dinámicamente un grupo de acciones responsive (botones con iconos en escritorio, dropdown compacto en móvil)
+ * para un número de inventario específico.
+ */
+function renderizarColumnaAcciones(noInv) {
+  if (!noInv) return "";
+
+  // Escapar comillas para evitar rupturas de string
+  const cleanNoInv = String(noInv).replace(/'/g, "\\'");
+
+  return `
+    <div class="actions-wrapper">
+      <!-- Vista Escritorio y Tablet (Botones compactos circulares en línea horizontal) -->
+      <div class="d-none d-md-flex justify-content-center gap-1">
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEdicion('${cleanNoInv}')" title="✏️ Editar Artículo" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm rounded-circle" onclick="abrirModalVerDetalle('${cleanNoInv}')" title="👁️ Ver Detalle" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+        <button type="button" class="btn btn-outline-success btn-sm rounded-circle" onclick="abrirModalTrasladar('${cleanNoInv}')" title="📋 Mover / Trasladar" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button type="button" class="btn btn-outline-warning btn-sm rounded-circle" onclick="abrirModalFotos('${cleanNoInv}')" title="📎 Fotos del Artículo" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-camera"></i>
+        </button>
+        <button type="button" class="btn btn-outline-dark btn-sm rounded-circle" onclick="abrirGeneradorQR('${cleanNoInv}')" title="📤 Exportar Código QR" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-qrcode"></i>
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-circle" onclick="bajaLogicaListado('${cleanNoInv}')" title="⚠️ Dar de Baja" style="width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fa-solid fa-ban"></i>
+        </button>
+      </div>
+
+      <!-- Vista Móvil (Menú desplegableDropdown touch-friendly) -->
+      <div class="d-block d-md-none dropdown">
+        <button class="btn btn-secondary btn-sm dropdown-toggle fw-bold py-1 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fa-solid fa-gears me-1"></i>Acciones
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow">
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalEdicion('${cleanNoInv}')"><i class="fa-solid fa-pen me-2 text-primary"></i>✏️ Editar Artículo</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalVerDetalle('${cleanNoInv}')"><i class="fa-solid fa-eye me-2 text-info"></i>👁️ Ver Detalle</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalTrasladar('${cleanNoInv}')"><i class="fa-solid fa-arrow-right me-2 text-success"></i>📋 Mover / Trasladar</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirModalFotos('${cleanNoInv}')"><i class="fa-solid fa-camera me-2 text-warning"></i>📎 Gestionar Fotos</a></li>
+          <li><a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); abrirGeneradorQR('${cleanNoInv}')"><i class="fa-solid fa-qrcode me-2 text-dark"></i>📤 Exportar QR</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item py-2 text-danger fw-bold" href="#" onclick="event.preventDefault(); bajaLogicaListado('${cleanNoInv}')"><i class="fa-solid fa-ban me-2"></i>⚠️ Dar de Baja</a></li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Abre el modal de visualización de detalles completos.
+ */
+function abrirModalVerDetalle(noInv) {
+  try {
+    const searchVal = String(noInv).trim().toLowerCase();
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (!item) {
+      mostrarAlerta("No se pudo cargar el detalle del artículo localmente.", "danger");
+      return;
+    }
+
+    // Rellenar campos del modal
+    document.getElementById("det-no-inv").textContent = item["No. INV."] || "";
+    document.getElementById("det-no").textContent = item["No."] || "";
+    document.getElementById("det-descripcion").textContent = item["DESCRIPCION"] || "";
+    document.getElementById("det-serie").textContent = item["SERIE"] || "";
+    document.getElementById("det-modelo").textContent = item["MODELO"] || "";
+    document.getElementById("det-marca").textContent = item["MARCA"] || "";
+
+    // Badge de estado de patrimonio
+    const badgeEst = document.getElementById("det-estado");
+    const est = item["ESTADO"] || "BUENO";
+    badgeEst.textContent = est;
+    badgeEst.className = "badge " + (est === "BUENO" ? "bg-success" : est === "REGULAR" ? "bg-warning text-dark" : "bg-danger");
+
+    document.getElementById("det-ubicacion").textContent = item["UBICACION"] || "";
+    document.getElementById("det-resguardado").textContent = item["RESGUARDADO"] || "";
+    document.getElementById("det-importe").textContent = "$" + parseFloat(item["IMPORTE"] || 0).toFixed(2);
+
+    // Badge de estado real
+    const badgeEstReal = document.getElementById("det-estado-real");
+    const estReal = item["ESTADO_REAL"] || "BUENO";
+    badgeEstReal.textContent = estReal;
+    badgeEstReal.className = "badge " + (estReal === "BUENO" ? "bg-success" : estReal === "REGULAR" ? "bg-warning text-dark" : "bg-danger");
+
+    document.getElementById("det-ubicacion-real").textContent = item["UBICACION_REAL"] || "";
+    document.getElementById("det-resguardante-real").textContent = item["RESGUARDANTE_REAL"] || "";
+    document.getElementById("det-actualizacion").textContent = item["ULTIMA_ACTUALIZACION"] || "";
+    document.getElementById("det-operador").textContent = item["USUARIO_OPERADOR"] || "Sin registrar";
+
+    // Renderizar galería de fotos
+    const carouselContainer = document.getElementById("detalle-fotos-carousel");
+    carouselContainer.innerHTML = "";
+
+    const fotoIdsStr = item["FOTO_ID"] ? String(item["FOTO_ID"]).trim() : "";
+    const arrayFotos = fotoIdsStr ? fotoIdsStr.split(",") : [];
+
+    if (arrayFotos.length === 0) {
+      carouselContainer.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="fa-solid fa-image fa-3x mb-2 text-light-muted"></i>
+          <p class="small mb-0">No se han adjuntado fotos a este artículo.</p>
+        </div>
+      `;
+    } else {
+      // Mostrar la primera foto grande y miniaturas si hay más
+      let html = `<div class="w-100"><img src="https://docs.google.com/uc?export=view&id=${arrayFotos[0]}" class="img-fluid rounded mb-2 shadow-xs" style="max-height: 180px; object-fit: contain;"></div>`;
+      if (arrayFotos.length > 1) {
+        html += `<div class="d-flex gap-1 justify-content-center">`;
+        arrayFotos.forEach((id, idx) => {
+          html += `<img src="https://docs.google.com/uc?export=view&id=${id}" class="img-thumbnail" style="width: 45px; height: 45px; object-fit: cover; cursor: pointer;" onclick="document.querySelector('#detalle-fotos-carousel img').src = this.src;">`;
+        });
+        html += `</div>`;
+      }
+      carouselContainer.innerHTML = html;
+    }
+
+    const modalEl = document.getElementById("modal-ver-detalle");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al abrir modal detalle:", error);
+  }
+}
+
+/**
+ * Abre el modal para reasignación rápida / traslado de ubicación y resguardo.
+ */
+function abrirModalTrasladar(noInv) {
+  try {
+    const searchVal = String(noInv).trim().toLowerCase();
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (!item) {
+      mostrarAlerta("No se pudo cargar el artículo para el traslado.", "danger");
+      return;
+    }
+
+    document.getElementById("trasladar-no-inv").value = item["No. INV."];
+    document.getElementById("trasladar-lbl-descripcion").textContent = item["DESCRIPCION"] || "";
+    document.getElementById("trasladar-lbl-noinv").textContent = item["No. INV."] || "";
+
+    document.getElementById("trasladar-ubicacion-real").value = item["UBICACION_REAL"] || item["UBICACION"] || "";
+    document.getElementById("trasladar-resguardante-real").value = item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "";
+    document.getElementById("trasladar-estado-real").value = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+
+    const modalEl = document.getElementById("modal-trasladar");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al abrir traslado:", error);
+  }
+}
+
+/**
+ * Guarda los cambios de traslado de un artículo en el servidor.
+ */
+function guardarTrasladoArticulo() {
+  try {
+    const noInv = document.getElementById("trasladar-no-inv").value;
+    const ubicacion = document.getElementById("trasladar-ubicacion-real").value.trim();
+    const resguardante = document.getElementById("trasladar-resguardante-real").value.trim();
+    const estadoReal = document.getElementById("trasladar-estado-real").value;
+
+    if (!ubicacion || !resguardante) {
+      alert("Por favor rellene todos los campos marcados con asterisco (*).");
+      return;
+    }
+
+    // Cerrar modal actual
+    const modalEl = document.getElementById("modal-trasladar");
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) modalInstance.hide();
+
+    showLoader("Procesando traslado de ubicación...");
+
+    // Construir payload de actualización compacto
+    const payload = {
+      "No. INV.": noInv,
+      "UBICACION_REAL": ubicacion,
+      "RESGUARDANTE_REAL": resguardante,
+      "ESTADO_REAL": estadoReal
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          mostrarAlerta("Traslado realizado exitosamente para el artículo: " + noInv, "success");
+          // Forzar recarga completa del listado de inventario
+          cargarListadoInventario();
+        } else {
+          mostrarAlerta("Error al procesar traslado: " + res.message, "danger");
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error del servidor al procesar traslado: " + err.message, "danger");
+      })
+      .actualizarArticulo(payload, currentUser);
+  } catch (error) {
+    hideLoader();
+    console.error("Error en guardarTrasladoArticulo:", error);
+  }
+}
+
+/**
+ * Abre el modal de fotos, cargando el estado actual y listando fotos de Drive.
+ */
+function abrirModalFotos(noInv) {
+  try {
+    const searchVal = String(noInv).trim().toLowerCase();
+    const item = listadoCompleto.find(i => String(i["No. INV."]).trim().toLowerCase() === searchVal);
+
+    if (!item) {
+      mostrarAlerta("No se pudo cargar el artículo para gestionar fotos.", "danger");
+      return;
+    }
+
+    document.getElementById("fotos-no-inv").value = item["No. INV."];
+    document.getElementById("fotos-lbl-descripcion").textContent = item["DESCRIPCION"] || "";
+    document.getElementById("fotos-lbl-noinv").textContent = item["No. INV."] || "";
+
+    // Limpiar formulario y vista previa local anterior
+    document.getElementById("fotos-file-input").value = "";
+    document.getElementById("fotos-preview-local").classList.add("d-none");
+    document.getElementById("btn-fotos-subir").disabled = true;
+
+    // Renderizar las fotos existentes de Drive
+    renderizarGaleriaFotosModal(item);
+
+    const modalEl = document.getElementById("modal-fotos");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al abrir modal fotos:", error);
+  }
+}
+
+/**
+ * Renderiza el listado de fotos ya subidas a Drive de un artículo en el modal.
+ */
+function renderizarGaleriaFotosModal(item) {
+  const container = document.getElementById("fotos-gallery-container");
+  container.innerHTML = "";
+
+  const fotoIdsStr = item["FOTO_ID"] ? String(item["FOTO_ID"]).trim() : "";
+  const arrayFotos = fotoIdsStr ? fotoIdsStr.split(",") : [];
+
+  if (arrayFotos.length === 0) {
+    container.innerHTML = `
+      <div class="col-12 text-center py-3 text-muted bg-light border rounded">
+        <i class="fa-solid fa-camera fa-2x mb-1 text-light-muted"></i>
+        <p class="small mb-0">No se han registrado fotografías para este bien.</p>
+      </div>
+    `;
+    // Habilitar sección de subida
+    document.getElementById("fotos-upload-section").style.display = "block";
+  } else {
+    arrayFotos.forEach((id, idx) => {
+      const col = document.createElement("div");
+      col.className = "col-4 text-center position-relative mb-2";
+      col.innerHTML = `
+        <div class="border rounded bg-light p-1 shadow-xs h-100 d-flex flex-column align-items-center justify-content-between">
+          <img src="https://docs.google.com/uc?export=view&id=${id}" class="img-fluid rounded mb-1" style="width: 100%; height: 60px; object-fit: cover;">
+          <button type="button" class="btn btn-outline-danger btn-xs py-0 px-1 font-bold small" onclick="eliminarFotoArticuloJS('${item["No. INV."]}', '${id}')" title="Eliminar Foto" style="font-size: 10px;">
+            <i class="fa-solid fa-trash me-1"></i>Borrar
+          </button>
+        </div>
+      `;
+      container.appendChild(col);
+    });
+
+    // Deshabilitar sección de subida si ya llegamos a 3
+    if (arrayFotos.length >= 3) {
+      document.getElementById("fotos-upload-section").style.display = "none";
+    } else {
+      document.getElementById("fotos-upload-section").style.display = "block";
+    }
+  }
+}
+
+/**
+ * Valida localmente el formato y tamaño del archivo seleccionado por el usuario antes de procesarlo.
+ */
+function validarYPrevisualizarFotoLocal() {
+  const fileInput = document.getElementById("fotos-file-input");
+  const btnSubir = document.getElementById("btn-fotos-subir");
+  const previewDiv = document.getElementById("fotos-preview-local");
+  const previewImg = document.getElementById("fotos-preview-img");
+  const previewInfo = document.getElementById("fotos-preview-info");
+
+  btnSubir.disabled = true;
+  previewDiv.classList.add("d-none");
+
+  if (fileInput.files.length === 0) return;
+
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  const formatosPermitidos = ["png", "jpg", "jpeg", "gif", "webp"];
+  if (formatosPermitidos.indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = "";
+    return;
+  }
+
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = "";
+    return;
+  }
+
+  // Mostrar vista previa local
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+    btnSubir.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Convierte el archivo previsualizado a Base64 y lo envía a Google Drive mediante el servidor de GAS.
+ */
+function subirFotoLocalAlServidor() {
+  const fileInput = document.getElementById("fotos-file-input");
+  if (fileInput.files.length === 0) return;
+
+  const noInv = document.getElementById("fotos-no-inv").value;
+  const file = fileInput.files[0];
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  // Cerrar modal de fotos para dar paso al loader
+  const modalEl = document.getElementById("modal-fotos");
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
+
+  showLoader("Subiendo imagen de evidencia a Google Drive...");
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64Data = e.target.result;
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          mostrarAlerta("Fotografía adjuntada con éxito en Google Drive.", "success");
+
+          // Forzar actualización inmediata del listado local
+          cargarListadoInventario();
+
+          // Reabrir el modal con el listado actualizado después de un breve delay para refrescar
+          setTimeout(() => {
+            abrirModalFotos(noInv);
+          }, 600);
+        } else {
+          mostrarAlerta("Error al subir foto: " + res.message, "danger");
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error de servidor al subir foto: " + err.message, "danger");
+      })
+      .subirFotoArticulo(noInv, base64Data, ext, file.name);
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Solicita la eliminación de una foto en el servidor de GAS.
+ */
+function eliminarFotoArticuloJS(noInv, fileId) {
+  if (!confirm("¿Está seguro de eliminar de forma permanente esta fotografía de evidencia?")) return;
+
+  // Cerrar modal fotos
+  const modalEl = document.getElementById("modal-fotos");
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
+
+  showLoader("Eliminando archivo de Google Drive...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      hideLoader();
+      if (res.success) {
+        mostrarAlerta("Fotografía eliminada con éxito.", "success");
+        cargarListadoInventario();
+        setTimeout(() => {
+          abrirModalFotos(noInv);
+        }, 600);
+      } else {
+        mostrarAlerta("Error al eliminar fotografía: " + res.message, "danger");
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error de servidor al eliminar fotografía: " + err.message, "danger");
+    })
+    .eliminarFotoArticulo(noInv, fileId);
+}
+
+
+/**
+ * ==========================================
+ * 8. EXPORTACIONES A EXCEL Y CSV (CON CLIENTE)
+ * ==========================================
+ */
+function exportarExcelSheetJS() {
+  if (listadoFiltrado.length === 0) {
+    alert("No hay registros en el listado activo para exportar.");
+    return;
+  }
+
+  showLoader("Generando archivo de Excel...");
+
+  try {
+    // Definir los encabezados oficiales de salida
+    const headers = [
+      "No.",
+      "No. INV.",
+      "DESCRIPCION",
+      "SERIE",
+      "MODELO",
+      "MARCA",
+      "ESTADO",
+      "IMPORTE",
+      "UBICACION",
+      "RESGUARDADO",
+      "RESGUARDANTE_REAL",
+      "UBICACION_REAL",
+      "ESTADO_REAL",
+      "ULTIMA_ACTUALIZACION"
+    ];
+
+    // Preparar filas
+    const rows = listadoFiltrado.map(item => [
+      item["No."] || "",
+      item["No. INV."] || "",
+      item["DESCRIPCION"] || "",
+      item["SERIE"] || "",
+      item["MODELO"] || "",
+      item["MARCA"] || "",
+      item["ESTADO"] || "",
+      parseFloat(item["IMPORTE"] || 0),
+      item["UBICACION"] || "",
+      item["RESGUARDADO"] || "",
+      item["RESGUARDANTE_REAL"] || "",
+      item["UBICACION_REAL"] || "",
+      item["ESTADO_REAL"] || "",
+      item["ULTIMA_ACTUALIZACION"] || ""
+    ]);
+
+    // Insertar headers al inicio
+    rows.unshift(headers);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventario_SMR");
+
+    // Exportar descarga local
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Inventario_SMR_Patrimonio_${fecha}.xlsx`);
+    hideLoader();
+  } catch (err) {
+    hideLoader();
+    alert("Error al exportar Excel: " + err.message);
+  }
+}
+
+function exportarCSV() {
+  if (listadoFiltrado.length === 0) {
+    alert("No hay registros para exportar.");
+    return;
+  }
+
+  showLoader("Generando archivo CSV...");
+
+  try {
+    const headers = [
+      "No.", "No. INV.", "DESCRIPCION", "SERIE", "MODELO", "MARCA", "ESTADO",
+      "IMPORTE", "UBICACION", "RESGUARDADO", "RESGUARDANTE_REAL", "UBICACION_REAL",
+      "ESTADO_REAL", "ULTIMA_ACTUALIZACION"
+    ];
+
+    let csvContent = "\ufeff"; // BOM para asegurar codificación UTF-8 correcta en Excel español
+    csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n";
+
+    listadoFiltrado.forEach(item => {
+      const row = [
+        item["No."] || "",
+        item["No. INV."] || "",
+        item["DESCRIPCION"] || "",
+        item["SERIE"] || "",
+        item["MODELO"] || "",
+        item["MARCA"] || "",
+        item["ESTADO"] || "",
+        item["IMPORTE"] || 0,
+        item["UBICACION"] || "",
+        item["RESGUARDADO"] || "",
+        item["RESGUARDANTE_REAL"] || "",
+        item["UBICACION_REAL"] || "",
+        item["ESTADO_REAL"] || "",
+        item["ULTIMA_ACTUALIZACION"] || ""
+      ];
+      csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",") + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const fecha = new Date().toISOString().split('T')[0];
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Inventario_SMR_Export_${fecha}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    hideLoader();
+  } catch (err) {
+    hideLoader();
+    alert("Error al exportar CSV: " + err.message);
+  }
+}
+
+
+/**
+ * ==========================================
+ * 9. MODIFICACIÓN Y BAJA/ELIMINACIÓN LISTADO
+ * ==========================================
+ */
+function abrirModalEdicion(noInv) {
+  showLoader("Recuperando ficha técnica del artículo...");
+
+  google.script.run
+    .withSuccessHandler(function(articulo) {
+      hideLoader();
+      if (!articulo) {
+        alert("No se encontró el artículo.");
+        return;
+      }
+
+      // Llenar inputs del modal
+      document.getElementById("edit-no").value = articulo["No."] || "";
+      document.getElementById("edit-no-inv").value = articulo["No. INV."];
+      document.getElementById("edit-serie").value = articulo["SERIE"] || "";
+      document.getElementById("edit-descripcion").value = articulo["DESCRIPCION"] || "";
+      document.getElementById("edit-marca").value = articulo["MARCA"] || "";
+      document.getElementById("edit-modelo").value = articulo["MODELO"] || "";
+      document.getElementById("edit-importe").value = articulo["IMPORTE"] || 0;
+      document.getElementById("edit-estado").value = articulo["ESTADO"] || "BUENO";
+      document.getElementById("edit-ubicacion").value = articulo["UBICACION"] || "";
+      document.getElementById("edit-resguardado").value = articulo["RESGUARDADO"] || "";
+
+      document.getElementById("edit-estado-real").value = articulo["ESTADO_REAL"] || articulo["ESTADO"] || "BUENO";
+      document.getElementById("edit-ubicacion-real").value = articulo["UBICACION_REAL"] || articulo["UBICACION"] || "";
+      document.getElementById("edit-resguardante-real").value = articulo["RESGUARDANTE_REAL"] || articulo["RESGUARDADO"] || "";
+
+      // Mostrar modal
+      const modalEl = document.getElementById("modal-editar-articulo");
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      alert("Error al cargar datos del artículo: " + err.message);
+    })
+    .buscarPorNoInv(noInv);
+}
+
+function guardarEdicionArticulo() {
+  const noInv = document.getElementById("edit-no-inv").value;
+  const no = document.getElementById("edit-no").value;
+
+  const articuloEditado = {
+    "No. INV.": noInv,
+    "No.": no,
+    "SERIE": document.getElementById("edit-serie").value.trim(),
+    "DESCRIPCION": document.getElementById("edit-descripcion").value.trim(),
+    "MARCA": document.getElementById("edit-marca").value.trim(),
+    "MODELO": document.getElementById("edit-modelo").value.trim(),
+    "IMPORTE": parseFloat(document.getElementById("edit-importe").value) || 0,
+    "ESTADO": document.getElementById("edit-estado").value,
+    "UBICACION": document.getElementById("edit-ubicacion").value.trim(),
+    "RESGUARDADO": document.getElementById("edit-resguardado").value.trim(),
+
+    "ESTADO_REAL": document.getElementById("edit-estado-real").value,
+    "UBICACION_REAL": document.getElementById("edit-ubicacion-real").value.trim(),
+    "RESGUARDANTE_REAL": document.getElementById("edit-resguardante-real").value.trim()
+  };
+
+  showLoader("Guardando cambios en el servidor...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (editFotoBase64) {
+        showLoader("Subiendo nueva fotografía a Google Drive...");
+        google.script.run
+          .withSuccessHandler(function() {
+            hideLoader();
+            const modalEl = document.getElementById("modal-editar-articulo");
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+            mostrarAlerta("¡Ficha técnica de '" + noInv + "' actualizada y foto guardada!", "success");
+
+            // Limpiar foto de edición
+            const fileInput = document.getElementById("edit-foto-input");
+            if (fileInput) fileInput.value = "";
+            const previewDiv = document.getElementById("edit-foto-preview-container");
+            if (previewDiv) previewDiv.classList.add("d-none");
+            editFotoBase64 = ""; editFotoExt = ""; editFotoNombre = "";
+
+            cargarListadoInventario();
+            cargarEstadisticasInicio();
+          })
+          .withFailureHandler(function(uploadErr) {
+            hideLoader();
+            const modalEl = document.getElementById("modal-editar-articulo");
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+            mostrarAlerta("Edición guardada exitosamente, pero falló la subida de foto: " + uploadErr.message, "warning");
+            cargarListadoInventario();
+            cargarEstadisticasInicio();
+          })
+          .subirFotoArticulo(noInv, editFotoBase64, editFotoExt, editFotoNombre);
+      } else {
+        hideLoader();
+        const modalEl = document.getElementById("modal-editar-articulo");
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+        mostrarAlerta("¡Ficha técnica de '" + noInv + "' actualizada!", "success");
+        cargarListadoInventario();
+        cargarEstadisticasInicio();
+      }
+    })
+    .withFailureHandler(function(err) {
+      hideLoader();
+      mostrarAlerta("Error al guardar edición: " + err.message, "danger");
+    })
+    .actualizarArticulo(articuloEditado, currentUser);
+}
+
+function bajaLogicaListado(noInv) {
+  if (confirm(`¿Dar de baja lógica el artículo No. INV. ${noInv}?`)) {
+    showLoader("Dando de baja...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo dado de baja.", "warning");
+        cargarListadoInventario();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al procesar baja lógica: " + err.message, "danger");
+      })
+      .bajaArticulo(noInv, currentUser);
+  }
+}
+
+function eliminarFisicoListado(noInv) {
+  if (confirm(`¡ADVERTENCIA DE ELIMINACIÓN FÍSICA!\n¿Estás completamente seguro de eliminar el artículo No. INV. ${noInv}?\nEsta acción es irreversible.`)) {
+    showLoader("Eliminando físicamente de la hoja de cálculo...");
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        mostrarAlerta("Artículo eliminado permanentemente.", "danger");
+        cargarListadoInventario();
+        cargarEstadisticasInicio();
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        mostrarAlerta("Error al eliminar físicamente: " + err.message, "danger");
+      })
+      .eliminarArticulo(noInv, currentUser);
+  }
+}
+
+
+/**
+ * ==========================================
+ * 10. CARGA DE BITÁCORA
+ * ==========================================
+ */
+function cargarDatosBitacora(forzarManual) {
+  if (forzarManual) {
+    showLoader("Actualizando bitácora de operaciones...");
+  }
+  google.script.run
+    .withSuccessHandler(function(bitacora) {
+      if (forzarManual) hideLoader();
+
+      const tbody = document.getElementById("bitacora-tbody");
+      const vacioMsg = document.getElementById("bitacora-vacia-msg");
+      tbody.innerHTML = "";
+
+      if (!bitacora || bitacora.length === 0) {
+        vacioMsg.classList.remove("d-none");
+        return;
+      }
+
+      vacioMsg.classList.add("d-none");
+
+      bitacora.forEach(reg => {
+        const tr = document.createElement("tr");
+
+        let badgeAccionClass = "badge bg-secondary";
+        if (reg.Accion === "ALTA") badgeAccionClass = "badge bg-success";
+        else if (reg.Accion === "ACTUALIZACION") badgeAccionClass = "badge bg-info text-dark";
+        else if (reg.Accion === "BAJA") badgeAccionClass = "badge bg-warning text-dark";
+        else if (reg.Accion === "ELIMINACION") badgeAccionClass = "badge bg-danger";
+        else if (reg.Accion === "CARGA_EXCEL") badgeAccionClass = "badge bg-primary";
+
+        tr.innerHTML = `
+          <td class="small">${reg.Fecha || ""}</td>
+          <td class="text-ellipsis small" style="max-width: 150px;" title="${reg.Usuario}">${reg.Usuario || ""}</td>
+          <td><span class="${badgeAccionClass}">${reg.Accion || ""}</span></td>
+          <td><strong>${reg["No. INV."] || "-"}</strong></td>
+          <td class="small" style="word-break: break-word;">${reg.Detalle || ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    })
+    .withFailureHandler(function(err) {
+      if (forzarManual) hideLoader();
+      console.error("Error al obtener bitácora: ", err);
+    })
+    .listarBitacora();
+}
+
+
+/**
+ * ==========================================
+ * 11. DASHBOARD / ESTADÍSTICAS RÁPIDAS
+ * ==========================================
+ */
+function cargarEstadisticasInicio() {
+  console.log("[Client] Solicitando estadísticas de inicio calling listarArticulos()...");
+  google.script.run
+    .withSuccessHandler(function(articulos) {
+      console.log("[Client] Estadísticas recibidas con éxito. Cantidad de artículos:", articulos ? articulos.length : null);
+      if (!articulos) {
+        console.warn("[Client] No se recibieron artículos para estadísticas.");
+        return;
+      }
+
+      let total = articulos.length;
+      let buenosRegulares = 0;
+      let malos = 0;
+      let bajas = 0;
+
+      articulos.forEach(item => {
+        const estReal = item["ESTADO_REAL"] || item["ESTADO"] || "BUENO";
+        if (estReal === "BUENO" || estReal === "REGULAR") {
+          buenosRegulares++;
+        } else if (estReal === "MALO") {
+          malos++;
+        } else if (estReal === "BAJA") {
+          bajas++;
+        }
+      });
+
+      document.getElementById("stat-total").textContent = total;
+      document.getElementById("stat-bueno").textContent = buenosRegulares;
+      document.getElementById("stat-malo").textContent = malos;
+      document.getElementById("stat-baja").textContent = bajas;
+    })
+    .withFailureHandler(function(err) {
+      console.error("[Client] Fallo al cargar estadísticas iniciales:", err);
+      mostrarAlerta("Error al conectar estadísticas: " + err.message, "warning");
+    })
+    .listarArticulos();
+}
+
+
+/**
+ * ==========================================
+ * 12. MENSAJES DE ALERTA Y LOADERS
+ * ==========================================
+ */
+function showLoader(message) {
+  document.getElementById("loader-message").textContent = message || "Procesando...";
+  document.getElementById("global-loader").classList.remove("d-none");
+}
+
+function hideLoader() {
+  document.getElementById("global-loader").classList.add("d-none");
+}
+
+function mostrarAlerta(mensaje, tipo) {
+  const container = document.getElementById("alert-container");
+
+  const alertDiv = document.createElement("div");
+  alertDiv.className = `alert alert-${tipo} alert-dismissible fade show shadow-sm d-flex align-items-center pulse-animation`;
+  alertDiv.setAttribute("role", "alert");
+
+  let icon = '<i class="fa-solid fa-circle-info fa-lg me-3"></i>';
+  if (tipo === "success") icon = '<i class="fa-solid fa-circle-check fa-lg me-3"></i>';
+  else if (tipo === "danger") icon = '<i class="fa-solid fa-circle-exclamation fa-lg me-3"></i>';
+  else if (tipo === "warning") icon = '<i class="fa-solid fa-triangle-exclamation fa-lg me-3"></i>';
+
+  alertDiv.innerHTML = `
+    ${icon}
+    <div>${mensaje}</div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  `;
+
+  container.appendChild(alertDiv);
+
+  // Auto descartar después de 8 segundos
+  setTimeout(() => {
+    const bsAlert = new bootstrap.Alert(alertDiv);
+    bsAlert.close();
+  }, 8000);
+}
+
+/**
+ * ==========================================
+ * 13. CONTROLADORES AUXILIARES DE CÁMARA Y OCR REQUERIDOS (V5)
+ * ==========================================
+ */
+let mediaStream = null;
+window.scannerActive = false;
+let currentImageData = null;
+
+// Función para iniciar la cámara con validación de Permissions API e instrucciones en español
+function startScanner() {
+  try {
+    // Verificar si el navegador soporta getUserMedia
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      updateStatus('❌ Tu navegador no soporta el acceso directo a la cámara', 'error');
+      showManualInputFallback();
+      return;
+    }
+
+    // Mostrar mensaje de espera
+    updateStatus('📷 Solicitando permisos de cámara...', 'info');
+
+    // Activar tarjeta contenedora
+    const card = document.getElementById('scanner-container-card');
+    if (card) {
+      card.style.display = 'block';
+    }
+
+    // Verificar permisos mediante Permissions API primero si está disponible
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'camera' })
+        .then(permissionStatus => {
+          console.log('Estado de permiso de cámara:', permissionStatus.state);
+
+          if (permissionStatus.state === 'denied') {
+            updateStatus('⚠️ Permiso de cámara denegado. Por favor, usa la entrada manual.', 'error');
+            showManualInputFallback();
+            return;
+          }
+
+          // Proceder a solicitar acceso real de cámara
+          requestCameraAccess();
+        })
+        .catch(error => {
+          console.warn('Permissions API no soportada, intentando acceso directo:', error);
+          requestCameraAccess();
+        });
+    } else {
+      // Acceso directo directo en navegadores antiguos
+      requestCameraAccess();
+    }
+  } catch (error) {
+    console.error('Error en startScanner:', error);
+    updateStatus('❌ Error al iniciar: ' + error.message, 'error');
+    showManualInputFallback();
+  }
+}
+
+// Función para solicitar acceso físico a la cámara
+function requestCameraAccess() {
+  const videoElement = document.getElementById('video');
+  const container = document.getElementById('cameraContainer');
+
+  if (!videoElement || !container) {
+    updateStatus('❌ Elementos de cámara no encontrados en el DOM', 'error');
+    return;
+  }
+
+  // Limpiar stream anterior
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream = null;
+  }
+
+  // Configuración ideal para captura de código de barras / QR de patrimonio
+  const constraints = {
+    video: {
+      facingMode: 'environment',
+      width: { ideal: 640 },
+      height: { ideal: 480 }
+    },
+    audio: false
+  };
+
+  // Obtener stream
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(stream => {
+      mediaStream = stream;
+      window.currentStream = stream; // Guardar también en variable window para redundancia requerida
+      videoElement.srcObject = stream;
+
+      videoElement.onloadedmetadata = () => {
+        videoElement.play()
+          .then(() => {
+            container.style.display = 'block';
+            window.scannerActive = true;
+            updateStatus('✅ Cámara activa - Listo para capturar', 'success');
+
+            // Mostrar y activar botón de captura de foto
+            const captureBtn = document.getElementById('btnCapturar');
+            if (captureBtn) {
+              captureBtn.style.display = 'inline-block';
+              captureBtn.disabled = false;
+            }
+          })
+          .catch(error => {
+            console.error('Error al reproducir video:', error);
+            updateStatus('⚠️ Error al reproducir video: ' + error.message, 'error');
+          });
+      };
+    })
+    .catch(error => {
+      console.error('Error al acceder a la cámara:', error);
+      handleCameraError(error);
+    });
+}
+
+// Manejo robusto de errores de cámara mapeados en español
+function handleCameraError(error) {
+  let message = '';
+  let solution = '';
+
+  switch (error.name) {
+    case 'NotAllowedError':
+      message = '⚠️ Permiso denegado por el navegador o bloqueado por iframe de Google';
+      solution = '🔹 Por favor, concede permisos de cámara haciendo clic en el icono del candado en la barra de direcciones.\n🔹 Alternativamente, usa el buscador manual de inventario.';
+      break;
+    case 'NotFoundError':
+      message = '❌ No se encontró cámara instalada en el dispositivo';
+      solution = '🔹 Conecta un dispositivo de cámara o usa el campo de entrada manual.';
+      break;
+    case 'NotReadableError':
+      message = '❌ No se puede acceder a la cámara física';
+      solution = '🔹 Asegúrate de que otra pestaña, navegador o aplicación no esté utilizando la cámara actualmente.';
+      break;
+    case 'OverconstrainedError':
+      message = '❌ Configuración de resolución de cámara no compatible';
+      solution = '🔹 Usa la entrada manual de inventario como fallback.';
+      break;
+    case 'SecurityError':
+      message = '🔒 Error de seguridad al acceder';
+      solution = '🔹 Concede permisos en tu barra de direcciones del navegador o usa entrada manual.';
+      break;
+    default:
+      message = '❌ Error al abrir la cámara: ' + error.message;
+      solution = '🔹 Por favor ingresa el No. de Inventario manualmente.';
+  }
+
+  updateStatus(message, 'error');
+  showManualInputFallback();
+  console.log('Solución recomendada:', solution);
+  mostrarAlerta(message + ". Solución: " + solution, "warning");
+}
+
+// Mostrar fallback para entrada manual si la cámara se bloquea
+function showManualInputFallback() {
+  const fallbackContainer = document.getElementById('manual-fallback');
+  if (!fallbackContainer) {
+    const container = document.createElement('div');
+    container.id = 'manual-fallback';
+    container.className = 'fallback-container mt-3';
+    document.body.appendChild(container);
+  }
+
+  const container = document.getElementById('manual-fallback');
+  container.innerHTML = `
+    <div class="fallback-card p-3 rounded border border-warning bg-light-warning">
+      <h5 class="fw-bold text-dark"><i class="fa-solid fa-keyboard me-2"></i>Entrada Manual de Fallback</h5>
+      <p class="small text-muted mb-3">La cámara no se pudo activar. Por favor, escribe el Número de Inventario manualmente para consultar la base de datos:</p>
+      <div class="input-group input-group-sm mb-2" style="max-width: 320px;">
+        <input type="text" id="manual-inventory-input" class="form-control" placeholder="Ej: BF-100000010">
+        <button type="button" onclick="searchManualEntry()" class="btn btn-primary">🔍 Buscar</button>
+      </div>
+      <div id="manual-result"></div>
+    </div>
+  `;
+  container.style.display = 'block';
+}
+
+// Búsqueda de activo mediante el panel de entrada manual fallback
+function searchManualEntry() {
+  const input = document.getElementById('manual-inventory-input');
+  if (!input) return;
+
+  const value = input.value.trim();
+  if (!value) {
+    updateStatus('⚠️ Ingresa un número de inventario', 'warning');
+    return;
+  }
+
+  // Llenar el campo principal e iniciar búsqueda
+  const mainInput = document.getElementById('inventory-number');
+  if (mainInput) {
+    mainInput.value = value;
+  }
+
+  searchInventoryNumber(value);
+}
+
+// Capturar frame de cámara y procesar OCR simulado/real
+function captureAndProcess() {
+  try {
+    const videoElement = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+
+    if (!videoElement || !canvas) {
+      updateStatus('❌ Elementos de captura no disponibles', 'error');
+      return;
+    }
+
+    if (!window.scannerActive || !mediaStream) {
+      updateStatus('⚠️ Cámara no activa. Inicia la cámara primero.', 'warning');
+      return;
+    }
+
+    // Mostrar estado de captura
+    updateStatus('📸 Capturando imagen...', 'info');
+
+    // Configurar canvas
+    const context = canvas.getContext('2d');
+    canvas.width = videoElement.videoWidth || 640;
+    canvas.height = videoElement.videoHeight || 480;
+
+    // Capturar frame de video actual
+    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    // Convertir a jpeg base64 con compresión optimizada
+    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+    currentImageData = imageData;
+
+    // Mostrar previsualización local
+    showImagePreview(imageData);
+
+    // Iniciar procesamiento OCR en el servidor
+    updateStatus('🔄 Procesando imagen...', 'info');
+    showLoadingIndicator(true);
+
+    // Enviar a Google Apps Script para procesamiento OCR
+    google.script.run
+      .withSuccessHandler(function(result) {
+        showLoadingIndicator(false);
+        handleOCRResult(result);
+      })
+      .withFailureHandler(function(error) {
+        showLoadingIndicator(false);
+        console.error('Error en OCR:', error);
+        updateStatus('❌ Error al procesar: ' + error.message, 'error');
+        showManualInputFallback();
+      })
+      .processImageForOCR(imageData);
+
+  } catch (error) {
+    console.error('Error en captureAndProcess:', error);
+    updateStatus('❌ Error al capturar: ' + error.message, 'error');
+    showLoadingIndicator(false);
+  }
+}
+
+// Manejar resultado del OCR
+function handleOCRResult(result) {
+  if (result.success) {
+    const inventoryNumber = result.inventoryNumber || result.number || '';
+
+    if (inventoryNumber) {
+      updateStatus('✅ Número detectado: ' + inventoryNumber, 'success');
+
+      // Llenar el input principal de inventario
+      const inventoryInput = document.getElementById('inventory-number');
+      if (inventoryInput) {
+        inventoryInput.value = inventoryNumber;
+      }
+
+      // Iniciar búsqueda automática del activo en la base de datos
+      updateStatus('🔍 Buscando información en Google Sheets...', 'info');
+      searchInventoryNumber(inventoryNumber);
+    } else {
+      updateStatus('⚠️ No se pudo extraer un número de inventario legible de la foto', 'warning');
+      showManualInputFallback();
+    }
+  } else {
+    updateStatus('❌ Error en OCR: ' + (result.error || 'Error desconocido'), 'error');
+    showManualInputFallback();
+  }
+}
+
+// Mostrar previsualización de la foto tomada
+function showImagePreview(imageData) {
+  let previewContainer = document.getElementById('preview-container');
+  if (!previewContainer) {
+    previewContainer = document.createElement('div');
+    previewContainer.id = 'preview-container';
+    document.querySelector('.scanner-controls').before(previewContainer);
+  }
+
+  previewContainer.innerHTML = `
+    <div style="background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0;" class="border rounded">
+      <h6 style="margin: 0 0 10px 0;" class="fw-bold text-dark">📷 Captura tomada:</h6>
+      <img src="${imageData}" alt="Captura" class="img-fluid rounded" style="max-width: 160px; border: 1px solid #ddd;">
+      <div style="margin-top: 10px;">
+        <button type="button" class="btn btn-secondary btn-xs" onclick="retakePhoto()" style="padding: 5px 15px; font-size: 12px;">
+          🔄 Tomar otra
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Buscar No. INV en Google Sheets con notificaciones flotantes temporales
+function searchInventoryNumber(inventoryNumber) {
+  try {
+    if (!inventoryNumber || inventoryNumber.trim() === '') {
+      updateStatus('⚠️ Número de inventario vacío', 'warning');
+      return;
+    }
+
+    showLoadingIndicator(true);
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        showLoadingIndicator(false);
+        if (response.success && response.data) {
+          displayInventoryData(response.data);
+          updateStatus('✅ Información encontrada para: ' + inventoryNumber, 'success');
+
+          // Sincronizar con el formulario de levantamiento principal
+          procesarCodigoEtiqueta(inventoryNumber);
+
+          // Mostrar notificación flotante
+          showNotification('✅ Inventario encontrado', 'success');
+        } else {
+          updateStatus('⚠️ No se encontró información para el número: ' + inventoryNumber, 'warning');
+          clearResults();
+          showNotification('⚠️ No encontrado', 'warning');
+        }
+      })
+      .withFailureHandler(function(error) {
+        showLoadingIndicator(false);
+        console.error('Error en búsqueda:', error);
+        updateStatus('❌ Error en búsqueda: ' + error.message, 'error');
+        showNotification('❌ Error en la búsqueda', 'error');
+      })
+      .searchInventoryNumber(inventoryNumber.trim());
+
+  } catch (error) {
+    console.error('Error en searchInventoryNumber:', error);
+    updateStatus('❌ Error al buscar: ' + error.message, 'error');
+    showLoadingIndicator(false);
+  }
+}
+
+// Mostrar notificaciones flotantes temporales en la pantalla principal
+function showNotification(message, type = 'info') {
+  let notification = document.getElementById('notification');
+  if (!notification) {
+    notification = document.createElement('div');
+    notification.id = 'notification';
+    document.body.appendChild(notification);
+  }
+
+  const colors = {
+    success: '#16a085',
+    error: '#c0392b',
+    warning: '#f39c12',
+    info: '#1a1a2e'
+  };
+
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 12px 24px;
+    background: ${colors[type] || '#16a085'};
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 10000;
+    font-weight: bold;
+    animation: slideIn 0.3s ease-out;
+    max-width: 400px;
+  `;
+  notification.textContent = message;
+  notification.style.display = 'block';
+
+  // Ocultar automáticamente después de 4 segundos
+  clearTimeout(notification.timeout);
+  notification.timeout = setTimeout(() => {
+    notification.style.display = 'none';
+  }, 4000);
+}
+
+// Retomar foto: limpia y reinicia cámara
+function retakePhoto() {
+  const previewContainer = document.getElementById('preview-container');
+  if (previewContainer) {
+    previewContainer.innerHTML = '';
+  }
+
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream = null;
+  }
+
+  requestCameraAccess();
+}
+
+// Detener la cámara local auxiliar y apagar video
+function stopCamera() {
+  try {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+    }
+    if (window.currentStream) {
+      window.currentStream.getTracks().forEach(track => track.stop());
+      window.currentStream = null;
+    }
+
+    const videoElement = document.getElementById('video');
+    if (videoElement) {
+      videoElement.srcObject = null;
+      videoElement.pause();
+    }
+
+    const container = document.getElementById('cameraContainer');
+    if (container) {
+      container.style.display = 'none';
+    }
+    const card = document.getElementById('scanner-container-card');
+    if (card) {
+      card.style.display = 'none';
+    }
+
+    window.scannerActive = false;
+    updateStatus('✅ Cámara detenida', 'info');
+
+    const captureBtn = document.getElementById('btnCapturar');
+    if (captureBtn) {
+      captureBtn.style.display = 'none';
+      captureBtn.disabled = true;
+    }
+
+    const previewContainer = document.getElementById('preview-container');
+    if (previewContainer) {
+      previewContainer.innerHTML = '';
+    }
+
+  } catch (error) {
+    console.error('Error en stopCamera:', error);
+  }
+}
+
+// Detener la cámara con stopScanner para compatibilidad completa
+function stopScanner() {
+  stopCamera();
+  if (typeof detenerEscaneoLocal === "function") {
+    detenerEscaneoLocal();
+  }
+}
+
+// Búsqueda manual desde el campo de texto
+function searchByInventory() {
+  const input = document.getElementById('inventory-number');
+  if (!input) return;
+
+  const value = input.value.trim();
+  if (!value) {
+    updateStatus('⚠️ Ingresa un número de inventario', 'warning');
+    input.focus();
+    return;
+  }
+
+  searchInventoryNumber(value);
+}
+
+// Limpiar resultados locales de búsqueda
+function clearResults() {
+  const resultsContainer = document.getElementById('results-container');
+  if (resultsContainer) {
+    resultsContainer.innerHTML = '';
+    resultsContainer.style.display = 'none';
+  }
+  const inventoryInput = document.getElementById('inventory-number');
+  if (inventoryInput) {
+    inventoryInput.value = '';
+  }
+  updateStatus('Resultados limpiados', 'info');
+}
+
+// Exponer de forma visible un botón o enlace para activar la cámara local auxiliar si se desea
+function habilitarLectorAuxiliarLocal() {
+  const card = document.getElementById('scanner-container-card');
+  if (card) {
+    card.style.display = 'block';
+    startScanner();
+  }
+}
+
+/**
+ * ==========================================
+ * 14. INICIALIZADORES SEGUROS CONTRA ELEMENTOS NULL (EVITA TYPEERROR)
+ * ==========================================
+ */
+// Función de inicialización segura
+function initializeApp() {
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupElements);
+    } else {
+      setupElements();
+    }
+  } catch (error) {
+    console.error('Error en inicialización:', error);
+  }
+}
+
+// Configurar elementos con verificación de existencia
+function setupElements() {
+  try {
+    const elements = {
+      scannerVideo: document.getElementById('video'),
+      scannerCanvas: document.getElementById('canvas'),
+      scannerContainer: document.getElementById('cameraContainer'),
+      captureBtn: document.getElementById('btnCapturar'),
+      inventoryInput: document.getElementById('inventory-number'),
+      searchBtn: document.getElementById('search-btn'),
+      resultsContainer: document.getElementById('resultadoContenido'),
+      statusMessage: document.getElementById('estadoCamara')
+    };
+
+    // Verificar de forma no intrusiva si los elementos existen (sin crear duplicados en el body)
+    for (const [key, element] of Object.entries(elements)) {
+      if (!element) {
+        console.log(`Elemento opcional ${key} no encontrado en el DOM.`);
+      }
+    }
+
+    // Configurar event listeners solo si los elementos existen
+    if (elements.captureBtn) {
+      elements.captureBtn.onclick = captureAndProcess;
+    }
+
+    if (elements.searchBtn) {
+      elements.searchBtn.onclick = searchByInventory;
+    }
+
+    // Ocultar el contenedor de la cámara inicialmente
+    if (elements.scannerContainer) {
+      elements.scannerContainer.style.display = 'none';
+    }
+
+    updateStatus('Sistema listo para usar', 'success');
+
+  } catch (error) {
+    console.error('Error en setupElements:', error);
+    updateStatus('Error al inicializar el sistema', 'error');
+  }
+}
+
+// Función helper para crear elementos de forma controlada si es necesario (sin append automático a body)
+function createElement(elementKey) {
+  const elementMap = {
+    'scannerVideo': () => {
+      const video = document.createElement('video');
+      video.id = 'video';
+      video.autoplay = true;
+      video.playsinline = true;
+      video.style.width = '100%';
+      video.style.maxWidth = '640px';
+      return video;
+    },
+    'scannerCanvas': () => {
+      const canvas = document.createElement('canvas');
+      canvas.id = 'canvas';
+      canvas.style.display = 'none';
+      return canvas;
+    },
+    'scannerContainer': () => {
+      const container = document.createElement('div');
+      container.id = 'cameraContainer';
+      container.style.display = 'none';
+      container.style.margin = '20px 0';
+      return container;
+    },
+    'captureBtn': () => {
+      const btn = document.createElement('button');
+      btn.id = 'btnCapturar';
+      btn.className = 'btn btn-primary';
+      btn.textContent = '📸 Capturar Foto';
+      btn.style.margin = '10px 5px';
+      return btn;
+    },
+    'inventoryInput': () => {
+      const input = document.createElement('input');
+      input.id = 'inventory-number';
+      input.type = 'text';
+      input.placeholder = 'Número de inventario';
+      input.style.margin = '10px 5px';
+      input.style.padding = '8px';
+      return input;
+    },
+    'searchBtn': () => {
+      const btn = document.createElement('button');
+      btn.id = 'search-btn';
+      btn.className = 'btn btn-secondary';
+      btn.textContent = '🔍 Buscar';
+      btn.style.margin = '10px 5px';
+      return btn;
+    },
+    'resultsContainer': () => {
+      const div = document.createElement('div');
+      div.id = 'resultadoContenido';
+      div.className = 'result-content';
+      return div;
+    },
+    'statusMessage': () => {
+      const div = document.createElement('div');
+      div.id = 'estadoCamara';
+      div.className = 'status-message';
+      return div;
+    }
+  };
+
+  if (elementMap[elementKey]) {
+    return elementMap[elementKey]();
+  }
+  return null;
+}
+
+// Mostrar indicador de carga
+function showLoadingIndicator(show) {
+  let loader = document.getElementById('loading-indicator');
+  if (show) {
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.id = 'loading-indicator';
+      loader.innerHTML = `
+        <div class="loader-container">
+          <div class="loader-spinner"></div>
+          <p class="text-white text-center mt-2">Procesando...</p>
+        </div>
+      `;
+      document.body.appendChild(loader);
+    }
+    loader.style.display = 'flex';
+  } else if (loader) {
+    loader.style.display = 'none';
+  }
+}
+
+// Función para mostrar los datos encontrados en una tarjeta responsiva
+function displayInventoryData(data) {
+  const resultsContainer = document.getElementById('results-container');
+  if (!resultsContainer) return;
+
+  resultsContainer.innerHTML = '';
+  resultsContainer.style.display = 'block';
+
+  const html = `
+    <div class="inventory-card bg-light p-3 rounded border border-secondary mt-3">
+      <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fa-solid fa-circle-info text-primary me-2"></i>Información del Activo Encontrado</h6>
+      <table class="table table-sm table-striped table-bordered small mb-0 bg-white">
+        ${Object.entries(data).map(([key, value]) => `
+          <tr>
+            <td><strong>${key}</strong></td>
+            <td>${value || 'No especificado'}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  `;
+
+  resultsContainer.innerHTML = html;
+}
+
+// Estilos de animación para slideIn inyectados
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+document.head.appendChild(styleSheet);
+
+/**
+ * ==========================================
+ * 15. MANEJO DEFENSIVO CONTRA ERRORES DE EXTENSIONES Y EVENTOS UNLOAD/NULLS
+ * ==========================================
+ */
+// Reemplazar de manera preventiva el evento de unload de la ventana con alternativas modernas compatibles (para extensiones)
+window.addEventListener('pagehide', function(event) {
+  console.log('Sistema de Inventario SMR - Evento pagehide detectado (guardando estado de forma segura)...');
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    console.log('Sistema de Inventario SMR - Visibilidad oculta, estado guardado de manera segura...');
+  }
+});
+
+// Función c() corregida defensivamente para evitar fallos de lectura de classList en elementos null (producidos por extensiones/content.js)
+function c(element) {
+  try {
+    if (!element) {
+      console.warn('Función c(): Elemento no encontrado o es nulo.');
+      return null;
+    }
+    if (element.classList) {
+      element.classList.add('some-class');
+    } else {
+      console.warn('Función c(): El elemento no posee la propiedad classList.');
+    }
+    return element;
+  } catch (error) {
+    console.error('Error defensivo en función c():', error.message);
+    return null;
+  }
+}
+
+// Función manejarElemento() para manipulación robusta contra elementos null/undefined (producidos por extensiones/content.js)
+function manejarElemento(elemento) {
+  if (!elemento) {
+    console.warn('Función manejarElemento(): Elemento no disponible.');
+    return null;
+  }
+  try {
+    if (elemento.classList) {
+      elemento.classList.add('active');
+    }
+    return elemento;
+  } catch (error) {
+    console.error('Error defensivo en función manejarElemento():', error.message);
+    return null;
+  }
+}
+
+/**
+ * ==========================================
+ * 16. SISTEMA DE ESCANEO DE CÓDIGOS DE BARRA Y QR EN TIEMPO REAL (html5-qrcode)
+ * ==========================================
+ */
+// Variables de estado del Escáner Local
+let localQrScannerInstance = null;
+let localScannerActive = false;
+let historialBusquedas = [];
+
+// Inicializador específico del Escáner Local
+function inicializarSistemaOCR() {
+  console.log('Inicializando controles y listeners del sistema de Escaneo Local QR/Barcode...');
+
+  // Registrar listeners para botones de control del Escáner
+  const btnIniciar = document.getElementById('btnIniciarCamara');
+  const btnDetener = document.getElementById('btnDetenerCamara');
+
+  if (btnIniciar) {
+    btnIniciar.onclick = iniciarEscaneoLocal;
+  }
+  if (btnDetener) {
+    btnDetener.onclick = detenerEscaneoLocal;
+  }
+
+  // Cargar historial local
+  cargarHistorialOCR();
+
+  // Registrar listeners preventivos para cierre/ocultamiento de ventana
+  window.addEventListener('pagehide', function() {
+    detenerEscaneoLocal();
+    guardarHistorialOCR();
+  });
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      detenerEscaneoLocal();
+      guardarHistorialOCR();
+    }
+  });
+}
+
+// Iniciar cámara local para Escaneo Real
+async function iniciarEscaneoLocal() {
+  try {
+    if (localScannerActive) {
+      await detenerEscaneoLocal();
+    }
+
+    mostrarEstadoOCR('📷 Solicitando acceso a la cámara...', 'loading');
+
+    if (!localQrScannerInstance) {
+      localQrScannerInstance = new Html5Qrcode("local-qr-reader");
+    }
+
+    // Configuración del escáner
+    const config = {
+      fps: 15,
+      qrbox: function(width, height) {
+        // Cuadro de escaneo adaptativo de 250px o el 70% del ancho
+        const minSize = Math.min(width, height);
+        const size = Math.floor(minSize * 0.7);
+        return { width: size, height: size };
+      },
+      aspectRatio: 1.333333
+    };
+
+    actualizarUIIniciadoOCR();
+
+    await localQrScannerInstance.start(
+      { facingMode: "environment" },
+      config,
+      onScanSuccess,
+      onScanError
+    );
+
+    localScannerActive = true;
+    mostrarEstadoOCR('📷 Escáner activo - Enfoque el código de barras o QR', 'success');
+
+  } catch (error) {
+    console.error('Error al iniciar escáner local:', error);
+    let mensaje = '❌ Error al iniciar la cámara: ';
+    if (error.name === 'NotAllowedError' || error.toString().includes('NotAllowedError') || error.toString().includes('Permission')) {
+      mensaje += 'Permiso denegado. Permita el acceso a la cámara en su navegador.';
+    } else {
+      mensaje += error.message || error;
+    }
+    mostrarEstadoOCR(mensaje, 'error');
+    actualizarUIDetenerOCR();
+  }
+}
+
+// Detener escáner local
+async function detenerEscaneoLocal() {
+  try {
+    if (localQrScannerInstance && localScannerActive) {
+      await localQrScannerInstance.stop();
+    }
+    localScannerActive = false;
+    actualizarUIDetenerOCR();
+    mostrarEstadoOCR('⏹ Escáner detenido', 'info');
+  } catch (error) {
+    console.error('Error al detener escáner local:', error);
+    localScannerActive = false;
+    actualizarUIDetenerOCR();
+  }
+}
+
+// Éxito al escanear código
+async function onScanSuccess(decodedText, decodedResult) {
+  try {
+    console.log(`Código detectado con éxito: ${decodedText}`);
+
+    // Detener automáticamente el escaneo para no generar ráfagas
+    await detenerEscaneoLocal();
+
+    // Reproducir un pitido o mostrar feedback visual rápido
+    const numTxt = document.getElementById('numeroTexto');
+    if (numTxt) numTxt.textContent = decodedText;
+
+    mostrarEstadoOCR(`✅ Código detectado: ${decodedText}`, 'success');
+
+    // Buscar en el inventario real de Sheets
+    await buscarEnInventarioOCR(decodedText);
+
+  } catch (err) {
+    console.error("Error procesando lectura exitosa:", err);
+  }
+}
+
+function onScanError(errorMessage) {
+  // Ignorar errores continuos de falta de lectura o desenfoque en cada cuadro de video
+  // ya que la librería los dispara repetidamente durante la búsqueda
+}
+
+// Buscar el código extraído en Google Sheets
+async function buscarEnInventarioOCR(numero) {
+  try {
+    mostrarEstadoOCR(`🔍 Buscando número ${numero} en Google Sheets...`, 'loading');
+
+    google.script.run
+      .withSuccessHandler(function(resultado) {
+        if (resultado) {
+          mostrarResultadoExitoOCR(resultado);
+          agregarAlHistorialOCR(numero, resultado);
+          // Sincronizar con el formulario de levantamiento
+          procesarCodigoEtiqueta(numero);
+        } else {
+          mostrarResultadoErrorOCR(`El código ${numero} no se encuentra en la base de datos de Patrimonio`);
+          agregarAlHistorialOCR(numero, null);
+          // Permitir dar de alta el artículo no existente
+          procesarCodigoEtiqueta(numero);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('Error en búsqueda de escáner:', error);
+        mostrarResultadoErrorOCR(`Error del servidor: ${error.message}`);
+      })
+      .buscarPorNumeroInventario(numero);
+  } catch (error) {
+    console.error('Error en buscarEnInventarioOCR:', error);
+  }
+}
+
+// Renderizar tarjetas de éxito y error
+function mostrarResultadoExitoOCR(datos) {
+  const container = document.getElementById('resultadoContenido');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="result-card success border border-success rounded bg-white shadow-xs">
+      <div class="result-header p-2 bg-light-success text-success d-flex align-items-center gap-2">
+        <span class="icon font-bold">✅</span>
+        <h5 class="m-0 fw-bold small">Artículo Encontrado con Éxito</h5>
+      </div>
+      <div class="result-body p-3">
+        <div class="result-row border-bottom py-1 text-start">
+          <span class="label font-semibold text-muted small" style="min-width: 140px; display: inline-block;">No. Inventario:</span>
+          <span class="value highlight text-primary font-bold small">${datos.numero || datos.no_inv || ''}</span>
+        </div>
+        <div class="result-row border-bottom py-1 text-start">
+          <span class="label font-semibold text-muted small" style="min-width: 140px; display: inline-block;">Descripción:</span>
+          <span class="value text-dark small">${datos.descripcion || ''}</span>
+        </div>
+        <div class="result-row border-bottom py-1 text-start">
+          <span class="label font-semibold text-muted small" style="min-width: 140px; display: inline-block;">Ubicación Real:</span>
+          <span class="value text-dark small">${datos.ubicacion_real || datos.ubicacion || ''}</span>
+        </div>
+        <div class="result-row border-bottom py-1 text-start">
+          <span class="label font-semibold text-muted small" style="min-width: 140px; display: inline-block;">Resguardante:</span>
+          <span class="value text-dark small">${datos.resguardante_real || datos.resguardado || ''}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function mostrarResultadoErrorOCR(mensaje) {
+  const container = document.getElementById('resultadoContenido');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="result-card error border border-danger rounded bg-white shadow-xs">
+      <div class="result-header p-2 bg-light-danger text-danger d-flex align-items-center gap-2">
+        <span class="icon">❌</span>
+        <h5 class="m-0 fw-bold small">Artículo No Registrado</h5>
+      </div>
+      <div class="result-body p-3">
+        <p class="error-message text-danger mb-2 small">${mensaje}</p>
+        <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="iniciarEscaneoLocal()">
+          🔄 Reintentar Escaneo
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function mostrarEstadoOCR(mensaje, tipo = 'info') {
+  const div = document.getElementById('estadoCamara');
+  if (!div) return;
+
+  div.className = 'status-message';
+  if (tipo === 'success') div.className = 'alert alert-success m-0 p-2 text-center small';
+  else if (tipo === 'error') div.className = 'alert alert-danger m-0 p-2 text-center small';
+  else if (tipo === 'loading') div.className = 'alert alert-warning m-0 p-2 text-center small';
+  else div.className = 'alert alert-info m-0 p-2 text-center small';
+
+  div.textContent = mensaje;
+}
+
+function actualizarUIIniciadoOCR() {
+  const btnIn = document.getElementById('btnIniciarCamara');
+  const btnDet = document.getElementById('btnDetenerCamara');
+
+  if (btnIn) btnIn.disabled = true;
+  if (btnDet) btnDet.disabled = false;
+}
+
+function actualizarUIDetenerOCR() {
+  const btnIn = document.getElementById('btnIniciarCamara');
+  const btnDet = document.getElementById('btnDetenerCamara');
+
+  if (btnIn) btnIn.disabled = false;
+  if (btnDet) btnDet.disabled = true;
+}
+
+// Historial de búsquedas de escáner
+function agregarAlHistorialOCR(numero, datos) {
+  const entrada = {
+    numero: numero,
+    fecha: new Date().toLocaleString(),
+    encontrado: !!datos,
+    descripcion: datos ? datos.descripcion : 'No registrado'
+  };
+
+  historialBusquedas.unshift(entrada);
+  if (historialBusquedas.length > 8) {
+    historialBusquedas.pop();
+  }
+
+  actualizarHistorialUI_OCR();
+  guardarHistorialOCR();
+}
+
+function actualizarHistorialUI_OCR() {
+  const container = document.getElementById('historialLista');
+  if (!container) return;
+
+  if (historialBusquedas.length === 0) {
+    container.innerHTML = '<p class="info-message text-muted mb-0">No hay búsquedas recientes</p>';
+    return;
+  }
+
+  let html = '<ul class="list-group list-group-flush p-0 m-0">';
+  historialBusquedas.forEach(item => {
+    const icono = item.encontrado ? '✅' : '❌';
+    html += `
+      <li class="list-group-item d-flex align-items-center justify-content-between p-2">
+        <div class="d-flex align-items-center gap-2 overflow-hidden">
+          <span class="small">${icono}</span>
+          <strong class="text-primary small" style="cursor: pointer;" onclick="procesarCodigoEtiqueta('${item.numero}')">${item.numero}</strong>
+          <span class="text-muted text-truncate small ms-1" style="max-width: 150px;">${item.descripcion}</span>
+        </div>
+        <span class="text-secondary small text-nowrap" style="font-size: 10px;">${item.fecha.split(',')[1] || item.fecha}</span>
+      </li>
+    `;
+  });
+  html += '</ul>';
+  container.innerHTML = html;
+}
+
+function guardarHistorialOCR() {
+  try {
+    localStorage.setItem('historialInventario', JSON.stringify(historialBusquedas));
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+function cargarHistorialOCR() {
+  try {
+    const saved = localStorage.getItem('historialInventario');
+    if (saved) {
+      historialBusquedas = JSON.parse(saved);
+      actualizarHistorialUI_OCR();
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+function intentarNuevamenteOCR() {
+  const cont = document.getElementById('resultadoContenido');
+  if (cont) {
+    cont.innerHTML = '<p class="info-message">Inicie el escáner nuevamente...</p>';
+  }
+  const numTxt = document.getElementById('numeroTexto');
+  if (numTxt) numTxt.textContent = '---';
+  iniciarEscaneoLocal();
+}
+
+// Arrancar inicializadores al cargarse
+document.addEventListener('DOMContentLoaded', function() {
+  inicializarSistemaOCR();
+});
+
+// Arrancar inicialización de la app
+initializeApp();
+
+// Exponer de manera explícita todas las funciones interactivas al ámbito de ventana (window) global
+// para resolver de raíz cualquier problema de 'ReferenceError: showSection is not defined' u otras funciones en iframes sandboxed.
+window.showSection = showSection;
+
+// Si el usuario intentó navegar antes de cargarse el script completo, redirigirlo de forma automática y fluida
+if (window.deferredSection) {
+  showSection(window.deferredSection);
+  delete window.deferredSection;
+}
+
+window.abrirPopupEscaner = abrirPopupEscaner;
+window.altaRapidaDesdeEscaner = altaRapidaDesdeEscaner;
+window.cambiarNombreUsuario = cambiarNombreUsuario;
+window.cargarDatosBitacora = cargarDatosBitacora;
+window.darDeBajaScan = darDeBajaScan;
+window.descargarLabelQRPNG = descargarLabelQRPNG;
+window.eliminarFisicoScan = eliminarFisicoScan;
+window.exportarCSV = exportarCSV;
+window.exportarExcelSheetJS = exportarExcelSheetJS;
+window.habilitarLectorAuxiliarLocal = habilitarLectorAuxiliarLocal;
+window.importarJSONAlServidor = importarJSONAlServidor;
+window.imprimirLabelQR = imprimirLabelQR;
+window.limpiarFiltrosCompleto = limpiarFiltrosCompleto;
+window.limpiarFormularioAlta = limpiarFormularioAlta;
+window.limpiarResultadosEscaner = limpiarResultadosEscaner;
+window.subirFotoLocalAlServidor = subirFotoLocalAlServidor;
+window.toggleFormCamposScanExtra = toggleFormCamposScanExtra;
+
+// Funciones dinámicas del listado de acciones
+window.abrirModalEdicion = abrirModalEdicion;
+window.abrirModalVerDetalle = abrirModalVerDetalle;
+window.abrirModalTrasladar = abrirModalTrasladar;
+window.abrirModalFotos = abrirModalFotos;
+window.abrirGeneradorQR = abrirGeneradorQR;
+window.bajaLogicaListado = bajaLogicaListado;
+window.eliminarFisicoListado = eliminarFisicoListado;
+
+// Variables globales para fotos de los tres módulos (Item 1)
+let altaFotoBase64 = "";
+let altaFotoExt = "";
+let altaFotoNombre = "";
+
+let editFotoBase64 = "";
+let editFotoExt = "";
+let editFotoNombre = "";
+
+let scanFotoBase64 = "";
+let scanFotoExt = "";
+let scanFotoNombre = "";
+
+function validarYPrevisualizarFotoAlta() {
+  const fileInput = document.getElementById("alta-foto-input");
+  const previewDiv = document.getElementById("alta-foto-preview-container");
+  const previewImg = document.getElementById("alta-foto-preview-img");
+  const previewInfo = document.getElementById("alta-foto-preview-info");
+
+  altaFotoBase64 = ""; altaFotoExt = ""; altaFotoNombre = "";
+  previewDiv.classList.add("d-none");
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (["png", "jpg", "jpeg", "gif", "webp"].indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = ""; return;
+  }
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = ""; return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    altaFotoBase64 = e.target.result; altaFotoExt = ext; altaFotoNombre = file.name;
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+function validarYPrevisualizarFotoEdit() {
+  const fileInput = document.getElementById("edit-foto-input");
+  const previewDiv = document.getElementById("edit-foto-preview-container");
+  const previewImg = document.getElementById("edit-foto-preview-img");
+  const previewInfo = document.getElementById("edit-foto-preview-info");
+
+  editFotoBase64 = ""; editFotoExt = ""; editFotoNombre = "";
+  previewDiv.classList.add("d-none");
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (["png", "jpg", "jpeg", "gif", "webp"].indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = ""; return;
+  }
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = ""; return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    editFotoBase64 = e.target.result; editFotoExt = ext; editFotoNombre = file.name;
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+function validarYPrevisualizarFotoScan() {
+  const fileInput = document.getElementById("scan-foto-input");
+  const previewDiv = document.getElementById("scan-foto-preview-container");
+  const previewImg = document.getElementById("scan-foto-preview-img");
+  const previewInfo = document.getElementById("scan-foto-preview-info");
+
+  scanFotoBase64 = ""; scanFotoExt = ""; scanFotoNombre = "";
+  previewDiv.classList.add("d-none");
+  if (fileInput.files.length === 0) return;
+  const file = fileInput.files[0];
+  const sizeMB = file.size / (1024 * 1024);
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (["png", "jpg", "jpeg", "gif", "webp"].indexOf(ext) === -1) {
+    alert("Formato no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+    fileInput.value = ""; return;
+  }
+  if (sizeMB > 5) {
+    alert("El archivo excede los 5MB máximos permitidos.");
+    fileInput.value = ""; return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    scanFotoBase64 = e.target.result; scanFotoExt = ext; scanFotoNombre = file.name;
+    previewImg.src = e.target.result;
+    previewInfo.textContent = `${file.name} (${sizeMB.toFixed(2)} MB)`;
+    previewDiv.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+// Exponer validadores de fotos al window
+window.validarYPrevisualizarFotoAlta = validarYPrevisualizarFotoAlta;
+window.validarYPrevisualizarFotoEdit = validarYPrevisualizarFotoEdit;
+window.validarYPrevisualizarFotoScan = validarYPrevisualizarFotoScan;
+
+// Interceptor defensivo global contra fallas no controladas en promesas de extensiones de navegador (content.js)
+// Previene de raíz que errores como "Cannot read properties of null (reading 'classList')" rompan el hilo principal.
+window.addEventListener('unhandledrejection', function(event) {
+  try {
+    const errorMsg = event.reason ? String(event.reason.message || event.reason) : "";
+    const errorStack = event.reason && event.reason.stack ? String(event.reason.stack) : "";
+
+    if (errorStack.includes("content.js") || errorMsg.includes("classList") || errorStack.includes("extension")) {
+      event.preventDefault(); // Detener propagación
+      console.warn("SMR Inventario - Capturado de forma segura un error no controlado de extensión (content.js):", errorMsg);
+    }
+  } catch (err) {
+    console.error("Error en interceptor de promesas:", err);
+  }
+});
+</script>
