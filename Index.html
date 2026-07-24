@@ -24,6 +24,20 @@
     window.showSection = function(sectionId) {
       console.warn("SMR Inventario - Navegación diferida (esperando a que se cargue la lógica principal de cliente)...");
       window.deferredSection = sectionId;
+
+      // Solución 1 (Definición temprana de seguridad): Mostrar feedback visual en la UI bloqueando interacciones
+      try {
+        const loader = document.getElementById("global-loader");
+        const msg = document.getElementById("loader-message");
+        if (loader) {
+          loader.classList.remove("d-none");
+        }
+        if (msg) {
+          msg.textContent = "Iniciando sistema... Cargando sección '" + sectionId + "', por favor espere";
+        }
+      } catch (e) {
+        console.warn("No se pudo activar el loader de fallback temprano:", e.message);
+      }
     };
   </script>
 </head>

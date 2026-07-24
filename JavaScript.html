@@ -164,8 +164,12 @@ function inicializarAppCompleta() {
 
   // Si el usuario intentó navegar antes de cargarse el script completo, redirigirlo de forma automática y fluida
   if (window.deferredSection) {
-    showSection(window.deferredSection);
+    const targetSection = window.deferredSection;
     delete window.deferredSection;
+
+    // Ocultar el loader de seguridad temprana antes de realizar la navegación real
+    hideLoader();
+    showSection(targetSection);
   }
 }
 
