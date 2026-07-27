@@ -141,7 +141,7 @@ function autenticarUsuario(correo, password) {
     for (var i = 1; i < data.length; i++) {
       var userCorreo = String(data[i][0]).trim().toLowerCase();
       if (userCorreo === cClean) {
-        var passwordHash = data[i][1];
+        var storedPassword = data[i][1];
         var rfc = data[i][2];
         var esTemporal = data[i][3];
         var activo = data[i][4];
@@ -150,12 +150,10 @@ function autenticarUsuario(correo, password) {
           return { success: false, error: "El usuario se encuentra inactivo." };
         }
 
-        var calculatedHash = hashPassword(password, correo);
         var passwordMatched = false;
 
-        // El requerimiento pide comparar la contraseña ingresada contra el valor registrado en la pestaña "Usuarios"
-        // de tal forma que coincidan exactamente (ya sea de forma exacta en texto plano o con el hash pre-existente).
-        if (calculatedHash === passwordHash || password === passwordHash) {
+        // Comparación directa de la contraseña sin aplicar hash ni transformaciones
+        if (password === String(storedPassword)) {
           passwordMatched = true;
         }
 
@@ -196,9 +194,8 @@ function cambiarContrasenaTemporal(correo, nuevaPassword) {
     for (var i = 1; i < data.length; i++) {
       var userCorreo = String(data[i][0]).trim().toLowerCase();
       if (userCorreo === cClean) {
-        var newHash = hashPassword(nuevaPassword, correo);
-        // También guardamos en texto plano o hash para máxima compatibilidad con el sistema de validación
-        sheet.getRange(i + 1, 2).setValue(newHash); // Update PasswordHash
+        // Almacenar la nueva contraseña directamente sin aplicar hash ni transformaciones
+        sheet.getRange(i + 1, 2).setValue(nuevaPassword); // Update Password column directly
         sheet.getRange(i + 1, 4).setValue("FALSE"); // EsPasswordTemporal = false
         return { success: true };
       }
@@ -244,11 +241,10 @@ function migrarEmpresasExistentes() {
 
         // Generar password temporal que es el mismo RFC (en minúsculas por simplicidad)
         var tempPassword = rfc.toLowerCase();
-        var pHash = hashPassword(tempPassword, correoFinal);
 
         sheetUser.appendRow([
           correoFinal,
-          pHash,
+          tempPassword,
           rfc,
           "TRUE", // EsPasswordTemporal
           "TRUE"  // Activo
@@ -316,10 +312,10 @@ function procesarRegistro(data) {
 
     // Crear Usuario de acceso
     var sheetUser = getSheetSafe("Usuarios");
-    var hashedPass = hashPassword(data.empresa.password, data.empresa.correo);
+    // Almacenar esa contraseña exactamente como la ingresó el usuario
     sheetUser.appendRow([
       data.empresa.correo,
-      hashedPass,
+      data.empresa.password,
       data.empresa.rfc,
       "FALSE", // EsPasswordTemporal = false (lo asignó el usuario)
       "TRUE"   // Activo
@@ -366,15 +362,51 @@ function procesarRegistro(data) {
     try {
       var emailRecipient = data.empresa.correo;
       var emailSubject = "Registro exitoso";
-      var emailBody = "Estimado/a,\n\n" +
-                      "Le confirmamos que el registro de su empresa \"" + data.empresa.nombreEmpresa + "\" ha sido completado exitosamente.\n\n" +
-                      "Sus credenciales de acceso son las siguientes:\n" +
-                      "- Correo electrónico: " + emailRecipient + "\n" +
-                      "- Contraseña: " + data.empresa.password + "\n\n" +
-                      "Atentamente,\n" +
-                      "Mujeres Seguras";
 
-      MailApp.sendEmail(emailRecipient, emailSubject, emailBody);
+      // Obtener el logo de la pestaña Config_General
+      var logoUrl = getConfigValue("link_logo") || "https://images.squarespace-cdn.com/content/v1/5f3ff43283626e2efcc06992/1614275001334-K8CH1Q9C2SFF8A452410/LogoMS_Mesa+de+trabajo+1.png";
+
+      // Obtener el nombre de la sucursal registrada (primera sucursal)
+      var branchName = "No especificada";
+      if (data.sucursales && data.sucursales.length > 0) {
+        branchName = data.sucursales[0].nombre;
+      }
+
+      // Obtener el nombre del curso elegido durante el registro
+      var courseName = "Módulo General";
+      if (data.capacitacionInicial && data.capacitacionInicial.idCurso) {
+        var cursosList = getCursosDisponibles();
+        var selectedCourse = cursosList.find(function(c) {
+          return String(c.id) === String(data.capacitacionInicial.idCurso);
+        });
+        if (selectedCourse && selectedCourse.nombre) {
+          courseName = selectedCourse.nombre;
+        }
+      }
+
+      var htmlBody = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>" +
+                     "<div style='text-align: center; margin-bottom: 20px;'>" +
+                     "<img src='" + logoUrl + "' alt='Logo Mujeres Seguras' style='max-height: 120px; max-width: 100%; height: auto; object-fit: contain;'>" +
+                     "</div>" +
+                     "<h2 style='color: #DE007B; text-align: center;'>¡Registro Exitoso!</h2>" +
+                     "<p>Estimado/a,</p>" +
+                     "<p>Le confirmamos que el registro de su organización <strong>" + data.empresa.nombreEmpresa + "</strong> ha sido procesado correctamente.</p>" +
+                     "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                     "<h3 style='color: #F47C20;'>Detalles de Registro:</h3>" +
+                     "<p><strong>Sucursal Registrada:</strong> " + branchName + "</p>" +
+                     "<p><strong>Curso de Capacitación Inicial:</strong> " + courseName + "</p>" +
+                     "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                     "<h3 style='color: #F47C20;'>Credenciales de Acceso:</h3>" +
+                     "<p><strong>Usuario / Correo:</strong> " + emailRecipient + "</p>" +
+                     "<p><strong>Contraseña:</strong> " + data.empresa.password + "</p>" +
+                     "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático del Sistema de Mujeres Seguras. Por favor no responda directamente a este correo.</p>" +
+                     "</div>";
+
+      MailApp.sendEmail({
+        to: emailRecipient,
+        subject: emailSubject,
+        htmlBody: htmlBody
+      });
     } catch (mailError) {
       console.error("Error al enviar el correo de registro exitoso: " + mailError.toString());
     }
