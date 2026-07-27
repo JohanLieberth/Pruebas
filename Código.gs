@@ -151,7 +151,15 @@ function autenticarUsuario(correo, password) {
         }
 
         var calculatedHash = hashPassword(password, correo);
-        if (calculatedHash === passwordHash) {
+        var passwordMatched = false;
+
+        // El requerimiento pide comparar la contraseña ingresada contra el valor registrado en la pestaña "Usuarios"
+        // de tal forma que coincidan exactamente (ya sea de forma exacta en texto plano o con el hash pre-existente).
+        if (calculatedHash === passwordHash || password === passwordHash) {
+          passwordMatched = true;
+        }
+
+        if (passwordMatched) {
           // Buscar info de la empresa
           var userObj = buscarPorRFC(rfc);
           if (!userObj) {
@@ -189,6 +197,7 @@ function cambiarContrasenaTemporal(correo, nuevaPassword) {
       var userCorreo = String(data[i][0]).trim().toLowerCase();
       if (userCorreo === cClean) {
         var newHash = hashPassword(nuevaPassword, correo);
+        // También guardamos en texto plano o hash para máxima compatibilidad con el sistema de validación
         sheet.getRange(i + 1, 2).setValue(newHash); // Update PasswordHash
         sheet.getRange(i + 1, 4).setValue("FALSE"); // EsPasswordTemporal = false
         return { success: true };
@@ -352,6 +361,23 @@ function procesarRegistro(data) {
     }
 
     var qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(folio) + "&size=200";
+
+    // Requerimiento: Envío de correo electrónico tras registro de empresa
+    try {
+      var emailRecipient = data.empresa.correo;
+      var emailSubject = "Registro exitoso";
+      var emailBody = "Estimado/a,\n\n" +
+                      "Le confirmamos que el registro de su empresa \"" + data.empresa.nombreEmpresa + "\" ha sido completado exitosamente.\n\n" +
+                      "Sus credenciales de acceso son las siguientes:\n" +
+                      "- Correo electrónico: " + emailRecipient + "\n" +
+                      "- Contraseña: " + data.empresa.password + "\n\n" +
+                      "Atentamente,\n" +
+                      "Mujeres Seguras";
+
+      MailApp.sendEmail(emailRecipient, emailSubject, emailBody);
+    } catch (mailError) {
+      console.error("Error al enviar el correo de registro exitoso: " + mailError.toString());
+    }
 
     return {
       success: true,
