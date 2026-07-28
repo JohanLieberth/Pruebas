@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Inventario Físico - Mejora Regulatoria</title>
+
+  <!-- CSS Externos CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Estilos Internos Personalizados -->
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <!-- Cargador Global / Loader -->
+  <div id="global-loader">
+    <div class="spinner-border spinner-smr mb-3" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <h5 id="loader-message" class="text-secondary">Inicializando Sistema de Inventario...</h5>
+  </div>
+
+  <!-- Navbar de Navegación Fijo -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-institucional sticky-top">
+    <div class="container-fluid">
+      <span class="navbar-brand">
+        <i class="fa-solid fa-boxes-stacked"></i> SMR INVENTARIO
+      </span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" onclick="window.showSection('inicio')" id="nav-inicio">
+              <i class="fa-solid fa-chart-pie me-1"></i> Inicio
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" onclick="window.showSection('busqueda')" id="nav-busqueda">
+              <i class="fa-solid fa-magnifying-glass me-1"></i> Buscar Bien
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" onclick="window.showSection('alta')" id="nav-alta">
+              <i class="fa-solid fa-plus me-1"></i> Alta de Bien
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" onclick="window.showSection('carga-masiva')" id="nav-carga-masiva">
+              <i class="fa-solid fa-file-excel me-1"></i> Carga Masiva
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" onclick="window.showSection('listado')" id="nav-listado">
+              <i class="fa-solid fa-list me-1"></i> Listado General
+            </a>
+          </li>
+        </ul>
+        <span class="navbar-text text-white-50" id="navbar-user">
+          <i class="fa-solid fa-user me-1"></i> Identificando usuario...
+        </span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Contenedor Principal (SPA Sections) -->
+  <main class="container main-container">
+
+    <!-- Toast de Notificaciones -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+      <div id="liveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="toast-body-text">
+            Operación exitosa.
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 1: INICIO / DASHBOARD -->
+    <section id="section-inicio" class="app-section">
+      <div class="row mb-4">
+        <div class="col-12 text-center text-md-start">
+          <h2 class="text-primary-smr font-weight-bold">Levantamiento Físico de Inventario</h2>
+          <p class="text-muted">Subdirección de Mejora Regulatoria</p>
+        </div>
+      </div>
+
+      <!-- Resumen Estadístico -->
+      <div class="row g-3 mb-5">
+        <div class="col-12 col-md-4">
+          <div class="card card-smr dashboard-card p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <h6 class="text-muted text-uppercase mb-1">Total de Artículos</h6>
+                <h3 class="fw-bold mb-0" id="stats-total">0</h3>
+              </div>
+              <div class="icon-circle">
+                <i class="fa-solid fa-database"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="card card-smr dashboard-card p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <h6 class="text-muted text-uppercase mb-1">Artículos Levantados</h6>
+                <h3 class="fw-bold text-success mb-0" id="stats-levantados">0</h3>
+              </div>
+              <div class="icon-circle" style="background-color: rgba(46,125,50,0.1); color: #2E7D32;">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="card card-smr dashboard-card p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <h6 class="text-muted text-uppercase mb-1">Pendientes</h6>
+                <h3 class="fw-bold text-danger mb-0" id="stats-pendientes">0</h3>
+              </div>
+              <div class="icon-circle" style="background-color: rgba(198,40,40,0.1); color: #C62828;">
+                <i class="fa-solid fa-hourglass-half"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tarjetas de Acceso Rápido -->
+      <h5 class="mb-3 text-secondary">Acciones Rápidas</h5>
+      <div class="row g-4">
+        <div class="col-12 col-sm-6 col-lg-3">
+          <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('busqueda')">
+            <div class="icon-circle mx-auto mb-3">
+              📷
+            </div>
+            <h6 class="fw-bold">Buscar Bien</h6>
+            <p class="small text-muted mb-0">Escáner con Cámara, QR o Búsqueda de Inventario.</p>
+          </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('alta')">
+            <div class="icon-circle mx-auto mb-3" style="color: #0277BD; background-color: rgba(2,119,189,0.1);">
+              📋
+            </div>
+            <h6 class="fw-bold">Alta de Bien</h6>
+            <p class="small text-muted mb-0">Registro individual de un nuevo bien patrimonial.</p>
+          </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('carga-masiva')">
+            <div class="icon-circle mx-auto mb-3" style="color: #2E7D32; background-color: rgba(46,125,50,0.1);">
+              🔍
+            </div>
+            <h6 class="fw-bold">Carga Masiva</h6>
+            <p class="small text-muted mb-0">Importación inicial o actualización de patrimonio desde Excel.</p>
+          </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('listado')">
+            <div class="icon-circle mx-auto mb-3" style="color: #EF6C00; background-color: rgba(239,108,0,0.1);">
+              <i class="fa-solid fa-list"></i>
+            </div>
+            <h6 class="fw-bold">Listado General</h6>
+            <p class="small text-muted mb-0">Consulta total de bienes, filtros, traslados y exportación.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 2: BÚSQUEDA Y LEVANTAMIENTO -->
+    <section id="section-busqueda" class="app-section" style="display: none;">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h4>Módulo de Búsqueda y Levantamiento</h4>
+          <p class="text-muted">Busque un artículo patrimonial por No. de Inventario o Serie, o active la cámara para escanear.</p>
+        </div>
+      </div>
+
+      <!-- Buscador y Scanner -->
+      <div class="row g-4 mb-4">
+        <div class="col-12 col-md-7">
+          <div class="card card-smr p-4">
+            <form id="form-busqueda" onsubmit="window.ejecutarBusquedaManual(event)">
+              <div class="mb-3">
+                <label for="buscar-input" class="form-label fw-bold">Número de Inventario / Serie</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                  <input type="text" class="form-control" id="buscar-input" placeholder="Escanee QR, Código de Barras o escriba No. de Inventario" required>
+                </div>
+              </div>
+              <div class="form-check form-switch mb-4">
+                <input class="form-check-input" type="checkbox" role="switch" id="buscar-serie-chk">
+                <label class="form-check-label" for="buscar-serie-chk">Buscar por Número de Serie (bienes sin etiqueta física)</label>
+              </div>
+              <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-outline-secondary" onclick="window.limpiarBuscador()"><i class="fa-solid fa-eraser me-1"></i> Limpiar</button>
+                <button type="submit" class="btn btn-success"><i class="fa-solid fa-search me-1"></i> Buscar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-5">
+          <div class="card card-smr p-3 text-center">
+            <h6 class="fw-bold mb-3"><i class="fa-solid fa-camera me-1"></i> Escáner por Cámara</h6>
+            <p class="small text-muted mb-3">En celulares Android/iOS, puede usar la cámara local o abrir la ventana externa si hay problemas de permisos.</p>
+
+            <div class="d-flex flex-column gap-2 max-width-300 mx-auto">
+              <button class="btn btn-primary" onclick="window.iniciarEscaneoLocal()"><i class="fa-solid fa-video me-1"></i> Iniciar Cámara Interna</button>
+              <button class="btn btn-outline-primary" onclick="window.abrirPopupEscaner()"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Escape Sandbox (Emergente)</button>
+            </div>
+
+            <!-- Contenedor del scanner local -->
+            <div id="local-scanner-card" class="mt-3 d-none">
+              <div class="scanner-wrapper">
+                <div id="reader"></div>
+              </div>
+              <button class="btn btn-danger btn-sm mt-2" onclick="window.detenerEscaneoLocal()"><i class="fa-solid fa-stop me-1"></i> Detener Cámara</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalle y Formulario de Levantamiento -->
+      <div id="resultado-busqueda-container" class="d-none">
+
+        <div class="row g-4">
+          <!-- Columna Izquierda: Información Histórica Patrimonial (Read Only) -->
+          <div class="col-12 col-lg-6">
+            <div class="card card-smr h-100">
+              <div class="card-smr-header"><i class="fa-solid fa-building me-1"></i> Información Patrimonial (Histórica)</div>
+              <div class="card-body p-4">
+                <div class="mb-3">
+                  <label class="form-label text-muted small fw-bold">DESCRIPCIÓN</label>
+                  <textarea class="form-control campo-patrimonial" id="pat-descripcion" rows="3" readonly></textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold">MARCA</label>
+                    <input type="text" class="form-control campo-patrimonial" id="pat-marca" readonly>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold">MODELO</label>
+                    <input type="text" class="form-control campo-patrimonial" id="pat-modelo" readonly>
+                  </div>
+                </div>
+                <div class="row g-3 mb-3">
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold">SERIE</label>
+                    <input type="text" class="form-control campo-patrimonial" id="pat-serie" readonly>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold">IMPORTE ($)</label>
+                    <input type="text" class="form-control campo-patrimonial" id="pat-importe" readonly>
+                  </div>
+                </div>
+                <div class="row g-3 mb-3">
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold">ESTADO HISTÓRICO</label>
+                    <input type="text" class="form-control campo-patrimonial" id="pat-estado" readonly>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold">RESGUARDANTE ASIGNADO</label>
+                    <input type="text" class="form-control campo-patrimonial" id="pat-resguardado" readonly>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small fw-bold">UBICACIÓN ASIGNADA</label>
+                  <input type="text" class="form-control campo-patrimonial" id="pat-ubicacion" readonly>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Levantamiento Real (Editable con borde verde / fondo claro) -->
+          <div class="col-12 col-lg-6">
+            <div class="card card-smr h-100" style="border: 2px solid var(--color-primario);">
+              <div class="card-smr-header" style="background-color: var(--color-primario);"><i class="fa-solid fa-pen-to-square me-1"></i> Datos de Levantamiento Real</div>
+              <div class="card-body p-4">
+                <form id="form-scan-update" onsubmit="window.guardarDetalleLevantamiento(event)">
+                  <input type="hidden" id="edit-no-inv-id">
+
+                  <div class="mb-3">
+                    <label for="real-ubicacion" class="form-label fw-bold text-success">Ubicación Real *</label>
+                    <input type="text" class="form-control campo-levantamiento" id="real-ubicacion" placeholder="Escriba o seleccione ubicación" required autocomplete="off">
+                    <div id="real-ubicacion-suggestions" class="list-group position-absolute w-auto" style="z-index:100; max-height:200px; overflow-y:auto;"></div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="real-resguardante" class="form-label fw-bold text-success">Resguardante Real *</label>
+                    <input type="text" class="form-control campo-levantamiento" id="real-resguardante" placeholder="Escriba o seleccione resguardante" required autocomplete="off">
+                    <div id="real-resguardante-suggestions" class="list-group position-absolute w-auto" style="z-index:100; max-height:200px; overflow-y:auto;"></div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="real-estado" class="form-label fw-bold text-success">Estado Físico Real *</label>
+                    <select class="form-select campo-levantamiento" id="real-estado" required>
+                      <option value="">-- Seleccione estado --</option>
+                      <option value="Bueno">Bueno</option>
+                      <option value="Regular">Regular</option>
+                      <option value="Malo">Malo</option>
+                      <option value="Baja">Baja</option>
+                    </select>
+                  </div>
+
+                  <!-- Gestión de fotografías de evidencia -->
+                  <div class="mb-4">
+                    <label for="real-fotos-files" class="form-label fw-bold text-success">Fotografías de Evidencia (Máx. 3, JPG/PNG)</label>
+                    <input type="file" class="form-control" id="real-fotos-files" accept="image/*" multiple onchange="window.renderizarPrevisualizacionFotos(this, 'real-fotos-preview')">
+                    <div id="real-fotos-preview" class="mt-3"></div>
+
+                    <!-- Fotos Guardadas Anteriores -->
+                    <div id="fotos-existentes-container" class="mt-3 d-none">
+                      <p class="small text-muted mb-1">Fotos cargadas previamente:</p>
+                      <div id="real-fotos-existentes" class="d-flex flex-wrap"></div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex gap-2 justify-content-end">
+                    <button type="submit" class="btn btn-success px-4 py-2"><i class="fa-solid fa-floppy-disk me-1"></i> Guardar Levantamiento</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECCIÓN 3: ALTA DE NUEVO BIEN -->
+    <section id="section-alta" class="app-section" style="display: none;">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h4>Alta de Nuevo Artículo</h4>
+          <p class="text-muted">Registre un bien nuevo de forma individual. Complete todos los campos requeridos (*).</p>
+        </div>
+      </div>
+
+      <div class="card card-smr">
+        <div class="card-smr-header"><i class="fa-solid fa-circle-plus me-1"></i> Formulario de Registro</div>
+        <div class="card-body p-4">
+          <form id="form-alta-articulo" onsubmit="window.registrarNuevoArticulo(event)">
+
+            <!-- Identificadores Básicos -->
+            <h6 class="border-bottom pb-2 mb-3 text-primary fw-bold"><i class="fa-solid fa-key me-1"></i> Identificadores Básicos</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-md-6">
+                <label for="alta-no-inv" class="form-label fw-bold">Número de Inventario *</label>
+                <input type="text" class="form-control" id="alta-no-inv" placeholder="Ej: 100942" required>
+              </div>
+              <div class="col-12 col-md-6">
+                <label for="alta-serie" class="form-label fw-bold">Número de Serie *</label>
+                <input type="text" class="form-control" id="alta-serie" placeholder="Ej: MSHDGJYEB o SIN SERIE" required>
+              </div>
+            </div>
+
+            <!-- Características y Detalles -->
+            <h6 class="border-bottom pb-2 mb-3 text-primary fw-bold"><i class="fa-solid fa-cube me-1"></i> Características del Artículo</h6>
+            <div class="row g-3 mb-3">
+              <div class="col-12">
+                <label for="alta-descripcion" class="form-label fw-bold">Descripción del Artículo *</label>
+                <textarea class="form-control" id="alta-descripcion" rows="2" placeholder="Describa el artículo en detalle..." required></textarea>
+              </div>
+            </div>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-sm-4">
+                <label for="alta-marca" class="form-label fw-bold">Marca *</label>
+                <input type="text" class="form-control" id="alta-marca" placeholder="Ej: VIEWSONIC" required>
+              </div>
+              <div class="col-12 col-sm-4">
+                <label for="alta-modelo" class="form-label fw-bold">Modelo *</label>
+                <input type="text" class="form-control" id="alta-modelo" placeholder="Ej: VA1913N" required>
+              </div>
+              <div class="col-12 col-sm-4">
+                <label for="alta-importe" class="form-label fw-bold">Importe ($) *</label>
+                <input type="number" class="form-control" id="alta-importe" min="0" step="0.01" placeholder="Ej: 1774.00" required>
+              </div>
+            </div>
+
+            <!-- Datos de Patrimonio (Asignado/Histórico) -->
+            <h6 class="border-bottom pb-2 mb-3 text-primary fw-bold"><i class="fa-solid fa-history me-1"></i> Datos de Patrimonio (Asignación Original)</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-md-4">
+                <label for="alta-estado-pat" class="form-label">Estado de Patrimonio</label>
+                <input type="text" class="form-control" id="alta-estado-pat" value="BUENO">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="alta-ubicacion-pat" class="form-label">Ubicación Asignada</label>
+                <input type="text" class="form-control" id="alta-ubicacion-pat" placeholder="Ej: OFICINAS.">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="alta-resguardo-pat" class="form-label">Resguardante Asignado</label>
+                <input type="text" class="form-control" id="alta-resguardo-pat" placeholder="Nombre original de resguardo">
+              </div>
+            </div>
+
+            <!-- Datos de Levantamiento Real -->
+            <h6 class="border-bottom pb-2 mb-3 text-success fw-bold"><i class="fa-solid fa-check-double me-1"></i> Datos de Levantamiento Real</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-md-4">
+                <label for="alta-estado-real" class="form-label fw-bold">Estado Real *</label>
+                <select class="form-select campo-levantamiento" id="alta-estado-real" required>
+                  <option value="Bueno">Bueno</option>
+                  <option value="Regular">Regular</option>
+                  <option value="Malo">Malo</option>
+                  <option value="Baja">Baja</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="alta-ubicacion-real" class="form-label fw-bold">Ubicación Real *</label>
+                <input type="text" class="form-control campo-levantamiento" id="alta-ubicacion-real" placeholder="Escriba la ubicación actual" required>
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="alta-resguardante-real" class="form-label fw-bold">Resguardante Real *</label>
+                <input type="text" class="form-control campo-levantamiento" id="alta-resguardante-real" placeholder="Nombre de quien lo tiene físicamente" required>
+              </div>
+            </div>
+
+            <!-- Foto Inicial de Evidencia -->
+            <div class="mb-4">
+              <label for="alta-fotos-files" class="form-label fw-bold">Fotografías de Evidencia Inicial (Opcional)</label>
+              <input type="file" class="form-control" id="alta-fotos-files" accept="image/*" multiple onchange="window.renderizarPrevisualizacionFotos(this, 'alta-fotos-preview')">
+              <div id="alta-fotos-preview" class="mt-3"></div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end border-top pt-3">
+              <button type="reset" class="btn btn-outline-secondary px-4"><i class="fa-solid fa-ban me-1"></i> Cancelar</button>
+              <button type="submit" class="btn btn-primary px-4"><i class="fa-solid fa-check me-1"></i> Guardar Artículo</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 4: CARGA MASIVA DESDE EXCEL -->
+    <section id="section-carga-masiva" class="app-section" style="display: none;">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h4>Carga Masiva de Patrimonio</h4>
+          <p class="text-muted">Suba un archivo de Excel (.xlsx) o archivo separado por comas (.csv) para cargar la base inicial o actualizar datos históricos en lote.</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-12 col-lg-8">
+          <div class="card card-smr p-4">
+            <h5 class="card-title mb-3"><i class="fa-solid fa-file-arrow-up me-1"></i> Importación de Archivo</h5>
+
+            <form id="form-carga-masiva" onsubmit="window.procesarCargaMasiva(event)">
+              <div class="mb-4">
+                <label for="archivo-excel-file" class="form-label fw-bold">Seleccione Archivo de Excel (.xlsx) o CSV *</label>
+                <input type="file" class="form-control" id="archivo-excel-file" accept=".xlsx, .csv" required>
+                <div class="form-text">El sistema mapeará de forma inteligente las columnas sin importar mayúsculas, minúsculas o acentos.</div>
+              </div>
+
+              <!-- Opciones de Duplicidad -->
+              <div class="mb-4">
+                <label class="form-label fw-bold d-block">Opciones ante registros existentes (duplicados por No. INV):</label>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="duplicado-opcion" id="dup-omitir" value="omitir" checked>
+                  <label class="form-check-label" for="dup-omitir">
+                    <strong class="text-secondary">Omitir duplicados:</strong> No sobrescribir registros existentes, solo insertar registros nuevos.
+                  </label>
+                </div>
+                <div class="form-check form-check-inline mt-2 d-block">
+                  <input class="form-check-input" type="radio" name="duplicado-opcion" id="dup-actualizar" value="actualizar">
+                  <label class="form-check-label" for="dup-actualizar">
+                    <strong class="text-success">Actualizar / Sobrescribir:</strong> Actualiza datos patrimoniales y preserva los de levantamiento ya existentes en el Sheet.
+                  </label>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-success px-4 py-2"><i class="fa-solid fa-file-import me-1"></i> Iniciar Procesamiento</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+          <!-- Tarjeta de Ayuda / Mapeo inteligente -->
+          <div class="card card-smr p-4" style="background-color: var(--color-gris-patrimonio);">
+            <h6 class="fw-bold text-dark"><i class="fa-solid fa-circle-info me-1"></i> Mapeo de Cabeceras</h6>
+            <p class="small text-muted mb-3">El importador mapea automáticamente cualquier variante común de cabeceras de Excel:</p>
+            <ul class="small text-muted list-unstyled ps-0" style="font-size: 0.85rem; line-height: 1.6;">
+              <li><strong>No. INV.</strong> &larr; "No. INV.", "Etiqueta", "No. Inventario", etc.</li>
+              <li><strong>DESCRIPCIÓN</strong> &larr; "DESCRIPCION", "Artículo", "Descripción"</li>
+              <li><strong>SERIE</strong> &larr; "SERIE", "No. Serie", "Numero de Serie"</li>
+              <li><strong>IMPORTE</strong> &larr; "IMPORTE", "Importe", "Valor", "Costo"</li>
+              <li><strong>RESGUARDADO</strong> &larr; "RESGUARDADO", "Resguardo"</li>
+            </ul>
+            <div class="alert alert-warning small p-2 mb-0" style="font-size: 0.8rem;">
+              <strong>Nota:</strong> Los archivos muy grandes (> 2,000 filas) pueden demorar unos momentos en enviarse y guardarse en Google Sheets.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultados del Resumen de Carga -->
+      <div id="resultado-carga-container" class="mt-4 d-none">
+        <div class="card card-smr border-success">
+          <div class="card-smr-header bg-success text-white"><i class="fa-solid fa-square-poll-vertical me-1"></i> Resumen de la Importación</div>
+          <div class="card-body p-4">
+            <div class="row text-center">
+              <div class="col-6 col-sm-3 mb-3 mb-sm-0">
+                <h2 class="text-primary fw-bold" id="res-carga-nuevos">0</h2>
+                <span class="text-muted small">Registros Nuevos</span>
+              </div>
+              <div class="col-6 col-sm-3 mb-3 mb-sm-0">
+                <h2 class="text-success fw-bold" id="res-carga-actualizados">0</h2>
+                <span class="text-muted small">Registros Actualizados</span>
+              </div>
+              <div class="col-6 col-sm-3">
+                <h2 class="text-warning fw-bold" id="res-carga-omitidos">0</h2>
+                <span class="text-muted small">Registros Omitidos</span>
+              </div>
+              <div class="col-6 col-sm-3">
+                <h2 class="text-danger fw-bold" id="res-carga-errores">0</h2>
+                <span class="text-muted small">Registros Erróneos / Vacíos</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 5: LISTADO GENERAL DE ARTÍCULOS -->
+    <section id="section-listado" class="app-section" style="display: none;">
+      <div class="row mb-3">
+        <div class="col-12 col-md-6">
+          <h4>Listado de Artículos Registrados</h4>
+          <p class="text-muted">Filtre y busque de forma instantánea. Haga clic en acciones para editar, trasladar o gestionar fotos.</p>
+        </div>
+        <!-- Búsqueda global instantánea -->
+        <div class="col-12 col-md-6 d-flex align-items-center justify-content-md-end">
+          <div class="input-group mb-2 mb-md-0" style="max-width: 400px;">
+            <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+            <input type="text" class="form-control" id="filtro-global-listado" placeholder="Búsqueda rápida instantánea..." oninput="window.aplicarFiltrosYListar()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros Rápidos -->
+      <div class="card card-smr p-3 mb-4">
+        <div class="row g-3">
+          <div class="col-12 col-sm-4">
+            <label for="filtro-ubicacion-sel" class="form-label small fw-bold">Por Ubicación Real</label>
+            <select class="form-select form-select-sm" id="filtro-ubicacion-sel" onchange="window.aplicarFiltrosYListar()">
+              <option value="">-- Todas las ubicaciones --</option>
+            </select>
+          </div>
+          <div class="col-12 col-sm-4">
+            <label for="filtro-estado-sel" class="form-label small fw-bold">Por Estado Físico Real</label>
+            <select class="form-select form-select-sm" id="filtro-estado-sel" onchange="window.aplicarFiltrosYListar()">
+              <option value="">-- Todos los estados --</option>
+              <option value="Bueno">Bueno</option>
+              <option value="Regular">Regular</option>
+              <option value="Malo">Malo</option>
+              <option value="Baja">Baja</option>
+              <option value="pendiente">Pendiente de Levantamiento</option>
+            </select>
+          </div>
+          <div class="col-12 col-sm-4">
+            <label for="filtro-marca-sel" class="form-label small fw-bold">Por Marca</label>
+            <select class="form-select form-select-sm" id="filtro-marca-sel" onchange="window.aplicarFiltrosYListar()">
+              <option value="">-- Todas las marcas --</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grilla / Tabla de resultados -->
+      <div class="card card-smr">
+        <div class="table-responsive">
+          <table class="table table-striped table-hover table-smr" id="tabla-listado-bienes">
+            <thead>
+              <tr>
+                <th scope="col">No.</th>
+                <th scope="col">No. INV.</th>
+                <th scope="col">Descripción</th>
+                <th scope="col">Serie</th>
+                <th scope="col">Marca</th>
+                <th scope="col">Ubicación Real</th>
+                <th scope="col">Estado Real</th>
+                <th scope="col">Usuario / Operador</th>
+                <th scope="col">Resguardante Real</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-listado-bienes">
+              <tr>
+                <td colspan="10" class="text-center py-4 text-muted">
+                  <div class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
+                  Cargando inventario...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginador -->
+        <div class="card-footer d-flex flex-column flex-sm-row justify-content-between align-items-center bg-white border-top p-3">
+          <div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text">
+            Mostrando 0 a 0 de 0 registros
+          </div>
+          <nav aria-label="Navegación de listado">
+            <ul class="pagination pagination-sm mb-0" id="paginador-ul">
+              <!-- Cargado dinámicamente -->
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALES DE ACCIONES DEL LISTADO -->
+
+  <!-- MODAL 1: VER DETALLE COMPLETO -->
+  <div class="modal fade" id="modal-ver-detalle" tabindex="-1" aria-labelledby="modalVerDetalleLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title" id="modalVerDetalleLabel"><i class="fa-solid fa-circle-info me-1"></i> Detalle General del Artículo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4" id="modal-ver-detalle-content">
+          <!-- Cargado dinámicamente -->
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar Detalle</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: EDICIÓN COMPLETA (RF5) -->
+  <div class="modal fade" id="modal-editar-articulo" tabindex="-1" aria-labelledby="modalEditarArticuloLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title" id="modalEditarArticuloLabel"><i class="fa-solid fa-pen-to-square me-1"></i> Edición Completa de Artículo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="form-edicion-completa" onsubmit="window.guardarEdicionCompleta(event)">
+          <div class="modal-body p-4">
+
+            <input type="hidden" id="modal-edit-no-inv-hidden">
+
+            <h6 class="border-bottom pb-2 mb-3 text-secondary fw-bold">Información Histórica (Patrimonial)</h6>
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-6">
+                <label for="modal-edit-descripcion" class="form-label">Descripción</label>
+                <textarea class="form-control" id="modal-edit-descripcion" rows="2" required></textarea>
+              </div>
+              <div class="col-12 col-md-6">
+                <label for="modal-edit-resguardado" class="form-label">Resguardante Patrimonial</label>
+                <input type="text" class="form-control" id="modal-edit-resguardado">
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-sm-4">
+                <label for="modal-edit-serie" class="form-label">Serie</label>
+                <input type="text" class="form-control" id="modal-edit-serie" required>
+              </div>
+              <div class="col-12 col-sm-4">
+                <label for="modal-edit-modelo" class="form-label">Modelo</label>
+                <input type="text" class="form-control" id="modal-edit-modelo">
+              </div>
+              <div class="col-12 col-sm-4">
+                <label for="modal-edit-marca" class="form-label">Marca</label>
+                <input type="text" class="form-control" id="modal-edit-marca">
+              </div>
+            </div>
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-sm-4">
+                <label for="modal-edit-estado" class="form-label">Estado Patrimonial</label>
+                <input type="text" class="form-control" id="modal-edit-estado">
+              </div>
+              <div class="col-12 col-sm-4">
+                <label for="modal-edit-importe" class="form-label">Importe ($)</label>
+                <input type="number" step="0.01" class="form-control" id="modal-edit-importe">
+              </div>
+              <div class="col-12 col-sm-4">
+                <label for="modal-edit-ubicacion" class="form-label">Ubicación Patrimonial</label>
+                <input type="text" class="form-control" id="modal-edit-ubicacion">
+              </div>
+            </div>
+
+            <h6 class="border-bottom pb-2 mb-3 text-success fw-bold">Levantamiento Real</h6>
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-4">
+                <label for="modal-edit-estado-real" class="form-label fw-bold">Estado Real *</label>
+                <select class="form-select campo-levantamiento" id="modal-edit-estado-real" required>
+                  <option value="Bueno">Bueno</option>
+                  <option value="Regular">Regular</option>
+                  <option value="Malo">Malo</option>
+                  <option value="Baja">Baja</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="modal-edit-ubicacion-real" class="form-label fw-bold">Ubicación Real *</label>
+                <input type="text" class="form-control campo-levantamiento" id="modal-edit-ubicacion-real" required>
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="modal-edit-resguardante-real" class="form-label fw-bold">Resguardante Real *</label>
+                <input type="text" class="form-control campo-levantamiento" id="modal-edit-resguardante-real" required>
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label for="modal-edit-fotos-files" class="form-label fw-bold">Fotografías de Evidencia Adicionales</label>
+              <input type="file" class="form-control" id="modal-edit-fotos-files" accept="image/*" multiple onchange="window.renderizarPrevisualizacionFotos(this, 'modal-edit-fotos-preview')">
+              <div id="modal-edit-fotos-preview" class="mt-3"></div>
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: TRASLADO / MOVER (RF5) -->
+  <div class="modal fade" id="modal-trasladar" tabindex="-1" aria-labelledby="modalTrasladarLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark">
+          <h5 class="modal-title" id="modalTrasladarLabel"><i class="fa-solid fa-truck-ramp-box me-1"></i> Trasladar Artículo</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="form-trasladar-articulo" onsubmit="window.guardarTrasladoArticulo(event)">
+          <div class="modal-body p-4">
+            <input type="hidden" id="modal-traslado-no-inv">
+
+            <div class="alert alert-info py-2 small mb-4">
+              <strong>Artículo:</strong> <span id="modal-traslado-detalle-txt">...</span>
+            </div>
+
+            <div class="mb-3">
+              <label for="modal-traslado-ubicacion" class="form-label fw-bold">Nueva Ubicación Real *</label>
+              <input type="text" class="form-control" id="modal-traslado-ubicacion" required placeholder="Ej: DIRECCIÓN GENERAL">
+            </div>
+
+            <div class="mb-3">
+              <label for="modal-traslado-resguardante" class="form-label fw-bold">Nuevo Resguardante Real *</label>
+              <input type="text" class="form-control" id="modal-traslado-resguardante" required placeholder="Nombre del nuevo resguardante real">
+            </div>
+
+            <div class="mb-3">
+              <label for="modal-traslado-motivo" class="form-label fw-bold">Motivo del Traslado *</label>
+              <textarea class="form-control" id="modal-traslado-motivo" rows="2" required placeholder="Escriba el motivo detallado de este cambio..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-warning"><i class="fa-solid fa-route me-1"></i> Registrar Traslado</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: GESTIONAR FOTOS -->
+  <div class="modal fade" id="modal-fotos" tabindex="-1" aria-labelledby="modalFotosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-md">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="modalFotosLabel"><i class="fa-solid fa-images me-1"></i> Gestionar Fotos del Bien</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <input type="hidden" id="modal-fotos-no-inv">
+
+          <div class="mb-4">
+            <p class="small text-muted mb-2">Fotos asociadas actualmente:</p>
+            <div id="modal-fotos-existentes-list" class="d-flex flex-wrap gap-2">
+              <!-- Se carga dinámicamente -->
+            </div>
+          </div>
+
+          <div class="border-top pt-3">
+            <label for="modal-fotos-nuevas-input" class="form-label fw-bold">Subir Nueva Foto (Máx. 3 en total)</label>
+            <input type="file" class="form-control" id="modal-fotos-nuevas-input" accept="image/*" multiple onchange="window.renderizarPrevisualizacionFotos(this, 'modal-fotos-nuevas-preview')">
+            <div id="modal-fotos-nuevas-preview" class="mt-3"></div>
+            <button class="btn btn-success btn-sm mt-3 w-100" onclick="window.subirNuevasFotosModal()"><i class="fa-solid fa-cloud-arrow-up me-1"></i> Subir Fotos Seleccionadas</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: EXPORTAR QR (IMPRIMIBLE) -->
+  <div class="modal fade" id="modal-qr" tabindex="-1" aria-labelledby="modalQRLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white no-print">
+          <h5 class="modal-title" id="modalQRLabel"><i class="fa-solid fa-qrcode me-1"></i> Código QR del Bien</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-center">
+          <div class="print-qr-card p-3">
+            <h5 class="fw-bold text-dark mb-1">SMR - MEJORA REGULATORIA</h5>
+            <p class="small text-muted mb-3">Etiqueta de Levantamiento Físico</p>
+
+            <!-- Contenedor del código QR generado en cliente -->
+            <div id="qr-code-img-container" class="d-inline-block p-3 border rounded bg-white mb-3"></div>
+
+            <h4 class="fw-bold text-success mb-1" id="qr-modal-no-inv-title">...</h4>
+            <p class="small text-secondary mb-0 text-truncate px-3" id="qr-modal-desc-title">...</p>
+          </div>
+        </div>
+        <div class="modal-footer bg-light no-print">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button type="button" class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print me-1"></i> Imprimir Label</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Institucional -->
+  <footer class="text-center py-3 mt-auto no-print">
+    <div class="container">
+      <p class="mb-0 text-white-50">© 2024 Subdirección de Mejora Regulatoria. Todos los derechos reservados.</p>
+      <p class="small mb-0 text-muted">Web App desarrollada sobre la infraestructura de Google Apps Script.</p>
+    </div>
+  </footer>
+
+  <!-- Bibliotecas JS de Clientes (CDNs autorizados) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Lógica y Controladores del Frontend -->
+  <?!= include('JavaScript'); ?>
+
+  <!-- Variable scriptlet segura contra Uncaught ReferenceError -->
+  <script>
+    window.initialNoInvQuery = "<?!= initialNoInvQuery ?>";
+  </script>
+</body>
+</html>
