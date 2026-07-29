@@ -1103,3 +1103,16 @@ function ejecutarDiagnosticoSMR() {
   }
   return auditoria;
 }
+
+/**
+ * Obtiene el correo electrónico del usuario activo desde el servidor.
+ * Reemplaza de forma segura la llamada Session.getActiveUser() en el cliente.
+ */
+function obtenerUsuarioActivo() {
+  try {
+    return Session.getActiveUser().getEmail();
+  } catch (e) {
+    Logger.log("Error al obtener el usuario activo: " + e.toString());
+    return "Usuario Desconocido";
+  }
+}
