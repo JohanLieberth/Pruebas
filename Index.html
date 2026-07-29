@@ -13,8 +13,37 @@
 </head>
 <body>
 
+  <!-- Modal de bienvenida del Responsable bloqueante al inicio de sesión (Módulo 3) -->
+  <div id="modal-bienvenida">
+    <div class="bienvenida-card">
+      <div class="bienvenida-banner">
+        <h4 class="fw-bold mb-1"><i class="fa-solid fa-clipboard-user me-2"></i> Bienvenida al Sistema</h4>
+        <p class="small mb-0">Subdirección de Mejora Regulatoria</p>
+      </div>
+      <div class="p-4">
+        <form id="form-bienvenida" onsubmit="window.confirmarResponsable(event)">
+          <div class="mb-3">
+            <label for="responsable-nombre" class="form-label fw-bold text-secondary">Nombre del Responsable *</label>
+            <input type="text" class="form-control" id="responsable-nombre" placeholder="Escriba su nombre completo..." required autocomplete="off">
+          </div>
+          <div class="mb-4">
+            <label for="responsable-area" class="form-label fw-bold text-secondary">Área / Departamento *</label>
+            <select class="form-select" id="responsable-area" required>
+              <option value="">-- Seleccione área --</option>
+              <option value="Mejora Regulatoria">Subdirección de Mejora Regulatoria</option>
+              <option value="Área Administrativa">Área Administrativa</option>
+              <option value="Sistemas y Soporte">Sistemas y Soporte</option>
+              <option value="Patrimonio General">Patrimonio General</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 py-2 fw-bold"><i class="fa-solid fa-arrow-right me-1"></i> Acceder al Sistema</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Cargador Global / Loader -->
-  <div id="global-loader">
+  <div id="global-loader" style="display: none;">
     <div class="spinner-border spinner-smr mb-3" role="status">
       <span class="visually-hidden">Cargando...</span>
     </div>
@@ -58,14 +87,14 @@
             </a>
           </li>
         </ul>
-        <span class="navbar-text text-white-50" id="navbar-user">
+        <span class="navbar-text text-white-50" id="navbar-user" style="font-size: 0.9rem;">
           <i class="fa-solid fa-user me-1"></i> Identificando usuario...
         </span>
       </div>
     </div>
   </nav>
 
-  <!-- Contenedor Principal (SPA Sections) - Landmark <main id="contenido-principal"> (Error 3) -->
+  <!-- Contenedor Principal con Landmark <main id="contenido-principal"> (Módulo 7) -->
   <main id="contenido-principal" class="container main-container">
 
     <!-- Toast de Notificaciones -->
@@ -95,7 +124,7 @@
           <div class="card card-smr dashboard-card p-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <h6 class="text-muted text-uppercase mb-1">Total de Artículos</h6>
+                <h6 class="text-muted text-uppercase mb-1" style="font-size: 0.8rem; font-weight: bold;">Total de Artículos</h6>
                 <h3 class="fw-bold mb-0" id="stats-total">0</h3>
               </div>
               <div class="icon-circle">
@@ -108,10 +137,10 @@
           <div class="card card-smr dashboard-card p-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <h6 class="text-muted text-uppercase mb-1">Artículos Levantados</h6>
+                <h6 class="text-muted text-uppercase mb-1" style="font-size: 0.8rem; font-weight: bold;">Artículos Levantados</h6>
                 <h3 class="fw-bold text-success mb-0" id="stats-levantados">0</h3>
               </div>
-              <div class="icon-circle" style="background-color: rgba(46,125,50,0.1); color: #2E7D32;">
+              <div class="icon-circle" style="background-color: rgba(45,138,110,0.1); color: var(--color-acento);">
                 <i class="fa-solid fa-circle-check"></i>
               </div>
             </div>
@@ -121,10 +150,10 @@
           <div class="card card-smr dashboard-card p-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <h6 class="text-muted text-uppercase mb-1">Pendientes</h6>
+                <h6 class="text-muted text-uppercase mb-1" style="font-size: 0.8rem; font-weight: bold;">Pendientes</h6>
                 <h3 class="fw-bold text-danger mb-0" id="stats-pendientes">0</h3>
               </div>
-              <div class="icon-circle" style="background-color: rgba(198,40,40,0.1); color: #C62828;">
+              <div class="icon-circle" style="background-color: rgba(192,57,43,0.1); color: var(--color-error);">
                 <i class="fa-solid fa-hourglass-half"></i>
               </div>
             </div>
@@ -141,12 +170,12 @@
               📷
             </div>
             <h6 class="fw-bold">Buscar Bien</h6>
-            <p class="small text-muted mb-0">Escáner con Cámara, QR o Búsqueda de Inventario.</p>
+            <p class="small text-muted mb-0">Escáner por Archivo QR o Entrada Manual Asistida.</p>
           </div>
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('alta')">
-            <div class="icon-circle mx-auto mb-3" style="color: #0277BD; background-color: rgba(2,119,189,0.1);">
+            <div class="icon-circle mx-auto mb-3" style="color: var(--color-secundario); background-color: rgba(74,144,164,0.1);">
               📋
             </div>
             <h6 class="fw-bold">Alta de Bien</h6>
@@ -155,7 +184,7 @@
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('carga-masiva')">
-            <div class="icon-circle mx-auto mb-3" style="color: #2E7D32; background-color: rgba(46,125,50,0.1);">
+            <div class="icon-circle mx-auto mb-3" style="color: var(--color-acento); background-color: rgba(45,138,110,0.1);">
               🔍
             </div>
             <h6 class="fw-bold">Carga Masiva</h6>
@@ -164,7 +193,7 @@
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <div class="card card-smr text-center p-4 h-100 cursor-pointer dashboard-card" onclick="window.showSection('listado')">
-            <div class="icon-circle mx-auto mb-3" style="color: #EF6C00; background-color: rgba(239,108,0,0.1);">
+            <div class="icon-circle mx-auto mb-3" style="color: #8e44ad; background-color: rgba(142,68,173,0.1);">
               <i class="fa-solid fa-list"></i>
             </div>
             <h6 class="fw-bold">Listado General</h6>
@@ -179,11 +208,11 @@
       <div class="row mb-4">
         <div class="col-12">
           <h4>Módulo de Búsqueda y Levantamiento</h4>
-          <p class="text-muted">Busque un artículo patrimonial por No. de Inventario o Serie, o active la cámara para escanear.</p>
+          <p class="text-muted">Busque un artículo patrimonial por No. de Inventario o Serie, o suba una imagen de código QR.</p>
         </div>
       </div>
 
-      <!-- Buscador y Scanner - Refactorización de Escaneo para sandbox (Error 1) -->
+      <!-- Buscador y Scanner (Módulo 1) -->
       <div class="row g-4 mb-4">
         <!-- Columna de Entrada Manual Asistida (Secundaria) -->
         <div class="col-12 col-md-7">
@@ -193,8 +222,8 @@
                 <label for="buscar-input" class="form-label fw-bold">Número de Inventario / Serie</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                  <!-- Autocomplete asistido mediante datalist para reducir dependencia de escaneo (Error 1) -->
-                  <input type="text" class="form-control" id="buscar-input" list="buscar-datalist" placeholder="Escriba No. de Inventario o Serie para autocompletar..." required oninput="window.asistirBusquedaManual(this)">
+                  <!-- Autocomplete asistido mediante datalist para reducir dependencia de escaneo (Módulo 1) -->
+                  <input type="text" class="form-control" id="buscar-input" list="buscar-datalist" placeholder="Escriba No. de Inventario o Serie para sugerencias..." required oninput="window.asistirBusquedaManual(this)">
                   <datalist id="buscar-datalist"></datalist>
                 </div>
               </div>
@@ -210,7 +239,7 @@
           </div>
         </div>
 
-        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Primaria) -->
+        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Módulo 1) -->
         <div class="col-12 col-md-5">
           <div class="card card-smr p-4 text-center h-100 d-flex flex-column justify-content-center">
             <h6 class="fw-bold mb-2 text-primary-smr"><i class="fa-solid fa-qrcode me-1"></i> Escáner por Archivo / Foto</h6>
@@ -234,7 +263,7 @@
       <div id="resultado-busqueda-container" class="d-none">
 
         <div class="row g-4">
-          <!-- Columna Izquierda: Información Histórica Patrimonial (Read Only) -->
+          <!-- Columna Izquierda: Información Histórica Patrimonial (Read Only - Con Labels Asociadas Módulo 7) -->
           <div class="col-12 col-lg-6">
             <div class="card card-smr h-100">
               <div class="card-smr-header"><i class="fa-solid fa-building me-1"></i> Información Patrimonial (Histórica)</div>
@@ -281,9 +310,9 @@
             </div>
           </div>
 
-          <!-- Columna Derecha: Levantamiento Real (Editable con borde verde / fondo claro) -->
+          <!-- Columna Derecha: Levantamiento Real (Editable con borde verde / fondo claro - Con Labels Asociadas Módulo 7) -->
           <div class="col-12 col-lg-6">
-            <div class="card card-smr h-100" style="border: 2px solid var(--color-primario);">
+            <div class="card card-smr h-100" style="border: 2px solid var(--color-secundario);">
               <div class="card-smr-header" style="background-color: var(--color-primario);"><i class="fa-solid fa-pen-to-square me-1"></i> Datos de Levantamiento Real</div>
               <div class="card-body p-4">
                 <form id="form-scan-update" onsubmit="window.guardarDetalleLevantamiento(event)">
@@ -460,7 +489,7 @@
               <div class="mb-4">
                 <label for="archivo-excel-file" class="form-label fw-bold">Seleccione Archivo de Excel (.xlsx) o CSV *</label>
                 <input type="file" class="form-control" id="archivo-excel-file" accept=".xlsx, .csv" required>
-                <div class="form-text">El sistema mapeará de forma inteligente las columnas sin importar mayúsculas, minúsculas o acentos.</div>
+                <div class="form-text">El sistema mapeará de forma inteligente las columnas sin importares de formato.</div>
               </div>
 
               <!-- Opciones de Duplicidad -->
@@ -469,7 +498,7 @@
                 <div class="form-check form-check-inline">
                   <input class="form-check-input" type="radio" name="duplicado-opcion" id="dup-omitir" value="omitir" checked>
                   <label class="form-check-label" for="dup-omitir">
-                    <strong class="text-secondary">Omitir duplicados:</strong> No sobrescribir registros existentes, solo insertar registros nuevos.
+                    <strong class="text-secondary">Omitir duplicados:</strong> No sobrescribir registros existentes, solo insertar nuevos.
                   </label>
                 </div>
                 <div class="form-check form-check-inline mt-2 d-block">
@@ -489,7 +518,7 @@
 
         <div class="col-12 col-lg-4">
           <!-- Tarjeta de Ayuda / Mapeo inteligente -->
-          <div class="card card-smr p-4" style="background-color: var(--color-gris-patrimonio);">
+          <div class="card card-smr p-4" style="background-color: var(--color-fondo);">
             <h6 class="fw-bold text-dark"><i class="fa-solid fa-circle-info me-1"></i> Mapeo de Cabeceras</h6>
             <p class="small text-muted mb-3">El importador mapea automáticamente cualquier variante común de cabeceras de Excel:</p>
             <ul class="small text-muted list-unstyled ps-0" style="font-size: 0.85rem; line-height: 1.6;">
@@ -539,7 +568,7 @@
       <div class="row mb-3">
         <div class="col-12 col-md-6">
           <h4>Listado de Artículos Registrados</h4>
-          <p class="text-muted">Filtre y busque de forma instantánea. Haga clic en acciones para editar, trasladar o gestionar fotos.</p>
+          <p class="text-muted">Filtre y busque de forma instantánea en el servidor.</p>
         </div>
         <!-- Búsqueda global instantánea -->
         <div class="col-12 col-md-6 d-flex align-items-center justify-content-md-end">
@@ -554,13 +583,13 @@
       <div class="card card-smr p-3 mb-4">
         <div class="row g-3">
           <div class="col-12 col-sm-4">
-            <label for="filtro-ubicacion-sel" class="form-label small fw-bold">Por Ubicación Real</label>
+            <label for="filtro-ubicacion-sel" class="form-label small fw-bold text-secondary">Por Ubicación Real</label>
             <select class="form-select form-select-sm" id="filtro-ubicacion-sel" onchange="window.aplicarFiltrosYListar()">
               <option value="">-- Todas las ubicaciones --</option>
             </select>
           </div>
           <div class="col-12 col-sm-4">
-            <label for="filtro-estado-sel" class="form-label small fw-bold">Por Estado Físico Real</label>
+            <label for="filtro-estado-sel" class="form-label small fw-bold text-secondary">Por Estado Físico Real</label>
             <select class="form-select form-select-sm" id="filtro-estado-sel" onchange="window.aplicarFiltrosYListar()">
               <option value="">-- Todos los estados --</option>
               <option value="Bueno">Bueno</option>
@@ -571,7 +600,7 @@
             </select>
           </div>
           <div class="col-12 col-sm-4">
-            <label for="filtro-marca-sel" class="form-label small fw-bold">Por Marca</label>
+            <label for="filtro-marca-sel" class="form-label small fw-bold text-secondary">Por Marca</label>
             <select class="form-select form-select-sm" id="filtro-marca-sel" onchange="window.aplicarFiltrosYListar()">
               <option value="">-- Todas las marcas --</option>
             </select>
@@ -608,7 +637,7 @@
           </table>
         </div>
 
-        <!-- Paginador -->
+        <!-- Paginador con ID exacto para coincidir con JS (Módulo 4) -->
         <div class="card-footer d-flex flex-column flex-sm-row justify-content-between align-items-center bg-white border-top p-3">
           <div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text">
             Mostrando 0 a 0 de 0 registros
@@ -621,6 +650,21 @@
         </div>
       </div>
     </section>
+
+    <!-- PANEL DE BITÁCORA DE ACTIVIDAD DE SESIÓN (Módulo 2) -->
+    <div class="bitacora-panel no-print">
+      <div class="bitacora-header">
+        <span><i class="fa-solid fa-clock-history me-1"></i> Bitácora de Actividad (Sesión Actual)</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-light py-0 px-2 fw-bold text-dark" onclick="window.limpiarBitacoraSesion()"><i class="fa-solid fa-trash-can me-1"></i> Limpiar</button>
+          <button class="btn btn-sm btn-light py-0 px-2 fw-bold text-dark" onclick="window.exportarBitacoraSesion()"><i class="fa-solid fa-download me-1"></i> Exportar (.txt)</button>
+        </div>
+      </div>
+      <div class="bitacora-list" id="bitacora-list-container">
+        <!-- Entradas renderizadas dinámicamente -->
+        <div class="text-muted text-center py-2">Sesión iniciada. Esperando eventos...</div>
+      </div>
+    </div>
 
   </main>
 
@@ -842,7 +886,7 @@
     </div>
   </footer>
 
-  <!-- Bibliotecas JS de Clientes (CDNs autorizados) con carga deferida para evitar bloquear el DOM (Punto 6) -->
+  <!-- Bibliotecas JS de Clientes (CDNs autorizados) con carga deferida para evitar bloquear el DOM (Módulo 6) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" defer></script>

@@ -3,15 +3,20 @@
  * SISTEMA DE INVENTARIO FÍSICO - SUBDIRECCIÓN DE MEJORA REGULATORIA
  * Frontend: JavaScript.html
  *
- * Este archivo implementa toda la lógica cliente del SPA de inventario físico,
- * con refactorizaciones completas para eliminar de raíz errores comunes.
+ * Lógica cliente del SPA de inventario físico.
+ * Implementa de raíz las correcciones y módulos adicionales requeridos:
+ * - Módulo de Escáner QR por Imagen/Archivo (Módulo 1).
+ * - Bitácora de Actividad en la Interfaz (Módulo 2).
+ * - Registro del Nombre del Responsable al Inicio (Módulo 3).
+ * - Estado de Carga con Try-Catch global ante White Pages (Módulo 6).
  */
 
 // --- VARIABLES GLOBALES DE ESTADO DEL CLIENTE ---
 window.cacheInventario = [];     // Almacén local de artículos cargados
 window.cacheUbicaciones = [];   // Para autocompletar
 window.cacheResguardantes = [];  // Para autocompletar
-window.usuarioActivo = "";       // Email del usuario logueado
+window.usuarioActivo = "";       // Email del usuario logueado o Responsable
+window.bitacoraSesion = [];      // Registro histórico de la sesión actual (Módulo 2)
 
 // Variables de Paginación
 window.paginaActual = 1;
@@ -47,59 +52,92 @@ window.addEventListener('unhandledrejection', function(event) {
  */
 document.addEventListener("DOMContentLoaded", function() {
   try {
-    inicializarApp();
+    // Verificar si el responsable ya se encuentra registrado en esta sesión (Módulo 3)
+    const nombreGuardado = sessionStorage.getItem("smr_responsable_nombre");
+    const areaGuardada = sessionStorage.getItem("smr_responsable_area");
+
+    if (nombreGuardado && areaGuardada) {
+      // El usuario ya se había logueado, desbloquear interfaz directamente
+      document.getElementById("modal-bienvenida").style.display = "none";
+      window.usuarioActivo = nombreGuardado;
+      const userEl = document.getElementById("navbar-user");
+      if (userEl) {
+        userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> ${window.usuarioActivo} (${areaGuardada})`;
+      }
+      inicializarApp();
+    } else {
+      // Bloquear pantalla y esperar que el usuario ingrese su identidad en el modal
+      document.getElementById("modal-bienvenida").style.display = "flex";
+      console.log("[SMR] Bloqueando pantalla. Esperando identidad del Responsable.");
+    }
   } catch (error) {
     console.error("[SMR] Error crítico de inicialización:", error);
     document.body.innerHTML = `
-      <div style="padding: 40px; text-align: center; font-family: sans-serif; background-color: #ffebee; color: #c62828;">
-        <h3 style="font-weight: bold; margin-bottom: 15px;"><i class="fa-solid fa-triangle-exclamation"></i> Error al cargar la aplicación</h3>
-        <p style="margin-bottom: 20px;">Se produjo un error crítico de ejecución en su navegador durante el arranque inicial:</p>
-        <pre style="background: white; padding: 15px; border: 1px solid #c62828; display: inline-block; text-align: left; max-width: 90%; overflow-x: auto; font-family: monospace;">${error.stack || error.toString()}</pre>
-        <p style="margin-top: 20px; font-size: 0.9rem; color: #555;">Por favor, recargue la página o intente utilizar otro navegador compatible.</p>
+      <div style="padding: 40px; text-align: center; font-family: sans-serif; background-color: #f0f4f8; color: #c0392b; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 30px; border-radius: 12px; border: 4px solid #4a90a4; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+          <h3 style="font-weight: bold; margin-bottom: 15px; color: #1e3a5f;"><i class="fa-solid fa-triangle-exclamation"></i> Error al cargar la aplicación</h3>
+          <p style="margin-bottom: 20px; color: #2c3e50;">Se produjo un error crítico de ejecución en su navegador durante el arranque inicial:</p>
+          <pre style="background: #f0f4f8; padding: 15px; border: 1px solid #d5dbdb; text-align: left; overflow-x: auto; font-family: monospace; font-size: 0.85rem; color: #c0392b;">${error.stack || error.toString()}</pre>
+          <p style="margin-top: 20px; font-size: 0.9rem; color: #5d6d7e;">Por favor, recargue la página o intente utilizar otro navegador compatible.</p>
+        </div>
       </div>
     `;
   }
 });
 
 /**
+ * Guarda la identidad del responsable al inicio del levantamiento y desbloquea el sistema (Módulo 3).
+ */
+window.confirmarResponsable = function(event) {
+  if (event) event.preventDefault();
+
+  const nombre = document.getElementById("responsable-nombre").value.trim();
+  const area = document.getElementById("responsable-area").value;
+
+  if (!nombre || !area) {
+    alert("Por favor complete todos los campos obligatorios del Responsable.");
+    return;
+  }
+
+  // Guardar en sessionStorage para persistencia de pestaña activa (Módulo 3)
+  sessionStorage.setItem("smr_responsable_nombre", nombre);
+  sessionStorage.setItem("smr_responsable_area", area);
+
+  // Desbloquear modal de bienvenida
+  document.getElementById("modal-bienvenida").style.display = "none";
+  window.usuarioActivo = nombre;
+
+  const userEl = document.getElementById("navbar-user");
+  if (userEl) {
+    userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> ${window.usuarioActivo} (${area})`;
+  }
+
+  // Inicializar aplicación
+  inicializarApp();
+
+  // Registrar inicio en la bitácora
+  registrarEnBitacora("SISTEMA", "Responsable '" + nombre + "' (" + area + ") ingresó al sistema.");
+};
+
+/**
  * Función central de inicialización (Módulo 6).
- * Obtiene identidad y carga de forma asíncrona la lista de inventarios.
  */
 function inicializarApp() {
-  // 1. Mostrar spinner de carga inicial
-  mostrarCarga("Inicializando Sistema de Inventario...");
+  mostrarCarga("Cargando base de datos inicial...");
 
-  // 2. Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
+  // Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
   const safeTimeout = setTimeout(function() {
     ocultarCarga();
     mostrarNotificacion("La conexión con el servidor demoró más de lo esperado. Algunas funciones podrían inicializar de forma asíncrona.", "bg-warning");
   }, 6000);
 
-  // 3. Inicializar identidad del usuario de forma asíncrona
-  google.script.run
-    .withSuccessHandler(function(email) {
-      window.usuarioActivo = email || "Operador SMR";
-      const userEl = document.getElementById("navbar-user");
-      if (userEl) {
-        userEl.innerHTML = `<i class="fa-solid fa-user me-1"></i> ${window.usuarioActivo}`;
-      }
-    })
-    .withFailureHandler(function(err) {
-      console.error("[SMR] No se pudo recuperar identidad de usuario:", err);
-      const userEl = document.getElementById("navbar-user");
-      if (userEl) {
-        userEl.innerHTML = `<i class="fa-solid fa-user me-1"></i> Operador SMR`;
-      }
-    })
-    .obtenerUsuarioActivo();
-
-  // 4. Cargar datos base del servidor
+  // Cargar datos base del servidor
   cargarEstadisticasInicio();
   cargarListadoInventario(function() {
     clearTimeout(safeTimeout);
     ocultarCarga();
 
-    // 5. Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
+    // Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
     if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
       window.showSection('busqueda');
       const input = document.getElementById("buscar-input");
@@ -197,6 +235,9 @@ window.showSection = function(sectionId) {
     }
   }
 
+  // Registrar cambio de sección en bitácora (Módulo 2)
+  registrarEnBitacora("VISTA", "Cargada sección: " + sectionId.toUpperCase());
+
   // Scroll hacia arriba
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -205,6 +246,94 @@ window.showSection = function(sectionId) {
     window.isNavigating = false;
   }, 250);
 };
+
+// --- MÓDULO 2: BITÁCORA DE ACTIVIDAD DE SESIÓN EN INTERFAZ (Módulo 2) ---
+
+/**
+ * Registra un evento en tiempo real en la bitácora de sesión del cliente (Módulo 2).
+ * Formato: [HH:MM:SS] [TIPO] Descripción (con Nombre del Responsable).
+ * Mantiene un máximo de 50 registros en memoria y renderiza en modo prepend.
+ */
+window.registrarEnBitacora = function(tipo, mensaje) {
+  const d = new Date();
+  const pad = function(n) { return n < 10 ? '0' + n : n; };
+  const horaStr = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+
+  // Formato: [HH:MM:SS] [TIPO] Responsable: Nombre - Descripción.
+  const responsable = window.usuarioActivo || "Desconocido";
+  const formatoEntrada = `[${horaStr}] [${tipo.toUpperCase()}] Responsable: ${responsable} - ${mensaje}`;
+
+  // Agregar al inicio del array en memoria
+  window.bitacoraSesion.unshift(formatoEntrada);
+
+  // Mantener un máximo de 50 entradas
+  if (window.bitacoraSesion.length > 50) {
+    window.bitacoraSesion = window.bitacoraSesion.slice(0, 50);
+  }
+
+  // Renderizar en el panel de bitácora
+  const container = document.getElementById("bitacora-list-container");
+  if (!container) return;
+
+  let html = "";
+  window.bitacoraSesion.forEach(function(entrada) {
+    // Obtener tipo específico para badge de color
+    const matchTipo = entrada.match(/\[([A-ZÁÉÍÓÚ]+)\]/g);
+    let badgeHtml = "";
+    if (matchTipo && matchTipo.length > 1) {
+      const limpioTipo = matchTipo[1].replace(/[\[\]]/g, "");
+      badgeHtml = `<span class="bitacora-tag tag-${limpioTipo.toLowerCase()}">${limpioTipo}</span>`;
+    }
+
+    // Obtener texto limpio sin las marcas de tipo
+    const textoMostrar = entrada.replace(/\[[A-ZÁÉÍÓÚ]+\]/g, "").replace("  ", " ");
+
+    html += `
+      <div class="bitacora-item">
+        ${badgeHtml} <span class="text-secondary small">${textoMostrar}</span>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+};
+
+/**
+ * Limpia el panel de bitácora de la interfaz del usuario (Módulo 2).
+ */
+window.limpiarBitacoraSesion = function() {
+  if (confirm("¿Está seguro de que desea limpiar el historial de bitácora de la sesión actual?")) {
+    window.bitacoraSesion = [];
+    const container = document.getElementById("bitacora-list-container");
+    if (container) {
+      container.innerHTML = `<div class="text-muted text-center py-2">Bitácora limpia. Esperando eventos...</div>`;
+    }
+    mostrarNotificacion("Bitácora de sesión limpiada.", "bg-secondary");
+  }
+};
+
+/**
+ * Descarga un archivo .txt con el contenido de la bitácora de sesión (Módulo 2).
+ */
+window.exportarBitacoraSesion = function() {
+  if (window.bitacoraSesion.length === 0) {
+    alert("No hay registros en la bitácora para exportar.");
+    return;
+  }
+
+  const contenido = window.bitacoraSesion.join("\r\n");
+  const blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
+
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `SMR_Bitacora_Sesion_${new Date().toISOString().slice(0,10)}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  mostrarNotificacion("Bitácora exportada correctamente.", "bg-success");
+};
+
 
 // --- CARGA DE DATOS DESDE EL SERVIDOR ---
 
@@ -242,6 +371,10 @@ function cargarListadoInventario(callback) {
   console.log("[SMR] Solicitando listado filtrado al servidor:", filtros);
   mostrarCarga("Buscando artículo...");
 
+  // Registrar aplicación de filtros en bitácora (Módulo 2)
+  const descFiltros = `Filtros Aplicados: Texto="${filtros.texto}", Ubicación="${filtros.ubicacion}", Estado="${filtros.estado}"`;
+  registrarEnBitacora("FILTRO", descFiltros);
+
   // Configurar un timeout de 15 segundos en el cliente para evitar bloqueos del loader (Módulo 3)
   let respondido = false;
   const timeoutId = setTimeout(function() {
@@ -249,6 +382,7 @@ function cargarListadoInventario(callback) {
       ocultarCarga();
       alert("El servidor está tardando demasiado en responder. Intente de nuevo o reduzca los filtros.");
       mostrarNotificacion("Tiempo de espera agotado.", "bg-danger");
+      registrarEnBitacora("ERROR", "Tiempo de espera de 15s agotado al obtener inventario.");
     }
   }, 15000);
 
@@ -264,6 +398,7 @@ function cargarListadoInventario(callback) {
         var errMsg = res && res.error ? res.error : "Error desconocido al procesar filtros.";
         console.error("[SMR] Error devuelto por servidor:", errMsg);
         alert(errMsg);
+        registrarEnBitacora("ERROR", "Error de servidor al cargar: " + errMsg);
         return;
       }
 
@@ -277,6 +412,9 @@ function cargarListadoInventario(callback) {
       // Renderizar listado de la tabla general
       aplicarFiltrosYListar(true);
 
+      // Registrar éxito en bitácora (Módulo 2)
+      registrarEnBitacora("SISTEMA", "Listado cargado con éxito. Encontrados: " + window.cacheInventario.length + " artículos.");
+
       if (callback) callback();
     })
     .withFailureHandler(function(err) {
@@ -286,6 +424,7 @@ function cargarListadoInventario(callback) {
       console.error("[SMR] Error en llamada google.script.run a listar:", err);
       mostrarNotificacion("Fallo de red al conectar con Google Sheets: " + err.message, "bg-danger");
       alert("Fallo de red: No se pudo conectar con el servidor de Google Sheets.");
+      registrarEnBitacora("ERROR", "Fallo de red crítico: " + err.message);
       if (callback) callback();
     })
     .obtenerInventarioFiltrado(filtros);
@@ -410,6 +549,7 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
     if (matches.length > 0) {
       mostrarResultadoBusqueda(matches[0]);
       ocultarCarga();
+      registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en caché. Encontrado: " + matches[0].descripcion);
     } else {
       // Intentar en servidor
       google.script.run
@@ -417,10 +557,12 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
           ocultarCarga(); // Ocultar carga (Módulo 2)
           if (srvMatches && srvMatches.length > 0) {
             mostrarResultadoBusqueda(srvMatches[0]);
+            registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en servidor. Encontrado: " + srvMatches[0].descripcion);
           } else {
             mostrarNotificacion("No se encontró ningún artículo con la serie '" + query + "'", "bg-danger");
             alert("No se encontró coincidencia para la serie '" + query + "'. Verifique el número o use la búsqueda manual.");
             document.getElementById("resultado-busqueda-container").classList.add("d-none");
+            registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en servidor — Sin resultados.");
           }
         })
         .withFailureHandler(function(err) {
@@ -428,6 +570,7 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
           console.error("[SMR] Error en buscarPorSerie:", err);
           mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
           alert("Error de conexión con el servidor: " + err.message);
+          registrarEnBitacora("ERROR", "Fallo al buscar serie '" + query + "' en servidor.");
         })
         .buscarPorSerie(query);
     }
@@ -440,19 +583,22 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
     if (found) {
       mostrarResultadoBusqueda(found);
       ocultarCarga();
+      registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en caché. Encontrado: " + found.descripcion);
     } else {
-      // Intentar en servidor
+      // Intentar en servidor (Módulo 2)
       google.script.run
         .withSuccessHandler(function(res) {
           ocultarCarga(); // Ocultar carga (Módulo 2)
           if (res && res.encontrado && res.data) {
             mostrarResultadoBusqueda(res.data);
+            registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en servidor. Encontrado: " + res.data.descripcion);
           } else {
             // Mostrar mensaje detallado del servidor (Módulo 2)
             var msg = res && res.mensaje ? res.mensaje : "No se encontró ningún bien con No. INV. '" + query + "'";
             mostrarNotificacion(msg, "bg-danger");
             alert(msg + "\n\nCódigo QR detectado: " + query + ". No se encontró coincidencia. Verifique el número o use la búsqueda manual.");
             document.getElementById("resultado-busqueda-container").classList.add("d-none");
+            registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en servidor — Sin resultados.");
           }
         })
         .withFailureHandler(function(err) {
@@ -460,6 +606,7 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
           console.error("[SMR] Error en buscarPorInventario:", err);
           mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
           alert("Error de conexión con el servidor: " + err.message);
+          registrarEnBitacora("ERROR", "Fallo de conexión al buscar No. INV '" + query + "'");
         })
         .buscarPorInventario(query);
     }
@@ -730,10 +877,10 @@ function subirFotosDeFrente(noInv, files, callback) {
   procesarSiguienteFoto();
 }
 
-// --- MÓDULO 5: ESCANER QR MEDIANTE ARCHIVO (Módulo 5) ---
+// --- MÓDULO 1: ESCANER QR MEDIANTE ARCHIVO (Módulo 1) ---
 
 /**
- * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Módulo 5).
+ * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Módulo 1).
  * Esto evita el uso de getUserMedia y es 100% compatible con la política de sandbox de Google Apps Script.
  */
 window.procesarCodigoQR = function(inputEl) {
@@ -748,25 +895,33 @@ window.procesarCodigoQR = function(inputEl) {
 
   mostrarCarga("Decodificando código QR...");
 
+  // Registrar inicio de escaneo en bitácora (Módulo 2)
+  registrarEnBitacora("ESCANER", "Iniciada decodificación estática del archivo '" + file.name + "'");
+
   // Crear instancia local de html5-qrcode para decodificación estática
   const html5QrCode = new Html5Qrcode("reader");
 
   html5QrCode.scanFile(file, true)
     .then(function(decodedText) {
       ocultarCarga();
+      const limpioVal = String(decodedText || "").trim();
+
       if (statusEl) {
-        statusEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check"></i> Código detectado: <strong>${decodedText}</strong></span>`;
+        statusEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check"></i> Código detectado: <strong>${limpioVal}</strong></span>`;
       }
 
       const buscarInput = document.getElementById("buscar-input");
       if (buscarInput) {
-        buscarInput.value = decodedText;
+        buscarInput.value = limpioVal;
       }
 
-      mostrarNotificacion("Código decodificado: " + decodedText, "bg-success");
+      mostrarNotificacion("Código decodificado: " + limpioVal, "bg-success");
 
-      // Lanzar búsqueda automática inmediatamente (Módulo 5)
-      ejecutarBusquedaAutomatica(decodedText);
+      // Registrar éxito de escaneo en bitácora (Módulo 2)
+      registrarEnBitacora("ESCANER", "Código decodificado con éxito: " + limpioVal);
+
+      // Lanzar búsqueda automática inmediatamente (Módulo 1)
+      ejecutarBusquedaAutomatica(limpioVal);
 
       // Limpiar input file para permitir cargas consecutivas
       fileInput.value = "";
@@ -775,15 +930,16 @@ window.procesarCodigoQR = function(inputEl) {
       ocultarCarga();
       console.error("Fallo al decodificar código por archivo estático:", err);
       if (statusEl) {
-        statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se pudo leer el código QR.</span>`;
+        statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se pudo leer el código.</span>`;
       }
-      alert("No se pudo leer el código QR. Intente con otro ángulo o ingrese el número manualmente.");
+      alert("No se pudo leer el código. Intente con mejor iluminación o ingrese el dato manualmente.");
+      registrarEnBitacora("ERROR", "No se detectó un código legible en la imagen.");
       fileInput.value = "";
     });
 };
 
 /**
- * Implementa asistencia manual de búsqueda mediante sugerencias de coincidencias parciales (Módulo 5).
+ * Implementa asistencia manual de búsqueda mediante sugerencias de coincidencias parciales (Módulo 1).
  * Rellena de forma dinámica el datalist con registros que coincidan con la entrada del usuario.
  */
 window.asistirBusquedaManual = function(inputEl) {
@@ -817,7 +973,7 @@ window.asistirBusquedaManual = function(inputEl) {
 };
 
 /**
- * Limpia y restablece el contenedor y estado del escáner QR de forma segura (Módulo 5).
+ * Limpia y restablece el contenedor y estado del escáner QR de forma segura (Módulo 1).
  */
 window.limpiarVistaQR = function() {
   const fileInput = document.getElementById("qr-input-file");
