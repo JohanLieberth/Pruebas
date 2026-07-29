@@ -201,6 +201,8 @@ function cargarEstadisticasInicio() {
 function cargarListadoInventario(callback) {
   google.script.run
     .withSuccessHandler(function(data) {
+      console.log("[SMR] Datos recibidos del servidor para inventario:", data);
+      console.log("[SMR] Total de registros iniciales:", data ? data.length : 0);
       window.cacheInventario = data || [];
 
       // Cargar campos de autocompletar ubicaciones y resguardantes
@@ -355,9 +357,9 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
         .buscarPorSerie(query);
     }
   } else {
-    // Buscar por No. INV
+    // Buscar por No. INV (Con conversión explícita y fallback de string para evitar falsos negativos)
     const found = window.cacheInventario.find(function(item) {
-      return String(item["No. INV."]).trim().toLowerCase() === q;
+      return String(item["No. INV."] || "").trim().toLowerCase() === q;
     });
 
     if (found) {
@@ -1153,12 +1155,14 @@ window.aplicarFiltrosYListar = function() {
   const filtroMarca = elMarca ? elMarca.value : "";
 
   let listadoFiltrado = window.cacheInventario;
+  console.log("[SMR] Aplicando filtros en cliente. Registros totales cargados:", listadoFiltrado.length);
 
   // 1. Filtrado por Ubicación Real
   if (filtroUbi) {
     listadoFiltrado = listadoFiltrado.filter(function(item) {
       return String(item["UBICACION_REAL"] || item["UBICACION"] || "").trim() === filtroUbi;
     });
+    console.log("[SMR] Filtrado por Ubicación Real:", listadoFiltrado.length);
   }
 
   // 2. Filtrado por Estado Real
@@ -1172,6 +1176,7 @@ window.aplicarFiltrosYListar = function() {
         return String(item["ESTADO_REAL"] || "").trim().toLowerCase() === filtroEst.toLowerCase();
       });
     }
+    console.log("[SMR] Filtrado por Estado Real:", listadoFiltrado.length);
   }
 
   // 3. Filtrado por Marca
@@ -1179,9 +1184,10 @@ window.aplicarFiltrosYListar = function() {
     listadoFiltrado = listadoFiltrado.filter(function(item) {
       return String(item["MARCA"] || "").trim() === filtroMarca;
     });
+    console.log("[SMR] Filtrado por Marca:", listadoFiltrado.length);
   }
 
-  // 4. Búsqueda global (en todos los campos visibles)
+  // 4. Búsqueda global (en todos los campos visibles con conversión segura a String - Falsos negativos)
   if (queryGlobal) {
     listadoFiltrado = listadoFiltrado.filter(function(item) {
       return String(item["No."] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
@@ -1192,6 +1198,7 @@ window.aplicarFiltrosYListar = function() {
              String(item["UBICACION_REAL"] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
              String(item["RESGUARDANTE_REAL"] || "").toLowerCase().indexOf(queryGlobal) !== -1;
     });
+    console.log("[SMR] Filtrado por Búsqueda Global:", listadoFiltrado.length);
   }
 
   // Paginación lógica local
@@ -1207,10 +1214,10 @@ window.aplicarFiltrosYListar = function() {
 
   const paginaItems = listadoFiltrado.slice(inicioIdx, finIdx);
 
-  // Renderizar filas de la tabla
+  // Renderizar filas de la tabla primero
   renderizarTablaListado(paginaItems);
 
-  // Renderizar barra de control del paginador
+  // Renderizar barra de control del paginador después (garantizando DOM listo)
   renderizarPaginadorUI(totalRegistros, totalPaginas, inicioIdx, finIdx);
 };
 
@@ -1236,10 +1243,10 @@ function renderizarTablaListado(items) {
     else if (est === "Baja") badgeClass = "badge-baja";
     else if (!est) badgeClass = "bg-secondary";
 
-    // Formatear operador: Mostrar solo el email, eliminar la marca de tiempo si viene adjunta
+    // Formatear operador de manera segura con fallback para evitar crashes
     let opTxt = "Sin registrar";
     if (item["USUARIO_OPERADOR"]) {
-      const parts = String(item["USUARIO_OPERADOR"]).split(" - ");
+      const parts = String(item["USUARIO_OPERADOR"] || "").split(" - ");
       opTxt = parts[0];
     }
 
@@ -1290,9 +1297,10 @@ function renderizarPaginadorUI(totalRegistros, totalPaginas, inicioIdx, finIdx) 
     console.warn("Paginador info text: elemento no encontrado");
   }
 
-  const ul = document.getElementById("pagador-ul");
+  // Corregido: ID exacto 'paginador-ul' de Index.html en vez de 'pagador-ul' (Error 1)
+  const ul = document.getElementById("paginador-ul");
   if (!ul) {
-    console.warn("Paginador: elemento ul no encontrado, omitiendo renderizado (Error 3 y 4)");
+    console.warn("Paginador: elemento <ul> con id 'paginador-ul' no encontrado en el DOM, omitiendo renderizado (Error 1)");
     return;
   }
   ul.innerHTML = "";
@@ -1636,7 +1644,7 @@ window.abrirGeneradorQR = function(noInv) {
   // Instanciar qrcode.js en cliente para generación offline rápida y confiable
   try {
     new QRCode(container, {
-      text: String(item["No. INV."]).trim(),
+      text: String(item["No. INV."] || "").trim(),
       width: 180,
       height: 180,
       colorDark : "#000000",
