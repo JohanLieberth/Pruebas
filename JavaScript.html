@@ -2,6 +2,9 @@
 /**
  * SISTEMA DE INVENTARIO FÍSICO - SUBDIRECCIÓN DE MEJORA REGULATORIA
  * Frontend: JavaScript.html
+ *
+ * Este archivo implementa toda la lógica cliente del SPA de inventario físico,
+ * con refactorizaciones completas para eliminar de raíz errores comunes.
  */
 
 // --- VARIABLES GLOBALES DE ESTADO DEL CLIENTE ---
@@ -13,9 +16,6 @@ window.usuarioActivo = "";       // Email del usuario logueado
 // Variables de Paginación
 window.paginaActual = 1;
 const REGISTROS_POR_PAGINA = 20;
-
-// Instancia de Scanner Local (html5-qrcode)
-window.html5QrcodeScanner = null;
 
 // Bloqueo de Navegación doble clic
 window.isNavigating = false;
@@ -39,72 +39,43 @@ window.addEventListener('unhandledrejection', function(event) {
   }
 });
 
+// --- MÓDULO 6: INICIALIZACIÓN Y ESTADO DE CARGA (Módulo 6) ---
+
 /**
  * Inicialización completa del cliente al cargar.
+ * Envuelto en try/catch global para evitar estado en blanco ante fallos de la plataforma (Módulo 6).
  */
 document.addEventListener("DOMContentLoaded", function() {
-  inicializarAppCompleta();
+  try {
+    inicializarApp();
+  } catch (error) {
+    console.error("[SMR] Error crítico de inicialización:", error);
+    document.body.innerHTML = `
+      <div style="padding: 40px; text-align: center; font-family: sans-serif; background-color: #ffebee; color: #c62828;">
+        <h3 style="font-weight: bold; margin-bottom: 15px;"><i class="fa-solid fa-triangle-exclamation"></i> Error al cargar la aplicación</h3>
+        <p style="margin-bottom: 20px;">Se produjo un error crítico de ejecución en su navegador durante el arranque inicial:</p>
+        <pre style="background: white; padding: 15px; border: 1px solid #c62828; display: inline-block; text-align: left; max-width: 90%; overflow-x: auto; font-family: monospace;">${error.stack || error.toString()}</pre>
+        <p style="margin-top: 20px; font-size: 0.9rem; color: #555;">Por favor, recargue la página o intente utilizar otro navegador compatible.</p>
+      </div>
+    `;
+  }
 });
 
 /**
- * Función central para arrancar el aplicativo de forma segura y evitar cuelgues estáticos.
- * Envuelto en try/catch global para evitar estado en blanco en el sandbox de GAS (Error 2).
+ * Función central de inicialización (Módulo 6).
+ * Obtiene identidad y carga de forma asíncrona la lista de inventarios.
  */
-function inicializarAppCompleta() {
-  try {
-    // 1. Mostrar loader de arranque
-    showLoader("Obteniendo información del servidor...");
+function inicializarApp() {
+  // 1. Mostrar spinner de carga inicial
+  mostrarCarga("Inicializando Sistema de Inventario...");
 
-    // 2. Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
-    const safeTimeout = setTimeout(function() {
-      hideLoader();
-      mostrarNotificacion("La conexión con el servidor demoró más de lo esperado. Algunas funciones podrían inicializar de forma asíncrona.", "bg-warning");
-    }, 6000);
+  // 2. Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
+  const safeTimeout = setTimeout(function() {
+    ocultarCarga();
+    mostrarNotificacion("La conexión con el servidor demoró más de lo esperado. Algunas funciones podrían inicializar de forma asíncrona.", "bg-warning");
+  }, 6000);
 
-    // 3. Inicializar identidad del usuario
-    inicializarIdentidadUsuario();
-
-    // 4. Cargar datos base del servidor
-    cargarEstadisticasInicio();
-    cargarListadoInventario(function() {
-      clearTimeout(safeTimeout);
-      hideLoader();
-
-      // 5. Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
-      if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
-        window.showSection('busqueda');
-        const input = document.getElementById("buscar-input");
-        if (input) {
-          input.value = window.initialNoInvQuery;
-        }
-        ejecutarBusquedaAutomatica(window.initialNoInvQuery);
-      } else {
-        window.showSection('inicio');
-      }
-    });
-  } catch (error) {
-    console.error("[SMR] Error catastrófico en inicialización de la app:", error);
-    hideLoader();
-
-    // Mostrar error visiblemente en pantalla para evitar pantalla en blanco ante fallos de GAS
-    const errorContainer = document.createElement("div");
-    errorContainer.className = "alert alert-danger m-5 p-4 text-center";
-    errorContainer.style.zIndex = "10000";
-    errorContainer.innerHTML = `
-      <h4 class="fw-bold mb-3"><i class="fa-solid fa-triangle-exclamation"></i> Error Crítico de Inicialización</h4>
-      <p class="mb-3">La aplicación no pudo cargarse debido a un error de ejecución en su navegador:</p>
-      <pre class="bg-white p-3 border rounded text-start text-danger" style="white-space: pre-wrap; font-family: monospace;">${error.stack || error.toString()}</pre>
-      <p class="small text-muted mb-0">Por favor, recargue la página o intente utilizar un navegador compatible.</p>
-    `;
-    document.body.prepend(errorContainer);
-  }
-}
-
-/**
- * Obtiene y muestra la identidad del usuario activo de forma asíncrona mediante google.script.run.
- * Se eliminó el uso directo de Session.getActiveUser() en el cliente para resolver el Error 1.
- */
-function inicializarIdentidadUsuario() {
+  // 3. Inicializar identidad del usuario de forma asíncrona
   google.script.run
     .withSuccessHandler(function(email) {
       window.usuarioActivo = email || "Operador SMR";
@@ -114,26 +85,57 @@ function inicializarIdentidadUsuario() {
       }
     })
     .withFailureHandler(function(err) {
-      console.error("No se pudo recuperar identidad de usuario:", err);
+      console.error("[SMR] No se pudo recuperar identidad de usuario:", err);
       const userEl = document.getElementById("navbar-user");
       if (userEl) {
         userEl.innerHTML = `<i class="fa-solid fa-user me-1"></i> Operador SMR`;
       }
     })
     .obtenerUsuarioActivo();
+
+  // 4. Cargar datos base del servidor
+  cargarEstadisticasInicio();
+  cargarListadoInventario(function() {
+    clearTimeout(safeTimeout);
+    ocultarCarga();
+
+    // 5. Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
+    if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
+      window.showSection('busqueda');
+      const input = document.getElementById("buscar-input");
+      if (input) {
+        input.value = window.initialNoInvQuery;
+      }
+      ejecutarBusquedaAutomatica(window.initialNoInvQuery);
+    } else {
+      window.showSection('inicio');
+    }
+  });
 }
 
 /**
- * Loader Visual de Operación asíncrona.
+ * Muestra el spinner de carga con un mensaje específico (Módulo 6).
  */
-function showLoader(mensaje) {
-  document.getElementById("loader-message").innerText = mensaje || "Procesando operación...";
-  document.getElementById("global-loader").style.display = "flex";
-}
+window.mostrarCarga = function(mensaje) {
+  const msgEl = document.getElementById("loader-message");
+  if (msgEl) {
+    msgEl.innerText = mensaje || "Procesando operación...";
+  }
+  const loader = document.getElementById("global-loader");
+  if (loader) {
+    loader.style.display = "flex";
+  }
+};
 
-function hideLoader() {
-  document.getElementById("global-loader").style.display = "none";
-}
+/**
+ * Oculta el spinner de carga (Módulo 6).
+ */
+window.ocultarCarga = function() {
+  const loader = document.getElementById("global-loader");
+  if (loader) {
+    loader.style.display = "none";
+  }
+};
 
 /**
  * Toast de notificaciones ligera e instantánea.
@@ -141,8 +143,8 @@ function hideLoader() {
 function mostrarNotificacion(mensaje, claseColor) {
   const toastEl = document.getElementById('liveToast');
   const toastBody = document.getElementById('toast-body-text');
+  if (!toastEl || !toastBody) return;
 
-  // Limpiar clases de color anteriores
   toastEl.className = "toast align-items-center text-white border-0 " + (claseColor || "bg-success");
   toastBody.innerText = mensaje;
 
@@ -151,33 +153,15 @@ function mostrarNotificacion(mensaje, claseColor) {
 }
 
 /**
- * Limpia y restablece el contenedor y estado del escáner QR de forma segura (Error 1).
- */
-window.limpiarEscaneoQR = function() {
-  const fileInput = document.getElementById("qr-input-file");
-  if (fileInput) fileInput.value = "";
-
-  const statusEl = document.getElementById("scanner-status");
-  if (statusEl) statusEl.innerHTML = "Esperando archivo...";
-};
-
-// Mantener compatibilidad con showSection y otras pantallas (Error 1)
-window.detenerEscaneoLocal = function() {
-  window.limpiarEscaneoQR();
-};
-
-/**
  * Enrutador SPA dinámico y seguro de secciones.
  */
 window.showSection = function(sectionId) {
   if (window.isNavigating) return;
   window.isNavigating = true;
 
-  // Detener escaneo si se sale de la sección de búsqueda (Error 1)
+  // Detener escaneo si se sale de la sección de búsqueda (Módulo 5)
   if (sectionId !== 'busqueda') {
-    if (typeof window.detenerEscaneoLocal === 'function') {
-      window.detenerEscaneoLocal();
-    }
+    window.limpiarVistaQR();
   }
 
   // Ocultar todas las secciones
@@ -227,9 +211,12 @@ window.showSection = function(sectionId) {
 function cargarEstadisticasInicio() {
   google.script.run
     .withSuccessHandler(function(stats) {
-      document.getElementById("stats-total").innerText = stats.total;
-      document.getElementById("stats-levantados").innerText = stats.levantados;
-      document.getElementById("stats-pendientes").innerText = stats.pendientes;
+      const t = document.getElementById("stats-total");
+      const l = document.getElementById("stats-levantados");
+      const p = document.getElementById("stats-pendientes");
+      if (t) t.innerText = stats.total;
+      if (l) l.innerText = stats.levantados;
+      if (p) p.innerText = stats.pendientes;
     })
     .withFailureHandler(function(err) {
       console.error("Error al cargar estadísticas:", err);
@@ -237,28 +224,71 @@ function cargarEstadisticasInicio() {
     .obtenerEstadisticas();
 }
 
+/**
+ * Recupera el inventario filtrado desde el servidor de Google Sheets (Módulo 3).
+ * Soporta timeouts clientes y oculta el spinner de carga ante cualquier resultado.
+ */
 function cargarListadoInventario(callback) {
-  google.script.run
-    .withSuccessHandler(function(data) {
-      console.log("[SMR] Datos recibidos del servidor para inventario:", data);
-      console.log("[SMR] Total de registros iniciales:", data ? data.length : 0);
-      window.cacheInventario = data || [];
+  const elGlobal = document.getElementById("filtro-global-listado");
+  const elUbi = document.getElementById("filtro-ubicacion-sel");
+  const elEst = document.getElementById("filtro-estado-sel");
 
-      // Cargar campos de autocompletar ubicaciones y resguardantes
-      actualizarCacheAutocompletar();
+  const filtros = {
+    texto: elGlobal ? elGlobal.value.trim() : "",
+    ubicacion: elUbi ? elUbi.value : "",
+    estado: elEst ? elEst.value : ""
+  };
+
+  console.log("[SMR] Solicitando listado filtrado al servidor:", filtros);
+  mostrarCarga("Buscando artículo...");
+
+  // Configurar un timeout de 15 segundos en el cliente para evitar bloqueos del loader (Módulo 3)
+  let respondido = false;
+  const timeoutId = setTimeout(function() {
+    if (!respondido) {
+      ocultarCarga();
+      alert("El servidor está tardando demasiado en responder. Intente de nuevo o reduzca los filtros.");
+      mostrarNotificacion("Tiempo de espera agotado.", "bg-danger");
+    }
+  }, 15000);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      respondido = true;
+      clearTimeout(timeoutId);
+      ocultarCarga(); // Ocultar "Buscando artículo..." (Módulo 3)
+
+      console.log("[SMR] Respuesta de filtrado servidor recibida:", res);
+
+      if (!res || res.success === false) {
+        var errMsg = res && res.error ? res.error : "Error desconocido al procesar filtros.";
+        console.error("[SMR] Error devuelto por servidor:", errMsg);
+        alert(errMsg);
+        return;
+      }
+
+      window.cacheInventario = res.registros || [];
+
+      // Actualizar selectores de autocompletar si es la carga inicial
+      if (elUbi && elUbi.options.length <= 1) {
+        actualizarCacheAutocompletar();
+      }
 
       // Renderizar listado de la tabla general
-      window.paginaActual = 1;
-      aplicarFiltrosYListar();
+      aplicarFiltrosYListar(true);
 
       if (callback) callback();
     })
     .withFailureHandler(function(err) {
-      console.error("Error al cargar inventario:", err);
-      mostrarNotificacion("Fallo al conectar con Google Sheets: " + err.message, "bg-danger");
+      respondido = true;
+      clearTimeout(timeoutId);
+      ocultarCarga(); // Ocultar "Buscando artículo..." (Módulo 3)
+      console.error("[SMR] Error en llamada google.script.run a listar:", err);
+      mostrarNotificacion("Fallo de red al conectar con Google Sheets: " + err.message, "bg-danger");
+      alert("Fallo de red: No se pudo conectar con el servidor de Google Sheets.");
       if (callback) callback();
     })
-    .listarArticulos();
+    .obtenerInventarioFiltrado(filtros);
 }
 
 function actualizarCacheAutocompletar() {
@@ -342,7 +372,7 @@ function setupAutocomplete(inputId, arrayValores, suggestionsContainerId) {
   });
 }
 
-// --- MÓDULO DE BÚSQUEDA Y ESCANEO ---
+// --- MÓDULO 2: BÚSQUEDA POR No. INV. (Módulo 2) ---
 
 window.ejecutarBusquedaManual = function(event) {
   if (event) event.preventDefault();
@@ -354,106 +384,119 @@ window.ejecutarBusquedaManual = function(event) {
 };
 
 window.limpiarBuscador = function() {
-  document.getElementById("buscar-input").value = "";
-  document.getElementById("buscar-serie-chk").checked = false;
-  document.getElementById("resultado-busqueda-container").classList.add("d-none");
+  const inp = document.getElementById("buscar-input");
+  if (inp) inp.value = "";
+  const chk = document.getElementById("buscar-serie-chk");
+  if (chk) chk.checked = false;
+  const res = document.getElementById("resultado-busqueda-container");
+  if (res) res.classList.add("d-none");
 };
 
 /**
- * Lógica unificada de búsqueda local en el caché de la app para máxima velocidad.
- * Cae al servidor solo si no se encuentra localmente.
+ * Lógica unificada de búsqueda con respuestas robustas camelCase (Módulo 2).
+ * Utiliza withSuccessHandler y withFailureHandler ocultando siempre el loader.
  */
 function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
-  showLoader("Buscando artículo...");
+  mostrarCarga("Buscando artículo...");
   const q = query.trim().toLowerCase();
 
   if (buscarPorSerie) {
     // Buscar por serie en caché local primero
     const matches = window.cacheInventario.filter(function(item) {
-      const s = String(item["SERIE"] || "").trim().toLowerCase();
+      const s = String(item.serie || "").trim().toLowerCase();
       return s === q && s !== "s/s" && s !== "s/s." && s !== "sin serie" && s !== "";
     });
 
     if (matches.length > 0) {
       mostrarResultadoBusqueda(matches[0]);
-      hideLoader();
+      ocultarCarga();
     } else {
       // Intentar en servidor
       google.script.run
         .withSuccessHandler(function(srvMatches) {
-          hideLoader();
+          ocultarCarga(); // Ocultar carga (Módulo 2)
           if (srvMatches && srvMatches.length > 0) {
             mostrarResultadoBusqueda(srvMatches[0]);
           } else {
             mostrarNotificacion("No se encontró ningún artículo con la serie '" + query + "'", "bg-danger");
+            alert("No se encontró coincidencia para la serie '" + query + "'. Verifique el número o use la búsqueda manual.");
             document.getElementById("resultado-busqueda-container").classList.add("d-none");
           }
         })
         .withFailureHandler(function(err) {
-          hideLoader();
-          mostrarNotificacion("Error al buscar en servidor: " + err.message, "bg-danger");
+          ocultarCarga(); // Ocultar carga (Módulo 2)
+          console.error("[SMR] Error en buscarPorSerie:", err);
+          mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
+          alert("Error de conexión con el servidor: " + err.message);
         })
         .buscarPorSerie(query);
     }
   } else {
-    // Buscar por No. INV (Con conversión explícita y fallback de string para evitar falsos negativos)
+    // Buscar por No. INV
     const found = window.cacheInventario.find(function(item) {
-      return String(item["No. INV."] || "").trim().toLowerCase() === q;
+      return String(item.noInv || "").trim().toLowerCase() === q;
     });
 
     if (found) {
       mostrarResultadoBusqueda(found);
-      hideLoader();
+      ocultarCarga();
     } else {
-      // Intentar en servidor por si hay actualizaciones recientes
+      // Intentar en servidor
       google.script.run
-        .withSuccessHandler(function(srvItem) {
-          hideLoader();
-          if (srvItem) {
-            mostrarResultadoBusqueda(srvItem);
+        .withSuccessHandler(function(res) {
+          ocultarCarga(); // Ocultar carga (Módulo 2)
+          if (res && res.encontrado && res.data) {
+            mostrarResultadoBusqueda(res.data);
           } else {
-            mostrarNotificacion("No se encontró ningún bien con No. INV. '" + query + "'", "bg-danger");
+            // Mostrar mensaje detallado del servidor (Módulo 2)
+            var msg = res && res.mensaje ? res.mensaje : "No se encontró ningún bien con No. INV. '" + query + "'";
+            mostrarNotificacion(msg, "bg-danger");
+            alert(msg + "\n\nCódigo QR detectado: " + query + ". No se encontró coincidencia. Verifique el número o use la búsqueda manual.");
             document.getElementById("resultado-busqueda-container").classList.add("d-none");
           }
         })
         .withFailureHandler(function(err) {
-          hideLoader();
-          mostrarNotificacion("Error de red: " + err.message, "bg-danger");
+          ocultarCarga(); // Ocultar carga (Módulo 2)
+          console.error("[SMR] Error en buscarPorInventario:", err);
+          mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
+          alert("Error de conexión con el servidor: " + err.message);
         })
-        .buscarPorNoInv(query);
+        .buscarPorInventario(query);
     }
   }
 }
 
 /**
  * Renderiza los detalles informativos y el formulario de levantamiento.
+ * Utiliza propiedades camelCase estandarizadas (Módulo 2).
  */
 function mostrarResultadoBusqueda(item) {
   const container = document.getElementById("resultado-busqueda-container");
+  if (!container) return;
   container.classList.remove("d-none");
 
   // Cargar datos patrimonio (Read-only)
-  document.getElementById("pat-descripcion").value = item["DESCRIPCION"] || "";
-  document.getElementById("pat-marca").value = item["MARCA"] || "";
-  document.getElementById("pat-modelo").value = item["MODELO"] || "";
-  document.getElementById("pat-serie").value = item["SERIE"] || "";
-  document.getElementById("pat-importe").value = item["IMPORTE"] ? "$" + parseFloat(item["IMPORTE"]).toFixed(2) : "$0.00";
-  document.getElementById("pat-estado").value = item["ESTADO"] || "BUENO";
-  document.getElementById("pat-resguardado").value = item["RESGUARDADO"] || "";
-  document.getElementById("pat-ubicacion").value = item["UBICACION"] || "";
+  document.getElementById("pat-descripcion").value = item.descripcion || "";
+  document.getElementById("pat-marca").value = item.marca || "";
+  document.getElementById("pat-modelo").value = item.modelo || "";
+  document.getElementById("pat-serie").value = item.serie || "";
+  document.getElementById("pat-importe").value = item.importe ? "$" + parseFloat(item.importe).toFixed(2) : "$0.00";
+  document.getElementById("pat-estado").value = item.estado || "BUENO";
+  document.getElementById("pat-resguardado").value = item.resguardado || "";
+  document.getElementById("pat-ubicacion").value = item.ubicacion || "";
 
   // Cargar datos reales editables
-  document.getElementById("edit-no-inv-id").value = item["No. INV."];
-  document.getElementById("real-ubicacion").value = item["UBICACION_REAL"] || item["UBICACION"] || "";
-  document.getElementById("real-resguardante").value = item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "";
-  document.getElementById("real-estado").value = item["ESTADO_REAL"] || "Bueno";
+  document.getElementById("edit-no-inv-id").value = item.noInv;
+  document.getElementById("real-ubicacion").value = item.ubicacionReal || item.ubicacion || "";
+  document.getElementById("real-resguardante").value = item.resguardanteReal || item.resguardado || "";
+  document.getElementById("real-estado").value = item.estadoReal || "Bueno";
 
   // Limpiar inputs de fotos
   document.getElementById("real-fotos-files").value = "";
   document.getElementById("real-fotos-preview").innerHTML = "";
 
   // Renderizar fotos cargadas anteriormente si existen
-  renderizarFotosExistentes(item["FOTO_ID"], item["No. INV."], "real-fotos-existentes", "fotos-existentes-container");
+  renderizarFotosExistentes(item.fotoId, item.noInv, "real-fotos-existentes", "fotos-existentes-container");
 
   // Scroll automático suave al resultado
   container.scrollIntoView({ behavior: 'smooth' });
@@ -503,10 +546,10 @@ function renderizarFotosExistentes(fotoIdsString, noInv, containerId, mainWrappe
     delBtn.title = "Eliminar foto";
     delBtn.onclick = function() {
       if (confirm("¿Está seguro de que desea eliminar esta fotografía del servidor?")) {
-        showLoader("Eliminando fotografía...");
+        mostrarCarga("Eliminando fotografía...");
         google.script.run
           .withSuccessHandler(function(res) {
-            hideLoader();
+            ocultarCarga();
             if (res.success) {
               mostrarNotificacion("Fotografía eliminada correctamente.", "bg-success");
               // Recargar listados y estadísticas
@@ -514,7 +557,7 @@ function renderizarFotosExistentes(fotoIdsString, noInv, containerId, mainWrappe
                 cargarEstadisticasInicio();
                 // Actualizar vista actual
                 const actualItem = window.cacheInventario.find(function(i) {
-                  return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+                  return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
                 });
                 if (actualItem) mostrarResultadoBusqueda(actualItem);
               });
@@ -523,7 +566,7 @@ function renderizarFotosExistentes(fotoIdsString, noInv, containerId, mainWrappe
             }
           })
           .withFailureHandler(function(err) {
-            hideLoader();
+            ocultarCarga();
             mostrarNotificacion("Fallo de red al eliminar foto.", "bg-danger");
           })
           .eliminarFotoArticulo(noInv, cleanId);
@@ -602,7 +645,7 @@ window.guardarDetalleLevantamiento = function(event) {
     return;
   }
 
-  showLoader("Guardando datos de levantamiento...");
+  mostrarCarga("Guardando datos de levantamiento...");
 
   const datos = {
     ubicacionReal: ubicacion,
@@ -623,12 +666,12 @@ window.guardarDetalleLevantamiento = function(event) {
           completarExitoGuardado(noInv);
         }
       } else {
-        hideLoader();
+        ocultarCarga();
         mostrarNotificacion("Error al guardar: " + res.message, "bg-danger");
       }
     })
     .withFailureHandler(function(err) {
-      hideLoader();
+      ocultarCarga();
       mostrarNotificacion("Error al conectar con servidor: " + err.message, "bg-danger");
     })
     .guardarLevantamiento(noInv, datos);
@@ -640,11 +683,11 @@ function completarExitoGuardado(noInv) {
   // Recargar base de datos local
   cargarListadoInventario(function() {
     cargarEstadisticasInicio();
-    hideLoader();
+    ocultarCarga();
 
     // Actualizar previsualización para mostrar nuevas miniaturas
     const actualItem = window.cacheInventario.find(function(i) {
-      return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+      return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
     });
     if (actualItem) mostrarResultadoBusqueda(actualItem);
   });
@@ -663,7 +706,7 @@ function subirFotosDeFrente(noInv, files, callback) {
       return;
     }
 
-    showLoader("Subiendo fotografía " + (indexCarga + 1) + " de " + limiteMax + "...");
+    mostrarCarga("Subiendo fotografía " + (indexCarga + 1) + " de " + limiteMax + "...");
     const file = files[indexCarga];
 
     const reader = new FileReader();
@@ -687,10 +730,10 @@ function subirFotosDeFrente(noInv, files, callback) {
   procesarSiguienteFoto();
 }
 
-// --- MÓDULO DE ESCANEO POR ARCHIVO DE IMAGEN (Error 1) ---
+// --- MÓDULO 5: ESCANER QR MEDIANTE ARCHIVO (Módulo 5) ---
 
 /**
- * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Error 1).
+ * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Módulo 5).
  * Esto evita el uso de getUserMedia y es 100% compatible con la política de sandbox de Google Apps Script.
  */
 window.procesarCodigoQR = function(inputEl) {
@@ -703,14 +746,14 @@ window.procesarCodigoQR = function(inputEl) {
     statusEl.innerHTML = `<span class="text-primary"><i class="fa-solid fa-spinner fa-spin"></i> Decodificando código...</span>`;
   }
 
-  showLoader("Procesando y decodificando código...");
+  mostrarCarga("Decodificando código QR...");
 
   // Crear instancia local de html5-qrcode para decodificación estática
   const html5QrCode = new Html5Qrcode("reader");
 
   html5QrCode.scanFile(file, true)
     .then(function(decodedText) {
-      hideLoader();
+      ocultarCarga();
       if (statusEl) {
         statusEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check"></i> Código detectado: <strong>${decodedText}</strong></span>`;
       }
@@ -722,25 +765,25 @@ window.procesarCodigoQR = function(inputEl) {
 
       mostrarNotificacion("Código decodificado: " + decodedText, "bg-success");
 
-      // Lanzar búsqueda automática inmediatamente
+      // Lanzar búsqueda automática inmediatamente (Módulo 5)
       ejecutarBusquedaAutomatica(decodedText);
 
       // Limpiar input file para permitir cargas consecutivas
       fileInput.value = "";
     })
     .catch(function(err) {
-      hideLoader();
+      ocultarCarga();
       console.error("Fallo al decodificar código por archivo estático:", err);
       if (statusEl) {
-        statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se detectó código. Intente de nuevo.</span>`;
+        statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se pudo leer el código QR.</span>`;
       }
-      alert("No se pudo detectar un código QR o de barras válido en la imagen. Asegúrese de que la foto esté tomada de frente, enfocada y bien iluminada.");
+      alert("No se pudo leer el código QR. Intente con otro ángulo o ingrese el número manualmente.");
       fileInput.value = "";
     });
 };
 
 /**
- * Implementa asistencia manual de búsqueda mediante sugerencias de coincidencias parciales (Error 1).
+ * Implementa asistencia manual de búsqueda mediante sugerencias de coincidencias parciales (Módulo 5).
  * Rellena de forma dinámica el datalist con registros que coincidan con la entrada del usuario.
  */
 window.asistirBusquedaManual = function(inputEl) {
@@ -773,6 +816,17 @@ window.asistirBusquedaManual = function(inputEl) {
   });
 };
 
+/**
+ * Limpia y restablece el contenedor y estado del escáner QR de forma segura (Módulo 5).
+ */
+window.limpiarVistaQR = function() {
+  const fileInput = document.getElementById("qr-input-file");
+  if (fileInput) fileInput.value = "";
+
+  const statusEl = document.getElementById("scanner-status");
+  if (statusEl) statusEl.innerHTML = "Esperando archivo...";
+};
+
 // --- MÓDULO ALTA DE NUEVO BIEN ---
 
 window.registrarNuevoArticulo = function(event) {
@@ -795,7 +849,7 @@ window.registrarNuevoArticulo = function(event) {
     return;
   }
 
-  showLoader("Dando de alta bien nuevo...");
+  mostrarCarga("Dando de alta bien nuevo...");
 
   const datos = {
     noInv: noInv,
@@ -825,12 +879,12 @@ window.registrarNuevoArticulo = function(event) {
           completarExitoAlta();
         }
       } else {
-        hideLoader();
+        ocultarCarga();
         alert(res.message);
       }
     })
     .withFailureHandler(function(err) {
-      hideLoader();
+      ocultarCarga();
       mostrarNotificacion("Fallo de red: " + err.message, "bg-danger");
     })
     .altaBien(datos);
@@ -843,7 +897,7 @@ function completarExitoAlta() {
 
   cargarListadoInventario(function() {
     cargarEstadisticasInicio();
-    hideLoader();
+    ocultarCarga();
     window.showSection('listado');
   });
 }
@@ -863,7 +917,7 @@ window.procesarCargaMasiva = function(event) {
   const file = files[0];
   const opcionDuplicados = document.querySelector('input[name="duplicado-opcion"]:checked').value;
 
-  showLoader("Analizando archivo localmente...");
+  mostrarCarga("Analizando archivo localmente...");
 
   const reader = new FileReader();
 
@@ -1048,16 +1102,16 @@ function mapearColumnasInteligentes(matrix) {
  */
 function procesarRegistrosMapeados(rows, opcionDuplicados) {
   if (rows.length === 0) {
-    hideLoader();
+    ocultarCarga();
     alert("No se encontraron registros válidos o mapeables en el archivo.");
     return;
   }
 
-  showLoader("Subiendo lote al servidor de Google Sheets...");
+  mostrarCarga("Subiendo lote al servidor de Google Sheets...");
 
   google.script.run
     .withSuccessHandler(function(res) {
-      hideLoader();
+      ocultarCarga();
       if (res.success) {
         mostrarNotificacion("¡Carga masiva completada exitosamente!", "bg-success");
 
@@ -1079,7 +1133,7 @@ function procesarRegistrosMapeados(rows, opcionDuplicados) {
       }
     })
     .withFailureHandler(function(err) {
-      hideLoader();
+      ocultarCarga();
       alert("Error en el servidor de Google Sheets: " + err.message);
     })
     .importarDatosExcel(rows, opcionDuplicados);
@@ -1088,7 +1142,7 @@ function procesarRegistrosMapeados(rows, opcionDuplicados) {
 // --- MÓDULO LISTADO GENERAL Y PAGINACIÓN ---
 
 /**
- * Realiza el filtrado de inventario de forma de alto rendimiento en el servidor (Error 4).
+ * Realiza el filtrado de inventario de forma de alto rendimiento en el servidor (Módulo 3).
  * Si no se salta la petición, solicita la lista filtrada a Google Sheets, de lo contrario renderiza.
  */
 window.aplicarFiltrosYListar = function(skipServerQuery) {
@@ -1115,11 +1169,11 @@ window.aplicarFiltrosYListar = function(skipServerQuery) {
   renderizarTablaListado(paginaItems);
 
   // Renderizar barra de control del paginador después (garantizando DOM listo)
-  renderizarPaginadorUI(totalRegistros, totalPaginas, inicioIdx, finIdx);
+  renderizarPaginadorUI(window.cacheInventario, window.paginaActual, REGISTROS_POR_PAGINA);
 };
 
 /**
- * Renderiza la grilla de listado utilizando claves camelCase seguras (Error 3).
+ * Renderiza la grilla de listado utilizando claves camelCase seguras (Módulo 3).
  */
 function renderizarTablaListado(items) {
   const tbody = document.getElementById("tbody-listado-bienes");
@@ -1189,30 +1243,65 @@ function renderizarTablaListado(items) {
   tbody.innerHTML = html;
 }
 
-function renderizarPaginadorUI(totalRegistros, totalPaginas, inicioIdx, finIdx) {
-  const infoText = document.getElementById("paginacion-info-text");
-  if (infoText) {
-    infoText.innerText = `Mostrando ${totalRegistros === 0 ? 0 : inicioIdx + 1} a ${finIdx} de ${totalRegistros} registros`;
-  } else {
-    console.warn("Paginador info text: elemento no encontrado");
-  }
-
-  // Corregido: ID exacto 'paginador-ul' de Index.html en vez de 'pagador-ul' (Error 1)
-  const ul = document.getElementById("paginador-ul");
-  if (!ul) {
-    console.warn("Paginador: elemento <ul> con id 'paginador-ul' no encontrado en el DOM, omitiendo renderizado (Error 1)");
+/**
+ * Genera el paginador de la grilla de listado (Módulo 4).
+ * Evita asignaciones de innerHTML a elementos nulos y agrega guards robustos.
+ */
+function renderizarPaginadorUI(datos, paginaActual, itemsPorPagina) {
+  // b) Verificar estructura de datos
+  if (!Array.isArray(datos) || datos.length === 0) {
+    console.warn("Paginador: sin datos para paginar (Módulo 4)");
     return;
   }
+
+  // c) Buscar el contenedor del paginador
+  var ul = document.getElementById("paginador-ul");
+  var infoText = document.getElementById("paginacion-info-text");
+
+  // d) Si !ul, buscar contenedor raíz y crearlo dinámicamente si no existe (Módulo 4)
+  if (!ul) {
+    console.warn("Paginador: elemento <ul> con id 'paginador-ul' no encontrado en el DOM. Creando dinámicamente...");
+    const tabla = document.getElementById("tabla-listado-bienes");
+    if (tabla && tabla.parentNode) {
+      const containerDiv = document.createElement("div");
+      containerDiv.className = "card-footer d-flex flex-column flex-sm-row justify-content-between align-items-center bg-white border-top p-3";
+      containerDiv.innerHTML = `
+        <div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text"></div>
+        <nav aria-label="Navegación de listado">
+          <ul class="pagination pagination-sm mb-0" id="paginador-ul"></ul>
+        </nav>
+      `;
+      tabla.parentNode.appendChild(containerDiv);
+      ul = document.getElementById("paginador-ul");
+      infoText = document.getElementById("paginacion-info-text");
+    }
+  }
+
+  // e) Guard defensivo para evitar innerHTML de null
+  if (!ul) {
+    console.error("Paginador: Imposible inyectar paginador en el DOM. Contenedores no disponibles.");
+    return;
+  }
+
+  const totalRegistros = datos.length;
+  const totalPaginas = Math.ceil(totalRegistros / itemsPorPagina) || 1;
+  const inicioIdx = (paginaActual - 1) * itemsPorPagina;
+  const finIdx = Math.min(inicioIdx + itemsPorPagina, totalRegistros);
+
+  if (infoText) {
+    infoText.innerText = `Mostrando ${totalRegistros === 0 ? 0 : inicioIdx + 1} a ${finIdx} de ${totalRegistros} registros`;
+  }
+
   ul.innerHTML = "";
 
   // Botón Anterior
   const liPrev = document.createElement("li");
-  liPrev.className = "page-item " + (window.paginaActual === 1 ? "disabled" : "");
-  liPrev.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${window.paginaActual - 1})">Anterior</a>`;
+  liPrev.className = "page-item " + (paginaActual === 1 ? "disabled" : "");
+  liPrev.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${paginaActual - 1})">Anterior</a>`;
   ul.appendChild(liPrev);
 
   // Limitar número de páginas visibles (máximo 5 páginas)
-  let startPage = Math.max(1, window.paginaActual - 2);
+  let startPage = Math.max(1, paginaActual - 2);
   let endPage = Math.min(totalPaginas, startPage + 4);
   if (endPage - startPage < 4) {
     startPage = Math.max(1, endPage - 4);
@@ -1220,21 +1309,21 @@ function renderizarPaginadorUI(totalRegistros, totalPaginas, inicioIdx, finIdx) 
 
   for (let p = startPage; p <= endPage; p++) {
     const liPage = document.createElement("li");
-    liPage.className = "page-item " + (p === window.paginaActual ? "active" : "");
+    liPage.className = "page-item " + (p === paginaActual ? "active" : "");
     liPage.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${p})">${p}</a>`;
     ul.appendChild(liPage);
   }
 
   // Botón Siguiente
   const liNext = document.createElement("li");
-  liNext.className = "page-item " + (window.paginaActual === totalPaginas ? "disabled" : "");
-  liNext.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${window.paginaActual + 1})">Siguiente</a>`;
+  liNext.className = "page-item " + (paginaActual === totalPaginas ? "disabled" : "");
+  liNext.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${paginaActual + 1})">Siguiente</a>`;
   ul.appendChild(liNext);
 }
 
 window.cambiarPagina = function(p) {
   window.paginaActual = p;
-  window.aplicarFiltrosYListar();
+  window.aplicarFiltrosYListar(true);
 };
 
 // --- CONTROLADORES DE MODALES DE ACCIÓN ---
@@ -1353,7 +1442,7 @@ window.guardarEdicionCompleta = function(event) {
   if (event) event.preventDefault();
 
   const noInv = document.getElementById("modal-edit-no-inv-hidden").value;
-  showLoader("Actualizando artículo en lote...");
+  mostrarCarga("Actualizando artículo en lote...");
 
   // Agrupamos todos los campos para enviarlos de golpe
   const datos = {
@@ -1385,12 +1474,12 @@ window.guardarEdicionCompleta = function(event) {
           completarExitoEdicion();
         }
       } else {
-        hideLoader();
+        ocultarCarga();
         alert("Fallo al actualizar: " + res.message);
       }
     })
     .withFailureHandler(function(err) {
-      hideLoader();
+      ocultarCarga();
       mostrarNotificacion("Fallo de red al conectar.", "bg-danger");
     })
     .importarDatosExcel([datos], "actualizar");
@@ -1406,7 +1495,7 @@ function completarExitoEdicion() {
 
   cargarListadoInventario(function() {
     cargarEstadisticasInicio();
-    hideLoader();
+    ocultarCarga();
   });
 }
 
@@ -1444,7 +1533,7 @@ window.guardarTrasladoArticulo = function(event) {
     return;
   }
 
-  showLoader("Registrando traslado...");
+  mostrarCarga("Registrando traslado...");
 
   const datos = {
     ubicacionReal: ubicacion,
@@ -1454,7 +1543,7 @@ window.guardarTrasladoArticulo = function(event) {
 
   google.script.run
     .withSuccessHandler(function(res) {
-      hideLoader();
+      ocultarCarga();
       if (res.success) {
         mostrarNotificacion("¡Traslado registrado y guardado!", "bg-success");
 
@@ -1470,7 +1559,7 @@ window.guardarTrasladoArticulo = function(event) {
       }
     })
     .withFailureHandler(function(err) {
-      hideLoader();
+      ocultarCarga();
       mostrarNotificacion("Fallo de red: " + err.message, "bg-danger");
     })
     .registrarTraslado(noInv, datos);
@@ -1506,14 +1595,14 @@ window.subirNuevasFotosModal = function() {
     return;
   }
 
-  showLoader("Subiendo fotografías...");
+  mostrarCarga("Subiendo fotografías...");
 
   subirFotosDeFrente(noInv, fileInput.files, function() {
     mostrarNotificacion("Fotos agregadas correctamente.", "bg-success");
 
     // Recargar inventario local para refrescar fotos en el modal
     cargarListadoInventario(function() {
-      hideLoader();
+      ocultarCarga();
 
       const actualItem = window.cacheInventario.find(function(i) {
         return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
