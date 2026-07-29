@@ -261,10 +261,55 @@ function getInventarioRowsAndData() {
 }
 
 /**
- * Obtiene la lista completa de artículos para mostrar en la app.
- * Filtra los registros vacíos (donde No. INV es nulo o vacío).
+ * Normaliza una fila del inventario mapeándola a propiedades camelCase sin caracteres problemáticos (Error 3).
+ * Trata campos vacíos de Sheets de manera consistente como strings vacíos.
  */
-function listarArticulos() {
+function normalizeItem(headers, row) {
+  var idxNo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no."; });
+  var idxNoInv = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no. inv."; });
+  var idxDesc = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "descripcion"; });
+  var idxSerie = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "serie"; });
+  var idxModelo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "modelo"; });
+  var idxMarca = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "marca"; });
+  var idxEstado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado"; });
+  var idxImporte = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "importe"; });
+  var idxUbicacion = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion"; });
+  var idxResguardado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardado"; });
+  var idxResgReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardante_real"; });
+  var idxUbiReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion_real"; });
+  var idxEstReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado_real"; });
+  var idxUltAct = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ultima_actualizacion"; });
+  var idxUsrOp = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "usuario_operador"; });
+  var idxFotoId = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "foto_id"; });
+
+  var noInv = idxNoInv !== -1 ? String(row[idxNoInv] || "").trim() : "";
+  if (!noInv) return null;
+
+  return {
+    no: idxNo !== -1 ? String(row[idxNo] || "").trim() : "",
+    noInv: noInv,
+    descripcion: idxDesc !== -1 ? String(row[idxDesc] || "").trim() : "",
+    serie: idxSerie !== -1 ? String(row[idxSerie] || "").trim() : "",
+    modelo: idxModelo !== -1 ? String(row[idxModelo] || "").trim() : "",
+    marca: idxMarca !== -1 ? String(row[idxMarca] || "").trim() : "",
+    estado: idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "",
+    importe: idxImporte !== -1 ? parseFloat(row[idxImporte]) || 0 : 0,
+    ubicacion: idxUbicacion !== -1 ? String(row[idxUbicacion] || "").trim() : "",
+    resguardado: idxResguardado !== -1 ? String(row[idxResguardado] || "").trim() : "",
+    resguardanteReal: idxResgReal !== -1 ? String(row[idxResgReal] || "").trim() : "",
+    ubicacionReal: idxUbiReal !== -1 ? String(row[idxUbiReal] || "").trim() : "",
+    estadoReal: idxEstReal !== -1 ? String(row[idxEstReal] || "").trim() : "",
+    ultimaActualizacion: idxUltAct !== -1 ? row[idxUltAct] : "",
+    usuarioOperador: idxUsrOp !== -1 ? String(row[idxUsrOp] || "").trim() : "",
+    fotoId: idxFotoId !== -1 ? String(row[idxFotoId] || "").trim() : ""
+  };
+}
+
+/**
+ * Filtra el listado de artículos directamente en el servidor (Error 4).
+ * Devuelve un array filtrado de objetos normalizados camelCase.
+ */
+function listarArticulos(filtros) {
   try {
     var data = getInventarioRowsAndData();
     if (data.rows.length === 0) return [];
@@ -272,54 +317,58 @@ function listarArticulos() {
     var headers = data.headers;
     var listado = [];
 
-    // Crear mapa de índices para mapeo flexible
-    var idxNo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no."; });
-    var idxNoInv = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no. inv."; });
-    var idxDesc = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "descripcion"; });
-    var idxSerie = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "serie"; });
-    var idxModelo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "modelo"; });
-    var idxMarca = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "marca"; });
-    var idxEstado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado"; });
-    var idxImporte = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "importe"; });
-    var idxUbicacion = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion"; });
-    var idxResguardado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardado"; });
-    var idxResgReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardante_real"; });
-    var idxUbiReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion_real"; });
-    var idxEstReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado_real"; });
-    var idxUltAct = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ultima_actualizacion"; });
-    var idxUsrOp = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "usuario_operador"; });
-    var idxFotoId = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "foto_id"; });
-
     for (var i = 0; i < data.rows.length; i++) {
-      var row = data.rows[i];
-      var noInv = idxNoInv !== -1 ? String(row[idxNoInv] || "").trim() : "";
-
-      // Filtrado defensivo de filas vacías
-      if (!noInv) continue;
-
-      var item = {
-        "No.": idxNo !== -1 ? row[idxNo] : "",
-        "No. INV.": noInv,
-        "DESCRIPCION": idxDesc !== -1 ? row[idxDesc] : "",
-        "SERIE": idxSerie !== -1 ? row[idxSerie] : "",
-        "MODELO": idxModelo !== -1 ? row[idxModelo] : "",
-        "MARCA": idxMarca !== -1 ? row[idxMarca] : "",
-        "ESTADO": idxEstado !== -1 ? row[idxEstado] : "",
-        "IMPORTE": idxImporte !== -1 ? row[idxImporte] : 0,
-        "UBICACION": idxUbicacion !== -1 ? row[idxUbicacion] : "",
-        "RESGUARDADO": idxResguardado !== -1 ? row[idxResguardado] : "",
-        "RESGUARDANTE_REAL": idxResgReal !== -1 ? row[idxResgReal] : "",
-        "UBICACION_REAL": idxUbiReal !== -1 ? row[idxUbiReal] : "",
-        "ESTADO_REAL": idxEstReal !== -1 ? row[idxEstReal] : "",
-        "ULTIMA_ACTUALIZACION": idxUltAct !== -1 ? row[idxUltAct] : "",
-        "USUARIO_OPERADOR": idxUsrOp !== -1 ? row[idxUsrOp] : "",
-        "FOTO_ID": idxFotoId !== -1 ? row[idxFotoId] : ""
-      };
-
-      listado.push(item);
+      var item = normalizeItem(headers, data.rows[i]);
+      if (item) {
+        listado.push(item);
+      }
     }
 
-    return listado;
+    if (!filtros) return listado;
+
+    var queryGlobal = filtros.queryGlobal ? String(filtros.queryGlobal).trim().toLowerCase() : "";
+    var filtroUbi = filtros.filtroUbi ? String(filtros.filtroUbi).trim() : "";
+    var filtroEst = filtros.filtroEst ? String(filtros.filtroEst).trim() : "";
+    var filtroMarca = filtros.filtroMarca ? String(filtros.filtroMarca).trim() : "";
+
+    return listado.filter(function(item) {
+      // 1. Filtrado por Ubicación Real
+      if (filtroUbi) {
+        var ubiActual = String(item.ubicacionReal || item.ubicacion || "").trim();
+        if (ubiActual !== filtroUbi) return false;
+      }
+
+      // 2. Filtrado por Estado Real
+      if (filtroEst) {
+        if (filtroEst === "pendiente") {
+          var estActual = String(item.estadoReal || "").trim();
+          if (estActual !== "") return false;
+        } else {
+          var estActual = String(item.estadoReal || "").trim().toLowerCase();
+          if (estActual !== filtroEst.toLowerCase()) return false;
+        }
+      }
+
+      // 3. Filtrado por Marca
+      if (filtroMarca) {
+        var marcaActual = String(item.marca || "").trim();
+        if (marcaActual !== filtroMarca) return false;
+      }
+
+      // 4. Búsqueda Global (conversión segura de tipos a String)
+      if (queryGlobal) {
+        var match = String(item.no || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
+                    String(item.noInv || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
+                    String(item.descripcion || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
+                    String(item.serie || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
+                    String(item.marca || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
+                    String(item.ubicacionReal || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
+                    String(item.resguardanteReal || "").toLowerCase().indexOf(queryGlobal) !== -1;
+        if (!match) return false;
+      }
+
+      return true;
+    });
   } catch (error) {
     Logger.log("Error en listarArticulos: " + error.toString());
     throw new Error("No se pudo obtener el listado de inventario: " + error.message);
@@ -336,8 +385,8 @@ function obtenerCamposAutocompletar() {
     var resguardantes = {};
 
     articulos.forEach(function(item) {
-      var ubi = String(item["UBICACION_REAL"] || item["UBICACION"] || "").trim();
-      var res = String(item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "").trim();
+      var ubi = String(item.ubicacionReal || item.ubicacion || "").trim();
+      var res = String(item.resguardanteReal || item.resguardado || "").trim();
       if (ubi) ubicaciones[ubi] = true;
       if (res) resguardantes[res] = true;
     });
@@ -362,7 +411,7 @@ function obtenerEstadisticas() {
     var levantados = 0;
 
     articulos.forEach(function(item) {
-      if (String(item["UBICACION_REAL"] || "").trim() !== "") {
+      if (String(item.ubicacionReal || "").trim() !== "") {
         levantados++;
       }
     });
@@ -379,36 +428,42 @@ function obtenerEstadisticas() {
 }
 
 /**
- * Busca un artículo por No. INV.
+ * Busca un artículo por No. INV (Error 3).
+ * Devuelve un objeto estandarizado indicando si fue encontrado y el mensaje explicativo.
  */
 function buscarPorNoInv(noInv) {
   try {
+    var q = String(noInv || "").trim().toLowerCase();
+    if (!q) {
+      return { encontrado: false, mensaje: "Número de inventario no válido o vacío." };
+    }
+
     var articulos = listarArticulos();
-    var q = String(noInv).trim().toLowerCase();
     for (var i = 0; i < articulos.length; i++) {
-      if (String(articulos[i]["No. INV."]).trim().toLowerCase() === q) {
-        return articulos[i];
+      if (String(articulos[i].noInv || "").trim().toLowerCase() === q) {
+        return { encontrado: true, data: articulos[i] };
       }
     }
-    return null;
+    return { encontrado: false, mensaje: "No se encontró ningún bien con No. INV. '" + noInv + "'" };
   } catch (error) {
     Logger.log("Error en buscarPorNoInv: " + error.toString());
-    return null;
+    return { encontrado: false, mensaje: "Error interno al buscar: " + error.toString() };
   }
 }
 
 /**
- * Busca un artículo por Serie.
+ * Busca artículos por Serie (Error 3).
+ * Devuelve un array de objetos coincidentes normalizados.
  */
 function buscarPorSerie(serie) {
   try {
-    var articulos = listarArticulos();
-    var q = String(serie).trim().toLowerCase();
+    var q = String(serie || "").trim().toLowerCase();
     if (!q) return [];
 
     var matches = [];
+    var articulos = listarArticulos();
     for (var i = 0; i < articulos.length; i++) {
-      var s = String(articulos[i]["SERIE"] || "").trim().toLowerCase();
+      var s = String(articulos[i].serie || "").trim().toLowerCase();
       if (s === q && s !== "s/s" && s !== "s/s." && s !== "sin serie" && s !== "") {
         matches.push(articulos[i]);
       }

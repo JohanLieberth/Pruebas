@@ -65,8 +65,8 @@
     </div>
   </nav>
 
-  <!-- Contenedor Principal (SPA Sections) -->
-  <main class="container main-container">
+  <!-- Contenedor Principal (SPA Sections) - Landmark <main id="contenido-principal"> (Error 3) -->
+  <main id="contenido-principal" class="container main-container">
 
     <!-- Toast de Notificaciones -->
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
@@ -183,8 +183,9 @@
         </div>
       </div>
 
-      <!-- Buscador y Scanner -->
+      <!-- Buscador y Scanner - Refactorización de Escaneo para sandbox (Error 1) -->
       <div class="row g-4 mb-4">
+        <!-- Columna de Entrada Manual Asistida (Secundaria) -->
         <div class="col-12 col-md-7">
           <div class="card card-smr p-4">
             <form id="form-busqueda" onsubmit="window.ejecutarBusquedaManual(event)">
@@ -192,7 +193,9 @@
                 <label for="buscar-input" class="form-label fw-bold">Número de Inventario / Serie</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                  <input type="text" class="form-control" id="buscar-input" placeholder="Escanee QR, Código de Barras o escriba No. de Inventario" required>
+                  <!-- Autocomplete asistido mediante datalist para reducir dependencia de escaneo (Error 1) -->
+                  <input type="text" class="form-control" id="buscar-input" list="buscar-datalist" placeholder="Escriba No. de Inventario o Serie para autocompletar..." required oninput="window.asistirBusquedaManual(this)">
+                  <datalist id="buscar-datalist"></datalist>
                 </div>
               </div>
               <div class="form-check form-switch mb-4">
@@ -207,31 +210,22 @@
           </div>
         </div>
 
+        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Primaria) -->
         <div class="col-12 col-md-5">
-          <div class="card card-smr p-3 text-center">
-            <h6 class="fw-bold mb-3"><i class="fa-solid fa-camera me-1"></i> Escáner por Cámara</h6>
-            <p class="small text-muted mb-3">En celulares Android/iOS, puede usar la cámara local o abrir la ventana externa si hay problemas de permisos.</p>
+          <div class="card card-smr p-4 text-center h-100 d-flex flex-column justify-content-center">
+            <h6 class="fw-bold mb-2 text-primary-smr"><i class="fa-solid fa-qrcode me-1"></i> Escáner por Archivo / Foto</h6>
+            <p class="small text-muted mb-3">Tome una fotografía del código QR o de barras con la cámara de su dispositivo, o seleccione un archivo de su galería para decodificarlo al instante.</p>
 
-            <div class="d-flex flex-column gap-2 max-width-300 mx-auto">
-              <button class="btn btn-primary" onclick="window.iniciarEscaneoLocal()"><i class="fa-solid fa-video me-1"></i> Iniciar Cámara Interna</button>
-              <button class="btn btn-outline-primary" onclick="window.abrirPopupEscaner()"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Escape Sandbox (Emergente)</button>
+            <div class="mb-3">
+              <label for="qr-input-file" class="form-label small fw-bold text-secondary">Cargar Código (QR o Código de Barras)</label>
+              <!-- Input file con capture="environment" que abre la cámara directamente en móviles, totalmente compatible con sandbox de GAS -->
+              <input type="file" id="qr-input-file" accept="image/*" capture="environment" class="form-control" onchange="window.procesarCodigoQR(this)">
             </div>
 
-            <!-- Contenedor del scanner local -->
-            <div id="local-scanner-card" class="mt-3 d-none">
-              <div class="scanner-wrapper">
-                <div id="reader"></div>
-              </div>
+            <!-- Contenedor temporal oculto necesario para inicializar el motor de html5-qrcode -->
+            <div id="reader" style="display: none; width: 1px; height: 1px;"></div>
 
-              <!-- Fallback de imagen estática ante bloqueo de políticas de permisos en iframe de GAS -->
-              <div id="scanner-file-fallback" class="mt-3 p-3 border rounded bg-light d-none">
-                <p class="small text-danger fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i> Acceso a la cámara restringido en sandbox.</p>
-                <p class="small text-muted mb-2">Tome una fotografía nítida del código de barras o QR para procesarlo:</p>
-                <input type="file" id="scanner-file-input" accept="image/*" class="form-control form-control-sm" onchange="window.procesarArchivoQR(this)">
-              </div>
-
-              <button class="btn btn-danger btn-sm mt-2" onclick="window.detenerEscaneoLocal()"><i class="fa-solid fa-stop me-1"></i> Detener Cámara</button>
-            </div>
+            <div id="scanner-status" class="small text-muted mt-1">Esperando archivo...</div>
           </div>
         </div>
       </div>

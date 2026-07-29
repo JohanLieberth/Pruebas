@@ -245,7 +245,7 @@ function actualizarCacheAutocompletar() {
 function obtenerMarcasUnicas(articulos) {
   const marcas = {};
   articulos.forEach(function(item) {
-    const m = String(item["MARCA"] || "").trim();
+    const m = String(item.marca || "").trim();
     if (m) marcas[m] = true;
   });
   return Object.keys(marcas).sort();
@@ -648,180 +648,90 @@ function subirFotosDeFrente(noInv, files, callback) {
   procesarSiguienteFoto();
 }
 
-// --- ESCANER CON CAMARA LOCAL (html5-qrcode) ---
-
-window.iniciarEscaneoLocal = function() {
-  const card = document.getElementById("local-scanner-card");
-  if (card) card.classList.remove("d-none");
-
-  const fallback = document.getElementById("scanner-file-fallback");
-  if (fallback) fallback.classList.add("d-none");
-
-  const reader = document.getElementById("reader");
-  if (reader) reader.style.display = "block";
-
-  // Detener si hay uno ya corriendo
-  detenerEscaneoLocal();
-
-  window.html5QrcodeScanner = new Html5Qrcode("reader");
-
-  const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-  window.html5QrcodeScanner.start(
-    { facingMode: "environment" },
-    config,
-    function(decodedText, decodedResult) {
-      // Escaneo exitoso
-      const input = document.getElementById("buscar-input");
-      if (input) input.value = decodedText;
-      detenerEscaneoLocal();
-      ejecutarBusquedaAutomatica(decodedText);
-    },
-    function(errorMessage) {
-      // Callback silencioso para errores de cuadro
-    }
-  ).catch(function(err) {
-    console.error("No se pudo iniciar cámara interna debido a políticas del sandbox (Error 2):", err);
-
-    // Fallback: mostrar el cargador de archivos estáticos para decodificar
-    const fbContainer = document.getElementById("scanner-file-fallback");
-    if (fbContainer) {
-      fbContainer.classList.remove("d-none");
-    }
-
-    // Ocultar lector de video que falló por permisos
-    const rdr = document.getElementById("reader");
-    if (rdr) {
-      rdr.style.display = "none";
-    }
-  });
-};
+// --- MÓDULO DE ESCANEO POR ARCHIVO DE IMAGEN (Error 1) ---
 
 /**
- * Procesa la decodificación de una imagen estática cargada por el usuario (Error 2).
+ * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Error 1).
+ * Esto evita el uso de getUserMedia y es 100% compatible con la política de sandbox de Google Apps Script.
  */
-window.procesarArchivoQR = function(inputEl) {
-  if (!inputEl.files || inputEl.files.length === 0) return;
-  const file = inputEl.files[0];
-  showLoader("Procesando y decodificando imagen...");
+window.procesarCodigoQR = function(inputEl) {
+  const fileInput = inputEl;
+  const statusEl = document.getElementById("scanner-status");
+  if (!fileInput.files || fileInput.files.length === 0) return;
 
-  const tempLector = new Html5Qrcode("reader");
-  tempLector.scanFile(file, true)
+  const file = fileInput.files[0];
+  if (statusEl) {
+    statusEl.innerHTML = `<span class="text-primary"><i class="fa-solid fa-spinner fa-spin"></i> Decodificando código...</span>`;
+  }
+
+  showLoader("Procesando y decodificando código...");
+
+  // Crear instancia local de html5-qrcode para decodificación estática
+  const html5QrCode = new Html5Qrcode("reader");
+
+  html5QrCode.scanFile(file, true)
     .then(function(decodedText) {
       hideLoader();
-      const input = document.getElementById("buscar-input");
-      if (input) input.value = decodedText;
-      detenerEscaneoLocal();
+      if (statusEl) {
+        statusEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check"></i> Código detectado: <strong>${decodedText}</strong></span>`;
+      }
+
+      const buscarInput = document.getElementById("buscar-input");
+      if (buscarInput) {
+        buscarInput.value = decodedText;
+      }
+
+      mostrarNotificacion("Código decodificado: " + decodedText, "bg-success");
+
+      // Lanzar búsqueda automática inmediatamente
       ejecutarBusquedaAutomatica(decodedText);
+
+      // Limpiar input file para permitir cargas consecutivas
+      fileInput.value = "";
     })
     .catch(function(err) {
       hideLoader();
-      console.error("Fallo al decodificar imagen del código:", err);
-      alert("No se pudo detectar un código QR o de barras válido en la imagen. Intente de nuevo con una toma nítida, de frente y bien iluminada.");
+      console.error("Fallo al decodificar código por archivo estático:", err);
+      if (statusEl) {
+        statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se detectó código. Intente de nuevo.</span>`;
+      }
+      alert("No se pudo detectar un código QR o de barras válido en la imagen. Asegúrese de que la foto esté tomada de frente, enfocada y bien iluminada.");
+      fileInput.value = "";
     });
 };
 
-function detenerEscaneoLocal() {
-  if (window.html5QrcodeScanner) {
-    try {
-      window.html5QrcodeScanner.stop().then(function() {
-        window.html5QrcodeScanner = null;
-      }).catch(function(e) {
-        window.html5QrcodeScanner = null;
-      });
-    } catch (e) {
-      window.html5QrcodeScanner = null;
-    }
-  }
-
-  const card = document.getElementById("local-scanner-card");
-  if (card) card.classList.add("d-none");
-
-  const fileInput = document.getElementById("scanner-file-input");
-  if (fileInput) fileInput.value = "";
-}
-
 /**
- * Escapa las restricciones del sandbox iframe de Apps Script abriendo una ventana emergente en blanco.
- * Esta ventana inyecta html5-qrcode en un entorno local seguro para capturar la cámara sin bloqueos de Permissions-Policy.
+ * Implementa asistencia manual de búsqueda mediante sugerencias de coincidencias parciales (Error 1).
+ * Rellena de forma dinámica el datalist con registros que coincidan con la entrada del usuario.
  */
-window.abrirPopupEscaner = function() {
-  detenerEscaneoLocal();
+window.asistirBusquedaManual = function(inputEl) {
+  const query = String(inputEl.value || "").trim().toLowerCase();
+  const datalist = document.getElementById("buscar-datalist");
+  if (!datalist) return;
 
-  const popup = window.open('about:blank', 'SMR Scanner', 'width=600,height=600,scrollbars=no,resizable=no');
-  if (!popup) {
-    alert("El bloqueador de elementos emergentes impidió abrir el escáner. Por favor permita popups para este sitio.");
-    return;
-  }
+  datalist.innerHTML = "";
+  if (query.length < 2) return; // Mínimo 2 letras
 
-  // Definir canal de comunicación local
-  const canal = new BroadcastChannel('inventario-smr');
-  canal.onmessage = function(event) {
-    if (event.data && event.data.codigo) {
-      document.getElementById("buscar-input").value = event.data.codigo;
-      ejecutarBusquedaAutomatica(event.data.codigo);
-      popup.close();
-      canal.close();
+  // Buscar coincidencias parciales en No. INV o Serie del caché de inventario
+  const filtrados = window.cacheInventario.filter(function(item) {
+    var invMatch = String(item.noInv || "").toLowerCase().indexOf(query) !== -1;
+    var serieMatch = String(item.serie || "").toLowerCase().indexOf(query) !== -1;
+    return invMatch || serieMatch;
+  }).slice(0, 10); // Limitar a las 10 mejores sugerencias
+
+  filtrados.forEach(function(item) {
+    const optionNoInv = document.createElement("option");
+    optionNoInv.value = item.noInv;
+    optionNoInv.innerText = item.descripcion + " (No. INV)";
+    datalist.appendChild(optionNoInv);
+
+    if (item.serie && item.serie !== "SIN SERIE" && item.serie !== "S/S") {
+      const optionSerie = document.createElement("option");
+      optionSerie.value = item.serie;
+      optionSerie.innerText = item.descripcion + " (Serie)";
+      datalist.appendChild(optionSerie);
     }
-  };
-
-  // HTML autoliquidable e inyectable
-  const popupHtml = `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-      <meta charset="UTF-8">
-      <title>Escáner de Evidencia - SMR</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
-      <style>
-        body { background-color: #f5f5f5; padding: 20px; text-align: center; font-family: sans-serif; }
-        .scanner-container { max-width: 450px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        #reader-popup { width: 100%; border-radius: 8px; overflow: hidden; background-color: black; }
-      </style>
-    </head>
-    <body>
-      <div class="scanner-container">
-        <h4 class="fw-bold text-success mb-1">Cámara Externa SMR</h4>
-        <p class="text-muted small mb-3">Enfoque el código de barras o QR para escanear.</p>
-
-        <div id="reader-popup" class="mb-3"></div>
-
-        <div id="controls-panel" class="mb-3">
-          <!-- Opciones de cámara cargadas por la librería -->
-        </div>
-
-        <button class="btn btn-secondary w-100 py-2" onclick="window.close()">Cerrar Cámara</button>
-      </div>
-
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"><\/script>
-      <script>
-        const canalInterno = new BroadcastChannel('inventario-smr');
-        const html5QrCode = new Html5Qrcode("reader-popup");
-
-        html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          function(decodedText, decodedResult) {
-            // Enviar resultado vía BroadcastChannel
-            canalInterno.postMessage({ codigo: decodedText });
-            // Fallbacks de comunicación redundante
-            try { window.opener.postMessage({ codigo: decodedText }, "*"); } catch(e) {}
-            try { localStorage.setItem("smr-scan-result", decodedText); } catch(e) {}
-            window.close();
-          },
-          function(err) {}
-        ).catch(function(err) {
-          alert("Error de inicio de cámara externa: " + err);
-          window.close();
-        });
-      <\/script>
-    </body>
-    </html>
-  `;
-
-  popup.document.write(popupHtml);
-  popup.document.close();
+  });
 };
 
 // --- MÓDULO ALTA DE NUEVO BIEN ---
@@ -1139,70 +1049,16 @@ function procesarRegistrosMapeados(rows, opcionDuplicados) {
 // --- MÓDULO LISTADO GENERAL Y PAGINACIÓN ---
 
 /**
- * Filtra el caché de inventario en el cliente según criterios activos (RF5).
- * Esto evita latencia y reduce las llamadas repetitivas de red en GAS.
+ * Realiza el filtrado de inventario de forma de alto rendimiento en el servidor (Error 4).
+ * Si no se salta la petición, solicita la lista filtrada a Google Sheets, de lo contrario renderiza.
  */
-window.aplicarFiltrosYListar = function() {
-  const elGlobal = document.getElementById("filtro-global-listado");
-  const elUbi = document.getElementById("filtro-ubicacion-sel");
-  const elEst = document.getElementById("filtro-estado-sel");
-  const elMarca = document.getElementById("filtro-marca-sel");
-
-  // Agregar guardas defensivas para evitar crashes en renderización temprana (Error 3 y 4)
-  const queryGlobal = elGlobal ? elGlobal.value.trim().toLowerCase() : "";
-  const filtroUbi = elUbi ? elUbi.value : "";
-  const filtroEst = elEst ? elEst.value : "";
-  const filtroMarca = elMarca ? elMarca.value : "";
-
-  let listadoFiltrado = window.cacheInventario;
-  console.log("[SMR] Aplicando filtros en cliente. Registros totales cargados:", listadoFiltrado.length);
-
-  // 1. Filtrado por Ubicación Real
-  if (filtroUbi) {
-    listadoFiltrado = listadoFiltrado.filter(function(item) {
-      return String(item["UBICACION_REAL"] || item["UBICACION"] || "").trim() === filtroUbi;
-    });
-    console.log("[SMR] Filtrado por Ubicación Real:", listadoFiltrado.length);
+window.aplicarFiltrosYListar = function(skipServerQuery) {
+  if (!skipServerQuery) {
+    cargarListadoInventario();
+    return;
   }
 
-  // 2. Filtrado por Estado Real
-  if (filtroEst) {
-    if (filtroEst === "pendiente") {
-      listadoFiltrado = listadoFiltrado.filter(function(item) {
-        return !item["ESTADO_REAL"] || String(item["ESTADO_REAL"]).trim() === "";
-      });
-    } else {
-      listadoFiltrado = listadoFiltrado.filter(function(item) {
-        return String(item["ESTADO_REAL"] || "").trim().toLowerCase() === filtroEst.toLowerCase();
-      });
-    }
-    console.log("[SMR] Filtrado por Estado Real:", listadoFiltrado.length);
-  }
-
-  // 3. Filtrado por Marca
-  if (filtroMarca) {
-    listadoFiltrado = listadoFiltrado.filter(function(item) {
-      return String(item["MARCA"] || "").trim() === filtroMarca;
-    });
-    console.log("[SMR] Filtrado por Marca:", listadoFiltrado.length);
-  }
-
-  // 4. Búsqueda global (en todos los campos visibles con conversión segura a String - Falsos negativos)
-  if (queryGlobal) {
-    listadoFiltrado = listadoFiltrado.filter(function(item) {
-      return String(item["No."] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-             String(item["No. INV."] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-             String(item["DESCRIPCION"] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-             String(item["SERIE"] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-             String(item["MARCA"] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-             String(item["UBICACION_REAL"] || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-             String(item["RESGUARDANTE_REAL"] || "").toLowerCase().indexOf(queryGlobal) !== -1;
-    });
-    console.log("[SMR] Filtrado por Búsqueda Global:", listadoFiltrado.length);
-  }
-
-  // Paginación lógica local
-  const totalRegistros = listadoFiltrado.length;
+  const totalRegistros = window.cacheInventario.length;
   const totalPaginas = Math.ceil(totalRegistros / REGISTROS_POR_PAGINA) || 1;
 
   if (window.paginaActual > totalPaginas) {
@@ -1212,7 +1068,9 @@ window.aplicarFiltrosYListar = function() {
   const inicioIdx = (window.paginaActual - 1) * REGISTROS_POR_PAGINA;
   const finIdx = Math.min(inicioIdx + REGISTROS_POR_PAGINA, totalRegistros);
 
-  const paginaItems = listadoFiltrado.slice(inicioIdx, finIdx);
+  const paginaItems = window.cacheInventario.slice(inicioIdx, finIdx);
+
+  console.log("[SMR] aplicando filtros en cliente. Registros en página:", paginaItems.length, "Total:", totalRegistros);
 
   // Renderizar filas de la tabla primero
   renderizarTablaListado(paginaItems);
@@ -1221,6 +1079,9 @@ window.aplicarFiltrosYListar = function() {
   renderizarPaginadorUI(totalRegistros, totalPaginas, inicioIdx, finIdx);
 };
 
+/**
+ * Renderiza la grilla de listado utilizando claves camelCase seguras (Error 3).
+ */
 function renderizarTablaListado(items) {
   const tbody = document.getElementById("tbody-listado-bienes");
   if (!tbody) {
@@ -1237,7 +1098,7 @@ function renderizarTablaListado(items) {
   items.forEach(function(item) {
     // Definir badge para Estado Real
     let badgeClass = "badge-bueno";
-    const est = String(item["ESTADO_REAL"] || "").trim();
+    const est = String(item.estadoReal || "").trim();
     if (est === "Regular") badgeClass = "badge-regular";
     else if (est === "Malo") badgeClass = "badge-malo";
     else if (est === "Baja") badgeClass = "badge-baja";
@@ -1245,29 +1106,29 @@ function renderizarTablaListado(items) {
 
     // Formatear operador de manera segura con fallback para evitar crashes
     let opTxt = "Sin registrar";
-    if (item["USUARIO_OPERADOR"]) {
-      const parts = String(item["USUARIO_OPERADOR"] || "").split(" - ");
+    if (item.usuarioOperador) {
+      const parts = String(item.usuarioOperador || "").split(" - ");
       opTxt = parts[0];
     }
 
     html += `
       <tr>
-        <td class="fw-bold text-secondary">${item["No."] || ""}</td>
-        <td class="fw-bold">${item["No. INV."] || ""}</td>
-        <td class="text-truncate" style="max-width: 250px;" title="${item["DESCRIPCION"] || ""}">${item["DESCRIPCION"] || ""}</td>
-        <td class="text-muted">${item["SERIE"] || "SIN SERIE"}</td>
-        <td>${item["MARCA"] || ""}</td>
-        <td>${item["UBICACION_REAL"] || "<span class='text-muted small'>Pendiente</span>"}</td>
+        <td class="fw-bold text-secondary">${item.no || ""}</td>
+        <td class="fw-bold">${item.noInv || ""}</td>
+        <td class="text-truncate" style="max-width: 250px;" title="${item.descripcion || ""}">${item.descripcion || ""}</td>
+        <td class="text-muted">${item.serie || "SIN SERIE"}</td>
+        <td>${item.marca || ""}</td>
+        <td>${item.ubicacionReal || "<span class='text-muted small'>Pendiente</span>"}</td>
         <td><span class="badge ${badgeClass}">${est || "Pendiente"}</span></td>
-        <td class="small text-truncate" style="max-width: 140px;" title="${item["USUARIO_OPERADOR"] || ""}">${opTxt}</td>
-        <td>${item["RESGUARDANTE_REAL"] || "<span class='text-muted small'>Pendiente</span>"}</td>
+        <td class="small text-truncate" style="max-width: 140px;" title="${item.usuarioOperador || ""}">${opTxt}</td>
+        <td>${item.resguardanteReal || "<span class='text-muted small'>Pendiente</span>"}</td>
         <td class="text-center no-print">
           <div class="d-none d-md-flex justify-content-center gap-1">
-            <button class="btn btn-sm btn-outline-success rounded-circle" onclick="window.abrirModalEdicion('${item["No. INV."]}')" title="Editar completo"><i class="fa-solid fa-edit"></i></button>
-            <button class="btn btn-sm btn-outline-dark rounded-circle" onclick="window.abrirModalVerDetalle('${item["No. INV."]}')" title="Ver detalle"><i class="fa-solid fa-eye"></i></button>
-            <button class="btn btn-sm btn-outline-warning rounded-circle" onclick="window.abrirModalTrasladar('${item["No. INV."]}')" title="Trasladar"><i class="fa-solid fa-truck-ramp-box"></i></button>
-            <button class="btn btn-sm btn-outline-primary rounded-circle" onclick="window.abrirModalFotos('${item["No. INV."]}')" title="Gestionar fotos"><i class="fa-solid fa-images"></i></button>
-            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="window.abrirGeneradorQR('${item["No. INV."]}')" title="Generar QR"><i class="fa-solid fa-qrcode"></i></button>
+            <button class="btn btn-sm btn-outline-success rounded-circle" onclick="window.abrirModalEdicion('${item.noInv}')" title="Editar completo"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-sm btn-outline-dark rounded-circle" onclick="window.abrirModalVerDetalle('${item.noInv}')" title="Ver detalle"><i class="fa-solid fa-eye"></i></button>
+            <button class="btn btn-sm btn-outline-warning rounded-circle" onclick="window.abrirModalTrasladar('${item.noInv}')" title="Trasladar"><i class="fa-solid fa-truck-ramp-box"></i></button>
+            <button class="btn btn-sm btn-outline-primary rounded-circle" onclick="window.abrirModalFotos('${item.noInv}')" title="Gestionar fotos"><i class="fa-solid fa-images"></i></button>
+            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="window.abrirGeneradorQR('${item.noInv}')" title="Generar QR"><i class="fa-solid fa-qrcode"></i></button>
           </div>
           <!-- Dropdown para dispositivos móviles -->
           <div class="dropdown d-md-none">
@@ -1275,11 +1136,11 @@ function renderizarTablaListado(items) {
               Acciones
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" onclick="window.abrirModalEdicion('${item["No. INV."]}')"><i class="fa-solid fa-edit text-success me-2"></i> Editar Completo</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirModalVerDetalle('${item["No. INV."]}')"><i class="fa-solid fa-eye text-dark me-2"></i> Ver Detalle</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirModalTrasladar('${item["No. INV."]}')"><i class="fa-solid fa-truck-ramp-box text-warning me-2"></i> Trasladar</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirModalFotos('${item["No. INV."]}')"><i class="fa-solid fa-images text-primary me-2"></i> Gestionar Fotos</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirGeneradorQR('${item["No. INV."]}')"><i class="fa-solid fa-qrcode text-secondary me-2"></i> Generar QR</a></li>
+              <li><a class="dropdown-item" onclick="window.abrirModalEdicion('${item.noInv}')"><i class="fa-solid fa-edit text-success me-2"></i> Editar Completo</a></li>
+              <li><a class="dropdown-item" onclick="window.abrirModalVerDetalle('${item.noInv}')"><i class="fa-solid fa-eye text-dark me-2"></i> Ver Detalle</a></li>
+              <li><a class="dropdown-item" onclick="window.abrirModalTrasladar('${item.noInv}')"><i class="fa-solid fa-truck-ramp-box text-warning me-2"></i> Trasladar</a></li>
+              <li><a class="dropdown-item" onclick="window.abrirModalFotos('${item.noInv}')"><i class="fa-solid fa-images text-primary me-2"></i> Gestionar Fotos</a></li>
+              <li><a class="dropdown-item" onclick="window.abrirGeneradorQR('${item.noInv}')"><i class="fa-solid fa-qrcode text-secondary me-2"></i> Generar QR</a></li>
             </ul>
           </div>
         </td>
@@ -1341,10 +1202,11 @@ window.cambiarPagina = function(p) {
 
 /**
  * Abre modal de ver detalle completo (RF5)
+ * Con propiedades camelCase normalizadas para resolver Error 3.
  */
 window.abrirModalVerDetalle = function(noInv) {
   const item = window.cacheInventario.find(function(i) {
-    return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
   });
 
   if (!item) return;
@@ -1353,7 +1215,7 @@ window.abrirModalVerDetalle = function(noInv) {
   const body = document.getElementById("modal-ver-detalle-content");
 
   let fotosHtml = "";
-  const ids = item["FOTO_ID"] ? String(item["FOTO_ID"]).split(",") : [];
+  const ids = item.fotoId ? String(item.fotoId).split(",") : [];
   if (ids.length > 0) {
     ids.forEach(function(id) {
       if (!id.trim()) return;
@@ -1371,24 +1233,24 @@ window.abrirModalVerDetalle = function(noInv) {
     <div class="row g-4">
       <div class="col-12 col-md-6 border-end">
         <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-building me-1"></i> Información Patrimonial</h6>
-        <p class="mb-2"><strong>Número de Inventario:</strong> ${item["No. INV."]}</p>
-        <p class="mb-2"><strong>Consecutivo:</strong> No. ${item["No."]}</p>
-        <p class="mb-2"><strong>Descripción:</strong> ${item["DESCRIPCION"] || ""}</p>
-        <p class="mb-2"><strong>Serie:</strong> ${item["SERIE"] || "SIN SERIE"}</p>
-        <p class="mb-2"><strong>Modelo:</strong> ${item["MODELO"] || ""}</p>
-        <p class="mb-2"><strong>Marca:</strong> ${item["MARCA"] || ""}</p>
-        <p class="mb-2"><strong>Importe:</strong> ${item["IMPORTE"] ? "$" + parseFloat(item["IMPORTE"]).toFixed(2) : "$0.00"}</p>
-        <p class="mb-2"><strong>Estado original:</strong> ${item["ESTADO"] || "BUENO"}</p>
-        <p class="mb-2"><strong>Ubicación original:</strong> ${item["UBICACION"] || ""}</p>
-        <p class="mb-0"><strong>Resguardante original:</strong> ${item["RESGUARDADO"] || ""}</p>
+        <p class="mb-2"><strong>Número de Inventario:</strong> ${item.noInv}</p>
+        <p class="mb-2"><strong>Consecutivo:</strong> No. ${item.no}</p>
+        <p class="mb-2"><strong>Descripción:</strong> ${item.descripcion || ""}</p>
+        <p class="mb-2"><strong>Serie:</strong> ${item.serie || "SIN SERIE"}</p>
+        <p class="mb-2"><strong>Modelo:</strong> ${item.modelo || ""}</p>
+        <p class="mb-2"><strong>Marca:</strong> ${item.marca || ""}</p>
+        <p class="mb-2"><strong>Importe:</strong> ${item.importe ? "$" + parseFloat(item.importe).toFixed(2) : "$0.00"}</p>
+        <p class="mb-2"><strong>Estado original:</strong> ${item.estado || "BUENO"}</p>
+        <p class="mb-2"><strong>Ubicación original:</strong> ${item.ubicacion || ""}</p>
+        <p class="mb-0"><strong>Resguardante original:</strong> ${item.resguardado || ""}</p>
       </div>
       <div class="col-12 col-md-6">
         <h6 class="fw-bold text-success mb-3"><i class="fa-solid fa-check-double me-1"></i> Información del Levantamiento</h6>
-        <p class="mb-2"><strong>Estado Físico Actual:</strong> <span class="badge ${item["ESTADO_REAL"] === 'Bueno' ? 'badge-bueno' : (item["ESTADO_REAL"] === 'Regular' ? 'badge-regular' : (item["ESTADO_REAL"] === 'Malo' ? 'badge-malo' : 'badge-baja'))}">${item["ESTADO_REAL"] || "Pendiente"}</span></p>
-        <p class="mb-2"><strong>Ubicación Real:</strong> ${item["UBICACION_REAL"] || "<span class='text-muted'>Pendiente de levantamiento</span>"}</p>
-        <p class="mb-2"><strong>Resguardante Real:</strong> ${item["RESGUARDANTE_REAL"] || "<span class='text-muted'>Pendiente de levantamiento</span>"}</p>
-        <p class="mb-2"><strong>Última Actualización:</strong> ${item["ULTIMA_ACTUALIZACION"] ? formatearFecha(item["ULTIMA_ACTUALIZACION"]) : "Sin registros"}</p>
-        <p class="mb-4"><strong>Último Operador:</strong> ${item["USUARIO_OPERADOR"] || "Sin registrar"}</p>
+        <p class="mb-2"><strong>Estado Físico Actual:</strong> <span class="badge ${item.estadoReal === 'Bueno' ? 'badge-bueno' : (item.estadoReal === 'Regular' ? 'badge-regular' : (item.estadoReal === 'Malo' ? 'badge-malo' : 'badge-baja'))}">${item.estadoReal || "Pendiente"}</span></p>
+        <p class="mb-2"><strong>Ubicación Real:</strong> ${item.ubicacionReal || "<span class='text-muted'>Pendiente de levantamiento</span>"}</p>
+        <p class="mb-2"><strong>Resguardante Real:</strong> ${item.resguardanteReal || "<span class='text-muted'>Pendiente de levantamiento</span>"}</p>
+        <p class="mb-2"><strong>Última Actualización:</strong> ${item.ultimaActualizacion ? formatearFecha(item.ultimaActualizacion) : "Sin registros"}</p>
+        <p class="mb-4"><strong>Último Operador:</strong> ${item.usuarioOperador || "Sin registrar"}</p>
 
         <h6 class="fw-bold text-success border-top pt-3 mb-3"><i class="fa-solid fa-camera me-1"></i> Evidencia Fotográfica</h6>
         <div class="row g-2">
@@ -1417,27 +1279,28 @@ function formatearFecha(fechaSerial) {
 
 /**
  * Abre modal de Edición completa (RF5)
+ * Con propiedades camelCase normalizadas para resolver Error 3.
  */
 window.abrirModalEdicion = function(noInv) {
   const item = window.cacheInventario.find(function(i) {
-    return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
   });
 
   if (!item) return;
 
-  document.getElementById("modal-edit-no-inv-hidden").value = item["No. INV."];
-  document.getElementById("modal-edit-descripcion").value = item["DESCRIPCION"] || "";
-  document.getElementById("modal-edit-resguardado").value = item["RESGUARDADO"] || "";
-  document.getElementById("modal-edit-serie").value = item["SERIE"] || "SIN SERIE";
-  document.getElementById("modal-edit-modelo").value = item["MODELO"] || "";
-  document.getElementById("modal-edit-marca").value = item["MARCA"] || "";
-  document.getElementById("modal-edit-estado").value = item["ESTADO"] || "BUENO";
-  document.getElementById("modal-edit-importe").value = item["IMPORTE"] || 0;
-  document.getElementById("modal-edit-ubicacion").value = item["UBICACION"] || "";
+  document.getElementById("modal-edit-no-inv-hidden").value = item.noInv;
+  document.getElementById("modal-edit-descripcion").value = item.descripcion || "";
+  document.getElementById("modal-edit-resguardado").value = item.resguardado || "";
+  document.getElementById("modal-edit-serie").value = item.serie || "SIN SERIE";
+  document.getElementById("modal-edit-modelo").value = item.modelo || "";
+  document.getElementById("modal-edit-marca").value = item.marca || "";
+  document.getElementById("modal-edit-estado").value = item.estado || "BUENO";
+  document.getElementById("modal-edit-importe").value = item.importe || 0;
+  document.getElementById("modal-edit-ubicacion").value = item.ubicacion || "";
 
-  document.getElementById("modal-edit-estado-real").value = item["ESTADO_REAL"] || "Bueno";
-  document.getElementById("modal-edit-ubicacion-real").value = item["UBICACION_REAL"] || item["UBICACION"] || "";
-  document.getElementById("modal-edit-resguardante-real").value = item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "";
+  document.getElementById("modal-edit-estado-real").value = item.estadoReal || "Bueno";
+  document.getElementById("modal-edit-ubicacion-real").value = item.ubicacionReal || item.ubicacion || "";
+  document.getElementById("modal-edit-resguardante-real").value = item.resguardanteReal || item.resguardado || "";
 
   // Limpiar fotos previas seleccionadas
   document.getElementById("modal-edit-fotos-files").value = "";
@@ -1510,18 +1373,19 @@ function completarExitoEdicion() {
 
 /**
  * Abre modal de traslado rápido (RF5)
+ * Con propiedades camelCase normalizadas para resolver Error 3.
  */
 window.abrirModalTrasladar = function(noInv) {
   const item = window.cacheInventario.find(function(i) {
-    return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
   });
 
   if (!item) return;
 
-  document.getElementById("modal-traslado-no-inv").value = item["No. INV."];
-  document.getElementById("modal-traslado-detalle-txt").innerText = item["DESCRIPCION"] + " (No. INV: " + item["No. INV."] + ")";
-  document.getElementById("modal-traslado-ubicacion").value = item["UBICACION_REAL"] || item["UBICACION"] || "";
-  document.getElementById("modal-traslado-resguardante").value = item["RESGUARDANTE_REAL"] || item["RESGUARDADO"] || "";
+  document.getElementById("modal-traslado-no-inv").value = item.noInv;
+  document.getElementById("modal-traslado-detalle-txt").innerText = item.descripcion + " (No. INV: " + item.noInv + ")";
+  document.getElementById("modal-traslado-ubicacion").value = item.ubicacionReal || item.ubicacion || "";
+  document.getElementById("modal-traslado-resguardante").value = item.resguardanteReal || item.resguardado || "";
   document.getElementById("modal-traslado-motivo").value = "";
 
   const modal = new bootstrap.Modal(document.getElementById("modal-trasladar"));
@@ -1575,19 +1439,20 @@ window.guardarTrasladoArticulo = function(event) {
 
 /**
  * Abre modal de gestión exclusiva de fotografías
+ * Con propiedades camelCase normalizadas para resolver Error 3.
  */
 window.abrirModalFotos = function(noInv) {
   const item = window.cacheInventario.find(function(i) {
-    return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
   });
 
   if (!item) return;
 
-  document.getElementById("modal-fotos-no-inv").value = item["No. INV."];
+  document.getElementById("modal-fotos-no-inv").value = item.noInv;
   document.getElementById("modal-fotos-nuevas-input").value = "";
   document.getElementById("modal-fotos-nuevas-preview").innerHTML = "";
 
-  renderizarFotosExistentes(item["FOTO_ID"], item["No. INV."], "modal-fotos-existentes-list", null);
+  renderizarFotosExistentes(item.fotoId, item.noInv, "modal-fotos-existentes-list", null);
 
   const modal = new bootstrap.Modal(document.getElementById("modal-fotos"));
   modal.show();
@@ -1612,10 +1477,10 @@ window.subirNuevasFotosModal = function() {
       hideLoader();
 
       const actualItem = window.cacheInventario.find(function(i) {
-        return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+        return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
       });
       if (actualItem) {
-        renderizarFotosExistentes(actualItem["FOTO_ID"], actualItem["No. INV."], "modal-fotos-existentes-list", null);
+        renderizarFotosExistentes(actualItem.fotoId, actualItem.noInv, "modal-fotos-existentes-list", null);
       }
 
       fileInput.value = "";
@@ -1627,16 +1492,17 @@ window.subirNuevasFotosModal = function() {
 /**
  * Generador de QR imprimible / descargable integrado en cliente (RF5).
  * El QR codifica exclusivamente el No. INV.
+ * Con propiedades camelCase normalizadas para resolver Error 3.
  */
 window.abrirGeneradorQR = function(noInv) {
   const item = window.cacheInventario.find(function(i) {
-    return String(i["No. INV."]).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
   });
 
   if (!item) return;
 
-  document.getElementById("qr-modal-no-inv-title").innerText = "No. INV: " + item["No. INV."];
-  document.getElementById("qr-modal-desc-title").innerText = item["DESCRIPCION"] || "";
+  document.getElementById("qr-modal-no-inv-title").innerText = "No. INV: " + item.noInv;
+  document.getElementById("qr-modal-desc-title").innerText = item.descripcion || "";
 
   const container = document.getElementById("qr-code-img-container");
   container.innerHTML = "";
@@ -1644,7 +1510,7 @@ window.abrirGeneradorQR = function(noInv) {
   // Instanciar qrcode.js en cliente para generación offline rápida y confiable
   try {
     new QRCode(container, {
-      text: String(item["No. INV."] || "").trim(),
+      text: String(item.noInv || "").trim(),
       width: 180,
       height: 180,
       colorDark : "#000000",
@@ -1654,7 +1520,7 @@ window.abrirGeneradorQR = function(noInv) {
   } catch(e) {
     console.error("Fallo al generar QR con qrcode.js, recurriendo a Google Charts API:", e);
     const imgFallback = document.createElement("img");
-    imgFallback.src = "https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=" + encodeURIComponent(item["No. INV."]);
+    imgFallback.src = "https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=" + encodeURIComponent(item.noInv);
     imgFallback.alt = "Código QR de bien";
     container.appendChild(imgFallback);
   }
