@@ -48,35 +48,56 @@ document.addEventListener("DOMContentLoaded", function() {
 
 /**
  * Función central para arrancar el aplicativo de forma segura y evitar cuelgues estáticos.
+ * Envuelto en try/catch global para evitar estado en blanco en el sandbox de GAS (Error 2).
  */
 function inicializarAppCompleta() {
-  // 1. Mostrar loader de arranque
-  showLoader("Obteniendo información del servidor...");
+  try {
+    // 1. Mostrar loader de arranque
+    showLoader("Obteniendo información del servidor...");
 
-  // 2. Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
-  const safeTimeout = setTimeout(function() {
+    // 2. Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
+    const safeTimeout = setTimeout(function() {
+      hideLoader();
+      mostrarNotificacion("La conexión con el servidor demoró más de lo esperado. Algunas funciones podrían inicializar de forma asíncrona.", "bg-warning");
+    }, 6000);
+
+    // 3. Inicializar identidad del usuario
+    inicializarIdentidadUsuario();
+
+    // 4. Cargar datos base del servidor
+    cargarEstadisticasInicio();
+    cargarListadoInventario(function() {
+      clearTimeout(safeTimeout);
+      hideLoader();
+
+      // 5. Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
+      if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
+        window.showSection('busqueda');
+        const input = document.getElementById("buscar-input");
+        if (input) {
+          input.value = window.initialNoInvQuery;
+        }
+        ejecutarBusquedaAutomatica(window.initialNoInvQuery);
+      } else {
+        window.showSection('inicio');
+      }
+    });
+  } catch (error) {
+    console.error("[SMR] Error catastrófico en inicialización de la app:", error);
     hideLoader();
-    mostrarNotificacion("La conexión con el servidor demoró más de lo esperado. Algunas funciones podrían inicializar de forma asíncrona.", "bg-warning");
-  }, 6000);
 
-  // 3. Inicializar identidad del usuario
-  inicializarIdentidadUsuario();
-
-  // 4. Cargar datos base del servidor
-  cargarEstadisticasInicio();
-  cargarListadoInventario(function() {
-    clearTimeout(safeTimeout);
-    hideLoader();
-
-    // 5. Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
-    if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
-      window.showSection('busqueda');
-      document.getElementById("buscar-input").value = window.initialNoInvQuery;
-      ejecutarBusquedaAutomatica(window.initialNoInvQuery);
-    } else {
-      window.showSection('inicio');
-    }
-  });
+    // Mostrar error visiblemente en pantalla para evitar pantalla en blanco ante fallos de GAS
+    const errorContainer = document.createElement("div");
+    errorContainer.className = "alert alert-danger m-5 p-4 text-center";
+    errorContainer.style.zIndex = "10000";
+    errorContainer.innerHTML = `
+      <h4 class="fw-bold mb-3"><i class="fa-solid fa-triangle-exclamation"></i> Error Crítico de Inicialización</h4>
+      <p class="mb-3">La aplicación no pudo cargarse debido a un error de ejecución en su navegador:</p>
+      <pre class="bg-white p-3 border rounded text-start text-danger" style="white-space: pre-wrap; font-family: monospace;">${error.stack || error.toString()}</pre>
+      <p class="small text-muted mb-0">Por favor, recargue la página o intente utilizar un navegador compatible.</p>
+    `;
+    document.body.prepend(errorContainer);
+  }
 }
 
 /**
@@ -130,15 +151,33 @@ function mostrarNotificacion(mensaje, claseColor) {
 }
 
 /**
+ * Limpia y restablece el contenedor y estado del escáner QR de forma segura (Error 1).
+ */
+window.limpiarEscaneoQR = function() {
+  const fileInput = document.getElementById("qr-input-file");
+  if (fileInput) fileInput.value = "";
+
+  const statusEl = document.getElementById("scanner-status");
+  if (statusEl) statusEl.innerHTML = "Esperando archivo...";
+};
+
+// Mantener compatibilidad con showSection y otras pantallas (Error 1)
+window.detenerEscaneoLocal = function() {
+  window.limpiarEscaneoQR();
+};
+
+/**
  * Enrutador SPA dinámico y seguro de secciones.
  */
 window.showSection = function(sectionId) {
   if (window.isNavigating) return;
   window.isNavigating = true;
 
-  // Detener escaneo si se sale de la sección de búsqueda
+  // Detener escaneo si se sale de la sección de búsqueda (Error 1)
   if (sectionId !== 'busqueda') {
-    detenerEscaneoLocal();
+    if (typeof window.detenerEscaneoLocal === 'function') {
+      window.detenerEscaneoLocal();
+    }
   }
 
   // Ocultar todas las secciones
