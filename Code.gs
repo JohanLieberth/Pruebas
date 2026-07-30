@@ -9,7 +9,7 @@
  * - Búsqueda y filtrado robustos en servidor con tipado estricto.
  */
 
-// Cabeceras exactas para la hoja "Inventario"
+// Cabeceras exactas para la hoja "Inventario-MR"
 const HEADERS_INVENTARIO = [
   "No.", "No. INV.", "DESCRIPCION", "SERIE", "MODELO", "MARCA", "ESTADO", "IMPORTE",
   "UBICACION", "RESGUARDADO", "RESGUARDANTE_REAL", "UBICACION_REAL", "ESTADO_REAL",
@@ -113,7 +113,7 @@ function getActiveSpreadsheetSafe() {
   }
 
   // Buscar en Drive nombres similares
-  var queryNames = ['InvetarioMR', 'InventarioMR', 'Inventario', 'Invetario'];
+  var queryNames = ['InvetarioMR', 'InventarioMR', 'Inventario', 'Invetario', 'Inventario-MR'];
   for (var i = 0; i < queryNames.length; i++) {
     var files = DriveApp.getFilesByName(queryNames[i]);
     while (files.hasNext()) {
@@ -172,7 +172,7 @@ function getSheetSafe(name) {
   }
 
   // Fallbacks específicos para errores ortográficos comunes
-  if (nameNormalized === "inventario") {
+  if (nameNormalized === "inventario" || nameNormalized === "inventario-mr") {
     for (var i = 0; i < sheets.length; i++) {
       var cName = limpiarTextoParaComparar(sheets[i].getName());
       if (cName.indexOf("invet") === 0 || cName.indexOf("invent") === 0) {
@@ -190,10 +190,10 @@ function getSheetSafe(name) {
 function inicializarBaseDatos() {
   var ss = getActiveSpreadsheetSafe();
 
-  // 1. Hoja Inventario
-  var sheetInventario = getSheetSafe("Inventario");
+  // 1. Hoja Inventario-MR
+  var sheetInventario = getSheetSafe("Inventario-MR");
   if (!sheetInventario) {
-    sheetInventario = ss.insertSheet("Inventario");
+    sheetInventario = ss.insertSheet("Inventario-MR");
     sheetInventario.appendRow(HEADERS_INVENTARIO);
     // Aplicar estilo simple a cabeceras
     sheetInventario.getRange(1, 1, 1, HEADERS_INVENTARIO.length)
@@ -246,7 +246,7 @@ function inicializarBaseDatos() {
  * el número de columnas para evitar out-of-bounds exceptions.
  */
 function getInventarioRowsAndData() {
-  var sheet = getSheetSafe("Inventario");
+  var sheet = getSheetSafe("Inventario-MR");
   if (!sheet) return { headers: [], rows: [] };
 
   var lastRow = sheet.getLastRow();
@@ -333,8 +333,8 @@ function obtenerInventario() {
 
     Logger.log("[SMR] Cargando datos desde Google Sheets...");
     var ss = getActiveSpreadsheetSafe();
-    var hoja = getSheetSafe("Inventario");
-    if (!hoja) throw new Error('No se encontró la pestaña "Inventario"');
+    var hoja = getSheetSafe("Inventario-MR");
+    if (!hoja) throw new Error('No se encontró la pestaña "Inventario-MR"');
 
     var datos = hoja.getDataRange().getValues(); // UNA sola llamada a Sheets
     if (datos.length < 2) return []; // Solo encabezados, sin datos
@@ -578,8 +578,8 @@ function registrarBitacora(accion, noInv, detalle) {
  */
 function guardarLevantamiento(noInv, datos) {
   try {
-    var sheet = getSheetSafe("Inventario");
-    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario.");
+    var sheet = getSheetSafe("Inventario-MR");
+    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario-MR.");
 
     var data = getInventarioRowsAndData();
     var headers = data.headers;
@@ -645,8 +645,8 @@ function guardarLevantamiento(noInv, datos) {
  */
 function registrarTraslado(noInv, datos) {
   try {
-    var sheet = getSheetSafe("Inventario");
-    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario.");
+    var sheet = getSheetSafe("Inventario-MR");
+    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario-MR.");
 
     var data = getInventarioRowsAndData();
     var headers = data.headers;
@@ -703,8 +703,8 @@ function registrarTraslado(noInv, datos) {
  */
 function altaBien(datos) {
   try {
-    var sheet = getSheetSafe("Inventario");
-    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario.");
+    var sheet = getSheetSafe("Inventario-MR");
+    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario-MR.");
 
     inicializarBaseDatos(); // Asegurar columnas correctas antes de insertar
 
@@ -798,8 +798,8 @@ function obtenerCarpetaFotosSafe() {
  */
 function subirFotoArticulo(noInv, base64Data, fileName, index) {
   try {
-    var sheet = getSheetSafe("Inventario");
-    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario.");
+    var sheet = getSheetSafe("Inventario-MR");
+    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario-MR.");
 
     var data = getInventarioRowsAndData();
     var headers = data.headers;
@@ -879,8 +879,8 @@ function subirFotoArticulo(noInv, base64Data, fileName, index) {
  */
 function eliminarFotoArticulo(noInv, fotoId) {
   try {
-    var sheet = getSheetSafe("Inventario");
-    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario.");
+    var sheet = getSheetSafe("Inventario-MR");
+    if (!sheet) throw new Error("No se pudo obtener la hoja Inventario-MR.");
 
     var data = getInventarioRowsAndData();
     var headers = data.headers;
@@ -940,8 +940,8 @@ function eliminarFotoArticulo(noInv, fotoId) {
  */
 function importarDatosExcel(rows, opcionDuplicados) {
   try {
-    var sheet = getSheetSafe("Inventario");
-    if (!sheet) throw new Error("No se pudo obtener la hoja de Inventario.");
+    var sheet = getSheetSafe("Inventario-MR");
+    if (!sheet) throw new Error("No se pudo obtener la hoja de Inventario-MR.");
 
     inicializarBaseDatos(); // Asegurar migración de columnas
 
@@ -1210,14 +1210,14 @@ function ejecutarDiagnosticoSMR() {
       auditoria.pestañasEncontradas.push(s.getName());
     });
 
-    var sheetInv = getSheetSafe("Inventario");
+    var sheetInv = getSheetSafe("Inventario-MR");
     if (sheetInv) {
       auditoria.conteoInventario = Math.max(0, sheetInv.getLastRow() - 1);
       if (sheetInv.getLastColumn() > 0) {
         auditoria.columnasInventario = sheetInv.getRange(1, 1, 1, sheetInv.getLastColumn()).getValues()[0];
       }
     } else {
-      auditoria.alertas.push("Falta la pestaña 'Inventario'.");
+      auditoria.alertas.push("Falta la pestaña 'Inventario-MR'.");
     }
 
     var sheetBit = getSheetSafe("Bitacora");

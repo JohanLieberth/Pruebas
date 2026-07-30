@@ -1327,4 +1327,30 @@ window.abrirModalQR = function(noInv) {
 
   modalQR.show();
 };
+
+/**
+ * Exporta la bitácora o historial de la sesión activa en un archivo JSON para el operador.
+ * Expuesto globalmente en `window` (Módulo de auditoría/Bitácora - RF6).
+ */
+window.exportarBitacoraSesion = function() {
+  try {
+    const activeOperator = window.obtenerOperadorActual();
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+      operador: activeOperator,
+      fechaExportacion: new Date().toISOString(),
+      inventarioLocalCount: dbInventario.length
+    }, null, 2));
+
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `bitacora_sesion_${activeOperator.replace(/\s+/g, '_')}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    mostrarAlerta("Historial de la sesión exportado correctamente.", "success");
+  } catch (err) {
+    mostrarAlerta("Error al exportar la bitácora de sesión: " + err.toString(), "danger");
+  }
+};
 </script>
