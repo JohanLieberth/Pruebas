@@ -26,52 +26,20 @@ const NOMBRE_CARPETA_FOTOS = "Inventario_MejoraRegulatoria_Fotos";
 
 /**
  * Función de inicio para la Web App (Instrucción 2).
- * Retorna la interfaz HTML renderizada.
+ * Retorna la interfaz HTML renderizada inmediatamente sin realizar operaciones de Sheets pesadas (Instrucción 1).
  */
 function doGet(e) {
   try {
-    // Si existe una función de diagnóstico, llamarla opcionalmente, pero NUNCA dejar que rompa doGet
-    if (typeof ejecutarDiagnosticoSMR === 'function') {
-      try {
-        ejecutarDiagnosticoSMR();
-      } catch (diagErr) {
-        console.warn('Diagnóstico SMR falló (no crítico):', diagErr.toString());
-      }
-    }
-
-    // Inicializar la base de datos (crear hojas o migrar columnas faltantes)
-    try {
-      inicializarBaseDatos();
-    } catch (dbErr) {
-      console.warn('Inicialización de base de datos falló (no crítico):', dbErr.toString());
-    }
-
-    // Obtener parámetro de consulta opcional para cargar un artículo al inicio
-    var noInvInicial = "";
-    if (e && e.parameter) {
-      noInvInicial = e.parameter.noinv || e.parameter.noInv || "";
-    }
-
     var template = HtmlService.createTemplateFromFile('Index');
-    // Para evitar ReferenceError en el cliente si se recarga
-    template.initialNoInvQuery = noInvInicial;
+    template.noinv = (e && e.parameter) ? (e.parameter.noinv || e.parameter.noInv || "") : "";
+    template.noInv = template.noinv;
 
     return template.evaluate()
       .setTitle("Sistema de Gestión de Inventarios")
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (error) {
-    console.error('FATAL ERROR in doGet:', error.toString(), error.stack);
-
-    // Devolver HTML mínimo funcional para que el usuario vea el error
-    var errorHtml = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>' +
-      '<body style="font-family:sans-serif;padding:40px;color:#c0392b;background-color:#f0f4f8;">' +
-      '<h2>Error al cargar la aplicación</h2>' +
-      '<p><strong>Detalle técnico:</strong> ' + error.toString() + '</p>' +
-      '<p>Revise la pestaña "Ejecuciones" en el editor de Apps Script.</p>' +
-      '</body></html>';
-
-    return HtmlService.createHtmlOutput(errorHtml)
-      .setTitle('Error - Sistema de Inventarios');
+    console.error('FATAL ERROR in doGet:', error.toString());
+    return HtmlService.createHtmlOutput('<h2>Error al cargar</h2><p>' + error.toString() + '</p>');
   }
 }
 
