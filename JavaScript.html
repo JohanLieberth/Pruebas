@@ -307,9 +307,7 @@ function configurarLectorArchivoQR() {
     html5QrCode.scanFile(file, true)
       .then(function(decodedText) {
         if (status) status.innerHTML = `<span class="text-success fw-bold"><i class="fa-solid fa-check-circle me-1"></i>Código detectado: ${decodedText}</span>`;
-        document.getElementById('buscar-input').value = decodedText;
-        // Lanzar búsqueda automática
-        buscarBienFisico();
+        window.procesarEscaneoQR(decodedText);
       })
       .catch(function(err) {
         if (status) status.innerHTML = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>No se encontró ningún QR legible. Intente con otra foto.</span>`;
@@ -317,6 +315,39 @@ function configurarLectorArchivoQR() {
       });
   });
 }
+
+/**
+ * Procesa el texto decodificado de un escaneo de código QR o de barras (RF2).
+ * Expuesto globalmente en `window`.
+ */
+window.procesarEscaneoQR = function(decodedText) {
+  if (!decodedText) return;
+  const input = document.getElementById('buscar-input');
+  if (input) {
+    input.value = decodedText.trim();
+    buscarBienFisico();
+  }
+};
+
+/**
+ * Registra una acción en la bitácora del servidor de forma asíncrona (RF6).
+ * Expuesto globalmente en `window`.
+ */
+window.registrarEnBitacora = function(accion, noInv, detalle) {
+  google.script.run
+    .withFailureHandler(function(err) {
+      console.warn("No se pudo registrar en bitácora remota: " + err.toString());
+    })
+    .registrarBitacora(accion, noInv, detalle);
+};
+
+/**
+ * Obtiene el nombre del responsable actual (Módulo de Bitácora / Sesión).
+ * Expuesto globalmente en `window`.
+ */
+window.obtenerNombreResponsable = function() {
+  return window.obtenerOperadorActual();
+};
 
 /**
  * Limpia el formulario y estado de búsqueda de artículos.
@@ -1343,7 +1374,7 @@ window.exportarBitacoraSesion = function() {
 
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `bitacora_sesion_${activeOperator.replace(/\s+/g, '_')}.json`);
+    downloadAnchor.setAttribute("download", "bitacora_sesion_" + activeOperator.replace(/\s+/g, "_") + ".json");
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
