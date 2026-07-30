@@ -81,19 +81,10 @@ function doGet(e) {
  */
 function include(filename) {
   try {
-    // Probar primero el nombre exacto que se pasa (case-sensitive)
     return HtmlService.createHtmlOutputFromFile(filename).getContent();
   } catch (err) {
-    try {
-      // Si falla, probar capitalizando la primera letra como fallback (Styles/JavaScript)
-      var capitalized = filename.charAt(0).toUpperCase() + filename.slice(1);
-      return HtmlService.createHtmlOutputFromFile(capitalized).getContent();
-    } catch (err2) {
-      // Log visible en Apps Script Executions
-      console.error('INCLUDE FAILED for file: ' + filename + ' | Error: ' + err.toString());
-      // Devolver comentario HTML para no romper el template
-      return '<!-- ERROR: File ' + filename + ' not found. Check file name casing. -->';
-    }
+    console.error('INCLUDE FAILED for file: ' + filename + ' | Error: ' + err.toString());
+    return '<!-- ERROR: File ' + filename + ' not found. Check file name casing. -->';
   }
 }
 
