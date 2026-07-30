@@ -1,0 +1,232 @@
+<style>
+/* CSS para Sistema de Gestión de Inventario - Subdirección de Mejora Regulatoria */
+
+:root {
+  --primary-color: #1B5E20; /* Verde oscuro institucional */
+  --primary-hover: #123e15;
+  --secondary-color: #424242; /* Gris institucional */
+  --light-bg: #FAFAFA; /* Blanco / Gris muy claro */
+  --heritage-bg: #f5f5f5; /* Fondo campos patrimonio */
+  --real-border-color: #2E7D32; /* Verde para bordes de levantamiento */
+  --real-bg: #FFFDE7; /* Amarillo muy claro para campos de levantamiento */
+  --dark-text: #212121;
+  --accent-color: #E0F2F1;
+}
+
+body {
+  background-color: var(--light-bg);
+  color: var(--dark-text);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  padding-top: 70px; /* Espacio para el navbar fijo */
+}
+
+/* Navbar Fijo e Institucional */
+.navbar-custom {
+  background-color: var(--primary-color) !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.navbar-custom .navbar-brand {
+  color: #FFFFFF !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.navbar-custom .nav-link {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.navbar-custom .nav-link:hover,
+.navbar-custom .nav-link.active {
+  color: #FFFFFF !important;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+/* Dashboard / Cards */
+.card-dashboard {
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+  background-color: #ffffff;
+}
+
+.card-dashboard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+}
+
+/* Indicadores de Estado Real (Badges) */
+.badge-bueno {
+  background-color: #2E7D32 !important; /* Verde */
+  color: #ffffff;
+}
+.badge-regular {
+  background-color: #FBC02D !important; /* Amarillo oscuro / ámbar */
+  color: #000000;
+}
+.badge-malo {
+  background-color: #EF6C00 !important; /* Naranja */
+  color: #ffffff;
+}
+.badge-baja {
+  background-color: #C62828 !important; /* Rojo */
+  color: #ffffff;
+}
+
+/* Estilización de Campos del Formulario */
+.campo-patrimonial {
+  background-color: var(--heritage-bg) !important;
+  color: #616161 !important;
+  border: 1px solid #e0e0e0;
+  font-weight: 500;
+}
+
+.campo-levantamiento {
+  background-color: var(--real-bg) !important;
+  border-left: 4px solid var(--real-border-color) !important;
+  border-top: 1px solid #ced4da;
+  border-right: 1px solid #ced4da;
+  border-bottom: 1px solid #ced4da;
+  transition: all 0.2s ease;
+}
+
+.campo-levantamiento:focus {
+  background-color: #ffffff !important;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.25rem rgba(27, 94, 32, 0.15);
+}
+
+/* Contenedor del Buscador / QR */
+.qr-scanner-card {
+  border: 2px dashed #BDBDBD;
+  border-radius: 12px;
+  background-color: #ECEFF1;
+  padding: 20px;
+  text-align: center;
+}
+
+/* Tabla de Inventario */
+.table-responsive {
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  background-color: #ffffff;
+}
+
+.table th {
+  background-color: var(--secondary-color) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+.table td {
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+/* Spinner / Loading Overlay */
+#loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Thumbnails de Fotos */
+.thumbnail-container {
+  position: relative;
+  display: inline-block;
+  margin: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 4px;
+  background: #fff;
+}
+
+.thumbnail-preview {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+}
+
+.btn-delete-thumb {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #d32f2f;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Botones del Sistema */
+.btn-primary-smr {
+  background-color: var(--primary-color);
+  color: #FFFFFF;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-primary-smr:hover {
+  background-color: var(--primary-hover);
+  color: #FFFFFF;
+}
+
+.btn-secondary-smr {
+  background-color: var(--secondary-color);
+  color: #FFFFFF;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-secondary-smr:hover {
+  background-color: #2b2b2b;
+  color: #FFFFFF;
+}
+
+/* Sección Oculta por Defecto */
+.seccion-app {
+  display: none;
+}
+
+.seccion-app.activa {
+  display: block;
+}
+
+/* Ajustes Responsivos */
+@media (max-width: 768px) {
+  body {
+    padding-top: 60px;
+  }
+
+  .card-dashboard {
+    margin-bottom: 15px;
+  }
+}
+</style>
