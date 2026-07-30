@@ -52,6 +52,10 @@ window.addEventListener('unhandledrejection', function(event) {
  */
 document.addEventListener("DOMContentLoaded", function() {
   try {
+    // Cargar la consulta inicial transferida de forma segura desde el elemento HTML sin romper el JS (Instrucción 1)
+    const queryDataEl = document.getElementById("initial-query-data");
+    window.initialNoInvQuery = queryDataEl ? String(queryDataEl.getAttribute("data-query") || "").trim() : "";
+
     // Verificar si el responsable ya se encuentra registrado en esta sesión (Módulo 3)
     const nombreGuardado = sessionStorage.getItem("smr_responsable_nombre");
 

@@ -885,9 +885,7 @@
   <!-- Lógica y Controladores del Frontend -->
   <?!= include('JavaScript'); ?>
 
-  <!-- Variable scriptlet segura contra Uncaught ReferenceError -->
-  <script>
-    window.initialNoInvQuery = "<?!= initialNoInvQuery ?>";
-  </script>
+  <!-- Elemento de datos seguro para transferir variables del servidor al cliente sin romper el JS (Instrucción 1) -->
+  <div id="initial-query-data" data-query="<?!= initialNoInvQuery ?>" style="display: none;"></div>
 </body>
 </html>
