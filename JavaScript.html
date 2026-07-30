@@ -3,362 +3,269 @@
  * SISTEMA DE INVENTARIO FÍSICO - SUBDIRECCIÓN DE MEJORA REGULATORIA
  * Frontend: JavaScript.html
  *
- * Lógica cliente del SPA de inventario físico.
- * Implementa de raíz las correcciones y módulos adicionales requeridos:
- * - Módulo de Escáner QR por Imagen/Archivo (Instrucción 5).
- * - Bitácora de Actividad en la Interfaz (Instrucción 9).
- * - Nombre del Responsable OPCIONAL en el Header, no bloquea el sistema (Instrucción 1).
- * - Estado de Carga con Try-Catch global ante White Pages (Módulo 6).
+ * Lógica interactiva de la Single Page Application (SPA).
  */
 
-// --- VARIABLES GLOBALES DE ESTADO DEL CLIENTE ---
-window.cacheInventario = [];     // Almacén local de artículos cargados
-window.cacheUbicaciones = [];   // Para autocompletar
-window.cacheResguardantes = [];  // Para autocompletar
-window.usuarioActivo = "Anónimo"; // Nombre del Responsable (opcional, Módulo 9)
-window.bitacoraSesion = [];      // Registro histórico de la sesión actual (Módulo 9)
-window.instanciaQR = null;       // Instancia activa de html5-qrcode
+// Caché y estado en el cliente
+let dbInventario = [];
+let dbUbicacionesUnicas = [];
+let dbResguardantesUnicos = [];
+let usuarioActivoEmail = "Usuario Desconocido";
 
-// Variables de Paginación
-window.paginaActual = 1;
+// Configuración de paginación
 const REGISTROS_POR_PAGINA = 20;
+let paginaActual = 1;
+let totalRegistrosFiltrados = 0;
+let registrosFiltrados = [];
 
-// Bloqueo de Navegación doble clic
-window.isNavigating = false;
+// Instancia global de Bootstrap Modales
+let modalEditar = null;
+let modalVerDetalle = null;
+let modalTrasladar = null;
+let modalFotos = null;
+let modalQR = null;
 
-// Evitar bloqueos por extensiones de navegador de terceros
-const c = function(element) {
-  return element && typeof element === 'object' && 'classList' in element ? element : null;
-};
-
-const manejarElemento = function(elemento) {
-  if (!elemento) return;
+// Inicialización de la aplicación
+document.addEventListener('DOMContentLoaded', function() {
   try {
-    elemento.classList.add('smr-valid');
-  } catch(e) {}
-};
-
-// Capturador de promesas rechazadas global para silenciar extensiones ruidosas
-window.addEventListener('unhandledrejection', function(event) {
-  if (event.reason && event.reason.stack && event.reason.stack.indexOf('content.js') !== -1) {
-    event.preventDefault(); // Evitar ruido en consola
-  }
-});
-
-// --- MÓDULO 6: INICIALIZACIÓN Y ESTADO DE CARGA ---
-
-/**
- * Inicialización completa del cliente al cargar.
- * Envuelto en try/catch global para evitar estado en blanco ante fallos de la plataforma (Instrucción 3).
- * Inicializa la aplicación inmediatamente sin exigir nombre de responsable.
- */
-document.addEventListener("DOMContentLoaded", function() {
-  try {
-    // Vincular eventos del escáner por archivo (Instrucción 5)
-    var btnQr = document.getElementById('btn-escanear-qr');
-    var inputQr = document.getElementById('qr-input-file');
-    if (btnQr && inputQr) {
-      btnQr.addEventListener('click', function() { inputQr.click(); });
-      inputQr.addEventListener('change', window.procesarEscaneoQR);
-    }
-
-    // Cargar la consulta inicial transferida de forma segura desde el elemento HTML sin romper el JS (Instrucción 3)
-    const queryDataEl = document.getElementById("initial-query-data");
-    window.initialNoInvQuery = queryDataEl ? String(queryDataEl.getAttribute("data-query") || "").trim() : "";
-
-    // Iniciar carga de la aplicación directamente (Nombre es opcional, Instrucción 1)
-    window.inicializarApp();
-
-  } catch (error) {
-    console.error("[SMR] Error crítico de inicialización:", error);
-    document.body.innerHTML = `
-      <div style="padding: 40px; text-align: center; font-family: sans-serif; background-color: #f0f4f8; color: #c0392b; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <div style="background: white; padding: 30px; border-radius: 12px; border: 4px solid #4a90a4; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
-          <h3 style="font-weight: bold; margin-bottom: 15px; color: #1e3a5f;"><i class="fa-solid fa-triangle-exclamation"></i> Error al cargar la aplicación</h3>
-          <p style="margin-bottom: 20px; color: #2c3e50;">Se produjo un error crítico de ejecución en su navegador durante el arranque inicial:</p>
-          <pre style="background: #f0f4f8; padding: 15px; border: 1px solid #d5dbdb; text-align: left; overflow-x: auto; font-family: monospace; font-size: 0.85rem; color: #c0392b;">${error.stack || error.toString()}</pre>
-          <p style="margin-top: 20px; font-size: 0.9rem; color: #5d6d7e;">Por favor, recargue la página o intente utilizar otro navegador compatible.</p>
-        </div>
-      </div>
-    `;
-  }
-});
-
-/**
- * Obtiene el nombre del responsable ingresado de forma opcional en el header (Instrucción 1).
- * Si está vacío o no existe el campo, devuelve 'Anónimo'.
- */
-window.obtenerNombreResponsable = function() {
-  const input = document.getElementById("input-responsable");
-  const nombre = input ? String(input.value).trim() : "";
-  return nombre.length > 0 ? nombre : "Anónimo";
-};
-
-/**
- * Función central de inicialización (Módulo 6).
- */
-window.inicializarApp = function() {
-  window.mostrarCarga("Cargando base de datos inicial...");
-
-  // Cargar datos base del servidor de forma segura
-  cargarEstadisticasInicio();
-  cargarListadoInventario(function() {
-    window.ocultarCarga();
-
-    // Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
-    if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
-      window.showSection('busqueda');
-      const input = document.getElementById("buscar-input");
-      if (input) {
-        input.value = window.initialNoInvQuery;
+    // 1. Obtener la sesión del usuario activo desde el servidor
+    google.script.run.withSuccessHandler(function(email) {
+      if (email) {
+        usuarioActivoEmail = email;
+        const nombreGuardado = localStorage.getItem('smr_responsable_nombre');
+        const inputNombre = document.getElementById('responsable-nombre');
+        if (inputNombre) {
+          if (nombreGuardado) {
+            inputNombre.value = nombreGuardado;
+          } else {
+            inputNombre.placeholder = email;
+          }
+        }
       }
-      ejecutarBusquedaAutomatica(window.initialNoInvQuery);
-    } else {
-      window.showSection('inicio');
-    }
+    }).obtenerUsuarioActivo();
 
-    // Registrar inicio en la bitácora
-    registrarEnBitacora("SISTEMA", "Aplicación cargada y lista para operar.");
+    // 2. Inicializar modales de Bootstrap
+    modalEditar = new bootstrap.Modal(document.getElementById('modal-editar-articulo'));
+    modalVerDetalle = new bootstrap.Modal(document.getElementById('modal-ver-detalle'));
+    modalTrasladar = new bootstrap.Modal(document.getElementById('modal-trasladar'));
+    modalFotos = new bootstrap.Modal(document.getElementById('modal-fotos'));
+    modalQR = new bootstrap.Modal(document.getElementById('modal-qr'));
+
+    // 3. Cargar datos iniciales del servidor de forma asíncrona
+    mostrarCarga("Conectando con el servidor...");
+    actualizarDatosBaseCompleta(function() {
+      ocultarCarga();
+
+      // 4. Procesar consulta inicial por doGet si existe (Módulo 2)
+      procesarConsultaInicialDoGet();
+    });
+
+    // 5. Configurar lector de archivos QR
+    configurarLectorArchivoQR();
+
+  } catch (err) {
+    ocultarCarga();
+    mostrarAlerta("Error al inicializar la aplicación: " + err.toString(), "danger");
+  }
+});
+
+/**
+ * Muestra el overlay de carga con un mensaje específico.
+ * Expuesto globalmente en `window` para evitar colisiones.
+ */
+window.mostrarCarga = function(mensaje) {
+  const overlay = document.getElementById('loading-overlay');
+  const text = document.getElementById('loading-text');
+  if (overlay) overlay.style.display = 'flex';
+  if (text) text.innerText = mensaje || 'Procesando...';
+};
+
+/**
+ * Oculta el overlay de carga.
+ * Expuesto globalmente en `window`.
+ */
+window.ocultarCarga = function() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'none';
+};
+
+/**
+ * Muestra una alerta (Toast) no bloqueante e institucional.
+ * Expuesto globalmente en `window`.
+ */
+window.mostrarAlerta = function(mensaje, tipo) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toastId = 'toast-' + Date.now();
+  const bgClass = tipo === 'success' ? 'bg-success text-white' :
+                  tipo === 'warning' ? 'bg-warning text-dark' :
+                  tipo === 'danger' ? 'bg-danger text-white' : 'bg-dark text-white';
+
+  const html = `
+    <div id="${toastId}" class="toast align-items-center ${bgClass} border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+      <div class="d-flex">
+        <div class="toast-body">
+          <i class="fa-solid fa-bell me-2" aria-hidden="true"></i>${mensaje}
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  `;
+
+  container.insertAdjacentHTML('beforeend', html);
+  const element = document.getElementById(toastId);
+  const toast = new bootstrap.Toast(element);
+  toast.show();
+
+  // Limpiar elemento del DOM después de ocultarse
+  element.addEventListener('hidden.bs.toast', function() {
+    element.remove();
   });
 };
 
 /**
- * Muestra el spinner de carga con un mensaje específico (Instrucción 8).
+ * Retorna el nombre o correo del operador actual para guardarlo de forma local/remota.
  */
-window.mostrarCarga = function(mensaje) {
-  const el = document.getElementById("global-loader");
-  const msgEl = document.getElementById("loader-message");
-  if (el) {
-    el.style.display = "flex";
-    if (msgEl) {
-      msgEl.textContent = mensaje || "Cargando...";
-    }
+window.obtenerOperadorActual = function() {
+  const input = document.getElementById('responsable-nombre');
+  if (input && input.value.trim() !== "") {
+    return input.value.trim();
+  }
+  return usuarioActivoEmail || "Anónimo";
+};
+
+/**
+ * Evento al cambiar manualmente el nombre del operador responsable (Opcional - Instrucción 1).
+ */
+window.registrarCambioResponsable = function() {
+  const val = document.getElementById('responsable-nombre').value.trim();
+  if (val) {
+    localStorage.setItem('smr_responsable_nombre', val);
+    mostrarAlerta("Operador asignado: " + val, "success");
+  } else {
+    localStorage.removeItem('smr_responsable_nombre');
+    mostrarAlerta("Operador por defecto: " + (usuarioActivoEmail || "Anónimo"), "warning");
   }
 };
 
 /**
- * Oculta el spinner de carga (Instrucción 8).
+ * Gestiona el enrutamiento y visibilidad de secciones de la SPA (RF1).
+ * Expuesto globalmente en `window`.
  */
-window.ocultarCarga = function() {
-  const el = document.getElementById("global-loader");
-  if (el) el.style.display = "none";
+window.showSection = function(seccionId) {
+  try {
+    // Apagar la clase activa de las secciones
+    const secciones = document.querySelectorAll('.seccion-app');
+    secciones.forEach(function(sec) {
+      sec.classList.remove('activa');
+    });
+
+    // Encender la sección objetivo
+    const target = document.getElementById('sec-' + seccionId);
+    if (target) {
+      target.classList.add('activa');
+    }
+
+    // Sincronizar clases activas en la barra de navegación superior
+    const links = document.querySelectorAll('.navbar-nav .nav-link');
+    links.forEach(function(lnk) {
+      lnk.classList.remove('active');
+    });
+
+    // Marcar el menú correcto
+    links.forEach(function(lnk) {
+      if (lnk.getAttribute('onclick') && lnk.getAttribute('onclick').indexOf(seccionId) !== -1) {
+        lnk.classList.add('active');
+      }
+    });
+
+    // Colapsar el navbar de bootstrap en móviles si está desplegado
+    const navbarCollapse = document.getElementById('navbarContent');
+    if (navbarCollapse && navbarCollapse.classList.contains('show')) {
+      const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+      if (bsCollapse) bsCollapse.hide();
+    }
+  } catch (err) {
+    console.error("Error en showSection:", err);
+  }
 };
 
 /**
- * Función de utilidad para realizar llamadas asíncronas con timeout y cargadores unificados (Instrucción 8).
+ * Recupera toda la base de datos de manera optimizada de una sola vez
+ * y almacena localmente las ubicaciones y resguardantes únicos para autocompletar.
  */
-window.llamarServidor = function(nombreFuncion, args, onSuccess, onError) {
-  var timeoutId;
-  window.mostrarCarga("Procesando operación...");
-
-  // Timeout de 15 segundos en el cliente (Instrucción 8)
-  timeoutId = setTimeout(function() {
-    window.ocultarCarga();
-    const errMsg = "El servidor está tardando demasiado. Intente de nuevo.";
-    if (onError) onError(errMsg);
-    else alert(errMsg);
-    registrarEnBitacora("ERROR", "Timeout de 15s agotado en " + nombreFuncion);
-  }, 15000);
-
+function actualizarDatosBaseCompleta(callback) {
   google.script.run
-    .withSuccessHandler(function(data) {
-      clearTimeout(timeoutId);
-      window.ocultarCarga();
-      if (onSuccess) onSuccess(data);
+    .withSuccessHandler(function(response) {
+      if (response && response.success) {
+        dbInventario = response.registros || [];
+
+        // Cargar autocompletados
+        google.script.run
+          .withSuccessHandler(function(autoData) {
+            dbUbicacionesUnicas = autoData.ubicaciones || [];
+            dbResguardantesUnicos = autoData.resguardantes || [];
+
+            poblarDatalists();
+            cargarEstadisticas();
+            aplicarFiltrosTabla(); // Renderiza la tabla por primera vez
+
+            if (callback) callback();
+          })
+          .withFailureHandler(function(err) {
+            console.error("Fallo al obtener campos de autocompletado: ", err);
+            if (callback) callback();
+          })
+          .obtenerCamposAutocompletar();
+
+      } else {
+        mostrarAlerta("Error al cargar registros del servidor: " + (response.error || "Fallo desconocido"), "danger");
+        if (callback) callback();
+      }
     })
-    .withFailureHandler(function(error) {
-      clearTimeout(timeoutId);
-      window.ocultarCarga();
-      console.error("[SMR] Error de ejecución en servidor:", error);
-      const errMsg = error.message || error;
-      if (onError) onError(errMsg);
-      else alert("Error de conexión: " + errMsg);
-      registrarEnBitacora("ERROR", "Fallo crítico en " + nombreFuncion + ": " + errMsg);
+    .withFailureHandler(function(err) {
+      mostrarAlerta("Error de comunicación: " + err.toString(), "danger");
+      if (callback) callback();
     })
-    [nombreFuncion].apply(null, args || []);
-};
-
-/**
- * Toast de notificaciones ligera e instantánea.
- */
-function mostrarNotificacion(mensaje, claseColor) {
-  const toastEl = document.getElementById('liveToast');
-  const toastBody = document.getElementById('toast-body-text');
-  if (!toastEl || !toastBody) return;
-
-  toastEl.className = "toast align-items-center text-white border-0 " + (claseColor || "bg-success");
-  toastBody.innerText = mensaje;
-
-  const toast = new bootstrap.Toast(toastEl);
-  toast.show();
+    .obtenerInventarioFiltrado(null);
 }
 
 /**
- * Enrutador SPA dinámico y seguro de secciones (Instrucción 4).
+ * Puebla los datalists dinámicos en base a los valores existentes en Sheets.
  */
-window.showSection = function(sectionId) {
-  if (window.isNavigating) return;
-  window.isNavigating = true;
+function poblarDatalists() {
+  const ubiList = document.getElementById('list-ubicaciones');
+  const resList = document.getElementById('list-resguardantes');
 
-  // 1. Ocultar todas las secciones de la app (Instrucción 4)
-  var secciones = document.querySelectorAll(".seccion-app");
-  for (var i = 0; i < secciones.length; i++) {
-    secciones[i].style.display = "none";
+  if (ubiList) {
+    ubiList.innerHTML = dbUbicacionesUnicas.map(function(u) { return `<option value="${u}">`; }).join('');
   }
 
-  // 2. Limpiar recursos del escáner QR si existen (Instrucción 4)
-  window.limpiarVistaQR();
-
-  // 3. Mostrar la sección objetivo (Instrucción 4)
-  var objetivo = document.getElementById(sectionId);
-  if (objetivo) {
-    objetivo.style.display = "block";
-  } else {
-    console.error("Sección no encontrada:", sectionId);
-    window.isNavigating = false;
-    return;
+  if (resList) {
+    resList.innerHTML = dbResguardantesUnicos.map(function(r) { return `<option value="${r}">`; }).join('');
   }
 
-  // 4. Actualizar estado activo en el menú de navegación (Instrucción 4)
-  var links = document.querySelectorAll(".nav-link");
-  for (var j = 0; j < links.length; j++) {
-    links[j].classList.remove("active");
+  // También poblar el select de ubicaciones reales en el filtro del listado general
+  const filtroUbi = document.getElementById('filtro-ubicacion');
+  if (filtroUbi) {
+    let html = '<option value="">Todas las Ubicaciones</option>';
+    dbUbicacionesUnicas.forEach(function(u) {
+      html += `<option value="${u.toLowerCase()}">${u}</option>`;
+    });
+    filtroUbi.innerHTML = html;
   }
-  var activo = document.querySelector('[data-seccion="' + sectionId + '"]');
-  if (activo) activo.classList.add("active");
-
-  // Cerrar colapso de menú bootstrap en móviles defensivamente
-  const navbarCollapse = document.getElementById('navbarContent');
-  if (navbarCollapse && navbarCollapse.classList.contains('show')) {
-    try {
-      const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
-      if (bsCollapse) bsCollapse.hide();
-    } catch(err) {
-      navbarCollapse.classList.remove('show');
-    }
-  }
-
-  // Registrar cambio de sección en bitácora (Módulo 2)
-  registrarEnBitacora("VISTA", "Cargada sección: " + sectionId.toUpperCase());
-
-  // Scroll hacia arriba
-  window.scrollTo({ top: 0, behavior: "smooth" });
-
-  // Desbloquear navegación
-  setTimeout(function() {
-    window.isNavigating = false;
-  }, 250);
-};
-
-// --- MÓDULO 9: BITÁCORA DE ACTIVIDAD DE SESIÓN EN INTERFAZ (Instrucción 9) ---
+}
 
 /**
- * Registra un evento en tiempo real en la bitácora de sesión del cliente (Instrucción 9).
- * Formato: [HH:MM:SS] [RESPONSABLE] [TIPO] Descripción.
- * Mantiene un máximo de 50 registros en memoria y renderiza en modo prepend.
+ * Calcula y renderiza el resumen de estadísticas del Dashboard (RF1).
  */
-window.registrarEnBitacora = function(tipo, mensaje) {
-  const d = new Date();
-  const pad = function(n) { return n < 10 ? '0' + n : n; };
-  const horaStr = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
-
-  // Formato: [HH:MM:SS] [RESPONSABLE] [TIPO] Descripción (Instrucción 9)
-  const responsable = window.obtenerNombreResponsable();
-  const formatoEntrada = `[${horaStr}] [${responsable}] [${tipo.toUpperCase()}] ${mensaje}`;
-
-  // Agregar al inicio del array en memoria
-  window.bitacora.unshift(formatoEntrada);
-
-  // Mantener un máximo de 50 entradas
-  if (window.bitacora.length > 50) {
-    window.bitacora.pop();
-  }
-
-  // Renderizar en el panel de bitácora
-  const container = document.getElementById("panel-bitacora");
-  if (!container) return;
-
-  let html = "";
-  window.bitacora.forEach(function(entrada) {
-    // Obtener tipo específico para badge de color
-    const matchTipo = entrada.match(/\[([A-ZÁÉÍÓÚ]+)\]/g);
-    let badgeHtml = "";
-    if (matchTipo && matchTipo.length > 2) {
-      const limpioTipo = matchTipo[2].replace(/[\[\]]/g, "");
-      badgeHtml = `<span class="bitacora-tag tag-${limpioTipo.toLowerCase()}">${limpioTipo}</span>`;
-    }
-
-    // Obtener texto limpio sin las marcas de tipo
-    const textoMostrar = entrada.replace(/\[[A-ZÁÉÍÓÚ\s\.\@\-]+\]/g, "").replace("  ", " ");
-    const matchesDeHora = entrada.match(/^\[[0-9\:]+\]/g);
-    const mResponsable = entrada.match(/\]\s\[([A-ZÁÉÍÓÚa-záéíóú\s]+)\]\s\[/);
-
-    const hStr = matchesDeHora ? matchesDeHora[0] : "";
-    const respStr = mResponsable ? mResponsable[1] : "Anónimo";
-
-    html += `
-      <div class="bitacora-item">
-        <span class="text-muted small me-1">${hStr}</span>
-        <span class="text-primary small me-1 fw-bold"><i class="fa-solid fa-user-circle small"></i> ${respStr}</span>
-        ${badgeHtml} <span class="text-secondary small">${textoMostrar}</span>
-      </div>
-    `;
-  });
-
-  container.innerHTML = html;
-};
-
-// Alias bitacora global
-window.bitacora = [];
-
-/**
- * Limpia el panel de bitácora de la interfaz del usuario (Módulo 2).
- */
-window.limpiarBitacoraSesion = function() {
-  if (confirm("¿Está seguro de que desea limpiar el historial de bitácora de la sesión actual?")) {
-    window.bitacora = [];
-    const container = document.getElementById("panel-bitacora");
-    if (container) {
-      container.innerHTML = `<div class="text-muted text-center py-2">Bitácora limpia. Esperando eventos...</div>`;
-    }
-    mostrarNotificacion("Bitácora de sesión limpiada.", "bg-secondary");
-  }
-};
-
-/**
- * Descarga un archivo .txt con el contenido de la bitácora de sesión (Módulo 2).
- */
-window.exportarBitacoraSesion = function() {
-  if (window.bitacora.length === 0) {
-    alert("No hay registros en la bitácora para exportar.");
-    return;
-  }
-
-  const contenido = window.bitacora.join("\r\n");
-  const blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
-
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `SMR_Bitacora_Sesion_${new Date().toISOString().slice(0,10)}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  mostrarNotificacion("Bitácora exportada correctamente.", "bg-success");
-};
-
-
-// --- CARGA DE DATOS DESDE EL SERVIDOR ---
-
-function cargarEstadisticasInicio() {
+function cargarEstadisticas() {
   google.script.run
     .withSuccessHandler(function(stats) {
-      const t = document.getElementById("stats-total");
-      const l = document.getElementById("stats-levantados");
-      const p = document.getElementById("stats-pendientes");
-      if (t) t.innerText = stats.total;
-      if (l) l.innerText = stats.levantados;
-      if (p) p.innerText = stats.pendientes;
+      document.getElementById('stat-total').innerText = stats.total || 0;
+      document.getElementById('stat-levantados').innerText = stats.levantados || 0;
+      document.getElementById('stat-pendientes').innerText = stats.pendientes || 0;
     })
     .withFailureHandler(function(err) {
       console.error("Error al cargar estadísticas:", err);
@@ -367,1428 +274,1057 @@ function cargarEstadisticasInicio() {
 }
 
 /**
- * Recupera el inventario filtrado desde el servidor de Google Sheets (Módulo 3).
+ * Procesa el parámetro de búsqueda inicial enviado en doGet si existe (Instrucción 3).
  */
-function cargarListadoInventario(callback) {
-  const elGlobal = document.getElementById("filtro-global-listado");
-  const elUbi = document.getElementById("filtro-ubicacion-sel");
-  const elEst = document.getElementById("filtro-estado-sel");
-
-  const filtros = {
-    texto: elGlobal ? elGlobal.value.trim() : "",
-    ubicacion: elUbi ? elUbi.value : "",
-    estado: elEst ? elEst.value : ""
-  };
-
-  console.log("[SMR] Solicitando listado filtrado al servidor:", filtros);
-
-  // Registrar aplicación de filtros en bitácora (Módulo 2)
-  const descFiltros = `Filtros Aplicados: Texto="${filtros.texto}", Ubicación="${filtros.ubicacion}", Estado="${filtros.estado}"`;
-  registrarEnBitacora("FILTRO", descFiltros);
-
-  window.llamarServidor(
-    "obtenerInventarioFiltrado",
-    [filtros],
-    function(res) {
-      console.log("[SMR] Respuesta de filtrado servidor recibida:", res);
-
-      if (!res || res.success === false) {
-        var errMsg = res && res.error ? res.error : "Error desconocido al procesar filtros.";
-        console.error("[SMR] Error devuelto por servidor:", errMsg);
-        alert(errMsg);
-        registrarEnBitacora("ERROR", "Error de servidor al cargar: " + errMsg);
-        return;
-      }
-
-      window.cacheInventario = res.registros || [];
-
-      // Actualizar selectores de autocompletar si es la carga inicial
-      if (elUbi && elUbi.options.length <= 1) {
-        actualizarCacheAutocompletar();
-      }
-
-      // Renderizar listado de la tabla general
-      aplicarFiltrosYListar(true);
-
-      // Registrar éxito en bitácora (Módulo 2)
-      registrarEnBitacora("SISTEMA", "Listado cargado con éxito. Encontrados: " + window.cacheInventario.length + " artículos.");
-
-      if (callback) callback();
-    },
-    function(err) {
-      console.error("[SMR] Fallo crítico al recuperar lista del servidor:", err);
-      alert("No se pudo obtener el listado del servidor: " + err);
-      if (callback) callback();
+function procesarConsultaInicialDoGet() {
+  const container = document.getElementById('initial-query-data');
+  if (container) {
+    const q = container.getAttribute('data-query');
+    if (q && q.trim() !== "") {
+      showSection('busqueda');
+      document.getElementById('buscar-input').value = q.trim();
+      buscarBienFisico();
     }
-  );
+  }
 }
 
-function actualizarCacheAutocompletar() {
-  google.script.run
-    .withSuccessHandler(function(data) {
-      window.cacheUbicaciones = data.ubicaciones || [];
-      window.cacheResguardantes = data.resguardantes || [];
+/**
+ * Configura la decodificación de códigos QR cargados localmente como foto de archivo (Módulo 2).
+ */
+function configurarLectorArchivoQR() {
+  const fileInput = document.getElementById('qr-file-input');
+  if (!fileInput) return;
 
-      // Rellenar selectores de filtros del listado general
-      llenarSelectFiltro("filtro-ubicacion-sel", window.cacheUbicaciones);
-      llenarSelectFiltro("filtro-marca-sel", obtenerMarcasUnicas(window.cacheInventario));
+  fileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-      // Inicializar autocompletar en los inputs reales
-      setupAutocomplete("real-ubicacion", window.cacheUbicaciones, "real-ubicacion-suggestions");
-      setupAutocomplete("real-resguardante", window.cacheResguardantes, "real-resguardante-suggestions");
-    })
-    .withFailureHandler(function(err) {
-      console.error("Error cargando autocompletar:", err);
-    })
-    .obtenerCamposAutocompletar();
-}
+    const status = document.getElementById('qr-scan-status');
+    if (status) status.innerHTML = `<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-1"></i>Analizando imagen...</span>`;
 
-function obtenerMarcasUnicas(articulos) {
-  const marcas = {};
-  articulos.forEach(function(item) {
-    const m = String(item.marca || "").trim();
-    if (m) marcas[m] = true;
-  });
-  return Object.keys(marcas).sort();
-}
+    const html5QrCode = new Html5Qrcode("initial-query-data"); // Instancia temporal
 
-function llenarSelectFiltro(elementId, listado) {
-  const select = document.getElementById(elementId);
-  if (!select) return;
-
-  // Limpiar opciones anteriores pero mantener la primera (Todas)
-  select.innerHTML = select.options[0].outerHTML;
-
-  listado.forEach(function(val) {
-    const opt = document.createElement("option");
-    opt.value = val;
-    opt.innerText = val;
-    select.appendChild(opt);
-  });
-}
-
-// --- SISTEMA DE AUTOCOMPLETADO PERSONALIZADO ---
-
-function setupAutocomplete(inputId, arrayValores, suggestionsContainerId) {
-  const input = document.getElementById(inputId);
-  const container = document.getElementById(suggestionsContainerId);
-  if (!input || !container) return;
-
-  input.addEventListener("input", function() {
-    const val = this.value.trim().toLowerCase();
-    container.innerHTML = "";
-    if (!val) return;
-
-    const filtrados = arrayValores.filter(function(v) {
-      return v.toLowerCase().indexOf(val) !== -1;
-    }).slice(0, 5); // Limitar a 5 sugerencias
-
-    filtrados.forEach(function(sug) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "list-group-item list-group-item-action py-1 small";
-      btn.innerText = sug;
-      btn.addEventListener("click", function() {
-        input.value = sug;
-        container.innerHTML = "";
+    html5QrCode.scanFile(file, true)
+      .then(function(decodedText) {
+        if (status) status.innerHTML = `<span class="text-success fw-bold"><i class="fa-solid fa-check-circle me-1"></i>Código detectado: ${decodedText}</span>`;
+        document.getElementById('buscar-input').value = decodedText;
+        // Lanzar búsqueda automática
+        buscarBienFisico();
+      })
+      .catch(function(err) {
+        if (status) status.innerHTML = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>No se encontró ningún QR legible. Intente con otra foto.</span>`;
+        console.warn("Fallo de decodificación QR local: ", err);
       });
-      container.appendChild(btn);
-    });
-  });
-
-  // Ocultar si se hace clic fuera
-  document.addEventListener("click", function(e) {
-    if (e.target !== input) {
-      container.innerHTML = "";
-    }
   });
 }
 
-// --- MÓDULO 2: BÚSQUEDA POR No. INV. (Módulo 2) ---
-
-window.ejecutarBusquedaManual = function(event) {
-  if (event) event.preventDefault();
-  const q = document.getElementById("buscar-input").value.trim();
-  if (!q) return;
-
-  const buscarPorSerie = document.getElementById("buscar-serie-chk").checked;
-  ejecutarBusquedaAutomatica(q, buscarPorSerie);
-};
-
+/**
+ * Limpia el formulario y estado de búsqueda de artículos.
+ * Expuesto globalmente en `window`.
+ */
 window.limpiarBuscador = function() {
-  const inp = document.getElementById("buscar-input");
-  if (inp) inp.value = "";
-  const chk = document.getElementById("buscar-serie-chk");
-  if (chk) chk.checked = false;
-  const res = document.getElementById("resultado-busqueda-container");
-  if (res) res.classList.add("d-none");
+  document.getElementById('buscar-input').value = "";
+  document.getElementById('buscar-serie-toggle').checked = false;
+  document.getElementById('detalle-vacio').style.display = 'block';
+  document.getElementById('detalle-articulo').style.display = 'none';
+
+  const status = document.getElementById('qr-scan-status');
+  if (status) status.innerHTML = "";
+
+  const fileInput = document.getElementById('qr-file-input');
+  if (fileInput) fileInput.value = "";
 };
 
 /**
- * Lógica unificada de búsqueda con respuestas robustas camelCase (Módulo 2).
- * Utiliza llamarServidor() para manejar carga y timeout de 15s de forma centralizada.
+ * Busca un artículo en el servidor y renderiza su ficha de levantamiento o vista read-only (RF2).
+ * Expuesto globalmente en `window`.
  */
-function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
-  const q = query.trim().toLowerCase();
+window.buscarBienFisico = function() {
+  const inputVal = document.getElementById('buscar-input').value.trim();
+  const buscarPorSerieToggle = document.getElementById('buscar-serie-toggle').checked;
 
-  if (buscarPorSerie) {
-    // Buscar por serie en caché local primero
-    const matches = window.cacheInventario.filter(function(item) {
-      const s = String(item.serie || "").trim().toLowerCase();
-      return s === q && s !== "s/s" && s !== "s/s." && s !== "sin serie" && s !== "";
-    });
-
-    if (matches.length > 0) {
-      mostrarResultadoBusqueda(matches[0]);
-      registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en caché. Encontrado: " + matches[0].descripcion);
-    } else {
-      // Intentar en servidor
-      window.llamarServidor(
-        "buscarPorSerie",
-        [query],
-        function(srvMatches) {
-          if (srvMatches && srvMatches.length > 0) {
-            mostrarResultadoBusqueda(srvMatches[0]);
-            registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en servidor. Encontrado: " + srvMatches[0].descripcion);
-          } else {
-            mostrarNotificacion("No se encontró ningún artículo con la serie '" + query + "'", "bg-danger");
-            alert("No se encontró coincidencia para la serie '" + query + "'. Verifique el número o use la búsqueda manual.");
-            const resContainer = document.getElementById("resultado-busqueda-container");
-            if (resContainer) resContainer.classList.add("d-none");
-            registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en servidor — Sin resultados.");
-          }
-        },
-        function(err) {
-          console.error("[SMR] Error en buscarPorSerie:", err);
-          mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
-          alert("Error de conexión con el servidor: " + err);
-        }
-      );
-    }
-  } else {
-    // Buscar por No. INV
-    const found = window.cacheInventario.find(function(item) {
-      return String(item.noInv || "").trim().toLowerCase() === q;
-    });
-
-    if (found) {
-      mostrarResultadoBusqueda(found);
-      registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en caché. Encontrado: " + found.descripcion);
-    } else {
-      // Intentar en servidor (Módulo 2)
-      window.llamarServidor(
-        "buscarPorInventario",
-        [query],
-        function(res) {
-          if (res && res.encontrado && res.data) {
-            mostrarResultadoBusqueda(res.data);
-            registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en servidor. Encontrado: " + res.data.descripcion);
-          } else {
-            // Mostrar mensaje detallado del servidor (Módulo 2)
-            var msg = res && res.mensaje ? res.mensaje : "No se encontró ningún bien con No. INV. '" + query + "'";
-            mostrarNotificacion(msg, "bg-danger");
-            alert(msg + "\n\nCódigo QR detectado: " + query + ". No se encontró coincidencia. Verifique el número o use la búsqueda manual.");
-            const resContainer = document.getElementById("resultado-busqueda-container");
-            if (resContainer) resContainer.classList.add("d-none");
-            registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en servidor — Sin resultados.");
-          }
-        },
-        function(err) {
-          console.error("[SMR] Error en buscarPorInventario:", err);
-          mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
-          alert("Error de conexión con el servidor: " + err);
-        }
-      );
-    }
-  }
-}
-
-/**
- * Renderiza los detalles informativos y el formulario de levantamiento.
- * Utiliza propiedades camelCase estandarizadas (Módulo 2).
- */
-function mostrarResultadoBusqueda(item) {
-  const container = document.getElementById("resultado-busqueda-container");
-  if (!container) return;
-  container.classList.remove("d-none");
-
-  // Cargar datos patrimonio (Read-only)
-  document.getElementById("pat-descripcion").value = item.descripcion || "";
-  document.getElementById("pat-marca").value = item.marca || "";
-  document.getElementById("pat-modelo").value = item.modelo || "";
-  document.getElementById("pat-serie").value = item.serie || "";
-  document.getElementById("pat-importe").value = item.importe ? "$" + parseFloat(item.importe).toFixed(2) : "$0.00";
-  document.getElementById("pat-estado").value = item.estado || "BUENO";
-  document.getElementById("pat-resguardado").value = item.resguardante || item.resguardado || "";
-  document.getElementById("pat-ubicacion").value = item.ubicacion || "";
-
-  // Cargar datos reales editables
-  document.getElementById("edit-no-inv-id").value = item.noInv;
-  document.getElementById("real-ubicacion").value = item.ubicacionReal || item.ubicacion || "";
-  document.getElementById("real-resguardante").value = item.resguardanteReal || item.resguardante || item.resguardado || "";
-  document.getElementById("real-estado").value = item.estadoReal || "Bueno";
-
-  // Limpiar inputs de fotos
-  document.getElementById("real-fotos-files").value = "";
-  document.getElementById("real-fotos-preview").innerHTML = "";
-
-  // Renderizar fotos cargadas anteriormente si existen
-  renderizarFotosExistentes(item.fotoId, item.noInv, "real-fotos-existentes", "fotos-existentes-container");
-
-  // Scroll automático suave al resultado
-  container.scrollIntoView({ behavior: 'smooth' });
-}
-
-/**
- * Renderiza miniaturas de imágenes públicas en Drive desde FOTO_ID.
- */
-function renderizarFotosExistentes(fotoIdsString, noInv, containerId, mainWrapperId) {
-  const listEl = document.getElementById(containerId);
-  const wrapperEl = document.getElementById(mainWrapperId);
-  if (!listEl) return;
-
-  listEl.innerHTML = "";
-
-  const ids = fotoIdsString ? String(fotoIdsString).split(",") : [];
-  if (ids.length === 0) {
-    if (wrapperEl) wrapperEl.classList.add("d-none");
+  if (!inputVal) {
+    mostrarAlerta("Por favor, introduzca un criterio de búsqueda.", "warning");
     return;
   }
 
-  if (wrapperEl) wrapperEl.classList.remove("d-none");
+  mostrarCarga("Buscando artículo...");
 
-  ids.forEach(function(id) {
-    const cleanId = id.trim();
-    if (!cleanId) return;
-
-    // Contenedor miniatura
-    const thumbDiv = document.createElement("div");
-    thumbDiv.className = "photo-thumbnail-container";
-
-    // Imagen usando la API directa de Drive para vistas de miniaturas
-    const img = document.createElement("img");
-    img.className = "photo-thumbnail";
-    img.src = "https://lh3.googleusercontent.com/u/0/d/" + cleanId + "=w150-h150-p";
-    img.alt = "Foto de evidencia";
-    img.onerror = function() {
-      // Fallback si no tiene permisos públicos todavía
-      this.src = "https://placehold.co/80x80/e0e0e0/666666?text=FOTO_DRIVE";
-    };
-
-    // Botón de eliminar foto
-    const delBtn = document.createElement("button");
-    delBtn.type = "button";
-    delBtn.className = "photo-delete-btn";
-    delBtn.innerHTML = "&times;";
-    delBtn.title = "Eliminar foto";
-    delBtn.onclick = function() {
-      if (confirm("¿Está seguro de que desea eliminar esta fotografía del servidor?")) {
-        window.mostrarCarga("Eliminando fotografía...");
-        google.script.run
-          .withSuccessHandler(function(res) {
-            window.ocultarCarga();
-            if (res.success) {
-              mostrarNotificacion("Fotografía eliminada correctamente.", "bg-success");
-              // Recargar listados y estadísticas
-              cargarListadoInventario(function() {
-                cargarEstadisticasInicio();
-                // Actualizar vista actual
-                const actualItem = window.cacheInventario.find(function(i) {
-                  return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-                });
-                if (actualItem) mostrarResultadoBusqueda(actualItem);
-              });
-            } else {
-              mostrarNotificacion("Error al eliminar foto: " + res.message, "bg-danger");
-            }
-          })
-          .withFailureHandler(function(err) {
-            window.ocultarCarga();
-            mostrarNotificacion("Fallo de red al eliminar foto.", "bg-danger");
-          })
-          .eliminarFotoArticulo(noInv, cleanId);
-      }
-    };
-
-    thumbDiv.appendChild(img);
-    thumbDiv.appendChild(delBtn);
-    listEl.appendChild(thumbDiv);
-  });
-}
-
-/**
- * Previsualización en tiempo real de fotos seleccionadas localmente antes de subirlas.
- */
-window.renderizarPrevisualizacionFotos = function(inputEl, previewContainerId) {
-  const container = document.getElementById(previewContainerId);
-  if (!container) return;
-  container.innerHTML = "";
-
-  const files = inputEl.files;
-  if (!files || files.length === 0) return;
-
-  if (files.length > 3) {
-    alert("Se permiten como máximo 3 fotos por artículo. Se seleccionarán las primeras 3.");
-  }
-
-  const limiteMax = Math.min(files.length, 3);
-
-  for (let i = 0; i < limiteMax; i++) {
-    const file = files[i];
-
-    // Validar formato (PNG, JPG, GIF, WEBP)
-    const validExtensions = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (validExtensions.indexOf(file.type) === -1) {
-      alert("El archivo '" + file.name + "' no es una imagen válida. Formatos aceptados: JPG, PNG, GIF, WEBP.");
-      continue;
-    }
-
-    // Validar peso (menor a 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert("La imagen '" + file.name + "' excede el límite de peso permitido (5MB). Reduzca la resolución.");
-      continue;
-    }
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const imgDiv = document.createElement("div");
-      imgDiv.className = "photo-thumbnail-container";
-
-      const img = document.createElement("img");
-      img.className = "photo-thumbnail";
-      img.src = e.target.result;
-      img.alt = "Previsualización";
-
-      imgDiv.appendChild(img);
-      container.appendChild(imgDiv);
-    };
-    reader.readAsDataURL(file);
-  }
-};
-
-/**
- * Guarda el formulario de levantamiento (Edición simple de campos reales + Fotos)
- */
-window.guardarDetalleLevantamiento = function(event) {
-  if (event) event.preventDefault();
-
-  const noInv = document.getElementById("edit-no-inv-id").value;
-  const ubicacion = document.getElementById("real-ubicacion").value.trim();
-  const resguardante = document.getElementById("real-resguardante").value.trim();
-  const estado = document.getElementById("real-estado").value;
-
-  if (!ubicacion || !resguardante || !estado) {
-    alert("Por favor complete todos los campos obligatorios (*)");
-    return;
-  }
-
-  window.mostrarCarga("Guardando datos de levantamiento...");
-
-  const datos = {
-    ubicacionReal: ubicacion,
-    resguardanteReal: resguardante,
-    estadoReal: estado
-  };
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.success) {
-        // Subir fotos si se seleccionaron
-        const fileInput = document.getElementById("real-fotos-files");
-        if (fileInput.files && fileInput.files.length > 0) {
-          subirFotosDeFrente(noInv, fileInput.files, function() {
-            completarExitoGuardado(noInv);
-          });
+  if (buscarPorSerieToggle) {
+    // Búsqueda por número de serie
+    google.script.run
+      .withSuccessHandler(function(matches) {
+        ocultarCarga();
+        if (matches && matches.length > 0) {
+          if (matches.length === 1) {
+            cargarFichaArticulo(matches[0]);
+          } else {
+            // Múltiples coincidencias, obligar a seleccionar desde la tabla
+            mostrarAlerta("Se encontraron " + matches.length + " artículos con la misma serie. Se ha filtrado el listado general.", "info");
+            showSection('listado');
+            document.getElementById('filtro-texto').value = matches[0].serie;
+            aplicarFiltrosTabla();
+          }
         } else {
-          completarExitoGuardado(noInv);
+          mostrarAlerta("No se encontró ningún bien con número de serie: '" + inputVal + "'", "danger");
         }
-      } else {
-        window.ocultarCarga();
-        mostrarNotificacion("Error al guardar: " + res.message, "bg-danger");
-      }
-    })
-    .withFailureHandler(function(err) {
-      window.ocultarCarga();
-      mostrarNotificacion("Error al conectar con servidor: " + err.message, "bg-danger");
-    })
-    .guardarLevantamiento(noInv, datos);
+      })
+      .withFailureHandler(function(err) {
+        ocultarCarga();
+        mostrarAlerta("Error al buscar por serie: " + err.toString(), "danger");
+      })
+      .buscarPorSerie(inputVal);
+  } else {
+    // Búsqueda exacta por No. INV. (Módulo 2)
+    google.script.run
+      .withSuccessHandler(function(item) {
+        ocultarCarga();
+        if (item) {
+          cargarFichaArticulo(item);
+        } else {
+          mostrarAlerta("No se encontró ningún bien con No. INV.: '" + inputVal + "'", "danger");
+        }
+      })
+      .withFailureHandler(function(err) {
+        ocultarCarga();
+        mostrarAlerta("Error al buscar por inventario: " + err.toString(), "danger");
+      })
+      .buscarPorNoInv(inputVal);
+  }
 };
 
-function completarExitoGuardado(noInv) {
-  mostrarNotificacion("¡Levantamiento guardado exitosamente!", "bg-success");
+/**
+ * Puebla la ficha de detalle y levantamiento de un artículo en pantalla (RF2).
+ */
+function cargarFichaArticulo(item) {
+  document.getElementById('detalle-vacio').style.display = 'none';
+  document.getElementById('detalle-articulo').style.display = 'block';
 
-  // Recargar base de datos local
-  cargarListadoInventario(function() {
-    cargarEstadisticasInicio();
-    window.ocultarCarga();
+  // Asignar cabecera de badge
+  document.getElementById('det-no-inv-badge').innerText = "No. INV: " + item.noInv;
 
-    // Actualizar previsualización para mostrar nuevas miniaturas
-    const actualItem = window.cacheInventario.find(function(i) {
-      return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
+  // Rellenar campos patrimoniales históricos (Read-only)
+  document.getElementById('det-descripcion').value = item.descripcion || "Sin Descripción";
+  document.getElementById('det-serie').value = item.serie || "SIN SERIE";
+  document.getElementById('det-marca').value = item.marca || "S/M";
+  document.getElementById('det-modelo').value = item.modelo || "S/M";
+  document.getElementById('det-importe').value = parseFloat(item.importe).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('det-resguardado').value = item.resguardado || "Sin resguardante patrimonial";
+  document.getElementById('det-ubicacion').value = item.ubicacion || "Sin ubicación patrimonial";
+
+  // Rellenar campos editables de levantamiento real
+  document.getElementById('levantamiento-no-inv').value = item.noInv;
+  document.getElementById('lev-ubicacion-real').value = item.ubicacionReal || "";
+  document.getElementById('lev-resguardante-real').value = item.resguardanteReal || "";
+  document.getElementById('lev-estado-real').value = item.estadoReal || "";
+
+  // Limpiar input de fotos
+  document.getElementById('lev-fotos').value = "";
+  document.getElementById('fotos-preview-container').innerHTML = "";
+
+  // Mostrar fotos existentes si tiene (usar Drive API o link directo)
+  const containerExistentes = document.getElementById('fotos-existentes-container');
+  const divExistentes = document.getElementById('fotos-existentes');
+  divExistentes.innerHTML = "";
+
+  if (item.fotoId && item.fotoId.trim() !== "") {
+    containerExistentes.style.display = 'block';
+    const listaIds = item.fotoId.split(",");
+
+    listaIds.forEach(function(id) {
+      if (!id) return;
+      const html = `
+        <div class="thumbnail-container" id="thumb-${id}">
+          <img src="https://docs.google.com/uc?export=view&id=${id}" class="thumbnail-preview" alt="Evidencia">
+          <button type="button" class="btn-delete-thumb" onclick="eliminarFotoServidor('${item.noInv}', '${id}');" title="Eliminar foto">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      `;
+      divExistentes.insertAdjacentHTML('beforeend', html);
     });
-    if (actualItem) mostrarResultadoBusqueda(actualItem);
-  });
+  } else {
+    containerExistentes.style.display = 'none';
+  }
 }
 
 /**
- * Sube una cola de imágenes seleccionadas en serie al backend de Apps Script.
+ * Previsualiza localmente las fotos de levantamiento seleccionadas en el input file.
+ * Expuesto globalmente en `window`.
  */
-function subirFotosDeFrente(noInv, files, callback) {
-  let indexCarga = 0;
-  const limiteMax = Math.min(files.length, 3);
+window.previsualizarFotosSeleccionadas = function() {
+  const input = document.getElementById('lev-fotos');
+  const preview = document.getElementById('fotos-preview-container');
+  preview.innerHTML = "";
 
-  function procesarSiguienteFoto() {
-    if (indexCarga >= limiteMax) {
-      if (callback) callback();
+  if (input.files.length > 3) {
+    mostrarAlerta("Solo se permite un máximo de 3 fotografías como evidencia.", "warning");
+    input.value = "";
+    return;
+  }
+
+  Array.from(input.files).forEach(function(file, index) {
+    if (file.size > 5 * 1024 * 1024) {
+      mostrarAlerta("La imagen " + file.name + " supera el límite de 5MB.", "danger");
       return;
     }
 
-    window.mostrarCarga("Subiendo fotografía " + (indexCarga + 1) + " de " + limiteMax + "...");
-    const file = files[indexCarga];
-
     const reader = new FileReader();
     reader.onload = function(e) {
-      const base64Data = e.target.result;
-      google.script.run
-        .withSuccessHandler(function(resUpload) {
-          indexCarga++;
-          procesarSiguienteFoto();
-        })
-        .withFailureHandler(function(errUpload) {
-          console.error("Fallo al subir foto:", errUpload);
-          indexCarga++;
-          procesarSiguienteFoto();
-        })
-        .subirFotoArticulo(noInv, base64Data, file.name, indexCarga);
+      const html = `
+        <div class="thumbnail-container">
+          <img src="${e.target.result}" class="thumbnail-preview" alt="Previsualización">
+          <span class="badge bg-dark position-absolute bottom-0 start-0 m-1">Temp ${index + 1}</span>
+        </div>
+      `;
+      preview.insertAdjacentHTML('beforeend', html);
     };
     reader.readAsDataURL(file);
-  }
-
-  procesarSiguienteFoto();
-}
-
-// --- MÓDULO 1 & Instrucción 5: ESCANER QR MEDIANTE ARCHIVO (Instrucción 5) ---
-
-/**
- * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Instrucción 5).
- * Esto evita el uso de getUserMedia y es 100% compatible con la política de sandbox de Google Apps Script.
- */
-window.procesarEscaneoQR = function() {
-  const fileInput = document.getElementById("qr-input-file");
-  const statusEl = document.getElementById("scanner-status");
-  if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
-
-  const file = fileInput.files[0];
-  if (statusEl) {
-    statusEl.innerHTML = `<span class="text-primary"><i class="fa-solid fa-spinner fa-spin"></i> Decodificando código...</span>`;
-  }
-
-  window.mostrarCarga("Decodificando código QR...");
-
-  // Registrar inicio de escaneo en bitácora (Módulo 2)
-  registrarEnBitacora("ESCANER", "Iniciada decodificación estática del archivo '" + file.name + "'");
-
-  // Crear instancia local de html5-qrcode para decodificación estática
-  const html5QrCode = new Html5Qrcode("qr-reader-container");
-  window.instanciaQR = html5QrCode;
-
-  html5QrCode.scanFile(file, true)
-    .then(function(decodedText) {
-      window.ocultarCarga();
-      const limpioVal = String(decodedText || "").trim();
-
-      if (statusEl) {
-        statusEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check"></i> Código detectado: <strong>${limpioVal}</strong></span>`;
-      }
-
-      const buscarInput = document.getElementById("buscar-input");
-      if (buscarInput) {
-        buscarInput.value = limpioVal;
-      }
-
-      mostrarNotificacion("Código decodificado: " + limpioVal, "bg-success");
-
-      // Registrar éxito de escaneo en bitácora (Módulo 2)
-      registrarEnBitacora("ESCANER", "Código decodificado con éxito: " + limpioVal);
-
-      // Lanzar búsqueda automática inmediatamente (Instrucción 5)
-      ejecutarBusquedaAutomatica(limpioVal);
-
-      // Limpiar input file para permitir cargas consecutivas
-      fileInput.value = "";
-    })
-    .catch(function(err) {
-      window.ocultarCarga();
-      console.error("Fallo al decodificar código por archivo estático:", err);
-      if (statusEl) {
-        statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se pudo leer el código.</span>`;
-      }
-      alert("No se pudo leer el código QR. Intente con otro ángulo o ingrese el número manualmente.");
-      registrarEnBitacora("ERROR", "No se detectó un código legible en la imagen.");
-      fileInput.value = "";
-    });
-};
-
-/**
- * Implementa asistencia manual de búsqueda mediante sugerencias de coincidencias parciales (Módulo 1).
- * Rellena de forma dinámica el datalist con registros que coincidan con la entrada del usuario.
- */
-window.asistirBusquedaManual = function(inputEl) {
-  const query = String(inputEl.value || "").trim().toLowerCase();
-  const datalist = document.getElementById("buscar-datalist");
-  if (!datalist) return;
-
-  datalist.innerHTML = "";
-  if (query.length < 2) return; // Mínimo 2 letras
-
-  // Buscar coincidencias parciales en No. INV o Serie del caché de inventario
-  const filtrados = window.cacheInventario.filter(function(item) {
-    var invMatch = String(item.noInv || "").toLowerCase().indexOf(query) !== -1;
-    var serieMatch = String(item.serie || "").toLowerCase().indexOf(query) !== -1;
-    return invMatch || serieMatch;
-  }).slice(0, 10); // Limitar a las 10 mejores sugerencias
-
-  filtrados.forEach(function(item) {
-    const optionNoInv = document.createElement("option");
-    optionNoInv.value = item.noInv;
-    optionNoInv.innerText = item.descripcion + " (No. INV)";
-    datalist.appendChild(optionNoInv);
-
-    if (item.serie && item.serie !== "SIN SERIE" && item.serie !== "S/S") {
-      const optionSerie = document.createElement("option");
-      optionSerie.value = item.serie;
-      optionSerie.innerText = item.descripcion + " (Serie)";
-      datalist.appendChild(optionSerie);
-    }
   });
 };
 
 /**
- * Limpia y restablece el contenedor y estado del escáner QR de forma segura (Módulo 1).
+ * Guarda los datos del formulario de levantamiento real en el servidor (RF2).
+ * Expuesto globalmente en `window`.
  */
-window.limpiarVistaQR = function() {
-  const fileInput = document.getElementById("qr-input-file");
-  if (fileInput) fileInput.value = "";
+window.guardarFormularioLevantamiento = function() {
+  const noInv = document.getElementById('levantamiento-no-inv').value;
+  const ubiReal = document.getElementById('lev-ubicacion-real').value.trim();
+  const resgReal = document.getElementById('lev-resguardante-real').value.trim();
+  const estReal = document.getElementById('lev-estado-real').value;
 
-  const statusEl = document.getElementById("scanner-status");
-  if (statusEl) statusEl.innerHTML = "Esperando archivo...";
-};
-
-// --- MÓDULO ALTA DE NUEVO BIEN ---
-
-window.registrarNuevoArticulo = function(event) {
-  if (event) event.preventDefault();
-
-  const noInv = document.getElementById("alta-no-inv").value.trim();
-  const serie = document.getElementById("alta-serie").value.trim();
-  const descripcion = document.getElementById("alta-descripcion").value.trim();
-  const marca = document.getElementById("alta-marca").value.trim();
-  const modelo = document.getElementById("alta-modelo").value.trim();
-  const importe = parseFloat(document.getElementById("alta-importe").value);
-
-  // Reales
-  const estadoReal = document.getElementById("alta-estado-real").value;
-  const ubicacionReal = document.getElementById("alta-ubicacion-real").value.trim();
-  const resguardanteReal = document.getElementById("alta-resguardante-real").value.trim();
-
-  if (!noInv || !serie || !descripcion || !marca || !modelo || isNaN(importe) || !estadoReal || !ubicacionReal || !resguardanteReal) {
-    alert("Por favor complete todos los campos obligatorios marcados con (*)");
+  if (!ubiReal || !resgReal || !estReal) {
+    mostrarAlerta("Todos los campos marcados con (*) son obligatorios.", "warning");
     return;
   }
 
-  window.mostrarCarga("Dando de alta bien nuevo...");
+  mostrarCarga("Guardando levantamiento...");
 
-  const datos = {
+  const payload = {
+    resguardanteReal: resgReal,
+    ubicacionReal: ubiReal,
+    estadoReal: estReal
+  };
+
+  google.script.run
+    .withSuccessHandler(function(response) {
+      if (response && response.success) {
+        // Proceder a subir fotos si se seleccionaron
+        const fotosInput = document.getElementById('lev-fotos');
+        if (fotosInput && fotosInput.files.length > 0) {
+          subirFotosEnCola(noInv, fotosInput.files, 0, function() {
+            ocultarCarga();
+            mostrarAlerta("Levantamiento y fotos guardadas de manera exitosa.", "success");
+            actualizarDatosBaseCompleta(function() {
+              // Recargar ficha con datos frescos
+              google.script.run.withSuccessHandler(function(item) {
+                if (item) cargarFichaArticulo(item);
+              }).buscarPorNoInv(noInv);
+            });
+          });
+        } else {
+          ocultarCarga();
+          mostrarAlerta("Levantamiento guardado de manera exitosa.", "success");
+          actualizarDatosBaseCompleta();
+        }
+      } else {
+        ocultarCarga();
+        mostrarAlerta("Error al guardar levantamiento: " + (response.message || "Fallo desconocido"), "danger");
+      }
+    })
+    .withFailureHandler(function(err) {
+      ocultarCarga();
+      mostrarAlerta("Error del servidor: " + err.toString(), "danger");
+    })
+    .guardarLevantamiento(noInv, payload);
+};
+
+/**
+ * Sube fotos de manera secuencial para evitar timeouts de red.
+ */
+function subirFotosEnCola(noInv, files, index, onComplete) {
+  if (index >= files.length) {
+    if (onComplete) onComplete();
+    return;
+  }
+
+  mostrarCarga("Subiendo foto de evidencia " + (index + 1) + " de " + files.length + "...");
+
+  const file = files[index];
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    const base64Data = e.target.result;
+    google.script.run
+      .withSuccessHandler(function(uploadRes) {
+        if (uploadRes && uploadRes.success) {
+          // Continuar con la siguiente
+          subirFotosEnCola(noInv, files, index + 1, onComplete);
+        } else {
+          mostrarAlerta("La foto " + file.name + " no pudo ser guardada: " + (uploadRes.message || "Error desconocido"), "warning");
+          subirFotosEnCola(noInv, files, index + 1, onComplete);
+        }
+      })
+      .withFailureHandler(function(err) {
+        mostrarAlerta("Error al subir foto " + file.name + ": " + err.toString(), "danger");
+        subirFotosEnCola(noInv, files, index + 1, onComplete);
+      })
+      .subirFotoArticulo(noInv, base64Data, file.name, index);
+  };
+
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Elimina una foto física de Google Drive y actualiza la fila de la hoja de cálculo.
+ * Expuesto globalmente en `window`.
+ */
+window.eliminarFotoServidor = function(noInv, fotoId) {
+  if (!confirm("¿Está seguro que desea eliminar esta fotografía de evidencia de forma permanente?")) {
+    return;
+  }
+
+  mostrarCarga("Eliminando fotografía...");
+  google.script.run
+    .withSuccessHandler(function(res) {
+      ocultarCarga();
+      if (res && res.success) {
+        const elem = document.getElementById("thumb-" + fotoId);
+        if (elem) elem.remove();
+        mostrarAlerta("Fotografía eliminada correctamente.", "success");
+        actualizarDatosBaseCompleta();
+      } else {
+        mostrarAlerta("No se pudo eliminar la fotografía: " + (res.message || "Fallo desconocido"), "danger");
+      }
+    })
+    .withFailureHandler(function(err) {
+      ocultarCarga();
+      mostrarAlerta("Error al eliminar foto: " + err.toString(), "danger");
+    })
+    .eliminarFotoArticulo(noInv, fotoId);
+};
+
+/**
+ * Alta de un nuevo bien físico en el inventario de la SMR (RF3).
+ * Expuesto globalmente en `window`.
+ */
+window.enviarAltaBien = function() {
+  const noInv = document.getElementById('alta-no-inv').value.trim();
+  const serie = document.getElementById('alta-serie').value.trim();
+  const descripcion = document.getElementById('alta-descripcion').value.trim();
+  const marca = document.getElementById('alta-marca').value.trim();
+  const modelo = document.getElementById('alta-modelo').value.trim();
+  const importe = document.getElementById('alta-importe').value.trim();
+  const estado = document.getElementById('alta-estado').value.trim();
+  const ubicacion = document.getElementById('alta-ubicacion').value.trim();
+  const resguardado = document.getElementById('alta-resguardado').value.trim();
+
+  const estadoReal = document.getElementById('alta-estado-real').value;
+  const ubicacionReal = document.getElementById('alta-ubicacion-real').value.trim();
+  const resguardanteReal = document.getElementById('alta-resguardante-real').value.trim();
+
+  if (!noInv || !serie || !descripcion || !marca || !modelo || !importe || !estadoReal || !ubicacionReal || !resguardanteReal) {
+    mostrarAlerta("Todos los campos marcados con (*) son obligatorios.", "warning");
+    return;
+  }
+
+  mostrarCarga("Dando de alta artículo nuevo...");
+
+  const payload = {
     noInv: noInv,
     serie: serie,
     descripcion: descripcion,
     marca: marca,
     modelo: modelo,
-    importe: importe,
-    estado: document.getElementById("alta-estado-pat").value || "BUENO",
-    ubicacion: document.getElementById("alta-ubicacion-pat").value || "",
-    resguardado: document.getElementById("alta-resguardo-pat").value || "",
+    importe: parseFloat(importe),
+    estado: estado,
+    ubicacion: ubicacion,
+    resguardado: resguardado,
     estadoReal: estadoReal,
     ubicacionReal: ubicacionReal,
     resguardanteReal: resguardanteReal
   };
 
   google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.success) {
-        // Verificar si se agregaron fotos
-        const fileInput = document.getElementById("alta-fotos-files");
-        if (fileInput.files && fileInput.files.length > 0) {
-          subirFotosDeFrente(noInv, fileInput.files, function() {
-            completarExitoAlta();
+    .withSuccessHandler(function(response) {
+      if (response && response.success) {
+        // Subir fotos adjuntas si existen
+        const inputFotos = document.getElementById('alta-fotos');
+        if (inputFotos && inputFotos.files.length > 0) {
+          subirFotosEnCola(noInv, inputFotos.files, 0, function() {
+            ocultarCarga();
+            mostrarAlerta("Alta exitosa y fotos adjuntadas.", "success");
+            document.getElementById('form-alta-bien').reset();
+            document.getElementById('alta-fotos-preview').innerHTML = "";
+            actualizarDatosBaseCompleta();
+            showSection('listado');
           });
         } else {
-          completarExitoAlta();
+          ocultarCarga();
+          mostrarAlerta("Bien dado de alta de forma correcta.", "success");
+          document.getElementById('form-alta-bien').reset();
+          actualizarDatosBaseCompleta();
+          showSection('listado');
         }
       } else {
-        window.ocultarCarga();
-        alert(res.message);
+        ocultarCarga();
+        mostrarAlerta("Error al dar de alta el bien: " + (response.message || "Error desconocido"), "danger");
       }
     })
     .withFailureHandler(function(err) {
-      window.ocultarCarga();
-      mostrarNotificacion("Fallo de red: " + err.message, "bg-danger");
+      ocultarCarga();
+      mostrarAlerta("Error del servidor en alta: " + err.toString(), "danger");
     })
-    .altaBien(datos);
+    .altaBien(payload);
 };
 
-function completarExitoAlta() {
-  mostrarNotificacion("Artículo dado de alta exitosamente.", "bg-success");
-  document.getElementById("form-alta-articulo").reset();
-  document.getElementById("alta-fotos-preview").innerHTML = "";
+/**
+ * Previsualiza localmente las fotos de alta seleccionadas.
+ * Expuesto globalmente en `window`.
+ */
+window.previsualizarFotosAlta = function() {
+  const input = document.getElementById('alta-fotos');
+  const preview = document.getElementById('alta-fotos-preview');
+  preview.innerHTML = "";
 
-  cargarListadoInventario(function() {
-    cargarEstadisticasInicio();
-    window.ocultarCarga();
-    window.showSection('listado');
-  });
-}
-
-// --- MÓDULO DE CARGA MASIVA (Excel / SheetJS) ---
-
-window.procesarCargaMasiva = function(event) {
-  if (event) event.preventDefault();
-
-  const fileInput = document.getElementById("archivo-excel-file");
-  const files = fileInput.files;
-  if (!files || files.length === 0) {
-    alert("Por favor seleccione un archivo.");
+  if (input.files.length > 3) {
+    mostrarAlerta("Máximo de 3 fotografías permitidas por levantamiento.", "warning");
+    input.value = "";
     return;
   }
 
-  const file = files[0];
-  const opcionDuplicados = document.querySelector('input[name="duplicado-opcion"]:checked').value;
+  Array.from(input.files).forEach(function(file, idx) {
+    if (file.size > 5 * 1024 * 1024) {
+      mostrarAlerta("La imagen " + file.name + " excede el tamaño máximo de 5MB.", "danger");
+      return;
+    }
 
-  window.mostrarCarga("Analizando archivo localmente...");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const html = `
+        <div class="thumbnail-container">
+          <img src="${e.target.result}" class="thumbnail-preview" alt="Foto alta">
+          <span class="badge bg-dark position-absolute bottom-0 start-0 m-1">Temp ${idx + 1}</span>
+        </div>
+      `;
+      preview.insertAdjacentHTML('beforeend', html);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
+ * Procesa la carga masiva desde archivos de Excel o CSV usando SheetJS en el cliente (RF4).
+ * Expuesto globalmente en `window`.
+ */
+window.procesarArchivoCarga = function() {
+  const fileInput = document.getElementById('carga-archivo-input');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    mostrarAlerta("Por favor, seleccione un archivo válido para iniciar la carga.", "warning");
+    return;
+  }
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'xlsx' && ext !== 'csv') {
+    mostrarAlerta("Únicamente se soportan formatos .xlsx y .csv de Excel.", "warning");
+    return;
+  }
+
+  // Obtener opción de duplicados elegida (Omitir o Actualizar)
+  let opcionDuplicados = "omitir";
+  if (document.getElementById('duplicados-actualizar').checked) {
+    opcionDuplicados = "actualizar";
+  }
+
+  mostrarCarga("Analizando archivo local...");
 
   const reader = new FileReader();
-
-  if (file.name.endsWith(".csv")) {
-    reader.onload = function(e) {
-      const text = e.target.result;
-      const rows = parsearCSVLocal(text);
-      procesarRegistrosMapeados(rows, opcionDuplicados);
-    };
-    reader.readAsText(file, "UTF-8");
-  } else {
-    // Es Excel .xlsx
-    reader.onload = function(e) {
+  reader.onload = function(e) {
+    try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, { type: 'array' });
+
+      // Tomar primera pestaña
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
 
-      // Convertir a JSON crudo (todas las filas)
-      const rawJson = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      const rows = mapearColumnasInteligentes(rawJson);
-
-      procesarRegistrosMapeados(rows, opcionDuplicados);
-    };
-    reader.readAsArrayBuffer(file);
-  }
-};
-
-/**
- * Parsea un CSV de forma simple respetando comillas.
- */
-function parsearCSVLocal(text) {
-  const lines = text.split(/\r\n|\n/);
-  const result = [];
-  if (lines.length === 0) return [];
-
-  // Separar primera fila como cabeceras
-  const headers = parsearLineaCSV(lines[0]);
-
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    const values = parsearLineaCSV(lines[i]);
-    const rowObj = {};
-    for (let j = 0; j < headers.length; j++) {
-      rowObj[headers[j]] = values[j] || "";
-    }
-    result.push(rowObj);
-  }
-
-  // Convertir las cabeceras a la matriz mapeable
-  const matrix = [headers];
-  result.forEach(function(r) {
-    const arr = headers.map(function(h) { return r[h]; });
-    matrix.push(arr);
-  });
-
-  return mapearColumnasInteligentes(matrix);
-}
-
-function parsearLineaCSV(line) {
-  const result = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-/**
- * Normaliza textos para comparación flexible de cabeceras de Excel/CSV.
- */
-function limpiarLlaveColumna(txt) {
-  if (!txt) return "";
-  return String(txt).toLowerCase()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .replace(/[^a-z0-9]/g, "")
-                    .trim();
-}
-
-/**
- * Algoritmo de mapeo inteligente de cabeceras requerido por RF4.
- */
-function mapearColumnasInteligentes(matrix) {
-  if (matrix.length < 2) return [];
-
-  const cabecerasOriginales = matrix[0];
-  const listadoFilasMapeadas = [];
-
-  // Índices mapeados a columnas estándar
-  let colIdxNo = -1;
-  let colIdxNoInv = -1;
-  let colIdxDesc = -1;
-  let colIdxSerie = -1;
-  let colIdxModelo = -1;
-  let colIdxMarca = -1;
-  let colIdxEstado = -1;
-  let colIdxImporte = -1;
-  let colIdxUbicacion = -1;
-  let colIdxResguardado = -1;
-  let colIdxResguardanteReal = -1;
-  let colIdxUbicacionReal = -1;
-  let colIdxEstadoReal = -1;
-  let colIdxFotoId = -1;
-
-  cabecerasOriginales.forEach(function(header, idx) {
-    const norm = limpiarLlaveColumna(header);
-
-    // Validar variantes
-    if (norm === "no" || norm === "numero" || norm === "id") {
-      colIdxNo = idx;
-    } else if (norm === "noinv" || norm === "noinventario" || norm === "numeroinventario" || norm === "etiqueta") {
-      colIdxNoInv = idx;
-    } else if (norm === "descripcion" || norm === "articulo") {
-      colIdxDesc = idx;
-    } else if (norm === "serie" || norm === "noserie" || norm === "numerodeserie") {
-      colIdxSerie = idx;
-    } else if (norm === "modelo") {
-      colIdxModelo = idx;
-    } else if (norm === "marca") {
-      colIdxMarca = idx;
-    } else if (norm === "estado" || norm === "estadopatrimonio") {
-      colIdxEstado = idx;
-    } else if (norm === "importe" || norm === "valor" || norm === "costo") {
-      colIdxImporte = idx;
-    } else if (norm === "ubicacion") {
-      colIdxUbicacion = idx;
-    } else if (norm === "resguardado" || norm === "resguardo") {
-      colIdxResguardado = idx;
-    } else if (norm === "resguardantereal" || norm === "resguardante") {
-      colIdxResguardanteReal = idx;
-    } else if (norm === "ubicacionreal") {
-      colIdxUbicacionReal = idx;
-    } else if (norm === "estadoreal") {
-      colIdxEstadoReal = idx;
-    } else if (norm === "fotoid" || norm === "fotos") {
-      colIdxFotoId = idx;
-    }
-  });
-
-  // Procesar cada fila de datos (partiendo desde index 1)
-  for (let r = 1; r < matrix.length; r++) {
-    const fila = matrix[r];
-    // Evitar procesar filas totalmente vacías
-    if (!fila || fila.length === 0 || (fila.length === 1 && !fila[0])) continue;
-
-    const objMapeado = {
-      "No.": colIdxNo !== -1 ? fila[colIdxNo] : "",
-      "No. INV.": colIdxNoInv !== -1 ? String(fila[colIdxNoInv] || "").trim() : "",
-      "DESCRIPCION": colIdxDesc !== -1 ? fila[colIdxDesc] : "",
-      "SERIE": colIdxSerie !== -1 ? fila[colIdxSerie] : "SIN SERIE",
-      "MODELO": colIdxModelo !== -1 ? fila[colIdxModelo] : "",
-      "MARCA": colIdxMarca !== -1 ? fila[colIdxMarca] : "",
-      "ESTADO": colIdxEstado !== -1 ? fila[colIdxEstado] : "BUENO",
-      "IMPORTE": colIdxImporte !== -1 ? fila[colIdxImporte] : 0,
-      "UBICACION": colIdxUbicacion !== -1 ? fila[colIdxUbicacion] : "",
-      "RESGUARDADO": colIdxResguardado !== -1 ? fila[colIdxResguardado] : "",
-      "RESGUARDANTE_REAL": colIdxResguardanteReal !== -1 ? fila[colIdxResguardanteReal] : "",
-      "UBICACION_REAL": colIdxUbicacionReal !== -1 ? fila[colIdxUbicacionReal] : "",
-      "ESTADO_REAL": colIdxEstadoReal !== -1 ? fila[colIdxEstadoReal] : "",
-      "FOTO_ID": colIdxFotoId !== -1 ? fila[colIdxFotoId] : ""
-    };
-
-    listadoFilasMapeadas.push(objMapeado);
-  }
-
-  return listadoFilasMapeadas;
-}
-
-/**
- * Envía el lote estructurado al servidor para guardado optimizado en GAS.
- */
-function procesarRegistrosMapeados(rows, opcionDuplicados) {
-  if (rows.length === 0) {
-    window.ocultarCarga();
-    alert("No se encontraron registros válidos o mapeables en el archivo.");
-    return;
-  }
-
-  window.mostrarCarga("Subiendo lote al servidor de Google Sheets...");
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      window.ocultarCarga();
-      if (res.success) {
-        mostrarNotificacion("¡Carga masiva completada exitosamente!", "bg-success");
-
-        // Renderizar resumen en el cliente
-        document.getElementById("resultado-carga-container").classList.remove("d-none");
-        document.getElementById("res-carga-nuevos").innerText = res.nuevos;
-        document.getElementById("res-carga-actualizados").innerText = res.actualizados;
-        document.getElementById("res-carga-omitidos").innerText = res.omitidos;
-        document.getElementById("res-carga-errores").innerText = res.errores;
-
-        // Limpiar formulario de archivo
-        document.getElementById("archivo-excel-file").value = "";
-
-        // Recargar listado completo y estadísticas
-        cargarListadoInventario();
-        cargarEstadisticasInicio();
-      } else {
-        alert("Fallo al procesar lote: " + res.message);
+      // Parsear a JSON usando cabeceras en fila 1
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      if (rawRows.length < 2) {
+        ocultarCarga();
+        mostrarAlerta("El archivo cargado no contiene registros o está vacío.", "danger");
+        return;
       }
-    })
-    .withFailureHandler(function(err) {
-      window.ocultarCarga();
-      alert("Error en el servidor de Google Sheets: " + err.message);
-    })
-    .importarDatosExcel(rows, opcionDuplicados);
-}
 
-// --- MÓDULO LISTADO GENERAL Y PAGINACIÓN ---
+      const rawHeaders = rawRows[0];
+      const rows = [];
 
-/**
- * Realiza el filtrado de inventario de forma de alto rendimiento en el servidor (Módulo 3).
- * Si no se salta la petición, solicita la lista filtrada a Google Sheets, de lo contrario renderiza.
- */
-window.aplicarFiltrosYListar = function(skipServerQuery) {
-  if (!skipServerQuery) {
-    cargarListadoInventario();
-    return;
-  }
+      // Mapeo Inteligente de Cabeceras (Módulo 2)
+      // Diccionario de equivalencias tolerantes
+      const mapeoDiccionario = {
+        "no.": ["no.", "no", "numero", "número", "id"],
+        "No. INV.": ["no. inv.", "no. inventario", "numero inventario", "etiqueta", "no inv", "inventario"],
+        "DESCRIPCION": ["descripcion", "descripción", "articulo", "descripcion", "desc"],
+        "SERIE": ["serie", "no. serie", "serie", "numero de serie", "ser"],
+        "MODELO": ["modelo", "modelo"],
+        "MARCA": ["marca", "marca"],
+        "ESTADO": ["estado", "estado patrimonio"],
+        "IMPORTE": ["importe", "valor", "costo"],
+        "UBICACION": ["ubicacion", "ubicación"],
+        "RESGUARDADO": ["resguardado", "resguardo"],
+        "RESGUARDANTE_REAL": ["resguardante real", "resguardante_real", "resguardante"],
+        "UBICACION_REAL": ["ubicación real", "ubicacion_real", "ubicacion real"],
+        "ESTADO_REAL": ["estado real", "estado_real", "estado real"]
+      };
 
-  const totalRegistros = window.cacheInventario.length;
-  const totalPaginas = Math.ceil(totalRegistros / REGISTROS_POR_PAGINA) || 1;
+      // Encontrar los índices de cada columna de manera inteligente e insensible a acentos/casing
+      const mapIndices = {};
+      Object.keys(mapeoDiccionario).forEach(function(colObjetivo) {
+        const sinonimos = mapeoDiccionario[colObjetivo];
+        let indexEncontrado = -1;
 
-  if (window.paginaActual > totalPaginas) {
-    window.paginaActual = totalPaginas;
-  }
+        for (let i = 0; i < rawHeaders.length; i++) {
+          const headerActualNorm = String(rawHeaders[i] || "").toLowerCase()
+                                      .normalize("NFD")
+                                      .replace(/[\u0300-\u036f]/g, "")
+                                      .trim();
 
-  const inicioIdx = (window.paginaActual - 1) * REGISTROS_POR_PAGINA;
-  const finIdx = Math.min(inicioIdx + REGISTROS_POR_PAGINA, totalRegistros);
+          for (let s = 0; s < sinonimos.length; s++) {
+            const sinonimoNorm = sinonimos[s].toLowerCase()
+                                    .normalize("NFD")
+                                    .replace(/[\u0300-\u036f]/g, "")
+                                    .trim();
+            if (headerActualNorm === sinonimoNorm) {
+              indexEncontrado = i;
+              break;
+            }
+          }
+          if (indexEncontrado !== -1) break;
+        }
 
-  const paginaItems = window.cacheInventario.slice(inicioIdx, finIdx);
+        mapIndices[colObjetivo] = indexEncontrado;
+      });
 
-  console.log("[SMR] aplicando filtros en cliente. Registros en página:", paginaItems.length, "Total:", totalRegistros);
+      // Procesar filas de datos
+      for (let r = 1; r < rawRows.length; r++) {
+        const row = rawRows[r];
+        if (row.length === 0) continue;
 
-  // Renderizar filas de la tabla primero
-  renderizarTablaListado(paginaItems);
+        const objMapeado = {};
+        let tieneDatos = false;
 
-  // Renderizar barra de control del paginador después (garantizando DOM listo)
-  window.renderizarPaginadorUI(window.cacheInventario, window.paginaActual, REGISTROS_POR_PAGINA);
+        Object.keys(mapIndices).forEach(function(colKey) {
+          const idx = mapIndices[colKey];
+          let val = idx !== -1 ? row[idx] : "";
+          if (val === undefined || val === null) val = "";
+
+          objMapeado[colKey] = String(val).trim();
+          if (objMapeado[colKey] !== "") {
+            tieneDatos = true;
+          }
+        });
+
+        if (tieneDatos) {
+          rows.push(objMapeado);
+        }
+      }
+
+      if (rows.length === 0) {
+        ocultarCarga();
+        mostrarAlerta("No se encontraron registros válidos tras mapear las cabeceras.", "danger");
+        return;
+      }
+
+      mostrarCarga("Procesando y subiendo " + rows.length + " registros al servidor...");
+
+      // Enviar lote de datos mapeados al servidor (Módulo 1 - Batch insert)
+      google.script.run
+        .withSuccessHandler(function(resultado) {
+          ocultarCarga();
+          if (resultado && resultado.success) {
+            document.getElementById('resultado-carga').style.display = 'block';
+            document.getElementById('res-nuevos').innerText = resultado.nuevos || 0;
+            document.getElementById('res-actualizados').innerText = resultado.actualizados || 0;
+            document.getElementById('res-omitidos').innerText = resultado.omitidos || 0;
+            document.getElementById('res-errores').innerText = resultado.errores || 0;
+
+            mostrarAlerta("Carga masiva procesada correctamente.", "success");
+            fileInput.value = "";
+            actualizarDatosBaseCompleta();
+          } else {
+            mostrarAlerta("La importación falló: " + (resultado.message || "Fallo desconocido"), "danger");
+          }
+        })
+        .withFailureHandler(function(err) {
+          ocultarCarga();
+          mostrarAlerta("Error al subir lote al servidor: " + err.toString(), "danger");
+        })
+        .importarDatosExcel(rows, opcionDuplicados);
+
+    } catch (parseErr) {
+      ocultarCarga();
+      mostrarAlerta("Error al interpretar archivo de Excel: " + parseErr.toString(), "danger");
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
 };
 
 /**
- * Renderiza la grilla de listado utilizando claves camelCase seguras (Módulo 3).
+ * Aplica los filtros seleccionados localmente en pantalla y renderiza la tabla con paginación (RF5).
+ * Expuesto globalmente en `window`.
  */
-function renderizarTablaListado(items) {
-  const tbody = document.getElementById("tbody-listado-bienes");
-  if (!tbody) {
-    console.warn("Tabla listado: tbody no encontrado, omitiendo renderizado");
+window.aplicarFiltrosTabla = function() {
+  const texto = document.getElementById('filtro-texto').value.trim().toLowerCase();
+  const estado = document.getElementById('filtro-estado').value;
+  const ubicacion = document.getElementById('filtro-ubicacion').value;
+
+  // Realizar el filtrado de forma reactiva local
+  registrosFiltrados = dbInventario.filter(function(item) {
+    let coincide = true;
+
+    // Filtro por Texto Global (en No. INV, descripción y resguardante)
+    if (texto) {
+      const bDesc = String(item.descripcion || "").toLowerCase();
+      const bInv = String(item.noInv || "").toLowerCase();
+      const bResg = String(item.resguardanteReal || item.resguardado || "").toLowerCase();
+      const bSerie = String(item.serie || "").toLowerCase();
+
+      if (bDesc.indexOf(texto) === -1 && bInv.indexOf(texto) === -1 && bResg.indexOf(texto) === -1 && bSerie.indexOf(texto) === -1) {
+        coincide = false;
+      }
+    }
+
+    // Filtro por Estado Real
+    if (estado) {
+      if (estado === "pendiente") {
+        if (String(item.estadoReal || "").trim() !== "") coincide = false;
+      } else {
+        if (String(item.estadoReal || "").trim().toLowerCase() !== estado.toLowerCase()) coincide = false;
+      }
+    }
+
+    // Filtro por Ubicación Real
+    if (ubicacion) {
+      const uActual = String(item.ubicacionReal || item.ubicacion || "").trim().toLowerCase();
+      if (uActual !== ubicacion.toLowerCase()) coincide = false;
+    }
+
+    return coincide;
+  });
+
+  totalRegistrosFiltrados = registrosFiltrados.length;
+  paginaActual = 1; // Resetear a página 1 tras cambiar filtros
+
+  renderizarPaginador();
+  renderizarListadoTabla();
+};
+
+/**
+ * Equivalente rápido llamado por el botón de filtro
+ * Expuesto globalmente en `window`.
+ */
+window.aplicarFiltrosTablaBoton = function() {
+  aplicarFiltrosTabla();
+};
+
+/**
+ * Renderiza la paginación del listado general.
+ */
+function renderizarPaginador() {
+  const paginadorUl = document.getElementById('paginador-ul');
+  if (!paginadorUl) return;
+
+  const totalPaginas = Math.ceil(totalRegistrosFiltrados / REGISTROS_POR_PAGINA);
+  paginadorUl.innerHTML = "";
+
+  if (totalPaginas <= 1) {
+    return; // No es necesario pintar paginación
+  }
+
+  // Botón Anterior
+  let html = `
+    <li class="page-item ${paginaActual === 1 ? 'disabled' : ''}">
+      <a class="page-link" href="#" onclick="cambiarPagina(${paginaActual - 1}); return false;" aria-label="Anterior">
+        <span aria-hidden="true">&laquo;</span>
+      </a>
+    </li>
+  `;
+
+  // Pintar números de páginas (simplificado para móviles)
+  const rango = 2; // Páginas a mostrar a cada lado de la actual
+  for (let i = 1; i <= totalPaginas; i++) {
+    if (i === 1 || i === totalPaginas || (i >= paginaActual - rango && i <= paginaActual + rango)) {
+      html += `
+        <li class="page-item ${paginaActual === i ? 'active' : ''}">
+          <a class="page-link" href="#" onclick="cambiarPagina(${i}); return false;">${i}</a>
+        </li>
+      `;
+    } else if (i === paginaActual - rango - 1 || i === paginaActual + rango + 1) {
+      html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+    }
+  }
+
+  // Botón Siguiente
+  html += `
+    <li class="page-item ${paginaActual === totalPaginas ? 'disabled' : ''}">
+      <a class="page-link" href="#" onclick="cambiarPagina(${paginaActual + 1}); return false;" aria-label="Siguiente">
+        <span aria-hidden="true">&raquo;</span>
+      </a>
+    </li>
+  `;
+
+  paginadorUl.innerHTML = html;
+}
+
+/**
+ * Cambia la página actual del listado general.
+ * Expuesto globalmente en `window`.
+ */
+window.cambiarPagina = function(numPagina) {
+  const totalPaginas = Math.ceil(totalRegistrosFiltrados / REGISTROS_POR_PAGINA);
+  if (numPagina < 1 || numPagina > totalPaginas) return;
+
+  paginaActual = numPagina;
+  renderizarPaginador();
+  renderizarListadoTabla();
+};
+
+/**
+ * Renderiza la tabla física de inventario para la página actual (RF5).
+ */
+function renderizarListadoTabla() {
+  const body = document.getElementById('tabla-bienes-body');
+  const info = document.getElementById('tabla-info-registro');
+  if (!body) return;
+
+  if (totalRegistrosFiltrados === 0) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="10" class="text-center text-secondary py-5">
+          <i class="fa-solid fa-triangle-exclamation fs-3 mb-2" aria-hidden="true"></i>
+          <p class="mb-0 fw-bold">No se encontraron artículos con los criterios seleccionados.</p>
+        </td>
+      </tr>
+    `;
+    if (info) info.innerText = "Mostrando 0 registros de 0";
     return;
   }
 
-  if (items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted"><i class="fa-solid fa-folder-open me-1"></i> No se encontraron registros con los filtros seleccionados.</td></tr>`;
-    return;
+  const start = (paginaActual - 1) * REGISTROS_POR_PAGINA;
+  const end = Math.min(start + REGISTROS_POR_PAGINA, totalRegistrosFiltrados);
+  const itemsPagina = registrosFiltrados.slice(start, end);
+
+  if (info) {
+    info.innerText = "Mostrando registros " + (start + 1) + " - " + end + " de " + totalRegistrosFiltrados;
   }
 
   let html = "";
-  items.forEach(function(item) {
-    // Definir badge para Estado Real
-    let badgeClass = "badge-bueno";
-    const est = String(item.estadoReal || "").trim();
-    if (est === "Regular") badgeClass = "badge-regular";
-    else if (est === "Malo") badgeClass = "badge-malo";
-    else if (est === "Baja") badgeClass = "badge-baja";
-    else if (!est) badgeClass = "bg-secondary";
+  itemsPagina.forEach(function(item) {
+    // Definir color del badge de estado real (RF5)
+    const est = item.estadoReal || "";
+    let badgeClass = "bg-secondary";
+    if (est.toLowerCase() === "bueno") badgeClass = "badge-bueno";
+    else if (est.toLowerCase() === "regular") badgeClass = "badge-regular";
+    else if (est.toLowerCase() === "malo") badgeClass = "badge-malo";
+    else if (est.toLowerCase() === "baja") badgeClass = "badge-baja";
 
-    // Formatear operador de manera segura con fallback para evitar crashes
-    let opTxt = "Sin registrar";
+    const estadoDisplay = est || '<span class="text-secondary small fw-normal">Pendiente</span>';
+
+    // Obtener nombre del operador sin la fecha
+    let usrDisplay = "Sin registrar";
     if (item.usuarioOperador) {
-      const parts = String(item.usuarioOperador || "").split(" - ");
-      opTxt = parts[0];
+      usrDisplay = item.usuarioOperador.split(" - ")[0];
     }
 
     html += `
       <tr>
-        <td class="fw-bold text-secondary">${item.no || ""}</td>
-        <td class="fw-bold">${item.noInv || ""}</td>
-        <td class="text-truncate" style="max-width: 250px;" title="${item.descripcion || ""}">${item.descripcion || ""}</td>
-        <td class="text-muted">${item.serie || "SIN SERIE"}</td>
-        <td>${item.marca || ""}</td>
-        <td>${item.ubicacionReal || "<span class='text-muted small'>Pendiente</span>"}</td>
-        <td><span class="badge ${badgeClass}">${est || "Pendiente"}</span></td>
-        <td class="small text-truncate" style="max-width: 140px;" title="${item.usuarioOperador || ""}">${opTxt}</td>
-        <td>${item.resguardanteReal || item.resguardante || "<span class='text-muted small'>Pendiente</span>"}</td>
-        <td class="text-center no-print">
-          <div class="d-none d-md-flex justify-content-center gap-1">
-            <button class="btn btn-sm btn-outline-success rounded-circle" onclick="window.abrirModalEdicion('${item.noInv}')" title="Editar completo"><i class="fa-solid fa-edit"></i></button>
-            <button class="btn btn-sm btn-outline-dark rounded-circle" onclick="window.abrirModalVerDetalle('${item.noInv}')" title="Ver detalle"><i class="fa-solid fa-eye"></i></button>
-            <button class="btn btn-sm btn-outline-warning rounded-circle" onclick="window.abrirModalTrasladar('${item.noInv}')" title="Trasladar"><i class="fa-solid fa-truck-ramp-box"></i></button>
-            <button class="btn btn-sm btn-outline-primary rounded-circle" onclick="window.abrirModalFotos('${item.noInv}')" title="Gestionar fotos"><i class="fa-solid fa-images"></i></button>
-            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="window.abrirGeneradorQR('${item.noInv}')" title="Generar QR"><i class="fa-solid fa-qrcode"></i></button>
-          </div>
-          <!-- Dropdown para dispositivos móviles -->
-          <div class="dropdown d-md-none">
-            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-              Acciones
+        <td class="fw-bold text-secondary">${item.no}</td>
+        <td class="fw-bold text-success">${item.noInv}</td>
+        <td class="text-truncate" style="max-width: 250px;" title="${item.descripcion}">${item.descripcion}</td>
+        <td>${item.serie || "SIN SERIE"}</td>
+        <td>${item.marca || "S/M"}</td>
+        <td>${item.ubicacionReal || '<span class="text-secondary small">Pendiente</span>'}</td>
+        <td><span class="badge ${badgeClass} py-1 px-2">${estadoDisplay}</span></td>
+        <td>${usrDisplay}</td>
+        <td>${item.resguardanteReal || '<span class="text-secondary small">Pendiente</span>'}</td>
+        <td class="text-center">
+          <div class="btn-group btn-group-sm" role="group" aria-label="Acciones del Bien">
+            <button type="button" class="btn btn-outline-success" onclick="abrirModalLevantamientoFila('${item.noInv}');" title="Ver Detalle / Registrar">
+              <i class="fa-solid fa-clipboard-check"></i>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" onclick="window.abrirModalEdicion('${item.noInv}')"><i class="fa-solid fa-edit text-success me-2"></i> Editar Completo</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirModalVerDetalle('${item.noInv}')"><i class="fa-solid fa-eye text-dark me-2"></i> Ver Detalle</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirModalTrasladar('${item.noInv}')"><i class="fa-solid fa-truck-ramp-box text-warning me-2"></i> Trasladar</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirModalFotos('${item.noInv}')"><i class="fa-solid fa-images text-primary me-2"></i> Gestionar Fotos</a></li>
-              <li><a class="dropdown-item" onclick="window.abrirGeneradorQR('${item.noInv}')"><i class="fa-solid fa-qrcode text-secondary me-2"></i> Generar QR</a></li>
-            </ul>
+            <button type="button" class="btn btn-outline-dark" onclick="abrirModalEdicionCompleta('${item.noInv}');" title="Edición Completa">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button type="button" class="btn btn-outline-warning text-dark" onclick="abrirModalTraslado('${item.noInv}');" title="Trasladar / Mover">
+              <i class="fa-solid fa-truck-ramp-box"></i>
+            </button>
+            <button type="button" class="btn btn-outline-info" onclick="abrirModalFotos('${item.noInv}');" title="Gestionar Fotos">
+              <i class="fa-solid fa-camera"></i>
+            </button>
+            <button type="button" class="btn btn-outline-dark" onclick="abrirModalQR('${item.noInv}');" title="Exportar QR">
+              <i class="fa-solid fa-qrcode"></i>
+            </button>
           </div>
         </td>
       </tr>
     `;
   });
-  tbody.innerHTML = html;
+
+  body.innerHTML = html;
 }
 
 /**
- * Genera el paginador de la grilla de listado (Módulo 4 & Instrucción 7).
- * Evita asignaciones de innerHTML a elementos nulos y agrega guards robustos.
+ * Redirecciona al usuario a la vista de búsqueda con el artículo cargado.
+ * Expuesto globalmente en `window`.
  */
-window.renderizarPaginadorUI = function(datos, paginaActual, itemsPorPagina) {
-  var contenedor = document.getElementById("contenedor-paginador");
-
-  // Guarda defensiva (Módulo 4 & Instrucción 7)
-  if (!Array.isArray(datos) || datos.length === 0) {
-    if (contenedor) {
-      contenedor.innerHTML = "";
-    }
-    console.warn("Paginador: sin datos para paginar");
-    return;
-  }
-
-  if (!contenedor) {
-    console.warn("Paginador: contenedor no encontrado en el DOM");
-    return;
-  }
-
-  var totalPaginas = Math.ceil(datos.length / itemsPorPagina);
-  if (totalPaginas <= 1) {
-    contenedor.innerHTML = "";
-    return;
-  }
-
-  const totalRegistros = datos.length;
-  const inicioIdx = (paginaActual - 1) * itemsPorPagina;
-  const finIdx = Math.min(inicioIdx + itemsPorPagina, totalRegistros);
-
-  var infoHtml = `<div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text">Mostrando ${totalRegistros === 0 ? 0 : inicioIdx + 1} a ${finIdx} de ${totalRegistros} registros</div>`;
-
-  var html = infoHtml + `<nav aria-label="Navegación de listado"><ul class="pagination pagination-sm mb-0" id="pagador-ul">`;
-
-  // Botón Anterior
-  var prevClase = (paginaActual === 1) ? 'disabled' : '';
-  html += `<li class="page-item ${prevClase}"><a class="page-link" onclick="window.cambiarPagina(${paginaActual - 1})">Anterior</a></li>`;
-
-  // Limitar número de páginas visibles (máximo 5 páginas)
-  let startPage = Math.max(1, paginaActual - 2);
-  let endPage = Math.min(totalPaginas, startPage + 4);
-  if (endPage - startPage < 4) {
-    startPage = Math.max(1, endPage - 4);
-  }
-
-  for (let p = startPage; p <= endPage; p++) {
-    var liClase = (p === paginaActual) ? 'active' : '';
-    html += `<li class="page-item ${liClase}"><a class="page-link" onclick="window.cambiarPagina(${p})">${p}</a></li>`;
-  }
-
-  // Botón Siguiente
-  var nextClase = (paginaActual === totalPaginas) ? 'disabled' : '';
-  html += `<li class="page-item ${nextClase}"><a class="page-link" onclick="window.cambiarPagina(${paginaActual + 1})">Siguiente</a></li>`;
-
-  html += `</ul></nav>`;
-
-  contenedor.innerHTML = html;
+window.abrirModalLevantamientoFila = function(noInv) {
+  showSection('busqueda');
+  document.getElementById('buscar-input').value = noInv;
+  buscarBienFisico();
 };
-
-window.cambiarPagina = function(p) {
-  window.paginaActual = p;
-  window.aplicarFiltrosYListar(true);
-};
-
-// --- CONTROLADORES DE MODALES DE ACCIÓN ---
 
 /**
- * Abre modal de ver detalle completo (RF5)
- * Con propiedades camelCase normalizadas para resolver Error 3.
+ * Abre el modal de edición completa para todos los campos patrimoniales e históricos (RF5).
+ * Expuesto globalmente en `window`.
  */
-window.abrirModalVerDetalle = function(noInv) {
-  const item = window.cacheInventario.find(function(i) {
-    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-  });
-
+window.abrirModalEdicionCompleta = function(noInv) {
+  const item = dbInventario.find(function(x) { return x.noInv === noInv; });
   if (!item) return;
 
-  const modalEl = document.getElementById("modal-ver-detalle");
-  const body = document.getElementById("modal-ver-detalle-content");
-  if (!modalEl || !body) return;
+  document.getElementById('edit-no-inv-hidden').value = item.noInv;
 
-  let fotosHtml = "";
-  const ids = item.fotoId ? String(item.fotoId).split(",") : [];
-  if (ids.length > 0) {
-    ids.forEach(function(id) {
-      if (!id.trim()) return;
-      fotosHtml += `
-        <div class="col-4 text-center mb-3">
-          <img src="https://lh3.googleusercontent.com/u/0/d/${id.trim()}=w300-h300-p" class="img-fluid rounded border shadow-sm" alt="Foto evidencia" style="max-height: 180px; object-fit: cover;" onerror="this.src='https://placehold.co/180x180/e0e0e0/666666?text=FOTO_DRIVE';">
-        </div>
-      `;
-    });
-  } else {
-    fotosHtml = "<div class='col-12'><p class='text-muted small text-center mb-0'>Sin fotografías cargadas para este bien.</p></div>";
-  }
+  // Poblar formulario del modal
+  document.getElementById('edit-descripcion').value = item.descripcion || "";
+  document.getElementById('edit-serie').value = item.serie || "";
+  document.getElementById('edit-marca').value = item.marca || "";
+  document.getElementById('edit-modelo').value = item.modelo || "";
+  document.getElementById('edit-importe').value = item.importe || "0";
+  document.getElementById('edit-resguardado').value = item.resguardado || "";
+  document.getElementById('edit-ubicacion').value = item.ubicacion || "";
 
-  body.innerHTML = `
-    <div class="row g-4">
-      <div class="col-12 col-md-6 border-end">
-        <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-building me-1"></i> Información Patrimonial</h6>
-        <p class="mb-2"><strong>Número de Inventario:</strong> ${item.noInv}</p>
-        <p class="mb-2"><strong>Consecutivo:</strong> No. ${item.no}</p>
-        <p class="mb-2"><strong>Descripción:</strong> ${item.descripcion || ""}</p>
-        <p class="mb-2"><strong>Serie:</strong> ${item.serie || "SIN SERIE"}</p>
-        <p class="mb-2"><strong>Modelo:</strong> ${item.modelo || ""}</p>
-        <p class="mb-2"><strong>Marca:</strong> ${item.marca || ""}</p>
-        <p class="mb-2"><strong>Importe:</strong> ${item.importe ? "$" + parseFloat(item.importe).toFixed(2) : "$0.00"}</p>
-        <p class="mb-2"><strong>Estado original:</strong> ${item.estado || "BUENO"}</p>
-        <p class="mb-2"><strong>Ubicación original:</strong> ${item.ubicacion || ""}</p>
-        <p class="mb-0"><strong>Resguardante original:</strong> ${item.resguardante || item.resguardado || ""}</p>
-      </div>
-      <div class="col-12 col-md-6">
-        <h6 class="fw-bold text-success mb-3"><i class="fa-solid fa-check-double me-1"></i> Información del Levantamiento</h6>
-        <p class="mb-2"><strong>Estado Físico Actual:</strong> <span class="badge ${item.estadoReal === 'Bueno' ? 'badge-bueno' : (item.estadoReal === 'Regular' ? 'badge-regular' : (item.estadoReal === 'Malo' ? 'badge-malo' : 'badge-baja'))}">${item.estadoReal || "Pendiente"}</span></p>
-        <p class="mb-2"><strong>Ubicación Real:</strong> ${item.ubicacionReal || "<span class='text-muted'>Pendiente de levantamiento</span>"}</p>
-        <p class="mb-2"><strong>Resguardante Real:</strong> ${item.resguardanteReal || "<span class='text-muted'>Pendiente de levantamiento</span>"}</p>
-        <p class="mb-2"><strong>Última Actualización:</strong> ${item.ultimaActualizacion ? formatearFecha(item.ultimaActualizacion) : "Sin registros"}</p>
-        <p class="mb-4"><strong>Último Operador:</strong> ${item.usuarioOperador || "Sin registrar"}</p>
+  document.getElementById('edit-ubicacion-real').value = item.ubicacionReal || "";
+  document.getElementById('edit-resguardante-real').value = item.resguardanteReal || "";
+  document.getElementById('edit-estado-real').value = item.estadoReal || "Bueno";
 
-        <h6 class="fw-bold text-success border-top pt-3 mb-3"><i class="fa-solid fa-camera me-1"></i> Evidencia Fotográfica</h6>
-        <div class="row g-2">
-          ${fotosHtml}
-        </div>
-      </div>
-    </div>
-  `;
-
-  const modal = new bootstrap.Modal(modalEl);
-  modal.show();
+  modalEditar.show();
 };
-
-function formatearFecha(fechaSerial) {
-  if (!fechaSerial) return "";
-  try {
-    const d = new Date(fechaSerial);
-    if (isNaN(d.getTime())) return String(fechaSerial);
-    const pad = function(n) { return n < 10 ? '0' + n : n; };
-    return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " +
-           pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
-  } catch(e) {
-    return String(fechaSerial);
-  }
-}
 
 /**
- * Abre modal de Edición completa (RF5)
- * Con propiedades camelCase normalizadas para resolver Error 3.
+ * Guarda los cambios desde el modal de edición completa en el servidor (RF5).
+ * Expuesto globalmente en `window`.
  */
-window.abrirModalEdicion = function(noInv) {
-  const item = window.cacheInventario.find(function(i) {
-    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-  });
+window.guardarEdicionCompleta = function() {
+  const noInv = document.getElementById('edit-no-inv-hidden').value;
 
-  if (!item) return;
+  const payload = {
+    descripcion: document.getElementById('edit-descripcion').value.trim(),
+    serie: document.getElementById('edit-serie').value.trim(),
+    marca: document.getElementById('edit-marca').value.trim(),
+    modelo: document.getElementById('edit-modelo').value.trim(),
+    importe: parseFloat(document.getElementById('edit-importe').value) || 0,
+    resguardado: document.getElementById('edit-resguardado').value.trim(),
+    ubicacion: document.getElementById('edit-ubicacion').value.trim(),
 
-  document.getElementById("modal-edit-no-inv-hidden").value = item.noInv;
-  document.getElementById("modal-edit-descripcion").value = item.descripcion || "";
-  document.getElementById("modal-edit-resguardado").value = item.resguardante || item.resguardado || "";
-  document.getElementById("modal-edit-serie").value = item.serie || "SIN SERIE";
-  document.getElementById("modal-edit-modelo").value = item.modelo || "";
-  document.getElementById("modal-edit-marca").value = item.marca || "";
-  document.getElementById("modal-edit-estado").value = item.estado || "BUENO";
-  document.getElementById("modal-edit-importe").value = item.importe || 0;
-  document.getElementById("modal-edit-ubicacion").value = item.ubicacion || "";
-
-  document.getElementById("modal-edit-estado-real").value = item.estadoReal || "Bueno";
-  document.getElementById("modal-edit-ubicacion-real").value = item.ubicacionReal || item.ubicacion || "";
-  document.getElementById("modal-edit-resguardante-real").value = item.resguardanteReal || item.resguardante || item.resguardado || "";
-
-  // Limpiar fotos previas seleccionadas
-  document.getElementById("modal-edit-fotos-files").value = "";
-  document.getElementById("modal-edit-fotos-preview").innerHTML = "";
-
-  const modal = new bootstrap.Modal(document.getElementById("modal-editar-articulo"));
-  modal.show();
-};
-
-window.guardarEdicionCompleta = function(event) {
-  if (event) event.preventDefault();
-
-  const noInv = document.getElementById("modal-edit-no-inv-hidden").value;
-  window.mostrarCarga("Actualizando artículo en lote...");
-
-  // Agrupamos todos los campos para enviarlos de golpe
-  const datos = {
-    noInv: noInv,
-    descripcion: document.getElementById("modal-edit-descripcion").value.trim(),
-    resguardado: document.getElementById("modal-edit-resguardado").value.trim(),
-    serie: document.getElementById("modal-edit-serie").value.trim(),
-    modelo: document.getElementById("modal-edit-modelo").value.trim(),
-    marca: document.getElementById("modal-edit-marca").value.trim(),
-    estado: document.getElementById("modal-edit-estado").value.trim(),
-    importe: parseFloat(document.getElementById("modal-edit-importe").value) || 0,
-    ubicacion: document.getElementById("modal-edit-ubicacion").value.trim(),
-    estadoReal: document.getElementById("modal-edit-estado-real").value,
-    ubicacionReal: document.getElementById("modal-edit-ubicacion-real").value.trim(),
-    resguardanteReal: document.getElementById("modal-edit-resguardante-real").value.trim()
+    ubicacionReal: document.getElementById('edit-ubicacion-real').value.trim(),
+    resguardanteReal: document.getElementById('edit-resguardante-real').value.trim(),
+    estadoReal: document.getElementById('edit-estado-real').value
   };
 
-  // Usamos el importador en modo sobrescribir como DRY helper seguro para actualizar campos
+  modalEditar.hide();
+  mostrarCarga("Actualizando artículo en base de datos...");
+
+  // Sobrescribimos el levantamiento y forzamos guardado
   google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.success) {
-        // Subir fotos adicionales si existen
-        const fileInput = document.getElementById("modal-edit-fotos-files");
-        if (fileInput.files && fileInput.files.length > 0) {
-          subirFotosDeFrente(noInv, fileInput.files, function() {
-            completarExitoEdicion();
-          });
-        } else {
-          completarExitoEdicion();
-        }
+    .withSuccessHandler(function(response) {
+      ocultarCarga();
+      if (response && response.success) {
+        mostrarAlerta("Artículo actualizado de forma exitosa.", "success");
+        actualizarDatosBaseCompleta();
       } else {
-        window.ocultarCarga();
-        alert("Fallo al actualizar: " + res.message);
+        mostrarAlerta("Error al actualizar: " + (response.message || "Fallo desconocido"), "danger");
       }
     })
     .withFailureHandler(function(err) {
-      window.ocultarCarga();
-      mostrarNotificacion("Fallo de red al conectar.", "bg-danger");
+      ocultarCarga();
+      mostrarAlerta("Error de comunicación: " + err.toString(), "danger");
     })
-    .importarDatosExcel([datos], "actualizar");
+    .guardarLevantamiento(noInv, payload);
 };
-
-function completarExitoEdicion() {
-  mostrarNotificacion("Artículo actualizado correctamente.", "bg-success");
-
-  // Cerrar modal
-  const modalEl = document.getElementById("modal-editar-articulo");
-  if (modalEl) {
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    if (modal) modal.hide();
-  }
-
-  cargarListadoInventario(function() {
-    cargarEstadisticasInicio();
-    window.ocultarCarga();
-  });
-}
 
 /**
- * Abre modal de traslado rápido (RF5)
- * Con propiedades camelCase normalizadas para resolver Error 3.
+ * Abre el modal de traslado rápido para cambiar ubicación, resguardante y registrar motivo (RF5).
+ * Expuesto globalmente en `window`.
  */
-window.abrirModalTrasladar = function(noInv) {
-  const item = window.cacheInventario.find(function(i) {
-    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-  });
-
+window.abrirModalTraslado = function(noInv) {
+  const item = dbInventario.find(function(x) { return x.noInv === noInv; });
   if (!item) return;
 
-  document.getElementById("modal-traslado-no-inv").value = item.noInv;
-  document.getElementById("modal-traslado-detalle-txt").innerText = item.descripcion + " (No. INV: " + item.noInv + ")";
-  document.getElementById("modal-traslado-ubicacion").value = item.ubicacionReal || item.ubicacion || "";
-  document.getElementById("modal-traslado-resguardante").value = item.resguardanteReal || item.resguardante || item.resguardado || "";
-  document.getElementById("modal-traslado-motivo").value = "";
+  document.getElementById('traslado-no-inv').value = item.noInv;
+  document.getElementById('traslado-ubi-actual').value = item.ubicacionReal || item.ubicacion || "Sin ubicación";
+  document.getElementById('traslado-resg-actual').value = item.resguardanteReal || item.resguardado || "Sin resguardante";
 
-  const modal = new bootstrap.Modal(document.getElementById("modal-trasladar"));
-  modal.show();
+  document.getElementById('traslado-ubi-nueva').value = "";
+  document.getElementById('traslado-resg-nuevo').value = "";
+  document.getElementById('traslado-motivo').value = "";
+
+  modalTrasladar.show();
 };
 
-window.guardarTrasladoArticulo = function(event) {
-  if (event) event.preventDefault();
+/**
+ * Guarda el movimiento o traslado rápido del bien (RF5).
+ * Expuesto globalmente en `window`.
+ */
+window.guardarTrasladoRapido = function() {
+  const noInv = document.getElementById('traslado-no-inv').value;
+  const ubiNueva = document.getElementById('traslado-ubi-nueva').value.trim();
+  const resgNuevo = document.getElementById('traslado-resg-nuevo').value.trim();
+  const motivo = document.getElementById('traslado-motivo').value.trim();
 
-  const noInv = document.getElementById("modal-traslado-no-inv").value;
-  const ubicacion = document.getElementById("modal-traslado-ubicacion").value.trim();
-  const resguardante = document.getElementById("modal-traslado-resguardante").value.trim();
-  const motivo = document.getElementById("modal-traslado-motivo").value.trim();
-
-  if (!ubicacion || !resguardante || !motivo) {
-    alert("Por favor complete todos los campos obligatorios (*)");
+  if (!ubiNueva || !resgNuevo || !motivo) {
+    mostrarAlerta("Todos los campos son obligatorios para registrar el traslado.", "warning");
     return;
   }
 
-  window.mostrarCarga("Registrando traslado...");
+  modalTrasladar.hide();
+  mostrarCarga("Registrando traslado...");
 
-  const datos = {
-    ubicacionReal: ubicacion,
-    resguardanteReal: resguardante,
+  const payload = {
+    ubicacionReal: ubiNueva,
+    resguardanteReal: resgNuevo,
     motivo: motivo
   };
 
   google.script.run
     .withSuccessHandler(function(res) {
-      window.ocultarCarga();
-      if (res.success) {
-        mostrarNotificacion("¡Traslado registrado y guardado!", "bg-success");
-
-        // Cerrar modal
-        const modalEl = document.getElementById("modal-trasladar");
-        if (modalEl) {
-          const modal = bootstrap.Modal.getInstance(modalEl);
-          if (modal) modal.hide();
-        }
-
-        // Recargar inventario
-        cargarListadoInventario();
+      ocultarCarga();
+      if (res && res.success) {
+        mostrarAlerta("Traslado registrado correctamente.", "success");
+        actualizarDatosBaseCompleta();
       } else {
-        alert("Fallo al registrar traslado: " + res.message);
+        mostrarAlerta("No se pudo registrar el traslado: " + (res.message || "Fallo desconocido"), "danger");
       }
     })
     .withFailureHandler(function(err) {
-      window.ocultarCarga();
-      mostrarNotificacion("Fallo de red: " + err.message, "bg-danger");
+      ocultarCarga();
+      mostrarAlerta("Error: " + err.toString(), "danger");
     })
-    .registrarTraslado(noInv, datos);
+    .registrarTraslado(noInv, payload);
 };
 
 /**
- * Abre modal de gestión exclusiva de fotografías
- * Con propiedades camelCase normalizadas para resolver Error 3.
+ * Abre el modal para gestionar fotos independientes del flujo de levantamiento (RF5).
+ * Expuesto globalmente en `window`.
  */
 window.abrirModalFotos = function(noInv) {
-  const item = window.cacheInventario.find(function(i) {
-    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-  });
-
+  const item = dbInventario.find(function(x) { return x.noInv === noInv; });
   if (!item) return;
 
-  document.getElementById("modal-fotos-no-inv").value = item.noInv;
-  document.getElementById("modal-fotos-nuevas-input").value = "";
-  document.getElementById("modal-fotos-nuevas-preview").innerHTML = "";
+  document.getElementById('fotos-mgr-no-inv').value = item.noInv;
+  document.getElementById('fotos-mgr-input').value = "";
+  document.getElementById('fotos-mgr-preview').innerHTML = "";
 
-  renderizarFotosExistentes(item.fotoId, item.noInv, "modal-fotos-existentes-list", null);
-
-  const modal = new bootstrap.Modal(document.getElementById("modal-fotos"));
-  modal.show();
+  poblarGaleriaFotosModal(item);
+  modalFotos.show();
 };
 
-window.subirNuevasFotosModal = function() {
-  const noInv = document.getElementById("modal-fotos-no-inv").value;
-  const fileInput = document.getElementById("modal-fotos-nuevas-input");
+/**
+ * Puebla la galería de imágenes existentes del modal fotos.
+ */
+function poblarGaleriaFotosModal(item) {
+  const galeria = document.getElementById('fotos-mgr-galeria');
+  galeria.innerHTML = "";
 
-  if (!fileInput.files || fileInput.files.length === 0) {
-    alert("Por favor seleccione al menos una foto para subir.");
+  if (item.fotoId && item.fotoId.trim() !== "") {
+    const lista = item.fotoId.split(",");
+    lista.forEach(function(id) {
+      if (!id) return;
+      const html = `
+        <div class="thumbnail-container" id="mgr-thumb-${id}">
+          <img src="https://docs.google.com/uc?export=view&id=${id}" class="thumbnail-preview" alt="Evidencia">
+          <button type="button" class="btn-delete-thumb" onclick="eliminarFotoModal('${item.noInv}', '${id}');" title="Eliminar foto">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      `;
+      galeria.insertAdjacentHTML('beforeend', html);
+    });
+  } else {
+    galeria.innerHTML = `<span class="text-secondary small"><i class="fa-solid fa-image-slash me-1"></i>Sin evidencias fotográficas guardadas.</span>`;
+  }
+}
+
+/**
+ * Sube fotos seleccionadas directamente desde el modal de gestión de fotos.
+ * Expuesto globalmente en `window`.
+ */
+window.previsualizarYSubirNuevasFotos = function() {
+  const noInv = document.getElementById('fotos-mgr-no-inv').value;
+  const input = document.getElementById('fotos-mgr-input');
+
+  if (input.files.length > 3) {
+    mostrarAlerta("Solo se permite un máximo de 3 fotos.", "warning");
+    input.value = "";
     return;
   }
 
-  window.mostrarCarga("Subiendo fotografías...");
-
-  subirFotosDeFrente(noInv, fileInput.files, function() {
-    mostrarNotificacion("Fotos agregadas correctamente.", "bg-success");
-
-    // Recargar inventario local para refrescar fotos en el modal
-    cargarListadoInventario(function() {
-      window.ocultarCarga();
-
-      const actualItem = window.cacheInventario.find(function(i) {
-        return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-      });
-      if (actualItem) {
-        renderizarFotosExistentes(actualItem.fotoId, actualItem.noInv, "modal-fotos-existentes-list", null);
+  mostrarCarga("Cargando y subiendo fotos...");
+  subirFotosEnCola(noInv, input.files, 0, function() {
+    ocultarCarga();
+    mostrarAlerta("Evidencias actualizadas con éxito.", "success");
+    actualizarDatosBaseCompleta(function() {
+      // Volver a poblar el modal
+      const refreshedItem = dbInventario.find(function(x) { return x.noInv === noInv; });
+      if (refreshedItem) {
+        poblarGaleriaFotosModal(refreshedItem);
       }
-
-      fileInput.value = "";
-      document.getElementById("modal-fotos-nuevas-preview").innerHTML = "";
     });
   });
 };
 
 /**
- * Generador de QR imprimible / descargable integrado en cliente (RF5).
- * El QR codifica exclusivamente el No. INV.
- * Con propiedades camelCase normalizadas para resolver Error 3.
+ * Elimina una foto desde el modal de gestión y actualiza la vista.
+ * Expuesto globalmente en `window`.
  */
-window.abrirGeneradorQR = function(noInv) {
-  const item = window.cacheInventario.find(function(i) {
-    return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
-  });
+window.eliminarFotoModal = function(noInv, fotoId) {
+  if (!confirm("¿Está seguro de eliminar esta fotografía de Google Drive?")) return;
 
-  if (!item) return;
+  mostrarCarga("Eliminando...");
+  google.script.run
+    .withSuccessHandler(function(res) {
+      ocultarCarga();
+      if (res && res.success) {
+        mostrarAlerta("Foto eliminada.", "success");
+        actualizarDatosBaseCompleta(function() {
+          const refreshedItem = dbInventario.find(function(x) { return x.noInv === noInv; });
+          if (refreshedItem) {
+            poblarGaleriaFotosModal(refreshedItem);
+          }
+        });
+      } else {
+        mostrarAlerta("Error: " + res.message, "danger");
+      }
+    })
+    .withFailureHandler(function(err) {
+      ocultarCarga();
+      mostrarAlerta("Error al eliminar: " + err.toString(), "danger");
+    })
+    .eliminarFotoArticulo(noInv, fotoId);
+};
 
-  document.getElementById("qr-modal-no-inv-title").innerText = "No. INV: " + item.noInv;
-  document.getElementById("qr-modal-desc-title").innerText = item.descripcion || "";
+/**
+ * Abre el modal para ver y descargar el código QR del bien (RF5).
+ * Expuesto globalmente en `window`.
+ */
+window.abrirModalQR = function(noInv) {
+  document.getElementById('qr-info-no-inv').innerText = "No. INV: " + noInv;
 
-  const container = document.getElementById("qr-code-img-container");
-  if (!container) return;
-  container.innerHTML = "";
+  // Usamos Google Charts API para generar un código QR codificando ÚNICAMENTE el No. INV.
+  const chartUrl = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(noInv)}`;
+  document.getElementById('qr-image').src = chartUrl;
 
-  // Instanciar qrcode.js en cliente para generación offline rápida y confiable
-  try {
-    new QRCode(container, {
-      text: String(item.noInv || "").trim(),
-      width: 180,
-      height: 180,
-      colorDark : "#000000",
-      colorLight : "#ffffff",
-      correctLevel : QRCode.CorrectLevel.H
-    });
-  } catch(e) {
-    console.error("Fallo al generar QR con qrcode.js, recurriendo a Google Charts API:", e);
-    const imgFallback = document.createElement("img");
-    imgFallback.src = "https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=" + encodeURIComponent(item.noInv);
-    imgFallback.alt = "Código QR de bien";
-    container.appendChild(imgFallback);
-  }
-
-  const modal = new bootstrap.Modal(document.getElementById("modal-qr"));
-  modal.show();
+  modalQR.show();
 };
 </script>

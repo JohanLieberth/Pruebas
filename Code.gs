@@ -30,7 +30,7 @@ const NOMBRE_CARPETA_FOTOS = "Inventario_MejoraRegulatoria_Fotos";
  */
 function doGet(e) {
   try {
-    // Si existe una función de diagnóstico, llamarla opcionalmente, pero NUNCA dejar que rompa doGet (Instrucción 2)
+    // Si existe una función de diagnóstico, llamarla opcionalmente, pero NUNCA dejar que rompa doGet
     if (typeof ejecutarDiagnosticoSMR === 'function') {
       try {
         ejecutarDiagnosticoSMR();
@@ -62,7 +62,7 @@ function doGet(e) {
   } catch (error) {
     console.error('FATAL ERROR in doGet:', error.toString(), error.stack);
 
-    // Devolver HTML mínimo funcional para que el usuario vea el error (Instrucción 2)
+    // Devolver HTML mínimo funcional para que el usuario vea el error
     var errorHtml = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>' +
       '<body style="font-family:sans-serif;padding:40px;color:#c0392b;background-color:#f0f4f8;">' +
       '<h2>Error al cargar la aplicación</h2>' +
@@ -76,7 +76,7 @@ function doGet(e) {
 }
 
 /**
- * Helper para incluir archivos HTML (CSS/JS) en el template principal (Instrucción 2).
+ * Helper para incluir archivos HTML (CSS/JS) en el template principal.
  * No modifica el casing de los filenames para evitar excepciones silenciosas.
  */
 function include(filename) {
@@ -242,9 +242,78 @@ function inicializarBaseDatos() {
 }
 
 /**
- * Obtiene el rango de datos de Inventario de manera ultra eficiente en lote (Instrucción 6).
- * Mapea las cabeceras a claves camelCase robustas y normaliza todos los valores a String trimmeados.
- * Implementa caché de 5 minutos mediante PropertiesService.
+ * Obtiene el rango de datos de Inventario limitando de forma segura
+ * el número de columnas para evitar out-of-bounds exceptions.
+ */
+function getInventarioRowsAndData() {
+  var sheet = getSheetSafe("Inventario");
+  if (!sheet) return { headers: [], rows: [] };
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return { headers: [], rows: [] };
+
+  // Cargar cabeceras reales
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  // Cargar valores, limitando columnas para evitar desbordamiento
+  var capCol = Math.min(lastCol, HEADERS_INVENTARIO.length);
+  var values = sheet.getRange(2, 1, lastRow - 1, capCol).getValues();
+
+  return {
+    headers: headers,
+    rows: values
+  };
+}
+
+/**
+ * Normaliza una fila del inventario mapeándola a propiedades camelCase sin caracteres problemáticos (Módulo 1).
+ * Todos los valores se convierten explícitamente a String y se aplican trims para evitar type mismatches.
+ */
+function normalizeItem(headers, row) {
+  var idxNo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no."; });
+  var idxNoInv = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no. inv."; });
+  var idxDesc = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "descripcion"; });
+  var idxSerie = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "serie"; });
+  var idxModelo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "modelo"; });
+  var idxMarca = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "marca"; });
+  var idxEstado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado"; });
+  var idxImporte = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "importe"; });
+  var idxUbicacion = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion"; });
+  var idxResguardado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardado"; });
+  var idxResgReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardante_real"; });
+  var idxUbiReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion_real"; });
+  var idxEstReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado_real"; });
+  var idxUltAct = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ultima_actualizacion"; });
+  var idxUsrOp = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "usuario_operador"; });
+  var idxFotoId = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "foto_id"; });
+
+  var noInv = idxNoInv !== -1 ? String(row[idxNoInv] || "").trim() : "";
+  if (!noInv) return null;
+
+  return {
+    no: idxNo !== -1 ? String(row[idxNo] || "").trim() : "",
+    noInv: noInv,
+    descripcion: idxDesc !== -1 ? String(row[idxDesc] || "").trim() : "",
+    serie: idxSerie !== -1 ? String(row[idxSerie] || "").trim() : "",
+    modelo: idxModelo !== -1 ? String(row[idxModelo] || "").trim() : "",
+    marca: idxMarca !== -1 ? String(row[idxMarca] || "").trim() : "",
+    estado: idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "",
+    importe: idxImporte !== -1 ? String(row[idxImporte] || "").trim() : "0",
+    ubicacion: idxUbicacion !== -1 ? String(row[idxUbicacion] || "").trim() : "",
+    resguardado: idxResguardado !== -1 ? String(row[idxResguardado] || "").trim() : "",
+    resguardanteReal: idxResgReal !== -1 ? String(row[idxResgReal] || "").trim() : "",
+    ubicacionReal: idxUbiReal !== -1 ? String(row[idxUbiReal] || "").trim() : "",
+    estadoReal: idxEstReal !== -1 ? String(row[idxEstReal] || "").trim() : "",
+    ultimaActualizacion: idxUltAct !== -1 ? String(row[idxUltAct] || "").trim() : "",
+    usuarioOperador: idxUsrOp !== -1 ? String(row[idxUsrOp] || "").trim() : "",
+    fotoId: idxFotoId !== -1 ? String(row[idxFotoId] || "").trim() : ""
+  };
+}
+
+/**
+ * Obtiene la lista completa de artículos utilizando caché en memoria (Módulo 1).
+ * Esto evita releer Sheets en cada request y reduce drásticamente la latencia.
  */
 function obtenerInventario() {
   try {
@@ -270,42 +339,14 @@ function obtenerInventario() {
     var datos = hoja.getDataRange().getValues(); // UNA sola llamada a Sheets
     if (datos.length < 2) return []; // Solo encabezados, sin datos
 
-    var encabezados = datos[0];
+    var headers = datos[0];
     var registros = [];
 
     for (var i = 1; i < datos.length; i++) {
-      var fila = datos[i];
-      var obj = {};
-
-      for (var j = 0; j < encabezados.length; j++) {
-        var claveOriginal = String(encabezados[j] || "").trim();
-        var valor = fila[j];
-
-        // Normalizar clave a camelCase (Instrucción 6)
-        var claveNormalizada = claveOriginal
-          .toLowerCase()
-          .replace(/[^a-z0-9]+(.)/g, function(match, chr) { return chr.toUpperCase(); })
-          .replace(/[^a-z0-9]/g, '');
-
-        // Mapeos requeridos obligatorios
-        if (claveOriginal === "No. INV.") claveNormalizada = "noInv";
-        else if (claveOriginal === "DESCRIPCION") claveNormalizada = "descripcion";
-        else if (claveOriginal === "ESTADO_REAL") claveNormalizada = "estadoReal";
-        else if (claveOriginal === "UBICACION_REAL") claveNormalizada = "ubicacionReal";
-        else if (claveOriginal === "RESGUARDANTE_REAL" || claveOriginal === "RESGUARDADO") claveNormalizada = "resguardante";
-
-        // Normalizar valor a string trimmeado (Instrucción 6)
-        obj[claveNormalizada] = valor !== undefined && valor !== null ? String(valor).trim() : '';
+      var item = normalizeItem(headers, datos[i]);
+      if (item) {
+        registros.push(item);
       }
-
-      // Registrar claves normalizadas por seguridad ante campos de Sheets vacíos
-      if (!obj.hasOwnProperty("noInv")) obj.noInv = "";
-      if (!obj.hasOwnProperty("descripcion")) obj.descripcion = "";
-      if (!obj.hasOwnProperty("estadoReal")) obj.estadoReal = "";
-      if (!obj.hasOwnProperty("ubicacionReal")) obj.ubicacionReal = "";
-      if (!obj.hasOwnProperty("resguardante")) obj.resguardante = "";
-
-      registros.push(obj);
     }
 
     // Guardar en caché PropertiesService
@@ -334,7 +375,7 @@ function invalidarCacheSMR() {
 }
 
 /**
- * Busca un artículo por No. INV de forma robusta server-side (Instrucción 6).
+ * Busca un artículo por No. INV de forma robusta server-side.
  * Devuelve un objeto estructurado.
  */
 function buscarPorInventario(numeroInv) {
@@ -389,7 +430,7 @@ function buscarPorSerie(serie) {
 }
 
 /**
- * Filtra el listado de artículos directamente en el servidor (Instrucción 6).
+ * Filtra el listado de artículos directamente en el servidor.
  * Devuelve siempre un objeto { success: true/false, registros: [...], total: <número> }.
  */
 function obtenerInventarioFiltrado(filtros) {
@@ -408,17 +449,17 @@ function obtenerInventarioFiltrado(filtros) {
       var item = inventario[i];
       var coincide = true;
 
-      // Filtro por Texto: búsqueda parcial case-insensitive en noInv, descripcion y resguardante (Instrucción 6)
+      // Filtro por Texto: búsqueda parcial case-insensitive en noInv, descripcion y resguardanteReal
       if (texto && texto.length > 0) {
         var camposBusqueda = [
           String(item.noInv || "").toLowerCase(),
           String(item.descripcion || "").toLowerCase(),
-          String(item.resguardante || item.resguardado || "").toLowerCase()
+          String(item.resguardanteReal || item.resguardado || "").toLowerCase()
         ].join(' ');
         if (camposBusqueda.indexOf(texto) === -1) coincide = false;
       }
 
-      // Filtro por Estado: comparación exacta case-insensitive (Instrucción 6)
+      // Filtro por Estado: comparación exacta case-insensitive
       if (estado && estado.length > 0) {
         if (estado === "pendiente") {
           var estActual = String(item.estadoReal || "").trim();
@@ -428,7 +469,7 @@ function obtenerInventarioFiltrado(filtros) {
         }
       }
 
-      // Filtro por Ubicación: comparación exacta case-insensitive (Instrucción 6)
+      // Filtro por Ubicación: comparación exacta case-insensitive
       if (ubicacion && ubicacion.length > 0) {
         var ubiActual = String(item.ubicacionReal || item.ubicacion || "").trim().toLowerCase();
         if (ubiActual !== ubicacion) coincide = false;

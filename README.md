@@ -1,70 +1,47 @@
-# 📋 Sistema de Inventario Físico - Subdirección de Mejora Regulatoria
+# Sistema de Levantamiento de Inventarios Físicos - SMR
 
-Aplicación web interna (SPA) basada en **Google Apps Script** diseñada para el levantamiento de inventario físico de bienes patrimoniales. Opera de forma directa y optimizada en lote sobre un Google Sheet con la estructura original heredada de patrimonio.
+Este sistema ha sido diseñado y optimizado para la **Subdirección de Mejora Regulatoria** utilizando **Google Apps Script**, **Google Sheets**, y librerías modernas de parsing y escaneo en el cliente.
 
----
+## 🚀 Instrucciones de Despliegue y Configuración
 
-## ⚙️ Características Principales
+Siga los siguientes pasos exactos para configurar y desplegar la aplicación en su cuenta institucional de Google Workspace:
 
-*   **Dashboard Interactivo (RF1):** Resumen visual de total de artículos, levantados, pendientes y accesos directos rápidos con emojis nativos.
-*   **Buscador y Escáner Inteligente (RF2):** Lectura local de cámara (html5-qrcode) y puente emergente (`about:blank`) para sortear la directiva de permisos de iframe (Permissions-Policy) en App Script. Búsqueda por número de serie para bienes sin etiqueta física.
-*   **Levantamiento con Evidencias (RF2):** Selección dinámica de estados (`Bueno`, `Regular`, `Malo`, `Baja`), autocompletado inteligente de resguardantes y ubicaciones, y carga de hasta 3 fotos de evidencia directamente a Drive.
-*   **Alta de Bienes (RF3):** Registro completo de nuevos artículos con validación de existencia única.
-*   **Carga Masiva (RF4):** Importador tolerante de archivos de Excel (.xlsx) y CSV con mapeo automático inteligente de variantes de cabeceras de columnas e inserción/actualización selectiva en lote.
-*   **Listado General (RF5):** Paginación responsiva (20 por página), filtros instantáneos en cliente y columna de acciones (Editar, Ver detalle, Trasladar con motivo, Gestionar Fotos y Generar QR imprimible offline).
-*   **Auditoría Completa (RF6):** Bitácora automatizada de cambios guardados en Google Sheets.
+1. **Crear la Base de Datos (Google Sheet):**
+   - Cree una nueva hoja de cálculo de Google.
+   - Cámbiele el nombre a `InvetarioMR`, `InventarioMR` o `Inventario`.
+   - No es necesario que cree las pestañas o columnas manualmente; la aplicación realiza una **auto-migración y creación de esquema en lote automática** en su primera ejecución.
 
----
+2. **Crear el Proyecto de Google Apps Script:**
+   - En la hoja de cálculo recién creada, vaya a la barra de menú superior, seleccione **Extensiones > Apps Script**.
+   - Esto abrirá el editor de código del proyecto Apps Script.
+   - Elimine cualquier código por defecto y cree los siguientes archivos en el editor:
+     - `Code.gs` (Código del servidor)
+     - `Index.html` (Estructura principal de la app)
+     - `Styles.html` (Estilos responsivos e institucionales de la interfaz)
+     - `JavaScript.html` (Lógica interactiva del cliente)
+   - Copie y pegue los códigos correspondientes proporcionados en este repositorio en cada uno de sus archivos de Apps Script respectivos respetando las mayúsculas y minúsculas exactas del nombre de los archivos.
 
-## 🚀 Instrucciones de Despliegue en Google Apps Script
+3. **Configurar Permisos e Identidad:**
+   - La Web App se ejecuta bajo la identidad del usuario activo (`User accessing the web app`), permitiendo una auditoría y bitácora de movimientos precisa.
+   - En la primera ejecución o despliegue, Google solicitará autorizar permisos para acceder a Google Sheets, Drive (para almacenamiento de evidencias fotográficas) y la sesión del usuario. Otorgue todos los permisos sin inconvenientes.
 
-Siga estos sencillos pasos para implementar la aplicación en su cuenta o entorno institucional:
-
-### Paso 1: Configurar la Base de Datos (Google Sheet)
-1. Cree una hoja de cálculo de Google.
-2. Cambie el nombre de la primera pestaña a `Inventario`.
-3. Cambie el nombre de la segunda pestaña a `Bitacora`.
-*(Nota: No se preocupe por las cabeceras exactas, la aplicación las autoconfigurará e inicializará automáticamente con auto-migración de esquema en su primer arranque).*
-
-### Paso 2: Crear el Proyecto en Google Apps Script
-1. En su Google Sheet configurado, vaya al menú superior **Extensiones > Apps Script**.
-2. Borre cualquier código predeterminado que aparezca en el editor.
-3. Cree los siguientes archivos dentro del editor de Apps Script haciendo clic en el botón `+` (Añadir un archivo):
-   *   Un archivo de tipo **Script** llamado `Code.gs` y copie el contenido de `Code.gs`.
-   *   Un archivo de tipo **HTML** llamado `Index.html` y copie el contenido de `Index.html`.
-   *   Un archivo de tipo **HTML** llamado `Styles.html` y copie el contenido de `Styles.html`.
-   *   Un archivo de tipo **HTML** llamado `JavaScript.html` y copie el contenido de `JavaScript.html`.
-
-### Paso 3: Configurar Permisos de Google Drive para Fotos
-1. La aplicación requiere acceso a Google Drive para crear y almacenar fotografías de evidencia de inventario.
-2. En el primer uso o guardado de fotos, Google Apps Script le solicitará autorización para acceder a los servicios de Drive y Gmail/Sheets. Otorgue los permisos correspondientes.
-
-### Paso 4: Desplegar como Aplicación Web (Web App)
-1. En la esquina superior derecha del editor de Apps Script, haga clic en **Implementar > Nueva implementación**.
-2. En el icono de engranaje (Seleccionar tipo), seleccione **Aplicación web**.
-3. Configure los siguientes parámetros:
-   *   **Descripción:** `Sistema de Inventario Físico SMR v1.0`
-   *   **Ejecutar como:** `Usuario que accede a la aplicación web` (esto permite registrar la identidad exacta de cada operador de campo mediante `Session.getActiveUser().getEmail()`).
-   *   **Quién tiene acceso:** `Cualquier persona con una cuenta de Google` o restringido a su dominio institucional.
-4. Haga clic en **Implementar**.
-5. Copie la **URL de la aplicación web** generada para que el personal de campo pueda acceder.
+4. **Desplegar como Aplicación Web:**
+   - En la esquina superior derecha del editor de Apps Script, haga clic en **Implementar > Nueva implementación**.
+   - En el tipo de implementación, seleccione **Aplicación web**.
+   - Configure las opciones exactas:
+     - **Ejecutar como:** El usuario que accede a la aplicación web (`User accessing the web app`).
+     - **Quién tiene acceso:** Cualquier persona con cuenta de Google dentro de su organización, o `Cualquiera` según los requerimientos de uso en campo.
+   - Haga clic en **Implementar** y copie la URL de la Web App generada. ¡Esa es la URL que compartirá con los operadores de inventario!
 
 ---
 
-## 🛠️ Errores Conocidos y Troubleshooting
+## 🔧 Resoluciones Técnicas Implementadas (Módulos Críticos)
 
-### 1. El escáner de cámara no abre o tiene fondo negro
-*   **Causa:** Google Apps Script ejecuta la aplicación web dentro de un iframe con restricciones de seguridad de la política de permisos del navegador (Permissions-Policy).
-*   **Solución:** Haga clic en el botón **"Escape Sandbox (Emergente)"** situado al costado de iniciar la cámara. Este abrirá una ventana limpia (`about:blank`) fuera de las restricciones del sandbox que cargará exitosamente la cámara de su dispositivo móvil o PC y devolverá el código detectado inmediatamente a la Web App principal.
+* **Módulo 1: Rendimiento Optimizado (Caché a 5 Minutos):**
+  Las consultas repetitivas a `SpreadsheetApp` son la causa principal de lentitud en Apps Script. Esta implementación lee la base de datos completa con una sola llamada batch `getDataRange().getValues()` y la almacena en el caché seguro del `PropertiesService` con un tiempo de expiración (TTL) de 5 minutos. Cualquier escritura (alta, levantamiento, carga masiva, traslado) invalida inmediatamente el caché de manera inteligente para que los operadores siempre visualicen información actualizada en lote.
 
-### 2. Advertencias del Navegador en la Consola (Security Policy / iframe warnings)
-*   *An iframe which has both allow-scripts and allow-same-origin...*
-*   **Detalle:** Esta advertencia es un comportamiento de seguridad estándar de Google para su arquitectura de renderizado `HtmlService`. No afecta en absoluto la funcionalidad de la aplicación web y se puede omitir con seguridad.
+* **Módulo 2: Lector QR y Evidencias por Fotos en Sandbox:**
+  Debido a las estrictas políticas de sandbox del iframe de Google Apps Script (`Permissions-Policy` y bloqueos de seguridad del navegador para el API de cámara `getUserMedia`), los flujos de escaneo de cámara tradicionales suelen fallar silenciosamente en Apps Script. El sistema soluciona esto de raíz integrando un lector de archivos e imágenes QR local robusto mediante la librería `Html5Qrcode.scanFile()`. El operador puede simplemente tomar una foto nítida de un código QR y la app lo decodificará e iniciará la búsqueda automáticamente en milisegundos.
 
----
-
-## 🎨 Paleta de Colores Institucional (SMR)
-
-*   **Verde Primario:** `#1B5E20`
-*   **Gris Oscuro:** `#424242`
-*   **Fondo Claro:** `#FAFAFA`
+* **Módulo 3: Mapeo Inteligente de Cabeceras en Carga Masiva:**
+  El parseador de Excel (utilizando la librería `SheetJS`) busca coincidencias con sinonimos e indiferencia a acentos y mayúsculas en la fila de cabeceras de los archivos `.xlsx` y `.csv`. Esto le da al usuario la flexibilidad de cargar plantillas de patrimonio con columnas nombradas indistintamente como "Número de Inventario", "Etiqueta", "No INV", "Id", etc., asociándolos de forma automática con los campos destino de la base de datos.
