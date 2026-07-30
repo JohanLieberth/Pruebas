@@ -17,6 +17,7 @@ window.cacheUbicaciones = [];   // Para autocompletar
 window.cacheResguardantes = [];  // Para autocompletar
 window.usuarioActivo = "";       // Email del usuario logueado o Responsable
 window.bitacoraSesion = [];      // Registro histórico de la sesión actual (Módulo 2)
+window.instanciaQR = null;       // Instancia activa de html5-qrcode
 
 // Variables de Paginación
 window.paginaActual = 1;
@@ -52,25 +53,41 @@ window.addEventListener('unhandledrejection', function(event) {
  */
 document.addEventListener("DOMContentLoaded", function() {
   try {
+    // Vincular eventos del modal de bienvenida mediante addEventListener (Instrucción 2)
+    var btn = document.getElementById('btn-confirmar-responsable');
+    if (btn) {
+      btn.addEventListener('click', window.confirmarResponsable);
+    }
+
+    // Vincular eventos del escáner por archivo (Instrucción 4)
+    var btnQr = document.getElementById('btn-escanear-qr');
+    var inputQr = document.getElementById('qr-input-file');
+    if (btnQr && inputQr) {
+      btnQr.addEventListener('click', function() { inputQr.click(); });
+      inputQr.addEventListener('change', window.procesarEscaneoQR);
+    }
+
     // Cargar la consulta inicial transferida de forma segura desde el elemento HTML sin romper el JS (Instrucción 1)
     const queryDataEl = document.getElementById("initial-query-data");
     window.initialNoInvQuery = queryDataEl ? String(queryDataEl.getAttribute("data-query") || "").trim() : "";
 
     // Verificar si el responsable ya se encuentra registrado en esta sesión (Módulo 3)
-    const nombreGuardado = sessionStorage.getItem("smr_responsable_nombre");
+    const nombreGuardado = sessionStorage.getItem("responsable");
 
     if (nombreGuardado && nombreGuardado.trim().length > 0) {
       // El usuario ya se había logueado, desbloquear interfaz directamente
-      document.getElementById("modal-bienvenida").style.display = "none";
+      var modal = document.getElementById("modal-bienvenida");
+      if (modal) modal.style.display = "none";
       window.usuarioActivo = nombreGuardado;
-      const userEl = document.getElementById("navbar-user");
+      const userEl = document.getElementById("nombre-responsable-display");
       if (userEl) {
         userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> Responsable: ${window.usuarioActivo}`;
       }
-      inicializarApp();
+      window.inicializarApp();
     } else {
       // Bloquear pantalla y esperar que el usuario ingrese su identidad en el modal
-      document.getElementById("modal-bienvenida").style.display = "flex";
+      var modal = document.getElementById("modal-bienvenida");
+      if (modal) modal.style.display = "flex";
       console.log("[SMR] Bloqueando pantalla. Esperando identidad del Responsable.");
     }
   } catch (error) {
@@ -89,33 +106,42 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 
 /**
- * Guarda la identidad del responsable al inicio del levantamiento y desbloquea el sistema (Módulo 3).
- * El modal tiene exactamente UN solo campo: nombre.
+ * Guarda la identidad del responsable al inicio del levantamiento y desbloquea el sistema (Instrucción 2).
+ * El modal tiene exactamente UN solo campo de texto: nombre.
  */
 window.confirmarResponsable = function(event) {
   if (event) event.preventDefault();
 
-  const nombre = document.getElementById("responsable-nombre").value.trim();
+  const input = document.getElementById("input-responsable");
+  const nombre = input ? String(input.value).trim() : "";
 
-  if (!nombre) {
-    alert("Por favor ingrese su Nombre Completo para continuar.");
-    return;
+  if (nombre.length === 0) {
+    const errorDiv = document.getElementById("error-responsable");
+    if (errorDiv) {
+      errorDiv.textContent = "Por favor ingrese su Nombre Completo para continuar.";
+    }
+    return; // NO cerrar el modal si el nombre está vacío (Instrucción 2)
   }
 
   // Guardar en sessionStorage para persistencia de pestaña activa (Módulo 3)
-  sessionStorage.setItem("smr_responsable_nombre", nombre);
+  try {
+    sessionStorage.setItem("responsable", nombre);
+  } catch (e) {
+    console.warn("No se pudo guardar en sessionStorage:", e);
+  }
 
   // Desbloquear modal de bienvenida
-  document.getElementById("modal-bienvenida").style.display = "none";
+  const modal = document.getElementById("modal-bienvenida");
+  if (modal) modal.style.display = "none";
   window.usuarioActivo = nombre;
 
-  const userEl = document.getElementById("navbar-user");
+  const userEl = document.getElementById("nombre-responsable-display");
   if (userEl) {
     userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> Responsable: ${window.usuarioActivo}`;
   }
 
   // Inicializar aplicación
-  inicializarApp();
+  window.inicializarApp();
 
   // Registrar inicio en la bitácora
   registrarEnBitacora("SISTEMA", "Responsable '" + nombre + "' ingresó al sistema.");
@@ -124,20 +150,13 @@ window.confirmarResponsable = function(event) {
 /**
  * Función central de inicialización (Módulo 6).
  */
-function inicializarApp() {
-  mostrarCarga("Cargando base de datos inicial...");
+window.inicializarApp = function() {
+  window.mostrarCarga("Cargando base de datos inicial...");
 
-  // Timeout defensivo para evitar cuelgues estáticos si GAS tiene alta latencia (6 segundos)
-  const safeTimeout = setTimeout(function() {
-    ocultarCarga();
-    mostrarNotificacion("La conexión con el servidor demoró más de lo esperado. Algunas funciones podrían inicializar de forma asíncrona.", "bg-warning");
-  }, 6000);
-
-  // Cargar datos base del servidor
+  // Cargar datos base del servidor de forma segura
   cargarEstadisticasInicio();
   cargarListadoInventario(function() {
-    clearTimeout(safeTimeout);
-    ocultarCarga();
+    window.ocultarCarga();
 
     // Verificar si hay búsqueda inicial solicitada por URL (?noinv=XXXX)
     if (window.initialNoInvQuery && window.initialNoInvQuery.trim() !== "") {
@@ -151,30 +170,62 @@ function inicializarApp() {
       window.showSection('inicio');
     }
   });
-}
+};
 
 /**
- * Muestra el spinner de carga con un mensaje específico (Módulo 6).
+ * Muestra el spinner de carga con un mensaje específico (Instrucción 6).
  */
 window.mostrarCarga = function(mensaje) {
+  const el = document.getElementById("global-loader");
   const msgEl = document.getElementById("loader-message");
-  if (msgEl) {
-    msgEl.innerText = mensaje || "Procesando operación...";
-  }
-  const loader = document.getElementById("global-loader");
-  if (loader) {
-    loader.style.display = "flex";
+  if (el) {
+    el.style.display = "flex";
+    if (msgEl) {
+      msgEl.textContent = mensaje || "Cargando...";
+    }
   }
 };
 
 /**
- * Oculta el spinner de carga (Módulo 6).
+ * Oculta el spinner de carga (Instrucción 6).
  */
 window.ocultarCarga = function() {
-  const loader = document.getElementById("global-loader");
-  if (loader) {
-    loader.style.display = "none";
-  }
+  const el = document.getElementById("global-loader");
+  if (el) el.style.display = "none";
+};
+
+/**
+ * Función de utilidad para realizar llamadas asíncronas con timeout y cargadores unificados (Instrucción 6).
+ */
+window.llamarServidor = function(nombreFuncion, args, onSuccess, onError) {
+  var timeoutId;
+  window.mostrarCarga("Procesando operación...");
+
+  // Timeout de 15 segundos en el cliente (Instrucción 6)
+  timeoutId = setTimeout(function() {
+    window.ocultarCarga();
+    const errMsg = "El servidor está tardando demasiado. Intente de nuevo.";
+    if (onError) onError(errMsg);
+    else alert(errMsg);
+    registrarEnBitacora("ERROR", "Timeout de 15s agotado en " + nombreFuncion);
+  }, 15000);
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      clearTimeout(timeoutId);
+      window.ocultarCarga();
+      if (onSuccess) onSuccess(data);
+    })
+    .withFailureHandler(function(error) {
+      clearTimeout(timeoutId);
+      window.ocultarCarga();
+      console.error("[SMR] Error de ejecución en servidor:", error);
+      const errMsg = error.message || error;
+      if (onError) onError(errMsg);
+      else alert("Error de conexión: " + errMsg);
+      registrarEnBitacora("ERROR", "Fallo crítico en " + nombreFuncion + ": " + errMsg);
+    })
+    [nombreFuncion].apply(null, args || []);
 };
 
 /**
@@ -193,38 +244,38 @@ function mostrarNotificacion(mensaje, claseColor) {
 }
 
 /**
- * Enrutador SPA dinámico y seguro de secciones.
+ * Enrutador SPA dinámico y seguro de secciones (Instrucción 3).
  */
 window.showSection = function(sectionId) {
   if (window.isNavigating) return;
   window.isNavigating = true;
 
-  // Detener escaneo si se sale de la sección de búsqueda (Módulo 5)
-  if (sectionId !== 'busqueda') {
-    window.limpiarVistaQR();
+  // 1. Ocultar todas las secciones de la app (Instrucción 3)
+  var secciones = document.querySelectorAll(".seccion-app");
+  for (var i = 0; i < secciones.length; i++) {
+    secciones[i].style.display = "none";
   }
 
-  // Ocultar todas las secciones
-  document.querySelectorAll('.app-section').forEach(function(sec) {
-    sec.style.display = 'none';
-  });
+  // 2. Limpiar recursos del escáner QR si existen (Instrucción 3)
+  window.limpiarVistaQR();
 
-  // Desmarcar todos los navlinks
-  document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
-    link.classList.remove('active');
-  });
-
-  // Mostrar sección activa
-  const targetSec = document.getElementById('section-' + sectionId);
-  if (targetSec) {
-    targetSec.style.display = 'block';
+  // 3. Mostrar la sección objetivo (Instrucción 3)
+  var objetivo = document.getElementById(sectionId);
+  if (objetivo) {
+    objetivo.style.display = "block";
+  } else {
+    console.error("Sección no encontrada:", sectionId);
+    window.isNavigating = false;
+    return;
   }
 
-  // Activar navlink correspondiente
-  const targetLink = document.getElementById('nav-' + sectionId);
-  if (targetLink) {
-    targetLink.classList.add('active');
+  // 4. Actualizar estado activo en el menú de navegación (Instrucción 3)
+  var links = document.querySelectorAll(".nav-link");
+  for (var j = 0; j < links.length; j++) {
+    links[j].classList.remove("active");
   }
+  var activo = document.querySelector('[data-seccion="' + sectionId + '"]');
+  if (activo) activo.classList.add("active");
 
   // Cerrar colapso de menú bootstrap en móviles defensivamente
   const navbarCollapse = document.getElementById('navbarContent');
@@ -241,7 +292,7 @@ window.showSection = function(sectionId) {
   registrarEnBitacora("VISTA", "Cargada sección: " + sectionId.toUpperCase());
 
   // Scroll hacia arriba
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 
   // Desbloquear navegación
   setTimeout(function() {
@@ -357,7 +408,6 @@ function cargarEstadisticasInicio() {
 
 /**
  * Recupera el inventario filtrado desde el servidor de Google Sheets (Módulo 3).
- * Soporta timeouts clientes y oculta el spinner de carga ante cualquier resultado.
  */
 function cargarListadoInventario(callback) {
   const elGlobal = document.getElementById("filtro-global-listado");
@@ -371,29 +421,15 @@ function cargarListadoInventario(callback) {
   };
 
   console.log("[SMR] Solicitando listado filtrado al servidor:", filtros);
-  mostrarCarga("Buscando artículo...");
 
   // Registrar aplicación de filtros en bitácora (Módulo 2)
   const descFiltros = `Filtros Aplicados: Texto="${filtros.texto}", Ubicación="${filtros.ubicacion}", Estado="${filtros.estado}"`;
   registrarEnBitacora("FILTRO", descFiltros);
 
-  // Configurar un timeout de 15 segundos en el cliente para evitar bloqueos del loader (Módulo 3)
-  let respondido = false;
-  const timeoutId = setTimeout(function() {
-    if (!respondido) {
-      ocultarCarga();
-      alert("El servidor está tardando demasiado en responder. Intente de nuevo o reduzca los filtros.");
-      mostrarNotificacion("Tiempo de espera agotado.", "bg-danger");
-      registrarEnBitacora("ERROR", "Tiempo de espera de 15s agotado al obtener inventario.");
-    }
-  }, 15000);
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      respondido = true;
-      clearTimeout(timeoutId);
-      ocultarCarga(); // Ocultar "Buscando artículo..." (Módulo 3)
-
+  window.llamarServidor(
+    "obtenerInventarioFiltrado",
+    [filtros],
+    function(res) {
       console.log("[SMR] Respuesta de filtrado servidor recibida:", res);
 
       if (!res || res.success === false) {
@@ -418,18 +454,13 @@ function cargarListadoInventario(callback) {
       registrarEnBitacora("SISTEMA", "Listado cargado con éxito. Encontrados: " + window.cacheInventario.length + " artículos.");
 
       if (callback) callback();
-    })
-    .withFailureHandler(function(err) {
-      respondido = true;
-      clearTimeout(timeoutId);
-      ocultarCarga(); // Ocultar "Buscando artículo..." (Módulo 3)
-      console.error("[SMR] Error en llamada google.script.run a listar:", err);
-      mostrarNotificacion("Fallo de red al conectar con Google Sheets: " + err.message, "bg-danger");
-      alert("Fallo de red: No se pudo conectar con el servidor de Google Sheets.");
-      registrarEnBitacora("ERROR", "Fallo de red crítico: " + err.message);
+    },
+    function(err) {
+      console.error("[SMR] Fallo crítico al recuperar lista del servidor:", err);
+      alert("No se pudo obtener el listado del servidor: " + err);
       if (callback) callback();
-    })
-    .obtenerInventarioFiltrado(filtros);
+    }
+  );
 }
 
 function actualizarCacheAutocompletar() {
@@ -535,10 +566,9 @@ window.limpiarBuscador = function() {
 
 /**
  * Lógica unificada de búsqueda con respuestas robustas camelCase (Módulo 2).
- * Utiliza withSuccessHandler y withFailureHandler ocultando siempre el loader.
+ * Utiliza llamarServidor() para manejar carga y timeout de 15s de forma centralizada.
  */
 function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
-  mostrarCarga("Buscando artículo...");
   const q = query.trim().toLowerCase();
 
   if (buscarPorSerie) {
@@ -550,31 +580,30 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
 
     if (matches.length > 0) {
       mostrarResultadoBusqueda(matches[0]);
-      ocultarCarga();
       registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en caché. Encontrado: " + matches[0].descripcion);
     } else {
       // Intentar en servidor
-      google.script.run
-        .withSuccessHandler(function(srvMatches) {
-          ocultarCarga(); // Ocultar carga (Módulo 2)
+      window.llamarServidor(
+        "buscarPorSerie",
+        [query],
+        function(srvMatches) {
           if (srvMatches && srvMatches.length > 0) {
             mostrarResultadoBusqueda(srvMatches[0]);
             registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en servidor. Encontrado: " + srvMatches[0].descripcion);
           } else {
             mostrarNotificacion("No se encontró ningún artículo con la serie '" + query + "'", "bg-danger");
             alert("No se encontró coincidencia para la serie '" + query + "'. Verifique el número o use la búsqueda manual.");
-            document.getElementById("resultado-busqueda-container").classList.add("d-none");
+            const resContainer = document.getElementById("resultado-busqueda-container");
+            if (resContainer) resContainer.classList.add("d-none");
             registrarEnBitacora("BÚSQUEDA", "Buscada serie '" + query + "' en servidor — Sin resultados.");
           }
-        })
-        .withFailureHandler(function(err) {
-          ocultarCarga(); // Ocultar carga (Módulo 2)
+        },
+        function(err) {
           console.error("[SMR] Error en buscarPorSerie:", err);
           mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
-          alert("Error de conexión con el servidor: " + err.message);
-          registrarEnBitacora("ERROR", "Fallo al buscar serie '" + query + "' en servidor.");
-        })
-        .buscarPorSerie(query);
+          alert("Error de conexión con el servidor: " + err);
+        }
+      );
     }
   } else {
     // Buscar por No. INV
@@ -584,13 +613,13 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
 
     if (found) {
       mostrarResultadoBusqueda(found);
-      ocultarCarga();
       registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en caché. Encontrado: " + found.descripcion);
     } else {
       // Intentar en servidor (Módulo 2)
-      google.script.run
-        .withSuccessHandler(function(res) {
-          ocultarCarga(); // Ocultar carga (Módulo 2)
+      window.llamarServidor(
+        "buscarPorInventario",
+        [query],
+        function(res) {
           if (res && res.encontrado && res.data) {
             mostrarResultadoBusqueda(res.data);
             registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en servidor. Encontrado: " + res.data.descripcion);
@@ -599,18 +628,17 @@ function ejecutarBusquedaAutomatica(query, buscarPorSerie) {
             var msg = res && res.mensaje ? res.mensaje : "No se encontró ningún bien con No. INV. '" + query + "'";
             mostrarNotificacion(msg, "bg-danger");
             alert(msg + "\n\nCódigo QR detectado: " + query + ". No se encontró coincidencia. Verifique el número o use la búsqueda manual.");
-            document.getElementById("resultado-busqueda-container").classList.add("d-none");
+            const resContainer = document.getElementById("resultado-busqueda-container");
+            if (resContainer) resContainer.classList.add("d-none");
             registrarEnBitacora("BÚSQUEDA", "Buscado No. INV '" + query + "' en servidor — Sin resultados.");
           }
-        })
-        .withFailureHandler(function(err) {
-          ocultarCarga(); // Ocultar carga (Módulo 2)
+        },
+        function(err) {
           console.error("[SMR] Error en buscarPorInventario:", err);
           mostrarNotificacion("Error de conexión con el servidor", "bg-danger");
-          alert("Error de conexión con el servidor: " + err.message);
-          registrarEnBitacora("ERROR", "Fallo de conexión al buscar No. INV '" + query + "'");
-        })
-        .buscarPorInventario(query);
+          alert("Error de conexión con el servidor: " + err);
+        }
+      );
     }
   }
 }
@@ -631,13 +659,13 @@ function mostrarResultadoBusqueda(item) {
   document.getElementById("pat-serie").value = item.serie || "";
   document.getElementById("pat-importe").value = item.importe ? "$" + parseFloat(item.importe).toFixed(2) : "$0.00";
   document.getElementById("pat-estado").value = item.estado || "BUENO";
-  document.getElementById("pat-resguardado").value = item.resguardado || "";
+  document.getElementById("pat-resguardado").value = item.resguardante || item.resguardado || "";
   document.getElementById("pat-ubicacion").value = item.ubicacion || "";
 
   // Cargar datos reales editables
   document.getElementById("edit-no-inv-id").value = item.noInv;
   document.getElementById("real-ubicacion").value = item.ubicacionReal || item.ubicacion || "";
-  document.getElementById("real-resguardante").value = item.resguardanteReal || item.resguardado || "";
+  document.getElementById("real-resguardante").value = item.resguardanteReal || item.resguardante || item.resguardado || "";
   document.getElementById("real-estado").value = item.estadoReal || "Bueno";
 
   // Limpiar inputs de fotos
@@ -695,10 +723,10 @@ function renderizarFotosExistentes(fotoIdsString, noInv, containerId, mainWrappe
     delBtn.title = "Eliminar foto";
     delBtn.onclick = function() {
       if (confirm("¿Está seguro de que desea eliminar esta fotografía del servidor?")) {
-        mostrarCarga("Eliminando fotografía...");
+        window.mostrarCarga("Eliminando fotografía...");
         google.script.run
           .withSuccessHandler(function(res) {
-            ocultarCarga();
+            window.ocultarCarga();
             if (res.success) {
               mostrarNotificacion("Fotografía eliminada correctamente.", "bg-success");
               // Recargar listados y estadísticas
@@ -715,7 +743,7 @@ function renderizarFotosExistentes(fotoIdsString, noInv, containerId, mainWrappe
             }
           })
           .withFailureHandler(function(err) {
-            ocultarCarga();
+            window.ocultarCarga();
             mostrarNotificacion("Fallo de red al eliminar foto.", "bg-danger");
           })
           .eliminarFotoArticulo(noInv, cleanId);
@@ -794,7 +822,7 @@ window.guardarDetalleLevantamiento = function(event) {
     return;
   }
 
-  mostrarCarga("Guardando datos de levantamiento...");
+  window.mostrarCarga("Guardando datos de levantamiento...");
 
   const datos = {
     ubicacionReal: ubicacion,
@@ -815,12 +843,12 @@ window.guardarDetalleLevantamiento = function(event) {
           completarExitoGuardado(noInv);
         }
       } else {
-        ocultarCarga();
+        window.ocultarCarga();
         mostrarNotificacion("Error al guardar: " + res.message, "bg-danger");
       }
     })
     .withFailureHandler(function(err) {
-      ocultarCarga();
+      window.ocultarCarga();
       mostrarNotificacion("Error al conectar con servidor: " + err.message, "bg-danger");
     })
     .guardarLevantamiento(noInv, datos);
@@ -832,7 +860,7 @@ function completarExitoGuardado(noInv) {
   // Recargar base de datos local
   cargarListadoInventario(function() {
     cargarEstadisticasInicio();
-    ocultarCarga();
+    window.ocultarCarga();
 
     // Actualizar previsualización para mostrar nuevas miniaturas
     const actualItem = window.cacheInventario.find(function(i) {
@@ -855,7 +883,7 @@ function subirFotosDeFrente(noInv, files, callback) {
       return;
     }
 
-    mostrarCarga("Subiendo fotografía " + (indexCarga + 1) + " de " + limiteMax + "...");
+    window.mostrarCarga("Subiendo fotografía " + (indexCarga + 1) + " de " + limiteMax + "...");
     const file = files[indexCarga];
 
     const reader = new FileReader();
@@ -879,33 +907,34 @@ function subirFotosDeFrente(noInv, files, callback) {
   procesarSiguienteFoto();
 }
 
-// --- MÓDULO 1: ESCANER QR MEDIANTE ARCHIVO (Módulo 1) ---
+// --- MÓDULO 1 & Instrucción 4: ESCANER QR MEDIANTE ARCHIVO (Instrucción 4) ---
 
 /**
- * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Módulo 1).
+ * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Instrucción 4).
  * Esto evita el uso de getUserMedia y es 100% compatible con la política de sandbox de Google Apps Script.
  */
-window.procesarCodigoQR = function(inputEl) {
-  const fileInput = inputEl;
+window.procesarEscaneoQR = function() {
+  const fileInput = document.getElementById("qr-input-file");
   const statusEl = document.getElementById("scanner-status");
-  if (!fileInput.files || fileInput.files.length === 0) return;
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
 
   const file = fileInput.files[0];
   if (statusEl) {
     statusEl.innerHTML = `<span class="text-primary"><i class="fa-solid fa-spinner fa-spin"></i> Decodificando código...</span>`;
   }
 
-  mostrarCarga("Decodificando código QR...");
+  window.mostrarCarga("Decodificando código QR...");
 
   // Registrar inicio de escaneo en bitácora (Módulo 2)
   registrarEnBitacora("ESCANER", "Iniciada decodificación estática del archivo '" + file.name + "'");
 
   // Crear instancia local de html5-qrcode para decodificación estática
-  const html5QrCode = new Html5Qrcode("reader");
+  const html5QrCode = new Html5Qrcode("qr-reader-container");
+  window.instanciaQR = html5QrCode;
 
   html5QrCode.scanFile(file, true)
     .then(function(decodedText) {
-      ocultarCarga();
+      window.ocultarCarga();
       const limpioVal = String(decodedText || "").trim();
 
       if (statusEl) {
@@ -922,19 +951,19 @@ window.procesarCodigoQR = function(inputEl) {
       // Registrar éxito de escaneo en bitácora (Módulo 2)
       registrarEnBitacora("ESCANER", "Código decodificado con éxito: " + limpioVal);
 
-      // Lanzar búsqueda automática inmediatamente (Módulo 1)
+      // Lanzar búsqueda automática inmediatamente (Instrucción 4)
       ejecutarBusquedaAutomatica(limpioVal);
 
       // Limpiar input file para permitir cargas consecutivas
       fileInput.value = "";
     })
     .catch(function(err) {
-      ocultarCarga();
+      window.ocultarCarga();
       console.error("Fallo al decodificar código por archivo estático:", err);
       if (statusEl) {
         statusEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-xmark"></i> No se pudo leer el código.</span>`;
       }
-      alert("No se pudo leer el código. Intente con mejor iluminación o ingrese el dato manualmente.");
+      alert("No se pudo leer el código QR. Intente con otro ángulo o ingrese el número manualmente.");
       registrarEnBitacora("ERROR", "No se detectó un código legible en la imagen.");
       fileInput.value = "";
     });
@@ -1007,7 +1036,7 @@ window.registrarNuevoArticulo = function(event) {
     return;
   }
 
-  mostrarCarga("Dando de alta bien nuevo...");
+  window.mostrarCarga("Dando de alta bien nuevo...");
 
   const datos = {
     noInv: noInv,
@@ -1037,12 +1066,12 @@ window.registrarNuevoArticulo = function(event) {
           completarExitoAlta();
         }
       } else {
-        ocultarCarga();
+        window.ocultarCarga();
         alert(res.message);
       }
     })
     .withFailureHandler(function(err) {
-      ocultarCarga();
+      window.ocultarCarga();
       mostrarNotificacion("Fallo de red: " + err.message, "bg-danger");
     })
     .altaBien(datos);
@@ -1055,7 +1084,7 @@ function completarExitoAlta() {
 
   cargarListadoInventario(function() {
     cargarEstadisticasInicio();
-    ocultarCarga();
+    window.ocultarCarga();
     window.showSection('listado');
   });
 }
@@ -1075,7 +1104,7 @@ window.procesarCargaMasiva = function(event) {
   const file = files[0];
   const opcionDuplicados = document.querySelector('input[name="duplicado-opcion"]:checked').value;
 
-  mostrarCarga("Analizando archivo localmente...");
+  window.mostrarCarga("Analizando archivo localmente...");
 
   const reader = new FileReader();
 
@@ -1260,16 +1289,16 @@ function mapearColumnasInteligentes(matrix) {
  */
 function procesarRegistrosMapeados(rows, opcionDuplicados) {
   if (rows.length === 0) {
-    ocultarCarga();
+    window.ocultarCarga();
     alert("No se encontraron registros válidos o mapeables en el archivo.");
     return;
   }
 
-  mostrarCarga("Subiendo lote al servidor de Google Sheets...");
+  window.mostrarCarga("Subiendo lote al servidor de Google Sheets...");
 
   google.script.run
     .withSuccessHandler(function(res) {
-      ocultarCarga();
+      window.ocultarCarga();
       if (res.success) {
         mostrarNotificacion("¡Carga masiva completada exitosamente!", "bg-success");
 
@@ -1291,7 +1320,7 @@ function procesarRegistrosMapeados(rows, opcionDuplicados) {
       }
     })
     .withFailureHandler(function(err) {
-      ocultarCarga();
+      window.ocultarCarga();
       alert("Error en el servidor de Google Sheets: " + err.message);
     })
     .importarDatosExcel(rows, opcionDuplicados);
@@ -1327,7 +1356,7 @@ window.aplicarFiltrosYListar = function(skipServerQuery) {
   renderizarTablaListado(paginaItems);
 
   // Renderizar barra de control del paginador después (garantizando DOM listo)
-  renderizarPaginadorUI(window.cacheInventario, window.paginaActual, REGISTROS_POR_PAGINA);
+  window.renderizarPaginadorUI(window.cacheInventario, window.paginaActual, REGISTROS_POR_PAGINA);
 };
 
 /**
@@ -1372,7 +1401,7 @@ function renderizarTablaListado(items) {
         <td>${item.ubicacionReal || "<span class='text-muted small'>Pendiente</span>"}</td>
         <td><span class="badge ${badgeClass}">${est || "Pendiente"}</span></td>
         <td class="small text-truncate" style="max-width: 140px;" title="${item.usuarioOperador || ""}">${opTxt}</td>
-        <td>${item.resguardanteReal || "<span class='text-muted small'>Pendiente</span>"}</td>
+        <td>${item.resguardanteReal || item.resguardante || "<span class='text-muted small'>Pendiente</span>"}</td>
         <td class="text-center no-print">
           <div class="d-none d-md-flex justify-content-center gap-1">
             <button class="btn btn-sm btn-outline-success rounded-circle" onclick="window.abrirModalEdicion('${item.noInv}')" title="Editar completo"><i class="fa-solid fa-edit"></i></button>
@@ -1402,61 +1431,43 @@ function renderizarTablaListado(items) {
 }
 
 /**
- * Genera el paginador de la grilla de listado (Módulo 4).
+ * Genera el paginador de la grilla de listado (Módulo 4 & Instrucción 6).
  * Evita asignaciones de innerHTML a elementos nulos y agrega guards robustos.
  */
-function renderizarPaginadorUI(datos, paginaActual, itemsPorPagina) {
-  // b) Verificar estructura de datos
+window.renderizarPaginadorUI = function(datos, paginaActual, itemsPorPagina) {
+  var contenedor = document.getElementById("contenedor-paginador");
+
+  // Guarda defensiva (Módulo 4 & Instrucción 6)
   if (!Array.isArray(datos) || datos.length === 0) {
-    console.warn("Paginador: sin datos para paginar (Módulo 4)");
+    if (contenedor) {
+      contenedor.innerHTML = "";
+    }
+    console.warn("Paginador: sin datos para paginar");
     return;
   }
 
-  // c) Buscar el contenedor del paginador
-  var ul = document.getElementById("paginador-ul");
-  var infoText = document.getElementById("paginacion-info-text");
-
-  // d) Si !ul, buscar contenedor raíz y crearlo dinámicamente si no existe (Módulo 4)
-  if (!ul) {
-    console.warn("Paginador: elemento <ul> con id 'paginador-ul' no encontrado en el DOM. Creando dinámicamente...");
-    const tabla = document.getElementById("tabla-listado-bienes");
-    if (tabla && tabla.parentNode) {
-      const containerDiv = document.createElement("div");
-      containerDiv.className = "card-footer d-flex flex-column flex-sm-row justify-content-between align-items-center bg-white border-top p-3";
-      containerDiv.innerHTML = `
-        <div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text"></div>
-        <nav aria-label="Navegación de listado">
-          <ul class="pagination pagination-sm mb-0" id="paginador-ul"></ul>
-        </nav>
-      `;
-      tabla.parentNode.appendChild(containerDiv);
-      ul = document.getElementById("paginador-ul");
-      infoText = document.getElementById("paginacion-info-text");
-    }
+  if (!contenedor) {
+    console.warn("Paginador: contenedor no encontrado en el DOM");
+    return;
   }
 
-  // e) Guard defensivo para evitar innerHTML de null
-  if (!ul) {
-    console.error("Paginador: Imposible inyectar paginador en el DOM. Contenedores no disponibles.");
+  var totalPaginas = Math.ceil(datos.length / itemsPorPagina);
+  if (totalPaginas <= 1) {
+    contenedor.innerHTML = "";
     return;
   }
 
   const totalRegistros = datos.length;
-  const totalPaginas = Math.ceil(totalRegistros / itemsPorPagina) || 1;
   const inicioIdx = (paginaActual - 1) * itemsPorPagina;
   const finIdx = Math.min(inicioIdx + itemsPorPagina, totalRegistros);
 
-  if (infoText) {
-    infoText.innerText = `Mostrando ${totalRegistros === 0 ? 0 : inicioIdx + 1} a ${finIdx} de ${totalRegistros} registros`;
-  }
+  var infoHtml = `<div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text">Mostrando ${totalRegistros === 0 ? 0 : inicioIdx + 1} a ${finIdx} de ${totalRegistros} registros</div>`;
 
-  ul.innerHTML = "";
+  var html = infoHtml + `<nav aria-label="Navegación de listado"><ul class="pagination pagination-sm mb-0" id="paginador-ul">`;
 
   // Botón Anterior
-  const liPrev = document.createElement("li");
-  liPrev.className = "page-item " + (paginaActual === 1 ? "disabled" : "");
-  liPrev.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${paginaActual - 1})">Anterior</a>`;
-  ul.appendChild(liPrev);
+  var prevClase = (paginaActual === 1) ? 'disabled' : '';
+  html += `<li class="page-item ${prevClase}"><a class="page-link" onclick="window.cambiarPagina(${paginaActual - 1})">Anterior</a></li>`;
 
   // Limitar número de páginas visibles (máximo 5 páginas)
   let startPage = Math.max(1, paginaActual - 2);
@@ -1466,18 +1477,18 @@ function renderizarPaginadorUI(datos, paginaActual, itemsPorPagina) {
   }
 
   for (let p = startPage; p <= endPage; p++) {
-    const liPage = document.createElement("li");
-    liPage.className = "page-item " + (p === paginaActual ? "active" : "");
-    liPage.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${p})">${p}</a>`;
-    ul.appendChild(liPage);
+    var liClase = (p === paginaActual) ? 'active' : '';
+    html += `<li class="page-item ${liClase}"><a class="page-link" onclick="window.cambiarPagina(${p})">${p}</a></li>`;
   }
 
   // Botón Siguiente
-  const liNext = document.createElement("li");
-  liNext.className = "page-item " + (paginaActual === totalPaginas ? "disabled" : "");
-  liNext.innerHTML = `<a class="page-link" onclick="window.cambiarPagina(${paginaActual + 1})">Siguiente</a>`;
-  ul.appendChild(liNext);
-}
+  var nextClase = (paginaActual === totalPaginas) ? 'disabled' : '';
+  html += `<li class="page-item ${nextClase}"><a class="page-link" onclick="window.cambiarPagina(${paginaActual + 1})">Siguiente</a></li>`;
+
+  html += `</ul></nav>`;
+
+  contenedor.innerHTML = html;
+};
 
 window.cambiarPagina = function(p) {
   window.paginaActual = p;
@@ -1499,6 +1510,7 @@ window.abrirModalVerDetalle = function(noInv) {
 
   const modalEl = document.getElementById("modal-ver-detalle");
   const body = document.getElementById("modal-ver-detalle-content");
+  if (!modalEl || !body) return;
 
   let fotosHtml = "";
   const ids = item.fotoId ? String(item.fotoId).split(",") : [];
@@ -1528,7 +1540,7 @@ window.abrirModalVerDetalle = function(noInv) {
         <p class="mb-2"><strong>Importe:</strong> ${item.importe ? "$" + parseFloat(item.importe).toFixed(2) : "$0.00"}</p>
         <p class="mb-2"><strong>Estado original:</strong> ${item.estado || "BUENO"}</p>
         <p class="mb-2"><strong>Ubicación original:</strong> ${item.ubicacion || ""}</p>
-        <p class="mb-0"><strong>Resguardante original:</strong> ${item.resguardado || ""}</p>
+        <p class="mb-0"><strong>Resguardante original:</strong> ${item.resguardante || item.resguardado || ""}</p>
       </div>
       <div class="col-12 col-md-6">
         <h6 class="fw-bold text-success mb-3"><i class="fa-solid fa-check-double me-1"></i> Información del Levantamiento</h6>
@@ -1576,7 +1588,7 @@ window.abrirModalEdicion = function(noInv) {
 
   document.getElementById("modal-edit-no-inv-hidden").value = item.noInv;
   document.getElementById("modal-edit-descripcion").value = item.descripcion || "";
-  document.getElementById("modal-edit-resguardado").value = item.resguardado || "";
+  document.getElementById("modal-edit-resguardado").value = item.resguardante || item.resguardado || "";
   document.getElementById("modal-edit-serie").value = item.serie || "SIN SERIE";
   document.getElementById("modal-edit-modelo").value = item.modelo || "";
   document.getElementById("modal-edit-marca").value = item.marca || "";
@@ -1586,7 +1598,7 @@ window.abrirModalEdicion = function(noInv) {
 
   document.getElementById("modal-edit-estado-real").value = item.estadoReal || "Bueno";
   document.getElementById("modal-edit-ubicacion-real").value = item.ubicacionReal || item.ubicacion || "";
-  document.getElementById("modal-edit-resguardante-real").value = item.resguardanteReal || item.resguardado || "";
+  document.getElementById("modal-edit-resguardante-real").value = item.resguardanteReal || item.resguardante || item.resguardado || "";
 
   // Limpiar fotos previas seleccionadas
   document.getElementById("modal-edit-fotos-files").value = "";
@@ -1600,7 +1612,7 @@ window.guardarEdicionCompleta = function(event) {
   if (event) event.preventDefault();
 
   const noInv = document.getElementById("modal-edit-no-inv-hidden").value;
-  mostrarCarga("Actualizando artículo en lote...");
+  window.mostrarCarga("Actualizando artículo en lote...");
 
   // Agrupamos todos los campos para enviarlos de golpe
   const datos = {
@@ -1632,12 +1644,12 @@ window.guardarEdicionCompleta = function(event) {
           completarExitoEdicion();
         }
       } else {
-        ocultarCarga();
+        window.ocultarCarga();
         alert("Fallo al actualizar: " + res.message);
       }
     })
     .withFailureHandler(function(err) {
-      ocultarCarga();
+      window.ocultarCarga();
       mostrarNotificacion("Fallo de red al conectar.", "bg-danger");
     })
     .importarDatosExcel([datos], "actualizar");
@@ -1648,12 +1660,14 @@ function completarExitoEdicion() {
 
   // Cerrar modal
   const modalEl = document.getElementById("modal-editar-articulo");
-  const modal = bootstrap.Modal.getInstance(modalEl);
-  if (modal) modal.hide();
+  if (modalEl) {
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+  }
 
   cargarListadoInventario(function() {
     cargarEstadisticasInicio();
-    ocultarCarga();
+    window.ocultarCarga();
   });
 }
 
@@ -1671,7 +1685,7 @@ window.abrirModalTrasladar = function(noInv) {
   document.getElementById("modal-traslado-no-inv").value = item.noInv;
   document.getElementById("modal-traslado-detalle-txt").innerText = item.descripcion + " (No. INV: " + item.noInv + ")";
   document.getElementById("modal-traslado-ubicacion").value = item.ubicacionReal || item.ubicacion || "";
-  document.getElementById("modal-traslado-resguardante").value = item.resguardanteReal || item.resguardado || "";
+  document.getElementById("modal-traslado-resguardante").value = item.resguardanteReal || item.resguardante || item.resguardado || "";
   document.getElementById("modal-traslado-motivo").value = "";
 
   const modal = new bootstrap.Modal(document.getElementById("modal-trasladar"));
@@ -1691,7 +1705,7 @@ window.guardarTrasladoArticulo = function(event) {
     return;
   }
 
-  mostrarCarga("Registrando traslado...");
+  window.mostrarCarga("Registrando traslado...");
 
   const datos = {
     ubicacionReal: ubicacion,
@@ -1701,14 +1715,16 @@ window.guardarTrasladoArticulo = function(event) {
 
   google.script.run
     .withSuccessHandler(function(res) {
-      ocultarCarga();
+      window.ocultarCarga();
       if (res.success) {
         mostrarNotificacion("¡Traslado registrado y guardado!", "bg-success");
 
         // Cerrar modal
         const modalEl = document.getElementById("modal-trasladar");
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
+        if (modalEl) {
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+        }
 
         // Recargar inventario
         cargarListadoInventario();
@@ -1717,7 +1733,7 @@ window.guardarTrasladoArticulo = function(event) {
       }
     })
     .withFailureHandler(function(err) {
-      ocultarCarga();
+      window.ocultarCarga();
       mostrarNotificacion("Fallo de red: " + err.message, "bg-danger");
     })
     .registrarTraslado(noInv, datos);
@@ -1753,14 +1769,14 @@ window.subirNuevasFotosModal = function() {
     return;
   }
 
-  mostrarCarga("Subiendo fotografías...");
+  window.mostrarCarga("Subiendo fotografías...");
 
   subirFotosDeFrente(noInv, fileInput.files, function() {
     mostrarNotificacion("Fotos agregadas correctamente.", "bg-success");
 
     // Recargar inventario local para refrescar fotos en el modal
     cargarListadoInventario(function() {
-      ocultarCarga();
+      window.ocultarCarga();
 
       const actualItem = window.cacheInventario.find(function(i) {
         return String(i.noInv).trim().toLowerCase() === String(noInv).trim().toLowerCase();
@@ -1791,6 +1807,7 @@ window.abrirGeneradorQR = function(noInv) {
   document.getElementById("qr-modal-desc-title").innerText = item.descripcion || "";
 
   const container = document.getElementById("qr-code-img-container");
+  if (!container) return;
   container.innerHTML = "";
 
   // Instanciar qrcode.js en cliente para generación offline rápida y confiable

@@ -13,20 +13,22 @@
 </head>
 <body>
 
-  <!-- Modal de bienvenida del Responsable bloqueante al inicio de sesión (Módulo 3) -->
-  <div id="modal-bienvenida">
+  <!-- Modal de bienvenida del Responsable bloqueante al inicio de sesión (Instrucción 2 & Módulo 3) -->
+  <div id="modal-bienvenida" role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title">
     <div class="bienvenida-card">
       <div class="bienvenida-banner">
-        <h4 class="fw-bold mb-1"><i class="fa-solid fa-clipboard-user me-2"></i> Bienvenida al Sistema</h4>
+        <h2 class="fw-bold mb-1 h4" id="welcome-modal-title"><i class="fa-solid fa-clipboard-user me-2"></i> Bienvenida al Sistema</h2>
         <p class="small mb-0">Subdirección de Mejora Regulatoria</p>
       </div>
       <div class="p-4">
         <form id="form-bienvenida" onsubmit="window.confirmarResponsable(event)">
           <div class="mb-4">
-            <label for="responsable-nombre" class="form-label fw-bold text-secondary">Nombre del Responsable *</label>
-            <input type="text" class="form-control" id="responsable-nombre" placeholder="Escriba su nombre completo..." required autocomplete="off">
+            <label for="input-responsable" class="form-label fw-bold text-secondary">Nombre del Responsable *</label>
+            <!-- Un solo campo de texto: nombre completo, sin departamento (Instrucción 2) -->
+            <input type="text" id="input-responsable" class="form-control" placeholder="Nombre completo" autocomplete="name" required>
+            <div id="error-responsable" role="alert" class="text-danger small mt-2 fw-bold"></div>
           </div>
-          <button type="submit" class="btn btn-primary w-100 py-2 fw-bold"><i class="fa-solid fa-arrow-right me-1"></i> Acceder al Sistema</button>
+          <button type="submit" id="btn-confirmar-responsable" class="btn btn-primary w-100 py-2 fw-bold"><i class="fa-solid fa-arrow-right me-1"></i> Acceder al Sistema</button>
         </form>
       </div>
     </div>
@@ -52,39 +54,39 @@
       <div class="collapse navbar-collapse" id="navbarContent">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link active" onclick="window.showSection('inicio')" id="nav-inicio">
+            <a class="nav-link active" onclick="window.showSection('inicio')" id="nav-inicio" data-seccion="inicio">
               <i class="fa-solid fa-chart-pie me-1"></i> Inicio
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" onclick="window.showSection('busqueda')" id="nav-busqueda">
+            <a class="nav-link" onclick="window.showSection('busqueda')" id="nav-busqueda" data-seccion="busqueda">
               <i class="fa-solid fa-magnifying-glass me-1"></i> Buscar Bien
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" onclick="window.showSection('alta')" id="nav-alta">
+            <a class="nav-link" onclick="window.showSection('alta')" id="nav-alta" data-seccion="alta">
               <i class="fa-solid fa-plus me-1"></i> Alta de Bien
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" onclick="window.showSection('carga-masiva')" id="nav-carga-masiva">
+            <a class="nav-link" onclick="window.showSection('carga-masiva')" id="nav-carga-masiva" data-seccion="carga-masiva">
               <i class="fa-solid fa-file-excel me-1"></i> Carga Masiva
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" onclick="window.showSection('listado')" id="nav-listado">
+            <a class="nav-link" onclick="window.showSection('listado')" id="nav-listado" data-seccion="listado">
               <i class="fa-solid fa-list me-1"></i> Listado General
             </a>
           </li>
         </ul>
-        <span class="navbar-text text-white-50" id="navbar-user" style="font-size: 0.9rem;">
+        <span class="navbar-text text-white-50" id="nombre-responsable-display" style="font-size: 0.9rem; font-weight: bold;">
           <i class="fa-solid fa-user me-1"></i> Identificando usuario...
         </span>
       </div>
     </div>
   </nav>
 
-  <!-- Contenedor Principal con Landmark <main id="contenido-principal"> (Módulo 7) -->
+  <!-- Contenedor Principal SPA envuelto en landmark <main id="contenido-principal"> (Instrucción 8 & Módulo 7) -->
   <main id="contenido-principal" class="container main-container">
 
     <!-- Toast de Notificaciones -->
@@ -100,7 +102,7 @@
     </div>
 
     <!-- SECCIÓN 1: INICIO / DASHBOARD -->
-    <section id="section-inicio" class="app-section">
+    <section id="inicio" class="seccion-app">
       <div class="row mb-4">
         <div class="col-12 text-center text-md-start">
           <h2 class="text-primary-smr font-weight-bold">Levantamiento Físico de Inventario</h2>
@@ -114,8 +116,8 @@
           <div class="card card-smr dashboard-card p-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <h6 class="text-muted text-uppercase mb-1" style="font-size: 0.8rem; font-weight: bold;">Total de Artículos</h6>
-                <h3 class="fw-bold mb-0" id="stats-total">0</h3>
+                <h3 class="text-muted text-uppercase mb-1 h6" style="font-size: 0.8rem; font-weight: bold;">Total de Artículos</h3>
+                <h4 class="fw-bold mb-0" id="stats-total">0</h4>
               </div>
               <div class="icon-circle">
                 <i class="fa-solid fa-database"></i>
@@ -127,8 +129,8 @@
           <div class="card card-smr dashboard-card p-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <h6 class="text-muted text-uppercase mb-1" style="font-size: 0.8rem; font-weight: bold;">Artículos Levantados</h6>
-                <h3 class="fw-bold text-success mb-0" id="stats-levantados">0</h3>
+                <h3 class="text-muted text-uppercase mb-1 h6" style="font-size: 0.8rem; font-weight: bold;">Artículos Levantados</h3>
+                <h4 class="fw-bold text-success mb-0" id="stats-levantados">0</h4>
               </div>
               <div class="icon-circle" style="background-color: rgba(45,138,110,0.1); color: var(--color-acento);">
                 <i class="fa-solid fa-circle-check"></i>
@@ -140,8 +142,8 @@
           <div class="card card-smr dashboard-card p-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <h6 class="text-muted text-uppercase mb-1" style="font-size: 0.8rem; font-weight: bold;">Pendientes</h6>
-                <h3 class="fw-bold text-danger mb-0" id="stats-pendientes">0</h3>
+                <h3 class="text-muted text-uppercase mb-1 h6" style="font-size: 0.8rem; font-weight: bold;">Pendientes</h3>
+                <h4 class="fw-bold text-danger mb-0" id="stats-pendientes">0</h4>
               </div>
               <div class="icon-circle" style="background-color: rgba(192,57,43,0.1); color: var(--color-error);">
                 <i class="fa-solid fa-hourglass-half"></i>
@@ -194,7 +196,7 @@
     </section>
 
     <!-- SECCIÓN 2: BÚSQUEDA Y LEVANTAMIENTO -->
-    <section id="section-busqueda" class="app-section" style="display: none;">
+    <section id="busqueda" class="seccion-app" style="display: none;">
       <div class="row mb-4">
         <div class="col-12">
           <h4>Módulo de Búsqueda y Levantamiento</h4>
@@ -212,7 +214,7 @@
                 <label for="buscar-input" class="form-label fw-bold">Número de Inventario / Serie</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                  <!-- Autocomplete asistido mediante datalist para reducir dependencia de escaneo (Módulo 1) -->
+                  <!-- Autocomplete asistido mediante datalist para sugerencias (Módulo 1) -->
                   <input type="text" class="form-control" id="buscar-input" list="buscar-datalist" placeholder="Escriba No. de Inventario o Serie para sugerencias..." required oninput="window.asistirBusquedaManual(this)">
                   <datalist id="buscar-datalist"></datalist>
                 </div>
@@ -229,22 +231,24 @@
           </div>
         </div>
 
-        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Módulo 1) -->
+        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Módulo 1 & Instrucción 4) -->
         <div class="col-12 col-md-5">
           <div class="card card-smr p-4 text-center h-100 d-flex flex-column justify-content-center">
-            <h6 class="fw-bold mb-2 text-primary-smr"><i class="fa-solid fa-qrcode me-1"></i> Escáner por Archivo / Foto</h6>
+            <h5 class="fw-bold mb-2 text-primary-smr h6"><i class="fa-solid fa-qrcode me-1"></i> Escáner por Archivo / Foto</h5>
             <p class="small text-muted mb-3">Tome una fotografía del código QR o de barras con la cámara de su dispositivo, o seleccione un archivo de su galería para decodificarlo al instante.</p>
 
             <div class="mb-3">
               <label for="qr-input-file" class="form-label small fw-bold text-secondary">Cargar Código (QR o Código de Barras)</label>
               <!-- Input file con capture="environment" que abre la cámara directamente en móviles, totalmente compatible con sandbox de GAS -->
-              <input type="file" id="qr-input-file" accept="image/*" capture="environment" class="form-control" onchange="window.procesarCodigoQR(this)">
+              <input type="file" id="qr-input-file" accept="image/*" capture="environment" class="form-control">
             </div>
 
-            <!-- Contenedor temporal oculto necesario para inicializar el motor de html5-qrcode -->
-            <div id="reader" style="display: none; width: 1px; height: 1px;"></div>
+            <button type="button" id="btn-escanear-qr" class="btn btn-outline-primary"><i class="fa-solid fa-camera me-1"></i> Elegir Foto / Capturar</button>
 
-            <div id="scanner-status" class="small text-muted mt-1">Esperando archivo...</div>
+            <!-- Contenedor temporal oculto necesario para inicializar el motor de html5-qrcode -->
+            <div id="qr-reader-container" style="display: none; width: 1px; height: 1px;"></div>
+
+            <div id="scanner-status" class="small text-muted mt-2">Esperando archivo...</div>
           </div>
         </div>
       </div>
@@ -357,7 +361,7 @@
     </section>
 
     <!-- SECCIÓN 3: ALTA DE NUEVO BIEN -->
-    <section id="section-alta" class="app-section" style="display: none;">
+    <section id="alta" class="seccion-app" style="display: none;">
       <div class="row mb-4">
         <div class="col-12">
           <h4>Alta de Nuevo Artículo</h4>
@@ -462,7 +466,7 @@
     </section>
 
     <!-- SECCIÓN 4: CARGA MASIVA DESDE EXCEL -->
-    <section id="section-carga-masiva" class="app-section" style="display: none;">
+    <section id="carga-masiva" class="seccion-app" style="display: none;">
       <div class="row mb-4">
         <div class="col-12">
           <h4>Carga Masiva de Patrimonio</h4>
@@ -554,7 +558,7 @@
     </section>
 
     <!-- SECCIÓN 5: LISTADO GENERAL DE ARTÍCULOS -->
-    <section id="section-listado" class="app-section" style="display: none;">
+    <section id="listado" class="seccion-app" style="display: none;">
       <div class="row mb-3">
         <div class="col-12 col-md-6">
           <h4>Listado de Artículos Registrados</h4>
@@ -628,7 +632,7 @@
         </div>
 
         <!-- Paginador con ID exacto para coincidir con JS (Módulo 4) -->
-        <div class="card-footer d-flex flex-column flex-sm-row justify-content-between align-items-center bg-white border-top p-3">
+        <div id="contenedor-paginador" class="card-footer d-flex flex-column flex-sm-row justify-content-between align-items-center bg-white border-top p-3">
           <div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text">
             Mostrando 0 a 0 de 0 registros
           </div>

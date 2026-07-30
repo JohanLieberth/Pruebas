@@ -2,9 +2,11 @@
  * SISTEMA DE INVENTARIO FÍSICO - SUBDIRECCIÓN DE MEJORA REGULATORIA
  * Backend: Code.gs
  *
- * Este archivo implementa toda la lógica de servidor en Google Apps Script,
- * con almacenamiento en caché en lote para lecturas ultra rápidas (Módulo 1),
- * normalización a claves camelCase robustas (Módulo 1) y respuestas estructuradas.
+ * Lógica del servidor completa y funcional.
+ * - Lectura optimizada en lote de Google Sheets mediante getDataRange().getValues().
+ * - Normalización de cabeceras de columnas a camelCase estándar.
+ * - Almacenamiento en caché con TTL de 5 minutos mediante PropertiesService.
+ * - Búsqueda y filtrado robustos en servidor con tipado estricto.
  */
 
 // Cabeceras exactas para la hoja "Inventario"
@@ -21,9 +23,6 @@ const HEADERS_BITACORA = [
 
 // Nombre de la carpeta de fotos en Google Drive
 const NOMBRE_CARPETA_FOTOS = "Inventario_MejoraRegulatoria_Fotos";
-
-// Variable de caché en memoria de script para evitar múltiples accesos a la hoja (Módulo 1)
-var CACHE_INVENTARIO = null;
 
 /**
  * Función de inicio para la Web App.
@@ -243,181 +242,207 @@ function inicializarBaseDatos() {
 }
 
 /**
- * Obtiene el rango de datos de Inventario limitando de forma segura
- * el número de columnas para evitar out-of-bounds exceptions.
+ * Obtiene el rango de datos de Inventario de manera ultra eficiente en lote (Instrucción 5).
+ * Usa una sola llamada getValues() en la pestaña 'Inventario'.
+ * Mapea las cabeceras a claves camelCase robustas y normaliza todos los valores a String trimmeados.
+ * Implementa caché de 5 minutos mediante PropertiesService.
  */
-function getInventarioRowsAndData() {
-  var sheet = getSheetSafe("Inventario");
-  if (!sheet) return { headers: [], rows: [] };
-
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  if (lastRow < 2) return { headers: [], rows: [] };
-
-  // Cargar cabeceras reales
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-
-  // Cargar valores, limitando columnas para evitar desbordamiento
-  var capCol = Math.min(lastCol, HEADERS_INVENTARIO.length);
-  var values = sheet.getRange(2, 1, lastRow - 1, capCol).getValues();
-
-  return {
-    headers: headers,
-    rows: values
-  };
-}
-
-/**
- * Normaliza una fila del inventario mapeándola a propiedades camelCase sin caracteres problemáticos (Módulo 1).
- * Todos los valores se convierten explícitamente a String y se aplican trims para evitar type mismatches.
- */
-function normalizeItem(headers, row) {
-  var idxNo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no."; });
-  var idxNoInv = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no. inv."; });
-  var idxDesc = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "descripcion"; });
-  var idxSerie = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "serie"; });
-  var idxModelo = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "modelo"; });
-  var idxMarca = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "marca"; });
-  var idxEstado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado"; });
-  var idxImporte = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "importe"; });
-  var idxUbicacion = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion"; });
-  var idxResguardado = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardado"; });
-  var idxResgReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardante_real"; });
-  var idxUbiReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ubicacion_real"; });
-  var idxEstReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "estado_real"; });
-  var idxUltAct = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "ultima_actualizacion"; });
-  var idxUsrOp = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "usuario_operador"; });
-  var idxFotoId = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "foto_id"; });
-
-  var noInv = idxNoInv !== -1 ? String(row[idxNoInv] || "").trim() : "";
-  if (!noInv) return null;
-
-  return {
-    no: idxNo !== -1 ? String(row[idxNo] || "").trim() : "",
-    noInv: noInv,
-    descripcion: idxDesc !== -1 ? String(row[idxDesc] || "").trim() : "",
-    serie: idxSerie !== -1 ? String(row[idxSerie] || "").trim() : "",
-    modelo: idxModelo !== -1 ? String(row[idxModelo] || "").trim() : "",
-    marca: idxMarca !== -1 ? String(row[idxMarca] || "").trim() : "",
-    estado: idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "",
-    importe: idxImporte !== -1 ? String(row[idxImporte] || "").trim() : "0",
-    ubicacion: idxUbicacion !== -1 ? String(row[idxUbicacion] || "").trim() : "",
-    resguardado: idxResguardado !== -1 ? String(row[idxResguardado] || "").trim() : "",
-    resguardanteReal: idxResgReal !== -1 ? String(row[idxResgReal] || "").trim() : "",
-    ubicacionReal: idxUbiReal !== -1 ? String(row[idxUbiReal] || "").trim() : "",
-    estadoReal: idxEstReal !== -1 ? String(row[idxEstReal] || "").trim() : "",
-    ultimaActualizacion: idxUltAct !== -1 ? String(row[idxUltAct] || "").trim() : "",
-    usuarioOperador: idxUsrOp !== -1 ? String(row[idxUsrOp] || "").trim() : "",
-    fotoId: idxFotoId !== -1 ? String(row[idxFotoId] || "").trim() : ""
-  };
-}
-
-/**
- * Obtiene la lista completa de artículos utilizando caché en memoria (Módulo 1).
- * Esto evita releer Sheets en cada request y reduce drásticamente la latencia.
- */
-function listarArticulos() {
+function obtenerInventario() {
   try {
-    if (CACHE_INVENTARIO !== null) {
-      Logger.log("[SMR] Recuperando listado de inventario desde el caché global.");
-      return CACHE_INVENTARIO;
-    }
+    var cache = PropertiesService.getScriptProperties();
+    var cacheKey = 'inventario_cache';
+    var cacheTimeKey = 'inventario_cache_time';
+    var ahora = new Date().getTime();
+    var cacheTime = cache.getProperty(cacheTimeKey);
 
-    Logger.log("[SMR] Cargando inventario desde Google Sheets...");
-    var data = getInventarioRowsAndData();
-    if (data.rows.length === 0) return [];
-
-    var headers = data.headers;
-    var listado = [];
-
-    for (var i = 0; i < data.rows.length; i++) {
-      var item = normalizeItem(headers, data.rows[i]);
-      if (item) {
-        listado.push(item);
+    if (cacheTime && (ahora - parseInt(cacheTime, 10)) < 300000) { // 5 minutos
+      var cached = cache.getProperty(cacheKey);
+      if (cached) {
+        Logger.log("[SMR] Recuperando datos de inventario del caché del PropertiesService.");
+        return JSON.parse(cached);
       }
     }
 
-    CACHE_INVENTARIO = listado;
-    return listado;
+    Logger.log("[SMR] Cargando datos desde Google Sheets...");
+    var ss = getActiveSpreadsheetSafe();
+    var hoja = getSheetSafe("Inventario");
+    if (!hoja) throw new Error('No se encontró la pestaña "Inventario"');
+
+    var datos = hoja.getDataRange().getValues(); // UNA sola llamada a Sheets
+    if (datos.length < 2) return []; // Solo encabezados, sin datos
+
+    var encabezados = datos[0];
+    var registros = [];
+
+    for (var i = 1; i < datos.length; i++) {
+      var fila = datos[i];
+      var obj = {};
+
+      for (var j = 0; j < encabezados.length; j++) {
+        var claveOriginal = String(encabezados[j] || "").trim();
+        var valor = fila[j];
+
+        // Normalizar clave a camelCase (Instrucción 5)
+        var claveNormalizada = claveOriginal
+          .toLowerCase()
+          .replace(/[^a-z0-9]+(.)/g, function(match, chr) { return chr.toUpperCase(); })
+          .replace(/[^a-z0-9]/g, '');
+
+        // Mapeos requeridos obligatorios
+        if (claveOriginal === "No. INV.") claveNormalizada = "noInv";
+        else if (claveOriginal === "DESCRIPCION") claveNormalizada = "descripcion";
+        else if (claveOriginal === "ESTADO_REAL") claveNormalizada = "estadoReal";
+        else if (claveOriginal === "UBICACION_REAL") claveNormalizada = "ubicacionReal";
+        else if (claveOriginal === "RESGUARDANTE_REAL" || claveOriginal === "RESGUARDADO") claveNormalizada = "resguardante";
+
+        // Normalizar valor a string trimmeado (Instrucción 5)
+        obj[claveNormalizada] = valor !== undefined && valor !== null ? String(valor).trim() : '';
+      }
+
+      // Registrar claves normalizadas por seguridad ante campos de Sheets vacíos
+      if (!obj.hasOwnProperty("noInv")) obj.noInv = "";
+      if (!obj.hasOwnProperty("descripcion")) obj.descripcion = "";
+      if (!obj.hasOwnProperty("estadoReal")) obj.estadoReal = "";
+      if (!obj.hasOwnProperty("ubicacionReal")) obj.ubicacionReal = "";
+      if (!obj.hasOwnProperty("resguardante")) obj.resguardante = "";
+
+      registros.push(obj);
+    }
+
+    // Guardar en caché PropertiesService
+    cache.setProperty(cacheKey, JSON.stringify(registros));
+    cache.setProperty(cacheTimeKey, String(ahora));
+
+    return registros;
   } catch (error) {
-    Logger.log("Error en listarArticulos: " + error.toString());
-    throw new Error("No se pudo obtener el listado de inventario: " + error.message);
+    Logger.log("Error en obtenerInventario: " + error.toString());
+    return [];
   }
 }
 
 /**
- * Obtiene el inventario filtrado y procesado de forma de alto rendimiento en el servidor (Módulo 3).
+ * Invalida el caché en el servidor. Invocado después de cualquier escritura.
+ */
+function invalidarCacheSMR() {
+  try {
+    var cache = PropertiesService.getScriptProperties();
+    cache.deleteProperty('inventario_cache');
+    cache.deleteProperty('inventario_cache_time');
+    Logger.log("[SMR] Caché invalidado debido a una actualización de base de datos.");
+  } catch (e) {
+    Logger.log("Error al invalidar caché: " + e.toString());
+  }
+}
+
+/**
+ * Busca un artículo por No. INV de forma robusta server-side (Instrucción 5).
+ * Devuelve un objeto estructurado.
+ */
+function buscarPorInventario(numeroInv) {
+  try {
+    var inventario = obtenerInventario();
+    var busqueda = String(numeroInv || "").trim().toLowerCase();
+
+    for (var i = 0; i < inventario.length; i++) {
+      var item = inventario[i];
+      if (String(item.noInv || "").trim().toLowerCase() === busqueda) {
+        return { encontrado: true, data: item, mensaje: "Artículo encontrado." };
+      }
+    }
+
+    return {
+      encontrado: false,
+      data: null,
+      mensaje: "No se encontró ningún bien con No. INV. '" + numeroInv + "'"
+    };
+  } catch (e) {
+    return { encontrado: false, data: null, mensaje: 'Error del servidor: ' + e.message };
+  }
+}
+
+/**
+ * Busca por No. INV o por Serie de forma robusta.
+ */
+function buscarPorNoInv(noInv) {
+  var res = buscarPorInventario(noInv);
+  return res.encontrado ? res.data : null;
+}
+
+function buscarPorSerie(serie) {
+  try {
+    var q = String(serie || "").trim().toLowerCase();
+    if (!q) return [];
+
+    var matches = [];
+    var inventario = obtenerInventario();
+    for (var i = 0; i < inventario.length; i++) {
+      var item = inventario[i];
+      var s = String(item.serie || "").trim().toLowerCase();
+      if (s === q && s !== "s/s" && s !== "s/s." && s !== "sin serie" && s !== "") {
+        matches.push(item);
+      }
+    }
+    return matches;
+  } catch (e) {
+    Logger.log("Error en buscarPorSerie: " + e.toString());
+    return [];
+  }
+}
+
+/**
+ * Filtra el listado de artículos directamente en el servidor (Instrucción 5).
  * Devuelve siempre un objeto { success: true/false, registros: [...], total: <número> }.
  */
 function obtenerInventarioFiltrado(filtros) {
   try {
-    var listado = listarArticulos();
-
-    if (!filtros || (filtros.estado === "" && filtros.ubicacion === "" && filtros.texto === "")) {
-      return { success: true, registros: listado, total: listado.length };
+    var inventario = obtenerInventario();
+    if (!filtros) {
+      return { success: true, registros: inventario, total: inventario.length };
     }
 
-    var queryGlobal = filtros.texto ? String(filtros.texto).trim().toLowerCase() : "";
-    var filtroUbi = filtros.ubicacion ? String(filtros.ubicacion).trim() : "";
-    var filtroEst = filtros.estado ? String(filtros.estado).trim() : "";
+    var resultado = [];
+    var texto = filtros.texto ? String(filtros.texto).trim().toLowerCase() : '';
+    var estado = filtros.estado ? String(filtros.estado).trim().toLowerCase() : '';
+    var ubicacion = filtros.ubicacion ? String(filtros.ubicacion).trim().toLowerCase() : '';
 
-    var filtrados = listado.filter(function(item) {
-      // 1. Filtrado por Ubicación Real (case-insensitive)
-      if (filtroUbi) {
-        var ubiActual = String(item.ubicacionReal || item.ubicacion || "").trim().toLowerCase();
-        if (ubiActual !== filtroUbi.toLowerCase()) return false;
+    for (var i = 0; i < inventario.length; i++) {
+      var item = inventario[i];
+      var coincide = true;
+
+      // Filtro por Texto: búsqueda parcial case-insensitive en noInv, descripcion y resguardante (Instrucción 5)
+      if (texto && texto.length > 0) {
+        var camposBusqueda = [
+          String(item.noInv || "").toLowerCase(),
+          String(item.descripcion || "").toLowerCase(),
+          String(item.resguardante || item.resguardado || "").toLowerCase()
+        ].join(' ');
+        if (camposBusqueda.indexOf(texto) === -1) coincide = false;
       }
 
-      // 2. Filtrado por Estado Real (case-insensitive)
-      if (filtroEst) {
-        if (filtroEst === "pendiente") {
+      // Filtro por Estado: comparación exacta case-insensitive (Instrucción 5)
+      if (estado && estado.length > 0) {
+        if (estado === "pendiente") {
           var estActual = String(item.estadoReal || "").trim();
-          if (estActual !== "") return false;
+          if (estActual !== "") coincide = false;
         } else {
-          var estActual = String(item.estadoReal || "").trim().toLowerCase();
-          if (estActual !== filtroEst.toLowerCase()) return false;
+          if (String(item.estadoReal || "").trim().toLowerCase() !== estado) coincide = false;
         }
       }
 
-      // 3. Búsqueda Global (Coincidencia parcial en noInv, descripcion, resguardanteReal)
-      if (queryGlobal) {
-        var match = String(item.noInv || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-                    String(item.descripcion || "").toLowerCase().indexOf(queryGlobal) !== -1 ||
-                    String(item.resguardanteReal || item.resguardado || "").toLowerCase().indexOf(queryGlobal) !== -1;
-        if (!match) return false;
+      // Filtro por Ubicación: comparación exacta case-insensitive (Instrucción 5)
+      if (ubicacion && ubicacion.length > 0) {
+        var ubiActual = String(item.ubicacionReal || item.ubicacion || "").trim().toLowerCase();
+        if (ubiActual !== ubicacion) coincide = false;
       }
 
-      return true;
-    });
-
-    return { success: true, registros: filtrados, total: filtrados.length };
-  } catch (error) {
-    Logger.log("Error en obtenerInventarioFiltrado: " + error.toString());
-    return { success: false, error: "Fallo al filtrar inventario en el servidor: " + error.toString() };
-  }
-}
-
-/**
- * Busca un artículo por No. INV (Módulo 2).
- * Normaliza los parámetros y celdas antes de comparar de forma robusta.
- */
-function buscarPorInventario(numeroInv) {
-  try {
-    var q = String(numeroInv || "").trim().toLowerCase();
-    if (!q) {
-      return { encontrado: false, data: null, mensaje: "Número de inventario no válido o vacío." };
-    }
-
-    var articulos = listarArticulos();
-    for (var i = 0; i < articulos.length; i++) {
-      if (String(articulos[i].noInv || "").trim().toLowerCase() === q) {
-        return { encontrado: true, data: articulos[i] };
+      if (coincide) {
+        resultado.push(item);
       }
     }
-    return { encontrado: false, data: null, mensaje: "No se encontró ningún bien con No. INV. '" + numeroInv + "'" };
-  } catch (error) {
-    Logger.log("Error en buscarPorInventario: " + error.toString());
-    return { encontrado: false, data: null, mensaje: "Error interno en el servidor: " + error.toString() };
+
+    return { success: true, registros: resultado, total: resultado.length };
+  } catch (e) {
+    return { success: false, error: "Error al filtrar en el servidor: " + e.message };
   }
 }
 
@@ -426,7 +451,7 @@ function buscarPorInventario(numeroInv) {
  */
 function obtenerCamposAutocompletar() {
   try {
-    var articulos = listarArticulos();
+    var articulos = obtenerInventario();
     var ubicaciones = {};
     var resguardantes = {};
 
@@ -452,7 +477,7 @@ function obtenerCamposAutocompletar() {
  */
 function obtenerEstadisticas() {
   try {
-    var articulos = listarArticulos();
+    var articulos = obtenerInventario();
     var total = articulos.length;
     var levantados = 0;
 
@@ -474,37 +499,6 @@ function obtenerEstadisticas() {
 }
 
 /**
- * Busca un artículo por No. INV.
- */
-function buscarPorNoInv(noInv) {
-  var res = buscarPorInventario(noInv);
-  return res.encontrado ? res.data : null;
-}
-
-/**
- * Busca artículos por Serie (Módulo 2).
- */
-function buscarPorSerie(serie) {
-  try {
-    var q = String(serie || "").trim().toLowerCase();
-    if (!q) return [];
-
-    var matches = [];
-    var articulos = listarArticulos();
-    for (var i = 0; i < articulos.length; i++) {
-      var s = String(articulos[i].serie || "").trim().toLowerCase();
-      if (s === q && s !== "s/s" && s !== "s/s." && s !== "sin serie" && s !== "") {
-        matches.push(articulos[i]);
-      }
-    }
-    return matches;
-  } catch (error) {
-    Logger.log("Error en buscarPorSerie: " + error.toString());
-    return [];
-  }
-}
-
-/**
  * Formatea el nombre completo o correo del usuario agregando una marca de tiempo exacta.
  */
 function formatearNombreCompleto(usuario) {
@@ -512,7 +506,7 @@ function formatearNombreCompleto(usuario) {
   var d = new Date();
   var pad = function(n) { return n < 10 ? '0' + n : n; };
   var fechaStr = pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " +
-                 pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + d.getSeconds();
+                 pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   return email + " - " + fechaStr;
 }
 
@@ -549,7 +543,6 @@ function guardarLevantamiento(noInv, datos) {
 
     var data = getInventarioRowsAndData();
     var headers = data.headers;
-    var lastRow = sheet.getLastRow();
 
     var idxNoInv = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "no. inv."; });
     var idxResgReal = headers.findIndex(function(h) { return limpiarTextoParaComparar(h) === "resguardante_real"; });
@@ -598,7 +591,7 @@ function guardarLevantamiento(noInv, datos) {
     registrarBitacora("ACTUALIZACION", noInv, detalleCambio);
 
     // Invalidar caché (Módulo 1)
-    CACHE_INVENTARIO = null;
+    invalidarCacheSMR();
 
     return { success: true, message: "Levantamiento guardado exitosamente." };
   } catch (error) {
@@ -656,7 +649,7 @@ function registrarTraslado(noInv, datos) {
     registrarBitacora("TRASLADO", noInv, detalleTraslado);
 
     // Invalidar caché (Módulo 1)
-    CACHE_INVENTARIO = null;
+    invalidarCacheSMR();
 
     return { success: true, message: "Traslado registrado exitosamente." };
   } catch (error) {
@@ -732,7 +725,7 @@ function altaBien(datos) {
     registrarBitacora("ALTA", noInvString, "Alta del bien No. INV: " + noInvString);
 
     // Invalidar caché (Módulo 1)
-    CACHE_INVENTARIO = null;
+    invalidarCacheSMR();
 
     return { success: true, message: "Bien dado de alta correctamente.", noInv: noInvString };
   } catch (error) {
@@ -832,7 +825,7 @@ function subirFotoArticulo(noInv, base64Data, fileName, index) {
     registrarBitacora("FOTO_ADJUNTA", noInv, "Foto adjunta al bien No. INV: " + noInv + " con ID: " + driveId);
 
     // Invalidar caché (Módulo 1)
-    CACHE_INVENTARIO = null;
+    invalidarCacheSMR();
 
     return { success: true, fileId: driveId, fileName: nombreArchivoFormateado };
   } catch (error) {
@@ -891,7 +884,7 @@ function eliminarFotoArticulo(noInv, fotoId) {
     registrarBitacora("FOTO_ELIMINADA", noInv, "Foto eliminada del bien No. INV: " + noInv + " con ID: " + fotoId);
 
     // Invalidar caché (Módulo 1)
-    CACHE_INVENTARIO = null;
+    invalidarCacheSMR();
 
     return { success: true };
   } catch (error) {
@@ -1083,7 +1076,7 @@ function importarDatosExcel(rows, opcionDuplicados) {
     registrarBitacora("CARGA_EXCEL", "", detalleBitacora);
 
     // Invalidar caché (Módulo 1)
-    CACHE_INVENTARIO = null;
+    invalidarCacheSMR();
 
     return {
       success: true,
