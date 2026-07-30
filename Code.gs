@@ -25,67 +25,76 @@ const HEADERS_BITACORA = [
 const NOMBRE_CARPETA_FOTOS = "Inventario_MejoraRegulatoria_Fotos";
 
 /**
- * Función de inicio para la Web App.
+ * Función de inicio para la Web App (Instrucción 1).
  * Retorna la interfaz HTML renderizada.
  */
 function doGet(e) {
   try {
-    // Ejecutar diagnóstico al iniciar para auditar estado de conexión
-    ejecutarDiagnosticoSMR();
+    // Si existe una función de diagnóstico, llamarla opcionalmente, pero NUNCA dejar que rompa doGet (Instrucción 1)
+    if (typeof ejecutarDiagnosticoSMR === 'function') {
+      try {
+        ejecutarDiagnosticoSMR();
+      } catch (diagErr) {
+        console.warn('Diagnóstico SMR falló (no crítico):', diagErr.toString());
+      }
+    }
 
     // Inicializar la base de datos (crear hojas o migrar columnas faltantes)
-    inicializarBaseDatos();
+    try {
+      inicializarBaseDatos();
+    } catch (dbErr) {
+      console.warn('Inicialización de base de datos falló (no crítico):', dbErr.toString());
+    }
 
     // Obtener parámetro de consulta opcional para cargar un artículo al inicio
     var noInvInicial = "";
-    if (e && e.parameter && e.parameter.noinv) {
-      noInvInicial = e.parameter.noinv;
-    } else if (e && e.parameter && e.parameter.noInv) {
-      noInvInicial = e.parameter.noInv;
+    if (e && e.parameter) {
+      noInvInicial = e.parameter.noinv || e.parameter.noInv || "";
     }
 
     var template = HtmlService.createTemplateFromFile('Index');
     // Para evitar ReferenceError en el cliente si se recarga
     template.initialNoInvQuery = noInvInicial;
 
-    var output = template.evaluate();
-    output.setTitle("Inventario Mejora Regulatoria");
-    output.addMetaTag("viewport", "width=device-width, initial-scale=1, shrink-to-fit=no");
-    output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-
-    return output;
+    return template.evaluate()
+      .setTitle("Sistema de Gestión de Inventarios")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (error) {
-    Logger.log("Error fatal en doGet: " + error.toString());
-    var errorHtml = "<html><body style='font-family: sans-serif; padding: 30px; background-color: #fce4ec; color: #c2185b;'>" +
-                    "<h2>Error al cargar el Sistema de Inventario</h2>" +
-                    "<p>Se produjo un error en el servidor al inicializar la aplicación:</p>" +
-                    "<pre style='background: #fff; padding: 15px; border: 1px solid #c2185b; overflow-x: auto;'>" + error.toString() + "</pre>" +
-                    "<p>Por favor verifique los permisos de la hoja de cálculo o el registro de ejecuciones en Apps Script.</p>" +
-                    "</body></html>";
-    return HtmlService.createHtmlOutput(errorHtml).setTitle("Error de Conexión");
+    console.error('FATAL ERROR in doGet:', error.toString(), error.stack);
+
+    // Devolver HTML mínimo funcional para que el usuario vea el error (Instrucción 1)
+    var errorHtml = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>' +
+      '<body style="font-family:sans-serif;padding:40px;color:#c0392b;background-color:#f0f4f8;">' +
+      '<h2>Error al cargar la aplicación</h2>' +
+      '<p><strong>Detalle técnico:</strong> ' + error.toString() + '</p>' +
+      '<p>Revise la pestaña "Ejecuciones" en el editor de Apps Script.</p>' +
+      '</body></html>';
+
+    return HtmlService.createHtmlOutput(errorHtml)
+      .setTitle('Error - Sistema de Inventarios');
   }
 }
 
 /**
- * Helper para incluir archivos HTML (CSS/JS) en el template principal.
+ * Helper para incluir archivos HTML (CSS/JS) en el template principal (Instrucción 1).
+ * No modifica el casing de los filenames para evitar excepciones silenciosas.
  */
 function include(filename) {
   try {
-    filename = capitalize(filename);
+    // Probar primero el nombre exacto que se pasa (case-sensitive)
     return HtmlService.createHtmlOutputFromFile(filename).getContent();
   } catch (err) {
-    Logger.log("Error incluyendo archivo '" + filename + "': " + err.toString());
-    return "<!-- Error al incluir '" + filename + "': " + err.toString() + " -->";
+    try {
+      // Si falla, probar capitalizando la primera letra como fallback (Styles/JavaScript)
+      var capitalized = filename.charAt(0).toUpperCase() + filename.slice(1);
+      return HtmlService.createHtmlOutputFromFile(capitalized).getContent();
+    } catch (err2) {
+      // Log visible en Apps Script Executions
+      console.error('INCLUDE FAILED for file: ' + filename + ' | Error: ' + err.toString());
+      // Devolver comentario HTML para no romper el template
+      return '<!-- ERROR: File ' + filename + ' not found. Check file name casing. -->';
+    }
   }
-}
-
-/**
- * Capitaliza la primera letra para mapear de manera segura a los archivos.
- * Preserva el CamelCase (ej. panelCliente -> PanelCliente)
- */
-function capitalize(s) {
-  if (typeof s !== 'string' || s.length === 0) return '';
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /**
