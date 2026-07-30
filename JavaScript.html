@@ -54,15 +54,14 @@ document.addEventListener("DOMContentLoaded", function() {
   try {
     // Verificar si el responsable ya se encuentra registrado en esta sesión (Módulo 3)
     const nombreGuardado = sessionStorage.getItem("smr_responsable_nombre");
-    const areaGuardada = sessionStorage.getItem("smr_responsable_area");
 
-    if (nombreGuardado && areaGuardada) {
+    if (nombreGuardado && nombreGuardado.trim().length > 0) {
       // El usuario ya se había logueado, desbloquear interfaz directamente
       document.getElementById("modal-bienvenida").style.display = "none";
       window.usuarioActivo = nombreGuardado;
       const userEl = document.getElementById("navbar-user");
       if (userEl) {
-        userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> ${window.usuarioActivo} (${areaGuardada})`;
+        userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> Responsable: ${window.usuarioActivo}`;
       }
       inicializarApp();
     } else {
@@ -87,21 +86,20 @@ document.addEventListener("DOMContentLoaded", function() {
 
 /**
  * Guarda la identidad del responsable al inicio del levantamiento y desbloquea el sistema (Módulo 3).
+ * El modal tiene exactamente UN solo campo: nombre.
  */
 window.confirmarResponsable = function(event) {
   if (event) event.preventDefault();
 
   const nombre = document.getElementById("responsable-nombre").value.trim();
-  const area = document.getElementById("responsable-area").value;
 
-  if (!nombre || !area) {
-    alert("Por favor complete todos los campos obligatorios del Responsable.");
+  if (!nombre) {
+    alert("Por favor ingrese su Nombre Completo para continuar.");
     return;
   }
 
   // Guardar en sessionStorage para persistencia de pestaña activa (Módulo 3)
   sessionStorage.setItem("smr_responsable_nombre", nombre);
-  sessionStorage.setItem("smr_responsable_area", area);
 
   // Desbloquear modal de bienvenida
   document.getElementById("modal-bienvenida").style.display = "none";
@@ -109,14 +107,14 @@ window.confirmarResponsable = function(event) {
 
   const userEl = document.getElementById("navbar-user");
   if (userEl) {
-    userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> ${window.usuarioActivo} (${area})`;
+    userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> Responsable: ${window.usuarioActivo}`;
   }
 
   // Inicializar aplicación
   inicializarApp();
 
   // Registrar inicio en la bitácora
-  registrarEnBitacora("SISTEMA", "Responsable '" + nombre + "' (" + area + ") ingresó al sistema.");
+  registrarEnBitacora("SISTEMA", "Responsable '" + nombre + "' ingresó al sistema.");
 };
 
 /**
