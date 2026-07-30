@@ -5,9 +5,9 @@
  *
  * Lógica cliente del SPA de inventario físico.
  * Implementa de raíz las correcciones y módulos adicionales requeridos:
- * - Módulo de Escáner QR por Imagen/Archivo (Módulo 1).
- * - Bitácora de Actividad en la Interfaz (Módulo 2).
- * - Registro del Nombre del Responsable al Inicio (Módulo 3).
+ * - Módulo de Escáner QR por Imagen/Archivo (Instrucción 5).
+ * - Bitácora de Actividad en la Interfaz (Instrucción 9).
+ * - Nombre del Responsable OPCIONAL en el Header, no bloquea el sistema (Instrucción 1).
  * - Estado de Carga con Try-Catch global ante White Pages (Módulo 6).
  */
 
@@ -15,8 +15,8 @@
 window.cacheInventario = [];     // Almacén local de artículos cargados
 window.cacheUbicaciones = [];   // Para autocompletar
 window.cacheResguardantes = [];  // Para autocompletar
-window.usuarioActivo = "";       // Email del usuario logueado o Responsable
-window.bitacoraSesion = [];      // Registro histórico de la sesión actual (Módulo 2)
+window.usuarioActivo = "Anónimo"; // Nombre del Responsable (opcional, Módulo 9)
+window.bitacoraSesion = [];      // Registro histórico de la sesión actual (Módulo 9)
 window.instanciaQR = null;       // Instancia activa de html5-qrcode
 
 // Variables de Paginación
@@ -45,21 +45,16 @@ window.addEventListener('unhandledrejection', function(event) {
   }
 });
 
-// --- MÓDULO 6: INICIALIZACIÓN Y ESTADO DE CARGA (Módulo 6) ---
+// --- MÓDULO 6: INICIALIZACIÓN Y ESTADO DE CARGA ---
 
 /**
  * Inicialización completa del cliente al cargar.
- * Envuelto en try/catch global para evitar estado en blanco ante fallos de la plataforma (Módulo 6).
+ * Envuelto en try/catch global para evitar estado en blanco ante fallos de la plataforma (Instrucción 3).
+ * Inicializa la aplicación inmediatamente sin exigir nombre de responsable.
  */
 document.addEventListener("DOMContentLoaded", function() {
   try {
-    // Vincular eventos del modal de bienvenida mediante addEventListener (Instrucción 2)
-    var btn = document.getElementById('btn-confirmar-responsable');
-    if (btn) {
-      btn.addEventListener('click', window.confirmarResponsable);
-    }
-
-    // Vincular eventos del escáner por archivo (Instrucción 4)
+    // Vincular eventos del escáner por archivo (Instrucción 5)
     var btnQr = document.getElementById('btn-escanear-qr');
     var inputQr = document.getElementById('qr-input-file');
     if (btnQr && inputQr) {
@@ -67,29 +62,13 @@ document.addEventListener("DOMContentLoaded", function() {
       inputQr.addEventListener('change', window.procesarEscaneoQR);
     }
 
-    // Cargar la consulta inicial transferida de forma segura desde el elemento HTML sin romper el JS (Instrucción 1)
+    // Cargar la consulta inicial transferida de forma segura desde el elemento HTML sin romper el JS (Instrucción 3)
     const queryDataEl = document.getElementById("initial-query-data");
     window.initialNoInvQuery = queryDataEl ? String(queryDataEl.getAttribute("data-query") || "").trim() : "";
 
-    // Verificar si el responsable ya se encuentra registrado en esta sesión (Módulo 3)
-    const nombreGuardado = sessionStorage.getItem("responsable");
+    // Iniciar carga de la aplicación directamente (Nombre es opcional, Instrucción 1)
+    window.inicializarApp();
 
-    if (nombreGuardado && nombreGuardado.trim().length > 0) {
-      // El usuario ya se había logueado, desbloquear interfaz directamente
-      var modal = document.getElementById("modal-bienvenida");
-      if (modal) modal.style.display = "none";
-      window.usuarioActivo = nombreGuardado;
-      const userEl = document.getElementById("nombre-responsable-display");
-      if (userEl) {
-        userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> Responsable: ${window.usuarioActivo}`;
-      }
-      window.inicializarApp();
-    } else {
-      // Bloquear pantalla y esperar que el usuario ingrese su identidad en el modal
-      var modal = document.getElementById("modal-bienvenida");
-      if (modal) modal.style.display = "flex";
-      console.log("[SMR] Bloqueando pantalla. Esperando identidad del Responsable.");
-    }
   } catch (error) {
     console.error("[SMR] Error crítico de inicialización:", error);
     document.body.innerHTML = `
@@ -106,45 +85,13 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 
 /**
- * Guarda la identidad del responsable al inicio del levantamiento y desbloquea el sistema (Instrucción 2).
- * El modal tiene exactamente UN solo campo de texto: nombre.
+ * Obtiene el nombre del responsable ingresado de forma opcional en el header (Instrucción 1).
+ * Si está vacío o no existe el campo, devuelve 'Anónimo'.
  */
-window.confirmarResponsable = function(event) {
-  if (event) event.preventDefault();
-
+window.obtenerNombreResponsable = function() {
   const input = document.getElementById("input-responsable");
   const nombre = input ? String(input.value).trim() : "";
-
-  if (nombre.length === 0) {
-    const errorDiv = document.getElementById("error-responsable");
-    if (errorDiv) {
-      errorDiv.textContent = "Por favor ingrese su Nombre Completo para continuar.";
-    }
-    return; // NO cerrar el modal si el nombre está vacío (Instrucción 2)
-  }
-
-  // Guardar en sessionStorage para persistencia de pestaña activa (Módulo 3)
-  try {
-    sessionStorage.setItem("responsable", nombre);
-  } catch (e) {
-    console.warn("No se pudo guardar en sessionStorage:", e);
-  }
-
-  // Desbloquear modal de bienvenida
-  const modal = document.getElementById("modal-bienvenida");
-  if (modal) modal.style.display = "none";
-  window.usuarioActivo = nombre;
-
-  const userEl = document.getElementById("nombre-responsable-display");
-  if (userEl) {
-    userEl.innerHTML = `<i class="fa-solid fa-user-tie me-1"></i> Responsable: ${window.usuarioActivo}`;
-  }
-
-  // Inicializar aplicación
-  window.inicializarApp();
-
-  // Registrar inicio en la bitácora
-  registrarEnBitacora("SISTEMA", "Responsable '" + nombre + "' ingresó al sistema.");
+  return nombre.length > 0 ? nombre : "Anónimo";
 };
 
 /**
@@ -169,11 +116,14 @@ window.inicializarApp = function() {
     } else {
       window.showSection('inicio');
     }
+
+    // Registrar inicio en la bitácora
+    registrarEnBitacora("SISTEMA", "Aplicación cargada y lista para operar.");
   });
 };
 
 /**
- * Muestra el spinner de carga con un mensaje específico (Instrucción 6).
+ * Muestra el spinner de carga con un mensaje específico (Instrucción 8).
  */
 window.mostrarCarga = function(mensaje) {
   const el = document.getElementById("global-loader");
@@ -187,7 +137,7 @@ window.mostrarCarga = function(mensaje) {
 };
 
 /**
- * Oculta el spinner de carga (Instrucción 6).
+ * Oculta el spinner de carga (Instrucción 8).
  */
 window.ocultarCarga = function() {
   const el = document.getElementById("global-loader");
@@ -195,13 +145,13 @@ window.ocultarCarga = function() {
 };
 
 /**
- * Función de utilidad para realizar llamadas asíncronas con timeout y cargadores unificados (Instrucción 6).
+ * Función de utilidad para realizar llamadas asíncronas con timeout y cargadores unificados (Instrucción 8).
  */
 window.llamarServidor = function(nombreFuncion, args, onSuccess, onError) {
   var timeoutId;
   window.mostrarCarga("Procesando operación...");
 
-  // Timeout de 15 segundos en el cliente (Instrucción 6)
+  // Timeout de 15 segundos en el cliente (Instrucción 8)
   timeoutId = setTimeout(function() {
     window.ocultarCarga();
     const errMsg = "El servidor está tardando demasiado. Intente de nuevo.";
@@ -244,22 +194,22 @@ function mostrarNotificacion(mensaje, claseColor) {
 }
 
 /**
- * Enrutador SPA dinámico y seguro de secciones (Instrucción 3).
+ * Enrutador SPA dinámico y seguro de secciones (Instrucción 4).
  */
 window.showSection = function(sectionId) {
   if (window.isNavigating) return;
   window.isNavigating = true;
 
-  // 1. Ocultar todas las secciones de la app (Instrucción 3)
+  // 1. Ocultar todas las secciones de la app (Instrucción 4)
   var secciones = document.querySelectorAll(".seccion-app");
   for (var i = 0; i < secciones.length; i++) {
     secciones[i].style.display = "none";
   }
 
-  // 2. Limpiar recursos del escáner QR si existen (Instrucción 3)
+  // 2. Limpiar recursos del escáner QR si existen (Instrucción 4)
   window.limpiarVistaQR();
 
-  // 3. Mostrar la sección objetivo (Instrucción 3)
+  // 3. Mostrar la sección objetivo (Instrucción 4)
   var objetivo = document.getElementById(sectionId);
   if (objetivo) {
     objetivo.style.display = "block";
@@ -269,7 +219,7 @@ window.showSection = function(sectionId) {
     return;
   }
 
-  // 4. Actualizar estado activo en el menú de navegación (Instrucción 3)
+  // 4. Actualizar estado activo en el menú de navegación (Instrucción 4)
   var links = document.querySelectorAll(".nav-link");
   for (var j = 0; j < links.length; j++) {
     links[j].classList.remove("active");
@@ -300,11 +250,11 @@ window.showSection = function(sectionId) {
   }, 250);
 };
 
-// --- MÓDULO 2: BITÁCORA DE ACTIVIDAD DE SESIÓN EN INTERFAZ (Módulo 2) ---
+// --- MÓDULO 9: BITÁCORA DE ACTIVIDAD DE SESIÓN EN INTERFAZ (Instrucción 9) ---
 
 /**
- * Registra un evento en tiempo real en la bitácora de sesión del cliente (Módulo 2).
- * Formato: [HH:MM:SS] [TIPO] Descripción (con Nombre del Responsable).
+ * Registra un evento en tiempo real en la bitácora de sesión del cliente (Instrucción 9).
+ * Formato: [HH:MM:SS] [RESPONSABLE] [TIPO] Descripción.
  * Mantiene un máximo de 50 registros en memoria y renderiza en modo prepend.
  */
 window.registrarEnBitacora = function(tipo, mensaje) {
@@ -312,37 +262,44 @@ window.registrarEnBitacora = function(tipo, mensaje) {
   const pad = function(n) { return n < 10 ? '0' + n : n; };
   const horaStr = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 
-  // Formato: [HH:MM:SS] [TIPO] Responsable: Nombre - Descripción.
-  const responsable = window.usuarioActivo || "Desconocido";
-  const formatoEntrada = `[${horaStr}] [${tipo.toUpperCase()}] Responsable: ${responsable} - ${mensaje}`;
+  // Formato: [HH:MM:SS] [RESPONSABLE] [TIPO] Descripción (Instrucción 9)
+  const responsable = window.obtenerNombreResponsable();
+  const formatoEntrada = `[${horaStr}] [${responsable}] [${tipo.toUpperCase()}] ${mensaje}`;
 
   // Agregar al inicio del array en memoria
-  window.bitacoraSesion.unshift(formatoEntrada);
+  window.bitacora.unshift(formatoEntrada);
 
   // Mantener un máximo de 50 entradas
-  if (window.bitacoraSesion.length > 50) {
-    window.bitacoraSesion = window.bitacoraSesion.slice(0, 50);
+  if (window.bitacora.length > 50) {
+    window.bitacora.pop();
   }
 
   // Renderizar en el panel de bitácora
-  const container = document.getElementById("bitacora-list-container");
+  const container = document.getElementById("panel-bitacora");
   if (!container) return;
 
   let html = "";
-  window.bitacoraSesion.forEach(function(entrada) {
+  window.bitacora.forEach(function(entrada) {
     // Obtener tipo específico para badge de color
     const matchTipo = entrada.match(/\[([A-ZÁÉÍÓÚ]+)\]/g);
     let badgeHtml = "";
-    if (matchTipo && matchTipo.length > 1) {
-      const limpioTipo = matchTipo[1].replace(/[\[\]]/g, "");
+    if (matchTipo && matchTipo.length > 2) {
+      const limpioTipo = matchTipo[2].replace(/[\[\]]/g, "");
       badgeHtml = `<span class="bitacora-tag tag-${limpioTipo.toLowerCase()}">${limpioTipo}</span>`;
     }
 
     // Obtener texto limpio sin las marcas de tipo
-    const textoMostrar = entrada.replace(/\[[A-ZÁÉÍÓÚ]+\]/g, "").replace("  ", " ");
+    const textoMostrar = entrada.replace(/\[[A-ZÁÉÍÓÚ\s\.\@\-]+\]/g, "").replace("  ", " ");
+    const matchesDeHora = entrada.match(/^\[[0-9\:]+\]/g);
+    const mResponsable = entrada.match(/\]\s\[([A-ZÁÉÍÓÚa-záéíóú\s]+)\]\s\[/);
+
+    const hStr = matchesDeHora ? matchesDeHora[0] : "";
+    const respStr = mResponsable ? mResponsable[1] : "Anónimo";
 
     html += `
       <div class="bitacora-item">
+        <span class="text-muted small me-1">${hStr}</span>
+        <span class="text-primary small me-1 fw-bold"><i class="fa-solid fa-user-circle small"></i> ${respStr}</span>
         ${badgeHtml} <span class="text-secondary small">${textoMostrar}</span>
       </div>
     `;
@@ -351,13 +308,16 @@ window.registrarEnBitacora = function(tipo, mensaje) {
   container.innerHTML = html;
 };
 
+// Alias bitacora global
+window.bitacora = [];
+
 /**
  * Limpia el panel de bitácora de la interfaz del usuario (Módulo 2).
  */
 window.limpiarBitacoraSesion = function() {
   if (confirm("¿Está seguro de que desea limpiar el historial de bitácora de la sesión actual?")) {
-    window.bitacoraSesion = [];
-    const container = document.getElementById("bitacora-list-container");
+    window.bitacora = [];
+    const container = document.getElementById("panel-bitacora");
     if (container) {
       container.innerHTML = `<div class="text-muted text-center py-2">Bitácora limpia. Esperando eventos...</div>`;
     }
@@ -369,12 +329,12 @@ window.limpiarBitacoraSesion = function() {
  * Descarga un archivo .txt con el contenido de la bitácora de sesión (Módulo 2).
  */
 window.exportarBitacoraSesion = function() {
-  if (window.bitacoraSesion.length === 0) {
+  if (window.bitacora.length === 0) {
     alert("No hay registros en la bitácora para exportar.");
     return;
   }
 
-  const contenido = window.bitacoraSesion.join("\r\n");
+  const contenido = window.bitacora.join("\r\n");
   const blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
 
   const link = document.createElement("a");
@@ -907,10 +867,10 @@ function subirFotosDeFrente(noInv, files, callback) {
   procesarSiguienteFoto();
 }
 
-// --- MÓDULO 1 & Instrucción 4: ESCANER QR MEDIANTE ARCHIVO (Instrucción 4) ---
+// --- MÓDULO 1 & Instrucción 5: ESCANER QR MEDIANTE ARCHIVO (Instrucción 5) ---
 
 /**
- * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Instrucción 4).
+ * Decodifica de forma estática una imagen/foto seleccionada o capturada por el usuario (Instrucción 5).
  * Esto evita el uso de getUserMedia y es 100% compatible con la política de sandbox de Google Apps Script.
  */
 window.procesarEscaneoQR = function() {
@@ -951,7 +911,7 @@ window.procesarEscaneoQR = function() {
       // Registrar éxito de escaneo en bitácora (Módulo 2)
       registrarEnBitacora("ESCANER", "Código decodificado con éxito: " + limpioVal);
 
-      // Lanzar búsqueda automática inmediatamente (Instrucción 4)
+      // Lanzar búsqueda automática inmediatamente (Instrucción 5)
       ejecutarBusquedaAutomatica(limpioVal);
 
       // Limpiar input file para permitir cargas consecutivas
@@ -1431,13 +1391,13 @@ function renderizarTablaListado(items) {
 }
 
 /**
- * Genera el paginador de la grilla de listado (Módulo 4 & Instrucción 6).
+ * Genera el paginador de la grilla de listado (Módulo 4 & Instrucción 7).
  * Evita asignaciones de innerHTML a elementos nulos y agrega guards robustos.
  */
 window.renderizarPaginadorUI = function(datos, paginaActual, itemsPorPagina) {
   var contenedor = document.getElementById("contenedor-paginador");
 
-  // Guarda defensiva (Módulo 4 & Instrucción 6)
+  // Guarda defensiva (Módulo 4 & Instrucción 7)
   if (!Array.isArray(datos) || datos.length === 0) {
     if (contenedor) {
       contenedor.innerHTML = "";
@@ -1463,7 +1423,7 @@ window.renderizarPaginadorUI = function(datos, paginaActual, itemsPorPagina) {
 
   var infoHtml = `<div class="text-muted small mb-2 mb-sm-0" id="paginacion-info-text">Mostrando ${totalRegistros === 0 ? 0 : inicioIdx + 1} a ${finIdx} de ${totalRegistros} registros</div>`;
 
-  var html = infoHtml + `<nav aria-label="Navegación de listado"><ul class="pagination pagination-sm mb-0" id="paginador-ul">`;
+  var html = infoHtml + `<nav aria-label="Navegación de listado"><ul class="pagination pagination-sm mb-0" id="pagador-ul">`;
 
   // Botón Anterior
   var prevClase = (paginaActual === 1) ? 'disabled' : '';

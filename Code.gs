@@ -25,12 +25,12 @@ const HEADERS_BITACORA = [
 const NOMBRE_CARPETA_FOTOS = "Inventario_MejoraRegulatoria_Fotos";
 
 /**
- * Función de inicio para la Web App (Instrucción 1).
+ * Función de inicio para la Web App (Instrucción 2).
  * Retorna la interfaz HTML renderizada.
  */
 function doGet(e) {
   try {
-    // Si existe una función de diagnóstico, llamarla opcionalmente, pero NUNCA dejar que rompa doGet (Instrucción 1)
+    // Si existe una función de diagnóstico, llamarla opcionalmente, pero NUNCA dejar que rompa doGet (Instrucción 2)
     if (typeof ejecutarDiagnosticoSMR === 'function') {
       try {
         ejecutarDiagnosticoSMR();
@@ -62,7 +62,7 @@ function doGet(e) {
   } catch (error) {
     console.error('FATAL ERROR in doGet:', error.toString(), error.stack);
 
-    // Devolver HTML mínimo funcional para que el usuario vea el error (Instrucción 1)
+    // Devolver HTML mínimo funcional para que el usuario vea el error (Instrucción 2)
     var errorHtml = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>' +
       '<body style="font-family:sans-serif;padding:40px;color:#c0392b;background-color:#f0f4f8;">' +
       '<h2>Error al cargar la aplicación</h2>' +
@@ -76,7 +76,7 @@ function doGet(e) {
 }
 
 /**
- * Helper para incluir archivos HTML (CSS/JS) en el template principal (Instrucción 1).
+ * Helper para incluir archivos HTML (CSS/JS) en el template principal (Instrucción 2).
  * No modifica el casing de los filenames para evitar excepciones silenciosas.
  */
 function include(filename) {
@@ -242,8 +242,7 @@ function inicializarBaseDatos() {
 }
 
 /**
- * Obtiene el rango de datos de Inventario de manera ultra eficiente en lote (Instrucción 5).
- * Usa una sola llamada getValues() en la pestaña 'Inventario'.
+ * Obtiene el rango de datos de Inventario de manera ultra eficiente en lote (Instrucción 6).
  * Mapea las cabeceras a claves camelCase robustas y normaliza todos los valores a String trimmeados.
  * Implementa caché de 5 minutos mediante PropertiesService.
  */
@@ -282,7 +281,7 @@ function obtenerInventario() {
         var claveOriginal = String(encabezados[j] || "").trim();
         var valor = fila[j];
 
-        // Normalizar clave a camelCase (Instrucción 5)
+        // Normalizar clave a camelCase (Instrucción 6)
         var claveNormalizada = claveOriginal
           .toLowerCase()
           .replace(/[^a-z0-9]+(.)/g, function(match, chr) { return chr.toUpperCase(); })
@@ -295,7 +294,7 @@ function obtenerInventario() {
         else if (claveOriginal === "UBICACION_REAL") claveNormalizada = "ubicacionReal";
         else if (claveOriginal === "RESGUARDANTE_REAL" || claveOriginal === "RESGUARDADO") claveNormalizada = "resguardante";
 
-        // Normalizar valor a string trimmeado (Instrucción 5)
+        // Normalizar valor a string trimmeado (Instrucción 6)
         obj[claveNormalizada] = valor !== undefined && valor !== null ? String(valor).trim() : '';
       }
 
@@ -335,7 +334,7 @@ function invalidarCacheSMR() {
 }
 
 /**
- * Busca un artículo por No. INV de forma robusta server-side (Instrucción 5).
+ * Busca un artículo por No. INV de forma robusta server-side (Instrucción 6).
  * Devuelve un objeto estructurado.
  */
 function buscarPorInventario(numeroInv) {
@@ -390,7 +389,7 @@ function buscarPorSerie(serie) {
 }
 
 /**
- * Filtra el listado de artículos directamente en el servidor (Instrucción 5).
+ * Filtra el listado de artículos directamente en el servidor (Instrucción 6).
  * Devuelve siempre un objeto { success: true/false, registros: [...], total: <número> }.
  */
 function obtenerInventarioFiltrado(filtros) {
@@ -409,7 +408,7 @@ function obtenerInventarioFiltrado(filtros) {
       var item = inventario[i];
       var coincide = true;
 
-      // Filtro por Texto: búsqueda parcial case-insensitive en noInv, descripcion y resguardante (Instrucción 5)
+      // Filtro por Texto: búsqueda parcial case-insensitive en noInv, descripcion y resguardante (Instrucción 6)
       if (texto && texto.length > 0) {
         var camposBusqueda = [
           String(item.noInv || "").toLowerCase(),
@@ -419,7 +418,7 @@ function obtenerInventarioFiltrado(filtros) {
         if (camposBusqueda.indexOf(texto) === -1) coincide = false;
       }
 
-      // Filtro por Estado: comparación exacta case-insensitive (Instrucción 5)
+      // Filtro por Estado: comparación exacta case-insensitive (Instrucción 6)
       if (estado && estado.length > 0) {
         if (estado === "pendiente") {
           var estActual = String(item.estadoReal || "").trim();
@@ -429,7 +428,7 @@ function obtenerInventarioFiltrado(filtros) {
         }
       }
 
-      // Filtro por Ubicación: comparación exacta case-insensitive (Instrucción 5)
+      // Filtro por Ubicación: comparación exacta case-insensitive (Instrucción 6)
       if (ubicacion && ubicacion.length > 0) {
         var ubiActual = String(item.ubicacionReal || item.ubicacion || "").trim().toLowerCase();
         if (ubiActual !== ubicacion) coincide = false;

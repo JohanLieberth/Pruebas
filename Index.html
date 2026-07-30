@@ -13,27 +13,6 @@
 </head>
 <body>
 
-  <!-- Modal de bienvenida del Responsable bloqueante al inicio de sesión (Instrucción 2 & Módulo 3) -->
-  <div id="modal-bienvenida" role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title">
-    <div class="bienvenida-card">
-      <div class="bienvenida-banner">
-        <h2 class="fw-bold mb-1 h4" id="welcome-modal-title"><i class="fa-solid fa-clipboard-user me-2"></i> Bienvenida al Sistema</h2>
-        <p class="small mb-0">Subdirección de Mejora Regulatoria</p>
-      </div>
-      <div class="p-4">
-        <form id="form-bienvenida" onsubmit="window.confirmarResponsable(event)">
-          <div class="mb-4">
-            <label for="input-responsable" class="form-label fw-bold text-secondary">Nombre del Responsable *</label>
-            <!-- Un solo campo de texto: nombre completo, sin departamento (Instrucción 2) -->
-            <input type="text" id="input-responsable" class="form-control" placeholder="Nombre completo" autocomplete="name" required>
-            <div id="error-responsable" role="alert" class="text-danger small mt-2 fw-bold"></div>
-          </div>
-          <button type="submit" id="btn-confirmar-responsable" class="btn btn-primary w-100 py-2 fw-bold"><i class="fa-solid fa-arrow-right me-1"></i> Acceder al Sistema</button>
-        </form>
-      </div>
-    </div>
-  </div>
-
   <!-- Cargador Global / Loader -->
   <div id="global-loader" style="display: none;">
     <div class="spinner-border spinner-smr mb-3" role="status">
@@ -79,14 +58,17 @@
             </a>
           </li>
         </ul>
-        <span class="navbar-text text-white-50" id="nombre-responsable-display" style="font-size: 0.9rem; font-weight: bold;">
-          <i class="fa-solid fa-user me-1"></i> Identificando usuario...
-        </span>
+
+        <!-- Área de Responsable Opcional en el Header, no bloquea el sistema (Instrucción 1) -->
+        <div id="area-responsable" class="d-flex align-items-center gap-2 text-white bg-dark bg-opacity-25 px-3 py-1 rounded">
+          <label for="input-responsable" class="small mb-0 fw-bold text-white-50 text-nowrap"><i class="fa-solid fa-user-pen me-1"></i> Responsable:</label>
+          <input type="text" id="input-responsable" class="form-control form-control-sm border-0 bg-transparent text-white fw-bold placeholder-white-50" placeholder="Escribe tu nombre (opcional)" autocomplete="name" style="max-width: 200px; outline: none; box-shadow: none;">
+        </div>
       </div>
     </div>
   </nav>
 
-  <!-- Contenedor Principal SPA envuelto en landmark <main id="contenido-principal"> (Instrucción 8 & Módulo 7) -->
+  <!-- Contenedor Principal SPA envuelto en landmark <main id="contenido-principal"> (Instrucción 10) -->
   <main id="contenido-principal" class="container main-container">
 
     <!-- Toast de Notificaciones -->
@@ -204,7 +186,7 @@
         </div>
       </div>
 
-      <!-- Buscador y Scanner (Módulo 1) -->
+      <!-- Buscador y Scanner (Instrucción 5) -->
       <div class="row g-4 mb-4">
         <!-- Columna de Entrada Manual Asistida (Secundaria) -->
         <div class="col-12 col-md-7">
@@ -214,7 +196,7 @@
                 <label for="buscar-input" class="form-label fw-bold">Número de Inventario / Serie</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                  <!-- Autocomplete asistido mediante datalist para sugerencias (Módulo 1) -->
+                  <!-- Autocomplete asistido mediante datalist para sugerencias -->
                   <input type="text" class="form-control" id="buscar-input" list="buscar-datalist" placeholder="Escriba No. de Inventario o Serie para sugerencias..." required oninput="window.asistirBusquedaManual(this)">
                   <datalist id="buscar-datalist"></datalist>
                 </div>
@@ -231,7 +213,7 @@
           </div>
         </div>
 
-        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Módulo 1 & Instrucción 4) -->
+        <!-- Columna de Decodificación por Archivo de Imagen/Cámara de Dispositivo (Instrucción 5) -->
         <div class="col-12 col-md-5">
           <div class="card card-smr p-4 text-center h-100 d-flex flex-column justify-content-center">
             <h5 class="fw-bold mb-2 text-primary-smr h6"><i class="fa-solid fa-qrcode me-1"></i> Escáner por Archivo / Foto</h5>
@@ -645,7 +627,7 @@
       </div>
     </section>
 
-    <!-- PANEL DE BITÁCORA DE ACTIVIDAD DE SESIÓN (Módulo 2) -->
+    <!-- PANEL DE BITÁCORA DE ACTIVIDAD DE SESIÓN (Módulo 2 & Instrucción 9) -->
     <div class="bitacora-panel no-print">
       <div class="bitacora-header">
         <span><i class="fa-solid fa-clock-history me-1"></i> Bitácora de Actividad (Sesión Actual)</span>
@@ -654,8 +636,8 @@
           <button class="btn btn-sm btn-light py-0 px-2 fw-bold text-dark" onclick="window.exportarBitacoraSesion()"><i class="fa-solid fa-download me-1"></i> Exportar (.txt)</button>
         </div>
       </div>
-      <div class="bitacora-list" id="bitacora-list-container">
-        <!-- Entradas renderizadas dinámicamente -->
+      <div class="bitacora-list" id="panel-bitacora">
+        <!-- Entradas renderizadas dinámicamente (Instrucción 9) -->
         <div class="text-muted text-center py-2">Sesión iniciada. Esperando eventos...</div>
       </div>
     </div>
