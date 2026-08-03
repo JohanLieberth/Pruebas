@@ -58,6 +58,16 @@
 
   <script>
     window.onload = function() {
+      const userRol = sessionStorage.getItem('userRol');
+      if (userRol === 'Auditor') {
+        // Desactivar entradas de configuración e iniciar deshabilitado
+        const saveBtn = document.querySelector('button.btn-primary');
+        if (saveBtn) saveBtn.style.display = 'none';
+
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(el => el.disabled = true);
+      }
+
       google.script.run
         .withSuccessHandler(config => {
           document.getElementById('estandarVerde').value = config.estandarVerde;
@@ -67,6 +77,11 @@
           document.getElementById('folderId').value = config.folderId;
           document.getElementById('loading').classList.add('d-none');
           document.getElementById('content').classList.remove('d-none');
+
+          if (userRol === 'Auditor') {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(el => el.disabled = true);
+          }
         })
         .obtenerConfiguracionFull();
     };

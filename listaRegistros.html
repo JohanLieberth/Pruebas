@@ -93,6 +93,7 @@
         return;
       }
       const userRol = sessionStorage.getItem('userRol');
+      const viewText = userRol === 'Auditor' ? 'Ver' : 'Ver/Editar';
 
       body.innerHTML = data.map(c => {
         let deleteBtn = '';
@@ -127,7 +128,7 @@
             <td>${c.creadoEditadoPor || '-'}</td>
             <td>
               <div class="btn-group gap-1">
-                <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">Ver/Editar</button>
+                <button class="btn btn-sm btn-outline-primary" onclick="editar('${c.consecutivo}')">${viewText}</button>
                 ${deleteBtn}
               </div>
             </td>
@@ -191,6 +192,12 @@
       }
 
       document.getElementById('userWelcome').innerText = `${userNombre} (${userRol})`;
+
+      if (userRol === 'Auditor') {
+        const btnNuevo = document.getElementById('btnNuevo');
+        if (btnNuevo) btnNuevo.style.display = 'none';
+      }
+
       cargarLista();
     };
   </script>

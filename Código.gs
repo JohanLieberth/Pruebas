@@ -661,6 +661,7 @@ function getUsuariosAdminSheet() {
   // Registros iniciales para pruebas
   sheet.getRange(2, 1, 1, 4).setValues([["admin@gestion-contratos.com", "admin123", "Administrador", "Admin de Prueba"]]);
   sheet.getRange(3, 1, 1, 4).setValues([["supervisor@gestion-contratos.com", "super123", "Supervisor", "Supervisor de Prueba"]]);
+  sheet.getRange(4, 1, 1, 4).setValues([["auditor@gestion-contratos.com", "auditor123", "Auditor", "Auditor de Prueba"]]);
   return sheet;
 }
 

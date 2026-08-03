@@ -236,6 +236,7 @@
                 if (data) {
                   cargarDatosEnForm(data);
                   calcIndicatorsBatch();
+                  disableAllInputsForAuditor();
                 } else {
                   console.warn("Registro no localizado en el servidor para ID:", idCarga);
                   alert("ATENCIÓN: No se encontró el registro con ID '" + idCarga + "' en la hoja 'CONTRATOS'. Asegúrese de que el ID esté en la columna A.");
@@ -245,10 +246,36 @@
           } else {
             document.getElementById('header_title').innerText = "Nuevo Registro de Contrato";
             document.getElementById('timeline_container').classList.add('hidden');
+            disableAllInputsForAuditor();
             document.getElementById('loader').style.display = 'none';
           }
         }).getDropdownLists();
     };
+
+    function disableAllInputsForAuditor() {
+      const userRol = sessionStorage.getItem('userRol');
+      if (userRol !== 'Auditor') return;
+
+      // Desactivar todos los inputs, select y textareas
+      const inputs = document.querySelectorAll('input, select, textarea');
+      inputs.forEach(el => {
+        el.disabled = true;
+      });
+
+      // Ocultar botones de Guardar y Nuevo
+      const btnGuardar = document.getElementById('btnGuardar');
+      if (btnGuardar) btnGuardar.style.display = 'none';
+
+      const btnNuevo = document.getElementById('btnNuevo');
+      if (btnNuevo) btnNuevo.style.display = 'none';
+
+      // Mostrar mensaje de solo lectura
+      const msgReadOnly = document.getElementById('msgReadOnly');
+      if (msgReadOnly) {
+        msgReadOnly.classList.remove('d-none');
+        msgReadOnly.innerHTML = `Usted está en modo de solo lectura como Auditor. No puede crear ni guardar cambios.`;
+      }
+    }
 
     function cargarDatosEnForm(data) {
       contratoActual = data;
