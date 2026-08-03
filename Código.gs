@@ -408,13 +408,11 @@ function guardarProgresoContrato(datos, usuarioAutenticado) {
 
   // Guardar URLs de documentos si existen
   if (datos.documentos) {
-    const colComite = findColumnByHeader(sheet, "URL_COMITE");
     const colExpediente = findColumnByHeader(sheet, "URL_EXPEDIENTE");
     const colContrato = findColumnByHeader(sheet, "URL_CONTRATO_FIRMADO");
 
-    if (colComite !== -1 && datos.documentos.comite) sheet.getRange(fila, colComite).setValue(datos.documentos.comite);
-    if (colExpediente !== -1 && datos.documentos.expediente) sheet.getRange(fila, colExpediente).setValue(datos.documentos.expediente);
-    if (colContrato !== -1 && datos.documentos.contratoFirmado) sheet.getRange(fila, colContrato).setValue(datos.documentos.contratoFirmado);
+    if (colExpediente !== -1) sheet.getRange(fila, colExpediente).setValue(datos.documentos.expediente || "");
+    if (colContrato !== -1) sheet.getRange(fila, colContrato).setValue(datos.documentos.contratoFirmado || "");
   }
 
   // Guardar creador/editor
@@ -548,7 +546,9 @@ function obtenerListaContratos() {
         proveedor: c.infoGeneral.proveedor,
         estatus: estatusTexto,
         esFinalizado: esFinalizado,
-        creadoEditadoPor: c.creadoEditadoPor || ""
+        creadoEditadoPor: c.creadoEditadoPor || "",
+        expedienteUrl: (c.documentos && c.documentos.expediente) || "",
+        contratoUrl: (c.documentos && c.documentos.contratoFirmado) || ""
       });
     }
 
@@ -560,44 +560,6 @@ function obtenerListaContratos() {
   }
 }
 
-function subirArchivoADrive(base64Data, fileName, tipoDoc, consecutivo) {
-  cargarConfiguracion();
-  const folder = CONFIG.FOLDER_ID_RAIZ ? DriveApp.getFolderById(CONFIG.FOLDER_ID_RAIZ) : DriveApp.getRootFolder();
-  const bytes = Utilities.base64Decode(base64Data.split(',')[1]);
-  const blob = Utilities.newBlob(bytes, base64Data.substring(5, base64Data.indexOf(';')), fileName);
-  const file = folder.createFile(blob);
-  const url = file.getUrl();
-
-  const sheetName = CONFIG && CONFIG.SHEET_NAME;
-  if (!sheetName || String(sheetName).trim() === "") {
-    console.log("subirArchivoADrive: El nombre de la hoja CONFIG.SHEET_NAME no está definido.");
-    return { success: false, message: "Nombre de hoja no configurado." };
-  }
-  const sheet = getSheetSafe(sheetName);
-  if (!sheet) {
-    console.log("subirArchivoADrive: Hoja de contratos no encontrada.");
-    return { success: false, message: "Hoja de contratos no encontrada." };
-  }
-  const data = sheet.getDataRange().getValues();
-  const searchId = String(consecutivo).trim();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === searchId) {
-      let headerName = "URL_COMITE";
-      if (tipoDoc === 'expediente') headerName = "URL_EXPEDIENTE";
-      if (tipoDoc === 'contrato') headerName = "URL_CONTRATO_FIRMADO";
-
-      const col = findColumnByHeader(sheet, headerName);
-      if (col !== -1) {
-        sheet.getRange(i + 1, col).setValue(url);
-      } else {
-        console.error("No se encontró la columna para " + headerName);
-      }
-      break;
-    }
-  }
-  return { success: true, url: url };
-}
 
 /**
  * Encuentra el índice de una columna por su encabezado (1-based)

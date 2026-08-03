@@ -155,20 +155,13 @@
       </div>
       <div class="tab-pane fade" id="tabDocumentos">
         <div class="row g-3">
-          <div class="col-md-4">
-            <label>Comité</label>
-            <input type="file" class="form-control mb-1 upload-field" onchange="uploadFile(this, 'comite')">
-            <div id="link_comite"></div>
+          <div class="col-md-6">
+            <label class="form-label">Expediente (URL)</label>
+            <input type="url" id="doc_expediente" class="form-control" placeholder="https://ejemplo.com/expediente">
           </div>
-          <div class="col-md-4">
-            <label>Expediente</label>
-            <input type="file" class="form-control mb-1 upload-field" onchange="uploadFile(this, 'expediente')">
-            <div id="link_expediente"></div>
-          </div>
-          <div class="col-md-4">
-            <label>Contrato Firmado</label>
-            <input type="file" class="form-control mb-1 upload-field" onchange="uploadFile(this, 'contrato')">
-            <div id="link_contrato"></div>
+          <div class="col-md-6">
+            <label class="form-label">Contrato con garantía (URL)</label>
+            <input type="url" id="doc_contrato" class="form-control" placeholder="https://ejemplo.com/contrato">
           </div>
         </div>
       </div>
@@ -301,9 +294,8 @@
         }
       });
 
-      if (data.documentos.comite) document.getElementById('link_comite').innerHTML = `<a href="${data.documentos.comite}" target="_blank">Ver</a>`;
-      if (data.documentos.expediente) document.getElementById('link_expediente').innerHTML = `<a href="${data.documentos.expediente}" target="_blank">Ver</a>`;
-      if (data.documentos.contratoFirmado) document.getElementById('link_contrato').innerHTML = `<a href="${data.documentos.contratoFirmado}" target="_blank">Ver</a>`;
+      document.getElementById('doc_expediente').value = (data.documentos && data.documentos.expediente) || "";
+      document.getElementById('doc_contrato').value = (data.documentos && data.documentos.contratoFirmado) || "";
     }
 
     function formatDateForInput(date) {
@@ -541,7 +533,28 @@
       window.top.location.href = buildUrl({ page: 'listaRegistros' });
     }
 
+    function isValidUrl(string) {
+      try {
+        const url = new URL(string);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch (_) {
+        return false;
+      }
+    }
+
     function guardarRegistro() {
+      const expUrl = document.getElementById('doc_expediente').value.trim();
+      const contUrl = document.getElementById('doc_contrato').value.trim();
+
+      if (expUrl !== "" && !isValidUrl(expUrl)) {
+        alert("El campo 'Expediente' debe ser una URL válida (ej: https://ejemplo.com).");
+        return;
+      }
+      if (contUrl !== "" && !isValidUrl(contUrl)) {
+        alert("El campo 'Contrato con garantía' debe ser una URL válida (ej: https://ejemplo.com).");
+        return;
+      }
+
       const data = {
         consecutivo: contratoActual.consecutivo,
         infoGeneral: {
@@ -559,7 +572,13 @@
           fechaSolicitud: document.getElementById('info_fechaSolicitud').value,
           objeto: document.getElementById('info_objeto').value
         },
-        etapaInterna: {}, etapasExternas: {}, documentos: contratoActual.documentos
+        etapaInterna: {},
+        etapasExternas: {},
+        documentos: {
+          comite: "",
+          expediente: expUrl,
+          contratoFirmado: contUrl
+        }
       };
 
       stagesDef.forEach(s => {
@@ -588,18 +607,6 @@
         alert(res.message);
         contratoActual.consecutivo = res.consecutivo;
       }).guardarProgresoContrato(data, userNombre);
-    }
-
-    function uploadFile(el, tipo) {
-      const file = el.files[0];
-      const reader = new FileReader();
-      reader.onload = e => {
-        google.script.run.withSuccessHandler(res => {
-          document.getElementById('link_' + tipo).innerHTML = `<a href="${res.url}" target="_blank">Ver</a>`;
-          contratoActual.documentos[tipo] = res.url;
-        }).subirArchivoADrive(e.target.result, file.name, tipo, contratoActual.consecutivo);
-      };
-      reader.readAsDataURL(file);
     }
   </script>
 </body>

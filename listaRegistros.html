@@ -43,12 +43,13 @@
             <th>Dependencia</th>
             <th>Tipo</th>
             <th>Estatus General</th>
+            <th>Enlaces</th>
             <th>Creado/Editado por</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody id="listaBody">
-          <tr><td colspan="7" class="text-center">Cargando datos...</td></tr>
+          <tr><td colspan="8" class="text-center">Cargando datos...</td></tr>
         </tbody>
       </table>
     </div>
@@ -88,7 +89,7 @@
     function renderLista(data) {
       const body = document.getElementById('listaBody');
       if (data.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" class="text-center">No se encontraron registros</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="text-center">No se encontraron registros</td></tr>';
         return;
       }
       const userRol = sessionStorage.getItem('userRol');
@@ -98,6 +99,19 @@
         if (userRol === 'Administrador') {
           deleteBtn = `<button class="btn btn-sm btn-danger" onclick="eliminar('${c.consecutivo}')">Eliminar</button>`;
         }
+
+        let expedienteLink = c.expedienteUrl ? `<a href="${c.expedienteUrl}" target="_blank">Expediente</a>` : '';
+        let contratoLink = c.contratoUrl ? `<a href="${c.contratoUrl}" target="_blank">Contrato con garantía</a>` : '';
+
+        let enlacesHtml = '-';
+        if (expedienteLink && contratoLink) {
+          enlacesHtml = `${expedienteLink} / ${contratoLink}`;
+        } else if (expedienteLink) {
+          enlacesHtml = expedienteLink;
+        } else if (contratoLink) {
+          enlacesHtml = contratoLink;
+        }
+
         return `
           <tr>
             <td>${c.consecutivo}</td>
@@ -109,6 +123,7 @@
                 ${c.estatus}
               </span>
             </td>
+            <td>${enlacesHtml}</td>
             <td>${c.creadoEditadoPor || '-'}</td>
             <td>
               <div class="btn-group gap-1">
