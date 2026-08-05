@@ -296,7 +296,10 @@ function procesarFilaParaContrato(fila, numeroFila, headers) {
   const idxComite = headers ? headers.indexOf("URL_COMITE") : 136;
   const idxExpediente = headers ? headers.indexOf("URL_EXPEDIENTE") : 137;
   const idxContrato = headers ? headers.indexOf("URL_CONTRATO_FIRMADO") : 138;
-  const idxCreador = headers ? headers.indexOf("CREADO_EDITADO_POR") : 139;
+
+  let idxCreador = headers ? headers.indexOf("Creado/Editado por") : -1;
+  if (idxCreador === -1 && headers) idxCreador = headers.indexOf("CREADO_EDITADO_POR");
+  if (idxCreador === -1) idxCreador = 139;
 
   return {
     consecutivo: safe(0),
@@ -425,7 +428,10 @@ function guardarProgresoContrato(datos, usuarioAutenticado) {
   }
 
   // Guardar creador/editor
-  const colCreador = findColumnByHeader(sheet, "CREADO_EDITADO_POR");
+  let colCreador = findColumnByHeader(sheet, "Creado/Editado por");
+  if (colCreador === -1) {
+    colCreador = findColumnByHeader(sheet, "CREADO_EDITADO_POR");
+  }
   let identificadorUsuario = usuarioAutenticado || "Anónimo";
   if (colCreador !== -1) {
     let emailActivo = "";
@@ -615,7 +621,7 @@ function setupDatabase() {
       s + "_FECHA_VIGENCIA", s + "_MONTO_SIN_IVA"
     );
   });
-  headers.push("URL_COMITE", "URL_EXPEDIENTE", "URL_CONTRATO_FIRMADO", "CREADO_EDITADO_POR");
+  headers.push("URL_COMITE", "URL_EXPEDIENTE", "URL_CONTRATO_FIRMADO", "Creado/Editado por");
 
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
