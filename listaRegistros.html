@@ -21,6 +21,7 @@
         <button id="btnNuevo" class="btn btn-success me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
         <button class="btn btn-outline-primary me-2" onclick="cargarLista()">🔄 Actualizar</button>
         <button class="btn btn-outline-info me-2" onclick="verDashboard()">📊 Dashboard</button>
+        <button id="btnBitacora" class="btn btn-outline-warning me-2 d-none" onclick="verBitacora()">📜 Bitácora</button>
         <button class="btn btn-outline-danger" onclick="logout()">🚪 Cerrar Sesión</button>
       </div>
     </div>
@@ -158,6 +159,10 @@
       window.top.location.href = buildUrl({ page: 'dashboardKPI' });
     }
 
+    function verBitacora() {
+      window.top.location.href = buildUrl({ page: 'Bitacora' });
+    }
+
     function logout() {
       sessionStorage.clear();
       window.top.location.href = buildUrl({ page: 'Login' });
@@ -196,6 +201,11 @@
       if (userRol === 'Auditor') {
         const btnNuevo = document.getElementById('btnNuevo');
         if (btnNuevo) btnNuevo.style.display = 'none';
+      }
+
+      if (userRol === 'Administrador') {
+        const btnBitacora = document.getElementById('btnBitacora');
+        if (btnBitacora) btnBitacora.classList.remove('d-none');
       }
 
       cargarLista();

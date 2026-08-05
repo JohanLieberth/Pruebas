@@ -39,6 +39,7 @@
           <option value="">Todas las Dependencias</option>
         </select>
         <button class="btn btn-primary" onclick="actualizarDashboard()">🔄 Actualizar</button>
+        <button id="btnBitacora" class="btn btn-outline-warning d-none" onclick="verBitacora()">📜 Bitácora</button>
         <button class="btn btn-outline-danger" onclick="logout()">Cerrar Sesión</button>
       </div>
     </div>
@@ -258,6 +259,10 @@
       window.top.location.href = WEB_APP_URL + '?page=Login';
     }
 
+    function verBitacora() {
+      window.top.location.href = WEB_APP_URL + '?page=Bitacora';
+    }
+
     window.onload = function() {
       const userEmail = sessionStorage.getItem('userEmail');
       const userNombre = sessionStorage.getItem('userNombre');
@@ -269,6 +274,12 @@
       }
 
       document.getElementById('userWelcome').innerText = `${userNombre} (${userRol})`;
+
+      if (userRol === 'Administrador') {
+        const btnBitacora = document.getElementById('btnBitacora');
+        if (btnBitacora) btnBitacora.classList.remove('d-none');
+      }
+
       cargarDependencias();
       actualizarDashboard();
     };

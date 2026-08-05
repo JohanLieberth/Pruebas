@@ -37,6 +37,7 @@
         <button id="btnNuevo" class="btn btn-outline-primary me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
         <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
         <button class="btn btn-indicators me-2" onclick="verDashboard()">📊 Dashboard de Indicadores</button>
+        <button id="btnBitacora" class="btn btn-outline-warning me-2 d-none" onclick="verBitacora()">📜 Bitácora</button>
         <button class="btn btn-outline-danger" onclick="logout()">Cerrar Sesión</button>
       </div>
     </div>
@@ -199,6 +200,11 @@
       }
 
       document.getElementById('userWelcome').innerText = `${userNombre} (${userRol})`;
+
+      if (userRol === 'Administrador') {
+        const btnBitacora = document.getElementById('btnBitacora');
+        if (btnBitacora) btnBitacora.classList.remove('d-none');
+      }
 
       // Intento de obtener ID de la plantilla GAS o directamente de la URL (más resiliente)
       let idCarga = "<?= idCarga ?>";
@@ -550,6 +556,10 @@
 
     function verDashboard() {
       window.top.location.href = buildUrl({ page: 'dashboardKPI' });
+    }
+
+    function verBitacora() {
+      window.top.location.href = buildUrl({ page: 'Bitacora' });
     }
 
     function nuevoRegistro() {

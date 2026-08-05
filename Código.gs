@@ -358,6 +358,8 @@ function guardarProgresoContrato(datos, usuarioAutenticado) {
     }
   }
 
+  const esCreacion = (fila === -1);
+
   if (fila === -1) {
     const lastRow = sheet.getLastRow();
     // Obtener todos los valores de la columna A para encontrar el ID máximo real
@@ -421,7 +423,11 @@ function guardarProgresoContrato(datos, usuarioAutenticado) {
     sheet.getRange(fila, colCreador).setValue(usuarioAutenticado);
   }
 
-  return { success: true, message: "Contrato guardado exitosamente", consecutivo: sheet.getRange(fila, 1).getValue() };
+  const consecutivoFinal = sheet.getRange(fila, 1).getValue();
+  const accionText = esCreacion ? "Crear" : "Editar";
+  registrarEnBitacora(usuarioAutenticado, accionText, "Contratos", "Consecutivo ID: " + consecutivoFinal + ", No. Contrato: " + info.numContrato);
+
+  return { success: true, message: "Contrato guardado exitosamente", consecutivo: consecutivoFinal };
 }
 
 /**
@@ -630,6 +636,84 @@ function setupDatabase() {
 
   // Configura la tabla de usuarios
   getUsuariosAdminSheet();
+  // Configura la bitácora
+  getBitacoraSheet();
+}
+
+/**
+ * Obtiene o crea la hoja de Bitácora
+ */
+function getBitacoraSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("Bitácora");
+  if (sheet) return sheet;
+
+  sheet = ss.insertSheet("Bitácora");
+  sheet.getRange(1, 1, 1, 5)
+       .setValues([["Fecha/Hora", "Usuario", "Acción (Crear/Editar/Eliminar)", "Módulo", "Detalle/ID afectado"]])
+       .setFontWeight("bold")
+       .setBackground("#f3f3f3");
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+/**
+ * Registra un movimiento en la hoja de Bitácora
+ */
+function registrarEnBitacora(usuario, accion, modulo, detalle) {
+  try {
+    const sheet = getBitacoraSheet();
+    if (!sheet) return;
+
+    const fechaHora = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "dd/MM/yyyy HH:mm:ss");
+    sheet.appendRow([fechaHora, usuario || "Anónimo", accion, modulo, detalle]);
+  } catch (e) {
+    console.error("Error al registrar en bitácora: " + e.toString());
+  }
+}
+
+/**
+ * Obtiene los registros de la Bitácora para el rol Administrador
+ */
+function obtenerRegistrosBitacora(userEmail) {
+  console.log("obtenerRegistrosBitacora: solicitado por " + userEmail);
+  try {
+    const sheetUsuarios = getUsuariosAdminSheet();
+    const usuariosData = sheetUsuarios.getDataRange().getValues();
+    let rol = "";
+    for (let i = 1; i < usuariosData.length; i++) {
+      if (String(usuariosData[i][0]).trim().toLowerCase() === String(userEmail).trim().toLowerCase()) {
+        rol = String(usuariosData[i][2]).trim();
+        break;
+      }
+    }
+
+    if (rol !== "Administrador") {
+      throw new Error("Acceso denegado: Se requiere rol de Administrador para ver la Bitácora.");
+    }
+
+    const sheet = getBitacoraSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+    const list = data.map(row => {
+      return {
+        fechaHora: row[0],
+        usuario: row[1],
+        accion: row[2],
+        modulo: row[3],
+        detalle: row[4]
+      };
+    });
+
+    // Ordenar descendente (últimos movimientos primero)
+    list.reverse();
+    return list;
+  } catch (e) {
+    console.error("Error en obtenerRegistrosBitacora: " + e.toString());
+    throw new Error(e.toString());
+  }
 }
 
 /**
@@ -738,7 +822,23 @@ function eliminarContrato(consecutivo, userEmail) {
     }
 
     if (fila !== -1) {
+      const numContrato = sheet.getRange(fila, 2).getValue(); // Col B is NUM_CONTRATO
       sheet.deleteRow(fila);
+
+      // Obtener el nombre del usuario
+      let usuarioNombre = userEmail;
+      try {
+        const sheetUsuarios = getUsuariosAdminSheet();
+        const uData = sheetUsuarios.getDataRange().getValues();
+        for (let i = 1; i < uData.length; i++) {
+          if (String(uData[i][0]).trim().toLowerCase() === String(userEmail).trim().toLowerCase()) {
+            usuarioNombre = String(uData[i][3]).trim();
+            break;
+          }
+        }
+      } catch (_) {}
+
+      registrarEnBitacora(usuarioNombre, "Eliminar", "Contratos", "Consecutivo ID: " + consecutivo + ", No. Contrato: " + numContrato);
       return { success: true, message: "Contrato eliminado exitosamente." };
     } else {
       return { success: false, message: "Registro no encontrado." };
