@@ -223,6 +223,8 @@ function obtenerDatosContrato(consecutivo) {
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return null;
 
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
     // Estrategia 1: TextFinder (Búsqueda nativa de Google Sheets en Columna A)
     const finder = sheet.getRange("A:A").createTextFinder(searchId).matchEntireCell(true);
     const cell = finder.findNext();
@@ -230,7 +232,7 @@ function obtenerDatosContrato(consecutivo) {
       console.log("Estrategia 1 (TextFinder): Encontrado en " + cell.getA1Notation());
       const row = cell.getRow();
       const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
-      return sanitizeData(procesarFilaParaContrato(rowData, row));
+      return sanitizeData(procesarFilaParaContrato(rowData, row, headers));
     }
 
     // Estrategia 2: Escaneo manual de DisplayValues (Lo que el usuario ve)
@@ -239,7 +241,7 @@ function obtenerDatosContrato(consecutivo) {
       if (displayValues[i][0].trim() === searchId) {
         console.log("Estrategia 2 (DisplayValues): Encontrado en fila " + (i + 1));
         const rowData = sheet.getRange(i + 1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        return sanitizeData(procesarFilaParaContrato(rowData, i + 1));
+        return sanitizeData(procesarFilaParaContrato(rowData, i + 1, headers));
       }
     }
 
@@ -251,7 +253,7 @@ function obtenerDatosContrato(consecutivo) {
       if (String(val).trim() === searchId || (!isNaN(searchIdNum) && Number(val) === searchIdNum)) {
         console.log("Estrategia 3 (RawValues): Encontrado en fila " + (i + 1));
         const rowData = sheet.getRange(i + 1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        return sanitizeData(procesarFilaParaContrato(rowData, i + 1));
+        return sanitizeData(procesarFilaParaContrato(rowData, i + 1, headers));
       }
     }
 
@@ -266,7 +268,7 @@ function obtenerDatosContrato(consecutivo) {
 /**
  * Mapea una fila a un objeto estructurado de forma segura
  */
-function procesarFilaParaContrato(fila, numeroFila) {
+function procesarFilaParaContrato(fila, numeroFila, headers) {
   if (!fila || !Array.isArray(fila)) return null;
 
   const safe = (idx) => (fila[idx] === undefined || fila[idx] === null) ? "" : fila[idx];
@@ -290,6 +292,11 @@ function procesarFilaParaContrato(fila, numeroFila) {
       montoSinIva: safe(startIndex + 10)
     };
   };
+
+  const idxComite = headers ? headers.indexOf("URL_COMITE") : 136;
+  const idxExpediente = headers ? headers.indexOf("URL_EXPEDIENTE") : 137;
+  const idxContrato = headers ? headers.indexOf("URL_CONTRATO_FIRMADO") : 138;
+  const idxCreador = headers ? headers.indexOf("CREADO_EDITADO_POR") : 139;
 
   return {
     consecutivo: safe(0),
@@ -325,11 +332,11 @@ function procesarFilaParaContrato(fila, numeroFila) {
       entrega: extractStage(stageColStart + colsPerStage * 10, 'entrega')
     },
     documentos: {
-      comite: safe(136),
-      expediente: safe(137),
-      contratoFirmado: safe(138)
+      comite: idxComite !== -1 ? safe(idxComite) : "",
+      expediente: idxExpediente !== -1 ? safe(idxExpediente) : "",
+      contratoFirmado: idxContrato !== -1 ? safe(idxContrato) : ""
     },
-    creadoEditadoPor: safe(139)
+    creadoEditadoPor: idxCreador !== -1 ? safe(idxCreador) : ""
   };
 }
 
@@ -419,13 +426,22 @@ function guardarProgresoContrato(datos, usuarioAutenticado) {
 
   // Guardar creador/editor
   const colCreador = findColumnByHeader(sheet, "CREADO_EDITADO_POR");
-  if (colCreador !== -1 && usuarioAutenticado) {
-    sheet.getRange(fila, colCreador).setValue(usuarioAutenticado);
+  let identificadorUsuario = usuarioAutenticado || "Anónimo";
+  if (colCreador !== -1) {
+    let emailActivo = "";
+    try {
+      emailActivo = Session.getActiveUser().getEmail();
+    } catch (_) {}
+
+    if (emailActivo && emailActivo !== "") {
+      identificadorUsuario = identificadorUsuario + " (" + emailActivo + ")";
+    }
+    sheet.getRange(fila, colCreador).setValue(identificadorUsuario);
   }
 
   const consecutivoFinal = sheet.getRange(fila, 1).getValue();
   const accionText = esCreacion ? "Crear" : "Editar";
-  registrarEnBitacora(usuarioAutenticado, accionText, "Contratos", "Consecutivo ID: " + consecutivoFinal + ", No. Contrato: " + info.numContrato);
+  registrarEnBitacora(identificadorUsuario, accionText, "Contratos", "Consecutivo ID: " + consecutivoFinal + ", No. Contrato: " + info.numContrato);
 
   return { success: true, message: "Contrato guardado exitosamente", consecutivo: consecutivoFinal };
 }
@@ -520,12 +536,13 @@ function obtenerListaContratos() {
     const data = sheet.getRange(1, 1, lastRow, sheet.getLastColumn()).getValues();
     const lista = [];
 
+    const headers = data[0];
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
       const id = String(row[0]).trim();
       if (!id) continue;
 
-      const c = procesarFilaParaContrato(row, i + 1);
+      const c = procesarFilaParaContrato(row, i + 1, headers);
 
       // Lógica de Tiempo Transcurrido para Estatus General
       // Inicio: Fecha Solicitud (infoGeneral.fechaSolicitud)
@@ -696,7 +713,7 @@ function obtenerRegistrosBitacora(userEmail) {
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return [];
 
-    const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+    const data = sheet.getRange(2, 1, lastRow - 1, 5).getDisplayValues();
     const list = data.map(row => {
       return {
         fechaHora: row[0],
@@ -873,9 +890,10 @@ function generarReporteKPI() {
   ];
 
   const results = [headers];
+  const sheetHeaders = data[0];
 
   for (let i = 1; i < data.length; i++) {
-    const c = procesarFilaParaContrato(data[i], i + 1);
+    const c = procesarFilaParaContrato(data[i], i + 1, sheetHeaders);
     if (!c.consecutivo) continue;
 
     const diasInt = calcularDiasHabiles(c.infoGeneral.fechaSolicitud, c.etapaInterna.validacion.fin);
@@ -957,12 +975,13 @@ function obtenerMetricasDashboard(filtroDependencia) {
   let obsJuridico = 0;
   let obsDependencia = 0;
 
+  const sheetHeaders = data[0];
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === "") continue;
     if (filtroDependencia && data[i][2] !== filtroDependencia) continue;
 
     totalContratos++;
-    const c = procesarFilaParaContrato(data[i], i + 1);
+    const c = procesarFilaParaContrato(data[i], i + 1, sheetHeaders);
     let tieneObs = false;
 
     const allStages = [
