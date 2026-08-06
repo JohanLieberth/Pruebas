@@ -1075,3 +1075,149 @@ function obtenerConfiguracionFull() {
     folderId: configObj["FOLDER_ID_RAIZ"]
   };
 }
+
+/**
+ * Obtiene todos los usuarios registrados (Rol Administrador únicamente)
+ */
+function obtenerUsuariosAdmin(requesterEmail) {
+  try {
+    const sheetUsuarios = getUsuariosAdminSheet();
+    const data = sheetUsuarios.getDataRange().getValues();
+
+    // Validar rol del solicitante
+    let requesterRol = "";
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === String(requesterEmail).trim().toLowerCase()) {
+        requesterRol = String(data[i][2]).trim();
+        break;
+      }
+    }
+    if (requesterRol !== "Administrador") {
+      throw new Error("Acceso denegado: Se requiere rol de Administrador.");
+    }
+
+    const list = [];
+    for (let i = 1; i < data.length; i++) {
+      list.push({
+        email: String(data[i][0]).trim(),
+        contrasena: String(data[i][1]).trim(),
+        rol: String(data[i][2]).trim(),
+        nombre: String(data[i][3]).trim()
+      });
+    }
+    return list;
+  } catch (e) {
+    console.error("Error en obtenerUsuariosAdmin: " + e.toString());
+    throw new Error(e.toString());
+  }
+}
+
+/**
+ * Guarda o edita un usuario en la hoja Usuarios_Admin
+ */
+function guardarUsuarioAdmin(datos, requesterEmail) {
+  try {
+    const sheetUsuarios = getUsuariosAdminSheet();
+    const data = sheetUsuarios.getDataRange().getValues();
+
+    // Validar rol del solicitante
+    let requesterRol = "";
+    let requesterNombre = "";
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === String(requesterEmail).trim().toLowerCase()) {
+        requesterRol = String(data[i][2]).trim();
+        requesterNombre = String(data[i][3]).trim();
+        break;
+      }
+    }
+    if (requesterRol !== "Administrador") {
+      throw new Error("Acceso denegado: Se requiere rol de Administrador.");
+    }
+
+    if (!datos.email || !datos.contrasena || !datos.rol || !datos.nombre) {
+      return { success: false, message: "Todos los campos son obligatorios." };
+    }
+
+    const targetEmail = String(datos.email).trim().toLowerCase();
+
+    // Buscar si ya existe por Email para decidir si es actualización o creación
+    let filaEncontrada = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === targetEmail) {
+        filaEncontrada = i + 1;
+        break;
+      }
+    }
+
+    if (datos.esNuevo) {
+      if (filaEncontrada !== -1) {
+        return { success: false, message: "Error: Ya existe un usuario registrado con el email '" + targetEmail + "'." };
+      }
+
+      sheetUsuarios.appendRow([targetEmail, datos.contrasena, datos.rol, datos.nombre]);
+      registrarEnBitacora(requesterNombre, "Crear", "Usuarios", "Email: " + targetEmail + ", Rol: " + datos.rol + ", Nombre: " + datos.nombre);
+      return { success: true, message: "Usuario creado exitosamente." };
+    } else {
+      if (filaEncontrada === -1) {
+        return { success: false, message: "Error: No se encontró el usuario con el email '" + targetEmail + "' para actualizar." };
+      }
+
+      sheetUsuarios.getRange(filaEncontrada, 1, 1, 4).setValues([[targetEmail, datos.contrasena, datos.rol, datos.nombre]]);
+      registrarEnBitacora(requesterNombre, "Editar", "Usuarios", "Email: " + targetEmail + ", Rol: " + datos.rol + ", Nombre: " + datos.nombre);
+      return { success: true, message: "Usuario actualizado exitosamente." };
+    }
+  } catch (e) {
+    console.error("Error en guardarUsuarioAdmin: " + e.toString());
+    return { success: false, message: "Error: " + e.toString() };
+  }
+}
+
+/**
+ * Elimina un usuario de la hoja Usuarios_Admin
+ */
+function eliminarUsuarioAdmin(email, requesterEmail) {
+  try {
+    const sheetUsuarios = getUsuariosAdminSheet();
+    const data = sheetUsuarios.getDataRange().getValues();
+
+    // Validar rol del solicitante
+    let requesterRol = "";
+    let requesterNombre = "";
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === String(requesterEmail).trim().toLowerCase()) {
+        requesterRol = String(data[i][2]).trim();
+        requesterNombre = String(data[i][3]).trim();
+        break;
+      }
+    }
+    if (requesterRol !== "Administrador") {
+      throw new Error("Acceso denegado: Se requiere rol de Administrador.");
+    }
+
+    const targetEmail = String(email).trim().toLowerCase();
+
+    // Evitar que el propio Administrador se elimine a sí mismo
+    if (targetEmail === String(requesterEmail).trim().toLowerCase()) {
+      return { success: false, message: "Error: No puede eliminar su propia cuenta de administrador." };
+    }
+
+    let filaEncontrada = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === targetEmail) {
+        filaEncontrada = i + 1;
+        break;
+      }
+    }
+
+    if (filaEncontrada !== -1) {
+      sheetUsuarios.deleteRow(filaEncontrada);
+      registrarEnBitacora(requesterNombre, "Eliminar", "Usuarios", "Email: " + targetEmail);
+      return { success: true, message: "Usuario eliminado exitosamente." };
+    } else {
+      return { success: false, message: "Usuario no encontrado." };
+    }
+  } catch (e) {
+    console.error("Error en eliminarUsuarioAdmin: " + e.toString());
+    return { success: false, message: "Error: " + e.toString() };
+  }
+}

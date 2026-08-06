@@ -38,6 +38,7 @@
         <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
         <button class="btn btn-indicators me-2" onclick="verDashboard()">📊 Dashboard de Indicadores</button>
         <button id="btnBitacora" class="btn btn-outline-warning me-2 d-none" onclick="verBitacora()">📜 Bitácora</button>
+        <button id="btnAdminUsuarios" class="btn btn-outline-dark me-2 d-none" onclick="verAdminUsuarios()">👥 Usuarios</button>
         <button class="btn btn-outline-danger" onclick="logout()">Cerrar Sesión</button>
       </div>
     </div>
@@ -204,6 +205,9 @@
       if (userRol === 'Administrador') {
         const btnBitacora = document.getElementById('btnBitacora');
         if (btnBitacora) btnBitacora.classList.remove('d-none');
+
+        const btnAdminUsuarios = document.getElementById('btnAdminUsuarios');
+        if (btnAdminUsuarios) btnAdminUsuarios.classList.remove('d-none');
       }
 
       // Intento de obtener ID de la plantilla GAS o directamente de la URL (más resiliente)
@@ -560,6 +564,10 @@
 
     function verBitacora() {
       window.top.location.href = buildUrl({ page: 'Bitacora' });
+    }
+
+    function verAdminUsuarios() {
+      window.top.location.href = buildUrl({ page: 'Usuarios_Admin' });
     }
 
     function nuevoRegistro() {

@@ -22,6 +22,7 @@
         <button class="btn btn-outline-primary me-2" onclick="cargarLista()">🔄 Actualizar</button>
         <button class="btn btn-outline-info me-2" onclick="verDashboard()">📊 Dashboard</button>
         <button id="btnBitacora" class="btn btn-outline-warning me-2 d-none" onclick="verBitacora()">📜 Bitácora</button>
+        <button id="btnAdminUsuarios" class="btn btn-outline-dark me-2 d-none" onclick="verAdminUsuarios()">👥 Usuarios</button>
         <button class="btn btn-outline-danger" onclick="logout()">🚪 Cerrar Sesión</button>
       </div>
     </div>
@@ -163,6 +164,10 @@
       window.top.location.href = buildUrl({ page: 'Bitacora' });
     }
 
+    function verAdminUsuarios() {
+      window.top.location.href = buildUrl({ page: 'Usuarios_Admin' });
+    }
+
     function logout() {
       sessionStorage.clear();
       window.top.location.href = buildUrl({ page: 'Login' });
@@ -206,6 +211,9 @@
       if (userRol === 'Administrador') {
         const btnBitacora = document.getElementById('btnBitacora');
         if (btnBitacora) btnBitacora.classList.remove('d-none');
+
+        const btnAdminUsuarios = document.getElementById('btnAdminUsuarios');
+        if (btnAdminUsuarios) btnAdminUsuarios.classList.remove('d-none');
       }
 
       cargarLista();

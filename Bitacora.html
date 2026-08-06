@@ -25,6 +25,7 @@
       <div>
         <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
         <button class="btn btn-outline-info me-2" onclick="verDashboard()">📊 Dashboard</button>
+        <button id="btnAdminUsuarios" class="btn btn-outline-dark me-2 d-none" onclick="verAdminUsuarios()">👥 Usuarios</button>
         <button class="btn btn-outline-danger" onclick="logout()">🚪 Cerrar Sesión</button>
       </div>
     </div>
@@ -72,6 +73,10 @@
 
     function verDashboard() {
       window.top.location.href = buildUrl({ page: 'dashboardKPI' });
+    }
+
+    function verAdminUsuarios() {
+      window.top.location.href = buildUrl({ page: 'Usuarios_Admin' });
     }
 
     function logout() {
@@ -154,6 +159,12 @@
       }
 
       document.getElementById('userWelcome').innerText = `${userNombre} (${userRol})`;
+
+      if (userRol === 'Administrador') {
+        const btnAdminUsuarios = document.getElementById('btnAdminUsuarios');
+        if (btnAdminUsuarios) btnAdminUsuarios.classList.remove('d-none');
+      }
+
       cargarBitacora();
     };
   </script>
