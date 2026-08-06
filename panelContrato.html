@@ -322,6 +322,17 @@
           if (s.key === 'anexo') {
             document.getElementById(`st_${s.key}_vig`).value = formatDateForInput(stage.fechaVigencia);
             document.getElementById(`st_${s.key}_monto_sin_iva`).value = stage.montoSinIva || "";
+
+            const chkSeExime = document.getElementById(`st_${s.key}_se_exime`);
+            if (chkSeExime) {
+              chkSeExime.checked = (stage.seExime === "SÍ" || stage.seExime === "si" || stage.seExime === "SI" || stage.seExime === true || stage.seExime === "true");
+              toggleExencion();
+            }
+
+            const dateExencion = document.getElementById(`st_${s.key}_fecha_exencion`);
+            if (dateExencion) {
+              dateExencion.value = formatDateForInput(stage.fechaExencion);
+            }
           }
 
           handleStatusChange(s.key);
@@ -420,7 +431,17 @@
             ${s.key === 'anexo' ? `
               <div class="mt-1 border-top pt-1">
                 <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_vig" placeholder="Fecha Vigencia" title="Fecha de Vigencia">
-                <input type="number" class="form-control form-control-sm" id="st_${s.key}_monto_sin_iva" placeholder="Monto sin IVA" title="Monto sin IVA" step="0.01">
+                <input type="number" class="form-control form-control-sm mb-1" id="st_${s.key}_monto_sin_iva" placeholder="Monto sin IVA" title="Monto sin IVA" step="0.01">
+
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="st_${s.key}_se_exime" onchange="toggleExencion()">
+                  <label class="form-check-label small" for="st_${s.key}_se_exime">Se exime</label>
+                </div>
+
+                <div id="exencion_box" class="hidden mt-1">
+                  <label class="small text-muted mb-0">Fecha de exención</label>
+                  <input type="date" class="form-control form-control-sm" id="st_${s.key}_fecha_exencion">
+                </div>
               </div>
             ` : ''}
           </td>
@@ -578,6 +599,23 @@
       window.top.location.href = buildUrl({ page: 'listaRegistros' });
     }
 
+    function toggleExencion() {
+      const chk = document.getElementById('st_anexo_se_exime');
+      const box = document.getElementById('exencion_box');
+      const inputFecha = document.getElementById('st_anexo_fecha_exencion');
+
+      if (chk && chk.checked) {
+        if (box) box.classList.remove('hidden');
+        if (inputFecha) inputFecha.disabled = false;
+      } else {
+        if (box) box.classList.add('hidden');
+        if (inputFecha) {
+          inputFecha.disabled = true;
+          inputFecha.value = "";
+        }
+      }
+    }
+
     function isValidUrl(string) {
       try {
         const url = new URL(string);
@@ -630,6 +668,9 @@
         const tipoInt = document.getElementById(`st_${s.key}_tipo_int`).checked;
         const tipoExt = document.getElementById(`st_${s.key}_tipo_ext`).checked;
 
+        const chkSeExime = document.getElementById(`st_${s.key}_se_exime`);
+        const dateExencion = document.getElementById(`st_${s.key}_fecha_exencion`);
+
         const stageData = {
           estatus: document.getElementById(`st_${s.key}_est`).value,
           inicio: document.getElementById(`st_${s.key}_ini`).value,
@@ -641,7 +682,9 @@
           origenJuridico: document.getElementById(`st_${s.key}_orig_jur`).checked,
           origenDependencia: document.getElementById(`st_${s.key}_orig_dep`).checked,
           fechaVigencia: s.key === 'anexo' ? document.getElementById(`st_${s.key}_vig`).value : "",
-          montoSinIva: s.key === 'anexo' ? document.getElementById(`st_${s.key}_monto_sin_iva`).value : ""
+          montoSinIva: s.key === 'anexo' ? document.getElementById(`st_${s.key}_monto_sin_iva`).value : "",
+          seExime: s.key === 'anexo' ? (chkSeExime && chkSeExime.checked ? "SÍ" : "NO") : "",
+          fechaExencion: s.key === 'anexo' ? (chkSeExime && chkSeExime.checked && dateExencion ? dateExencion.value : "") : ""
         };
         if (s.cat === 'I') data.etapaInterna[s.key] = stageData;
         else data.etapasExternas[s.key] = stageData;

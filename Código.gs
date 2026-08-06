@@ -301,6 +301,13 @@ function procesarFilaParaContrato(fila, numeroFila, headers) {
   if (idxCreador === -1 && headers) idxCreador = headers.indexOf("CREADO_EDITADO_POR");
   if (idxCreador === -1) idxCreador = 139;
 
+  const idxSeExime = headers ? headers.indexOf("ANEXO_SE_EXIME") : -1;
+  const idxFechaExencion = headers ? headers.indexOf("ANEXO_FECHA_EXENCION") : -1;
+
+  const anexoStage = extractStage(stageColStart + colsPerStage * 9, 'anexo');
+  if (idxSeExime !== -1) anexoStage.seExime = safe(idxSeExime);
+  if (idxFechaExencion !== -1) anexoStage.fechaExencion = safe(idxFechaExencion);
+
   return {
     consecutivo: safe(0),
     fila: numeroFila,
@@ -331,7 +338,7 @@ function procesarFilaParaContrato(fila, numeroFila, headers) {
       administracion: extractStage(stageColStart + colsPerStage * 6, 'administracion'),
       secretaria: extractStage(stageColStart + colsPerStage * 7, 'secretaria'),
       alcaldesa: extractStage(stageColStart + colsPerStage * 8, 'alcaldesa'),
-      anexo: extractStage(stageColStart + colsPerStage * 9, 'anexo'),
+      anexo: anexoStage,
       entrega: extractStage(stageColStart + colsPerStage * 10, 'entrega')
     },
     documentos: {
@@ -425,6 +432,19 @@ function guardarProgresoContrato(datos, usuarioAutenticado) {
 
     if (colExpediente !== -1) sheet.getRange(fila, colExpediente).setValue(datos.documentos.expediente || "");
     if (colContrato !== -1) sheet.getRange(fila, colContrato).setValue(datos.documentos.contratoFirmado || "");
+  }
+
+  // Guardar exención si aplica
+  const colSeExime = findColumnByHeader(sheet, "ANEXO_SE_EXIME");
+  const colFechaExencion = findColumnByHeader(sheet, "ANEXO_FECHA_EXENCION");
+  if (datos.etapasExternas && datos.etapasExternas.anexo) {
+    const exAnexo = datos.etapasExternas.anexo;
+    if (colSeExime !== -1) {
+      sheet.getRange(fila, colSeExime).setValue(exAnexo.seExime || "NO");
+    }
+    if (colFechaExencion !== -1) {
+      sheet.getRange(fila, colFechaExencion).setValue(exAnexo.fechaExencion || "");
+    }
   }
 
   // Guardar creador/editor
