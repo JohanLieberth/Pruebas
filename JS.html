@@ -1,0 +1,66 @@
+<script>
+  function showLoading(show) {
+    document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+  }
+
+  function showAlert(message, type = 'danger') {
+    const alertPlaceholder = document.getElementById('alertPlaceholder');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = [
+      `<div class="alert alert-${type} alert-dismissible fade show" role="alert">`,
+      `   <div>${message}</div>`,
+      '   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>',
+      '</div>'
+    ].join('');
+    alertPlaceholder.append(wrapper);
+
+    // Auto hide after 5 seconds
+    setTimeout(() => {
+      const alert = bootstrap.Alert.getOrCreateInstance(wrapper.firstChild);
+      if (alert) alert.close();
+    }, 5000);
+  }
+
+  function formatStatus(status) {
+    const slug = status.toLowerCase().replace(/ /g, '-').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return `<span class="status-badge status-${slug}">${status}</span>`;
+  }
+
+  function getStatusSlug(status) {
+    return status.toLowerCase().replace(/ /g, '-').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function getUrlParameter(name) {
+    name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+    var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+    var results = regex.exec(location.search);
+    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+  }
+
+  function handleGlobalError(err) {
+    showLoading(false);
+    console.error('API Error:', err);
+    showAlert('Error de conexión con el servidor: ' + (err.message || err.toString()));
+  }
+
+
+
+  function logout() {
+    sessionStorage.clear();
+    localStorage.clear();
+    const url = '<?= getScriptUrl() ?>?page=login';
+    if (window.top && window.top.location) {
+      window.top.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+  }
+
+  // Export CSV helper
+  function downloadCSV(base64Data, filename) {
+    const link = document.createElement('a');
+    link.href = 'data:text/csv;base64,' + base64Data;
+    link.download = filename;
+    link.click();
+  }
+</script>

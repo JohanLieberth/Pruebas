@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+    <style>
+      .stat-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+      }
+      .stat-card:hover {
+        transform: translateY(-5px);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg mb-4">
+      <div class="container">
+        <a class="navbar-brand" href="#"><i class="fas fa-user-shield me-2"></i>Admin Panel</a>
+        <button type="button" class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="adminNavbar">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link active" href="#"><i class="fas fa-list me-1"></i>Servicios</a>
+            </li>
+            <li class="nav-item" id="navDashboard" style="display: none;">
+              <a class="nav-link" href="<?= getScriptUrl() ?>?page=dashboard"><i class="fas fa-chart-line me-1"></i>Dashboard</a>
+            </li>
+          </ul>
+          <div class="ms-auto d-flex align-items-center">
+            <span class="me-3 d-none d-md-inline" id="adminName"></span>
+            <button type="button" class="btn btn-outline-light btn-sm text-black" onclick="logout()" style="color: #000 !important;"><i class="fas fa-sign-out-alt me-1" style="color: #000 !important;"></i>Cerrar Sesión</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+      <div id="alertPlaceholder"></div>
+
+      <!-- Dashboard Stats -->
+      <div class="row g-3 mb-4" id="statsContainer">
+        <div class="col-6 col-md-2">
+          <div class="card stat-card text-center p-3" onclick="filtrarEstatus('Todos')">
+            <h6 class="text-muted">Total</h6>
+            <h3 id="stat-total">0</h3>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="card stat-card border-warning text-center p-3" onclick="filtrarEstatus('Pendiente')">
+            <h6 class="text-warning">Pendientes</h6>
+            <h3 id="stat-pendiente">0</h3>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="card stat-card border-primary text-center p-3" onclick="filtrarEstatus('En reparación')">
+            <h6 class="text-primary">En Reparación</h6>
+            <h3 id="stat-en-reparacion">0</h3>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="card stat-card border-success text-center p-3" onclick="filtrarEstatus('Listo')">
+            <h6 class="text-success">Listos</h6>
+            <h3 id="stat-listo">0</h3>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="card stat-card border-secondary text-center p-3" onclick="filtrarEstatus('Entregado')">
+            <h6 class="text-secondary">Entregados</h6>
+            <h3 id="stat-entregado">0</h3>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="card stat-card border-danger text-center p-3" onclick="filtrarEstatus('Cancelado')">
+            <h6 class="text-danger">Cancelados</h6>
+            <h3 id="stat-cancelado">0</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters & Actions -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" id="searchInput" class="form-control" placeholder="Buscar por folio, nombre, tel..." onkeyup="if(event.key==='Enter') cargarServicios()">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <select id="statusFilter" class="form-select" onchange="cargarServicios()">
+                <option value="Todos">Todos los estatus</option>
+                <option value="Pendiente">Pendiente</option>
+                <option value="En reparación">En reparación</option>
+                <option value="Listo">Listo</option>
+                <option value="Entregado">Entregado</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+            <div class="col-md-5 text-end">
+              <a href="<?= getScriptUrl() ?>?page=registro" class="btn btn-outline-primary">
+                <i class="fas fa-plus me-2"></i>Registro Nuevo
+              </a>
+              <button type="button" class="btn btn-outline-success" onclick="exportarCSV()">
+                <i class="fas fa-file-export me-2"></i>Exportar CSV
+              </button>
+              <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#configModal">
+                <i class="fas fa-cog me-2"></i>Configuración
+              </button>
+              <button type="button" class="btn btn-primary" onclick="cargarServicios()">
+                <i class="fas fa-sync-alt me-2"></i>Actualizar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services Table -->
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Folio</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Dispositivo</th>
+                <th>Falla</th>
+                <th class="col-asignacion" style="display: none;">Asignado a</th>
+                <th>Estatus</th>
+                <th class="col-total">Total</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="serviciosTableBody">
+              <!-- Content loaded via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div class="modal fade" id="configModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Configuración del Sistema</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="configForm">
+              <div class="mb-3">
+                <label class="form-label">URL Logo Principal</label>
+                <input type="text" name="Logo Principal" class="form-control" id="configLogoPrincipal">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">URL Logo Pequeño</label>
+                <input type="text" name="Logo Pequeño" class="form-control" id="configLogoPequeno">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">URL Video Promocional (MP4)</label>
+                <input type="text" name="URL_Video_Promocional" class="form-control" id="configVideo">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarConfig()">Guardar Configuración</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Actualizar Servicio: <span id="modalFolio"></span></h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="editForm">
+              <input type="hidden" id="editFolio">
+              <div class="row mb-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Estatus</label>
+                  <select id="editEstatus" class="form-select" required>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="En reparación">En reparación</option>
+                    <option value="Listo">Listo</option>
+                    <option value="Entregado">Entregado</option>
+                    <option value="Cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Fecha de Entrega / Promesa</label>
+                  <input type="date" id="editFechaEntrega" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Total ($)</label>
+                  <input type="number" step="0.01" id="editTotal" class="form-control">
+                </div>
+              </div>
+              <div class="row mb-3" id="rowAsignacion" style="display: none;">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Asignar a Supervisor</label>
+                  <select id="editAsignado" class="form-select">
+                    <option value="">No asignado</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Solución Aplicada / Notas Internas</label>
+                <textarea id="editSolucion" class="form-control" rows="4"></textarea>
+              </div>
+              <div class="alert alert-info py-2 small">
+                <i class="fas fa-info-circle me-2"></i>Si cambias a <strong>Listo</strong>, se enviará un correo automático al cliente.
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarCambios()">Guardar Cambios</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Preview Modal -->
+    <div class="modal fade" id="emailModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title">Reenviar Correo al Cliente</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Destinatario</label>
+              <input type="email" id="emailDestino" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Asunto</label>
+              <input type="text" id="emailAsunto" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Cuerpo del Mensaje (HTML)</label>
+              <div id="emailCuerpoEditor" contenteditable="true" class="form-control" style="min-height: 200px; background: #fff;"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="confirmarReenvio()">Enviar Correo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?!= include('JS'); ?>
+    <script>
+      let editModal;
+      let emailModal;
+      let currentUser;
+      let allServicios = [];
+
+      window.addEventListener('load', function() {
+        const userStr = sessionStorage.getItem('user');
+        if (!userStr) {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+          return;
+        }
+        currentUser = JSON.parse(userStr);
+        if (currentUser.rol !== 'Administrador' && currentUser.rol !== 'Supervisor') {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=panelCliente';
+          return;
+        }
+        document.getElementById('adminName').innerText = currentUser.nombre;
+        editModal = new bootstrap.Modal(document.getElementById('editModal'));
+        emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
+
+        if (currentUser.rol === 'Administrador') {
+          document.getElementById('rowAsignacion').style.display = 'flex';
+          const navDash = document.getElementById('navDashboard');
+          if (navDash) navDash.style.display = 'block';
+
+          // Fix: show the "Asignado a" column header for Admins
+          const colAsignacionHeader = document.querySelector('.col-asignacion');
+          if (colAsignacionHeader) colAsignacionHeader.style.display = 'table-cell';
+
+          cargarSupervisores();
+        }
+
+        cargarStats();
+        cargarServicios();
+        cargarConfig();
+      });
+
+      function cargarSupervisores() {
+        google.script.run
+          .withSuccessHandler(function(supervisores) {
+            const select = document.getElementById('editAsignado');
+            supervisores.forEach(sup => {
+              const opt = document.createElement('option');
+              opt.value = sup;
+              opt.innerText = sup;
+              select.appendChild(opt);
+            });
+          })
+          .obtenerSupervisores();
+      }
+
+      function cargarConfig() {
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(config) {
+            document.getElementById('configLogoPrincipal').value = config["Logo Principal"] || '';
+            document.getElementById('configLogoPequeno').value = config["Logo Pequeño"] || '';
+            document.getElementById('configVideo').value = config["URL_Video_Promocional"] || '';
+          })
+          .getConfig();
+      }
+
+      function guardarConfig() {
+        const config = {
+          "Logo Principal": document.getElementById('configLogoPrincipal').value,
+          "Logo Pequeño": document.getElementById('configLogoPequeno').value,
+          "URL_Video_Promocional": document.getElementById('configVideo').value
+        };
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function() {
+            showLoading(false);
+            bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+            showAlert('Configuración guardada', 'success');
+          })
+          .updateConfig(config, currentUser);
+      }
+
+      function cargarStats() {
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(stats) {
+            let total = 0;
+            for (let key in stats) {
+              const id = 'stat-' + getStatusSlug(key);
+              if (document.getElementById(id)) {
+                document.getElementById(id).innerText = stats[key];
+                total += stats[key];
+              }
+            }
+            document.getElementById('stat-total').innerText = total;
+          })
+          .getDashboardStats();
+      }
+
+      function cargarServicios() {
+        showLoading(true);
+        const filtros = {
+          busqueda: document.getElementById('searchInput').value,
+          estatus: document.getElementById('statusFilter').value
+        };
+
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(servicios) {
+            showLoading(false);
+            allServicios = servicios;
+            const isSupervisor = currentUser.rol === 'Supervisor';
+            const isAdmin = currentUser.rol === 'Administrador';
+            const tbody = document.getElementById('serviciosTableBody');
+            tbody.innerHTML = '';
+
+            servicios.forEach(s => {
+              const tr = document.createElement('tr');
+
+              const tdFolio = document.createElement('td');
+              tdFolio.className = 'fw-bold';
+              tdFolio.textContent = s.Folio;
+
+              const tdFecha = document.createElement('td');
+              tdFecha.className = 'small';
+              tdFecha.textContent = s["Fecha de recepción"];
+
+              const tdCliente = document.createElement('td');
+              const divNombre = document.createElement('div');
+              divNombre.className = 'fw-bold';
+              divNombre.textContent = s.Nombre;
+              const divTel = document.createElement('div');
+              divTel.className = 'small text-muted';
+              divTel.textContent = s["Teléfono"];
+              tdCliente.appendChild(divNombre);
+              tdCliente.appendChild(divTel);
+
+              const tdDispositivo = document.createElement('td');
+              tdDispositivo.className = 'small';
+              tdDispositivo.textContent = s["Dispositivo a recibir"];
+              tdDispositivo.title = s["Dispositivo a recibir"];
+
+              const tdFalla = document.createElement('td');
+              tdFalla.className = 'small';
+              tdFalla.textContent = s["Descripción de la falla"];
+              tdFalla.title = s["Descripción de la falla"];
+
+              const tdAsignado = document.createElement('td');
+              tdAsignado.className = 'col-asignacion';
+              tdAsignado.style.display = isAdmin ? 'table-cell' : 'none';
+              if (s["Asignado a"]) {
+                const span = document.createElement('span');
+                span.className = 'badge bg-info text-dark';
+                span.textContent = s["Asignado a"];
+                tdAsignado.appendChild(span);
+              } else {
+                const span = document.createElement('span');
+                span.className = 'badge bg-light text-muted';
+                span.textContent = 'Pendiente';
+                tdAsignado.appendChild(span);
+              }
+
+              const tdEstatus = document.createElement('td');
+              tdEstatus.innerHTML = formatStatus(s["Estatus (admin)"]);
+
+              const tdTotal = document.createElement('td');
+              tdTotal.className = 'fw-bold text-success col-total';
+              tdTotal.textContent = s["Total ($)"] ? '$' + s["Total ($)"] : '-';
+
+              const tdAcciones = document.createElement('td');
+              tdAcciones.innerHTML = `
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirEditarPorFolio('${s.Folio}')">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-print"></i>
+                  </button>
+                  <ul class="dropdown-menu shadow">
+                    <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=completo', '_blank')"><i class="fas fa-file-invoice me-2"></i>Comprobante</button></li>
+                    <li><button type="button" class="dropdown-item" onclick="window.open('<?= getScriptUrl() ?>?page=imprimir&folio=${s.Folio}&tipo=corto', '_blank')"><i class="fas fa-tag me-2"></i>Etiqueta</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button type="button" class="dropdown-item" onclick="abrirReenvio('${s.Folio}')"><i class="fas fa-envelope me-2"></i>Reenviar Correo</button></li>
+                  </ul>
+                </div>
+                ${currentUser.rol === 'Administrador' ? `
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmarEliminar('${s.Folio}')">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                ` : ''}
+              `;
+
+              tr.appendChild(tdFolio);
+              tr.appendChild(tdFecha);
+              tr.appendChild(tdCliente);
+              tr.appendChild(tdDispositivo);
+              tr.appendChild(tdFalla);
+              tr.appendChild(tdAsignado);
+              tr.appendChild(tdEstatus);
+              tr.appendChild(tdTotal);
+              tr.appendChild(tdAcciones);
+
+              tbody.appendChild(tr);
+            });
+            if (servicios.length === 0) {
+              tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No se encontraron registros</td></tr>';
+            }
+
+            if (isSupervisor) {
+              document.querySelectorAll('.col-total').forEach(el => el.style.display = 'none');
+            }
+          })
+          .obtenerServicios(filtros, currentUser);
+      }
+
+      function filtrarEstatus(estatus) {
+        document.getElementById('statusFilter').value = estatus;
+        cargarServicios();
+      }
+
+      function abrirEditarPorFolio(folio) {
+        const s = allServicios.find(item => item.Folio === folio);
+        if (!s) return;
+
+        document.getElementById('modalFolio').innerText = s.Folio;
+        document.getElementById('editFolio').value = s.Folio;
+        document.getElementById('editEstatus').value = s["Estatus (admin)"];
+        document.getElementById('editSolucion').value = s["Solución aplicada (admin)"];
+        document.getElementById('editTotal').value = s["Total ($)"] || '';
+        if (document.getElementById('editAsignado')) {
+          document.getElementById('editAsignado').value = s["Asignado a"] || '';
+        }
+
+        // Format date for input type=date (YYYY-MM-DD)
+        if (s["Fecha de entrega (admin)"]) {
+          const parts = s["Fecha de entrega (admin)"].split('/');
+          if (parts.length === 3) {
+            document.getElementById('editFechaEntrega').value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          }
+        } else {
+          document.getElementById('editFechaEntrega').value = '';
+        }
+
+        editModal.show();
+      }
+
+      function guardarCambios() {
+        const folio = document.getElementById('editFolio').value;
+        const estatus = document.getElementById('editEstatus').value;
+        const solucion = document.getElementById('editSolucion').value;
+        const total = document.getElementById('editTotal').value;
+        const asignado = document.getElementById('editAsignado') ? document.getElementById('editAsignado').value : '';
+        let fecha = document.getElementById('editFechaEntrega').value;
+
+        // Format back to DD/MM/YYYY
+        if (fecha) {
+          const [year, month, day] = fecha.split('-');
+          fecha = `${day}/${month}/${year}`;
+        }
+
+        showLoading(true);
+
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            if (res.success) {
+              if (currentUser.rol === 'Administrador') {
+                 google.script.run.asignarTrabajo(folio, asignado, currentUser);
+              }
+              showLoading(false);
+              editModal.hide();
+              showAlert('Actualizado correctamente', 'success');
+              cargarStats();
+              cargarServicios();
+            } else {
+              showLoading(false);
+              showAlert(res.message);
+            }
+          })
+          .actualizarEstatus(folio, estatus, solucion, fecha, total, currentUser);
+      }
+
+      function abrirReenvio(folio) {
+        const s = allServicios.find(item => item.Folio === folio);
+        if (!s) return;
+
+        document.getElementById('emailDestino').value = s["Correo electrónico"];
+        document.getElementById('emailAsunto').value = 'Información de su Servicio - ' + folio;
+
+        const content = `
+          <div style="font-family: sans-serif;">
+            <h3>BitFix - Seguimiento de Servicio</h3>
+            <p>Hola <b>${s.Nombre}</b>,</p>
+            <p>Le informamos sobre el estatus de su equipo: <b>${s["Dispositivo a recibir"]}</b></p>
+            <p><b>Folio:</b> ${s.Folio}</p>
+            <p><b>Estatus Actual:</b> ${s["Estatus (admin)"]}</p>
+            <p><b>Falla reportada:</b> ${s["Descripción de la falla"]}</p>
+            <p>Para más información puede consultar en nuestro portal con su folio.</p>
+          </div>
+        `;
+        document.getElementById('emailCuerpoEditor').innerHTML = content;
+        emailModal.show();
+      }
+
+      function confirmarReenvio() {
+        const datos = {
+          correo: document.getElementById('emailDestino').value,
+          asunto: document.getElementById('emailAsunto').value,
+          cuerpo: document.getElementById('emailCuerpoEditor').innerHTML
+        };
+
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            showLoading(false);
+            if (res.success) {
+              emailModal.hide();
+              showAlert('Correo reenviado exitosamente', 'success');
+            } else {
+              showAlert(res.message);
+            }
+          })
+          .enviarCorreoPersonalizado(datos, currentUser);
+      }
+
+      function confirmarEliminar(folio) {
+        if (confirm('¿Estás seguro de que deseas eliminar permanentemente el folio ' + folio + '?')) {
+          showLoading(true);
+          google.script.run
+            .withFailureHandler(handleGlobalError)
+            .withSuccessHandler(function(res) {
+              showLoading(false);
+              if (res.success) {
+                showAlert('Registro eliminado correctamente', 'success');
+                cargarStats();
+                cargarServicios();
+              } else {
+                showAlert(res.message);
+              }
+            })
+            .eliminarServicio(folio, currentUser);
+        }
+      }
+
+      function exportarCSV() {
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(base64) {
+            showLoading(false);
+            if (base64) {
+              downloadCSV(base64, 'servicios_bitfix_' + new Date().toLocaleDateString() + '.csv');
+            } else {
+              showAlert('No se pudo generar el CSV. Verifica tus permisos.');
+            }
+          })
+          .exportToCSV(currentUser);
+      }
+
+
+    </script>
+  </body>
+</html>
