@@ -1,0 +1,157 @@
+<div class="row mb-4">
+  <div class="col-md-6">
+    <h2 class="fw-bold">Reporte de Ventas</h2>
+    <p class="text-muted">Consulte el histórico y filtre por agente.</p>
+  </div>
+  <div class="col-md-6 d-flex align-items-center justify-content-md-end">
+    <div class="d-flex gap-2">
+       <select class="form-select w-auto" id="filtro-agente" onchange="cargarReporte()">
+         <!-- Se llena dinámicamente -->
+       </select>
+       <button class="btn btn-outline-secondary" onclick="cargarReporte()"><i class="fas fa-sync"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Rápidas -->
+<div class="row g-3 mb-4" id="stats-reporte">
+  <!-- Se llena con JS -->
+</div>
+
+<!-- Tabla de Ventas -->
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" id="tabla-ventas">
+        <thead class="table-light text-uppercase small fw-bold">
+          <tr>
+            <th>Folio</th>
+            <th>Cliente</th>
+            <th>Total</th>
+            <th>Cobrado</th>
+            <th>Saldo</th>
+            <th>Agente</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ventas">
+          <!-- Se llena con JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function inicializarReportes() {
+    cargarReporte();
+  }
+
+  function cargarReporte() {
+    try {
+      const agente = document.getElementById('filtro-agente').value;
+      const tbody = document.getElementById('tbody-ventas');
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
+      toggleLoading(true);
+
+      // Ahora unificamos la llamada a obtenerReportePorAgente para ambos casos (Global y Filtrado)
+      // ya que Reportes.gs ahora maneja la vista global si no se pasa agente o es "Global"
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res) {
+            renderTabla(res.ventas || []);
+            renderStatsReporte(res.stats || {}, agente === 'Global');
+          }
+          toggleLoading(false);
+        })
+        .withFailureHandler(err => {
+          console.error("Error al cargar reporte:", err);
+          toggleLoading(false);
+        })
+        .obtenerReportePorAgente(agente);
+
+    } catch (e) {
+      console.error("Error en cargarReporte:", e);
+      toggleLoading(false);
+    }
+  }
+
+  function renderTabla(ventas) {
+    const tbody = document.getElementById('tbody-ventas');
+    if (!ventas || ventas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">No hay registros de ventas.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = ventas.map(v => `
+      <tr>
+        <td class="fw-bold">${v['folio/concepto']}</td>
+        <td>${v.cliente}</td>
+        <td>${formatCurrency(v.total)}</td>
+        <td class="text-success">${formatCurrency(v.cobrado || v.total_cobrado)}</td>
+        <td class="text-danger fw-bold">${formatCurrency(v.saldo)}</td>
+        <td><span class="badge bg-light text-dark">${v.agente}</span></td>
+        <td><span class="status-badge badge-${v.estado.toLowerCase()}">${v.estado}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderStatsReporte(data, isGlobal) {
+    const container = document.getElementById('stats-reporte');
+    let html = '';
+
+    if (isGlobal) {
+      html = `
+        <div class="col-md-4">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Ventas Totales</small>
+            <h4 class="mb-0 text-primary">${formatCurrency(data.totalVendido)}</h4>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Cobrado</small>
+            <h4 class="mb-0 text-success">${formatCurrency(data.totalCobrado)}</h4>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Pendiente</small>
+            <h4 class="mb-0 text-danger">${formatCurrency(data.saldoPendiente)}</h4>
+          </div>
+        </div>
+      `;
+    } else {
+      // Para agente, data ya tiene las stats
+      html = `
+        <div class="col-md-3">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Meta (${data.porcentaje.toFixed(0)}%)</small>
+            <div class="progress mt-2" style="height: 10px;">
+              <div class="progress-bar ${data.metaAlcanzada ? 'bg-success' : 'bg-warning'}" style="width: ${Math.min(data.porcentaje, 100)}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Ventas Agente</small>
+            <h4 class="mb-0 text-primary">${formatCurrency(data.totalVendido)}</h4>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Total Cobrado</small>
+            <h4 class="mb-0 text-success">${formatCurrency(data.totalCobrado)}</h4>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-white p-3 border-0 shadow-sm">
+            <small class="text-muted text-uppercase fw-bold">Saldo Pendiente</small>
+            <h4 class="mb-0 text-danger">${formatCurrency(data.saldoPendiente)}</h4>
+          </div>
+        </div>
+      `;
+    }
+    container.innerHTML = html;
+  }
+</script>

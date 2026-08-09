@@ -1,0 +1,218 @@
+<div class="row mb-4">
+  <div class="col">
+    <h2 class="fw-bold">Dashboard Ejecutivo</h2>
+    <p class="text-muted">Resumen global de ventas y metas por agente.</p>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4 mb-5" id="kpi-container">
+  <div class="col">
+    <div class="card h-100 border-start border-4 border-primary">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-muted text-uppercase small">Ventas Totales</h6>
+            <h3 class="fw-bold mb-0" id="kpi-ventas-totales">$0.00</h3>
+          </div>
+          <i class="fas fa-dollar-sign kpi-icon text-primary"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card h-100 border-start border-4 border-success">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-muted text-uppercase small">Total Cobrado</h6>
+            <h3 class="fw-bold mb-0" id="kpi-total-cobrado">$0.00</h3>
+          </div>
+          <i class="fas fa-hand-holding-usd kpi-icon text-success"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card h-100 border-start border-4 border-danger">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-muted text-uppercase small">Saldo Pendiente</h6>
+            <h3 class="fw-bold mb-0" id="kpi-saldo-pendiente">$0.00</h3>
+          </div>
+          <i class="fas fa-file-invoice kpi-icon text-danger"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card h-100 border-start border-4 border-warning">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-muted text-uppercase small">Total de Ventas</h6>
+            <h3 class="fw-bold mb-0" id="kpi-count-ventas">0</h3>
+          </div>
+          <i class="fas fa-shopping-basket kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Gráfica y Tabla -->
+<div class="row">
+  <div class="col-xl-8 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white py-3">
+        <h5 class="mb-0 fw-bold">Rendimiento por Agente</h5>
+      </div>
+      <div class="card-body">
+        <canvas id="chartAgentes" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white py-3">
+        <h5 class="mb-0 fw-bold">Cumplimiento de Meta</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Agente</th>
+                <th>Ventas</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-metas">
+              <!-- Se llena dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let chartInstancia = null;
+
+  function inicializarDashboard() {
+    toggleLoading(true);
+    try {
+      // Cargar KPIs
+      google.script.run
+        .withSuccessHandler(data => {
+          if (data) {
+            const elVentas = document.getElementById('kpi-ventas-totales');
+            const elCobrado = document.getElementById('kpi-total-cobrado');
+            const elSaldo = document.getElementById('kpi-saldo-pendiente');
+            const elCount = document.getElementById('kpi-count-ventas');
+
+            if (elVentas) elVentas.innerText = formatCurrency(data.totalVendido);
+            if (elCobrado) elCobrado.innerText = formatCurrency(data.totalCobrado);
+            if (elSaldo) elSaldo.innerText = formatCurrency(data.saldoPendiente);
+            if (elCount) elCount.innerText = data.numVentas;
+          }
+        })
+        .withFailureHandler(err => {
+          console.error("Error KPIs:", err);
+        })
+        .obtenerKPIsGlobales();
+
+      // Cargar Gráfica y Tabla
+      google.script.run
+        .withSuccessHandler(data => {
+          try {
+            renderGrafica(data || []);
+            renderTablaMetas(data || []);
+          } catch (e) {
+            console.error("Error rendering dashboard:", e);
+          } finally {
+            toggleLoading(false);
+          }
+        })
+        .withFailureHandler(err => {
+          console.error("Error Gráfica:", err);
+          toggleLoading(false);
+        })
+        .obtenerDatosGraficaAgentes();
+    } catch (e) {
+      console.error("Fatal error in inicializarDashboard:", e);
+      toggleLoading(false);
+    }
+  }
+
+  function renderGrafica(data) {
+    const canvas = document.getElementById('chartAgentes');
+    if (!canvas) {
+      console.error("Canvas chartAgentes no encontrado");
+      return;
+    }
+    const ctx = canvas.getContext('2d');
+
+    if (chartInstancia) {
+      chartInstancia.destroy();
+    }
+
+    chartInstancia = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.map(d => d.agente),
+        datasets: [{
+          label: 'Ventas Totales ($)',
+          data: data.map(d => d.total),
+          backgroundColor: data.map(d => d.cumplido ? '#198754' : '#dc3545'),
+          borderRadius: 8,
+          barThickness: 40
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return 'Total: ' + formatCurrency(context.raw);
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { drawBorder: false },
+            ticks: {
+              callback: value => '$' + value.toLocaleString()
+            }
+          },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  function renderTablaMetas(data) {
+    const tbody = document.getElementById('tabla-metas');
+    tbody.innerHTML = data.map(d => `
+      <tr>
+        <td>
+          <div class="fw-bold">${d.agente}</div>
+          <div class="small text-muted">${d.porcentaje.toFixed(1)}% de meta</div>
+        </td>
+        <td>${formatCurrency(d.total)}</td>
+        <td>
+          ${d.cumplido
+            ? '<span class="badge bg-success">✅ Meta</span>'
+            : '<span class="badge bg-light text-muted">Pendiente</span>'}
+        </td>
+      </tr>
+    `).join('');
+  }
+</script>

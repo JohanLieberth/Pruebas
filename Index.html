@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div class="container-fluid overflow-hidden">
+      <div class="row vh-100 overflow-auto">
+        <!-- Sidebar -->
+        <div class="col-12 col-sm-3 col-xl-2 px-sm-2 px-0 bg-navy d-flex sticky-top">
+          <div class="d-flex flex-sm-column flex-row flex-grow-1 align-items-center align-items-sm-start px-3 pt-2 text-white w-100">
+            <a href="#" onclick="cargarPagina('Dashboard'); return false;" class="d-flex flex-column align-items-center pb-sm-3 mb-md-0 me-md-auto text-white text-decoration-none w-100">
+              <img id="app-logo" src="" alt="Logo" class="img-fluid mb-2 d-none d-sm-block" style="max-height: 80px; border-radius: 8px;">
+              <span class="fs-5 d-none d-sm-inline fw-bold text-center">FriendTravel</span>
+            </a>
+            <ul class="nav nav-pills flex-sm-column flex-row flex-nowrap flex-shrink-1 flex-sm-grow-0 flex-grow-1 mb-sm-auto mb-0 justify-content-center align-items-center align-items-sm-start w-100" id="menu">
+              <li class="nav-item w-100">
+                <a href="#" onclick="cargarPagina('Dashboard'); return false;" class="nav-link px-0 align-middle text-white" id="link-Dashboard">
+                  <i class="fas fa-chart-pie ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Dashboard</span>
+                </a>
+              </li>
+              <li class="nav-item w-100">
+                <a href="#" onclick="cargarPagina('NuevaVenta'); return false;" class="nav-link px-0 align-middle text-white" id="link-NuevaVenta">
+                  <i class="fas fa-plus-circle ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Nueva Venta</span>
+                </a>
+              </li>
+              <li class="nav-item w-100">
+                <a href="#" onclick="cargarPagina('RegistrarPago'); return false;" class="nav-link px-0 align-middle text-white" id="link-RegistrarPago">
+                  <i class="fas fa-cash-register ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Registrar Pago</span>
+                </a>
+              </li>
+              <li class="nav-item w-100">
+                <a href="#" onclick="cargarPagina('Estadisticas'); return false;" class="nav-link px-0 align-middle text-white" id="link-Estadisticas">
+                  <i class="fas fa-file-invoice-dollar ms-2 me-2"></i><span class="ms-1 d-none d-sm-inline">Reportes</span>
+                </a>
+              </li>
+            </ul>
+            <hr>
+            <div class="pb-4">
+               <button class="btn btn-outline-light btn-sm w-100" onclick="google.script.run.inicializarApp()">
+                 <i class="fas fa-sync"></i> Sincronizar
+               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col d-flex flex-column h-sm-100">
+          <main class="row overflow-auto pt-4 px-3 px-md-5">
+            <div id="content-area">
+
+              <div id="page-Dashboard" class="page-container" style="display:none;">
+                <?!= include('Dashboard'); ?>
+              </div>
+
+              <div id="page-NuevaVenta" class="page-container" style="display:none;">
+                <?!= include('NuevaVenta'); ?>
+              </div>
+
+              <div id="page-RegistrarPago" class="page-container" style="display:none;">
+                <?!= include('RegistrarPago'); ?>
+              </div>
+
+              <div id="page-Estadisticas" class="page-container" style="display:none;">
+                <?!= include('Estadisticas'); ?>
+              </div>
+
+              <!-- Loading Overlay -->
+              <div id="loading-overlay" class="position-fixed top-50 start-50 translate-middle" style="display:none; z-index: 9999;">
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                  <span class="visually-hidden">Cargando...</span>
+                </div>
+              </div>
+
+            </div>
+          </main>
+          <footer class="row bg-light py-3 mt-auto border-top">
+            <div class="col text-center text-muted">
+              <small>&copy; 2023 FriendTravel - Sistema de Gestión Interna</small>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenedor de Recibo Imprimible -->
+    <div id="printable-receipt" class="p-5">
+      <div class="text-center mb-4">
+        <img id="receipt-logo" src="" alt="Logo" style="max-height: 80px;">
+        <h2 class="mt-3">RECIBO DE PAGO</h2>
+        <h4 id="receipt-folio" class="text-muted"></h4>
+      </div>
+      <hr>
+      <div class="row mb-4">
+        <div class="col-6">
+          <p><strong>Cliente:</strong> <span id="receipt-cliente"></span></p>
+          <p><strong>Correo:</strong> <span id="receipt-correo"></span></p>
+        </div>
+        <div class="col-6 text-end">
+          <p><strong>Fecha:</strong> <span id="receipt-fecha"></span></p>
+        </div>
+      </div>
+      <table class="table table-bordered mb-4">
+        <thead class="table-light">
+          <tr>
+            <th>Concepto</th>
+            <th class="text-end">Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span id="receipt-tipo"></span> - <span id="receipt-hotel"></span></td>
+            <td class="text-end fw-bold" id="receipt-monto"></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="row">
+        <div class="col-6 offset-6">
+          <table class="table table-sm">
+            <tr>
+              <td><strong>Total Reservación:</strong></td>
+              <td class="text-end" id="receipt-total"></td>
+            </tr>
+            <tr>
+              <td><strong>Saldo Pendiente:</strong></td>
+              <td class="text-end text-danger fw-bold" id="receipt-saldo"></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="mt-5 pt-5 text-center small text-muted">
+        <p>Gracias por confiar en FriendTravel.</p>
+        <p>Este es un comprobante de pago oficial.</p>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+      let currentAppConfig = null;
+
+      // Manejador global de errores para depuración
+      window.onerror = function(msg, url, line, col, error) {
+        console.error("Error Global:", msg, "en", url, ":", line);
+        toggleLoading(false);
+        return false;
+      };
+
+      window.onload = () => {
+        console.log("Iniciando aplicación...");
+        toggleLoading(true);
+        google.script.run
+          .withSuccessHandler(config => {
+            currentAppConfig = config;
+            if (config.LOGO_URL) document.getElementById('app-logo').src = config.LOGO_URL;
+            inicializarSelectsAgentes();
+            cargarPagina("<?= page ?>");
+            // Nota: toggleLoading(false) se maneja dentro de cargarPagina o sus inicializadores
+          })
+          .withFailureHandler(err => {
+            console.error("Error al cargar config:", err);
+            alert("Error de conexión con el servidor. Intente recargar.");
+            toggleLoading(false);
+          })
+          .getAppConfig();
+      };
+
+      function cargarPagina(pageId) {
+        console.log("Solicitud cargarPagina:", pageId);
+        toggleLoading(true);
+
+        // Ocultar todas las páginas
+        document.querySelectorAll('.page-container').forEach(el => {
+          if (el) el.style.display = 'none';
+        });
+        document.querySelectorAll('#menu .nav-link').forEach(el => {
+          if (el && el.classList) el.classList.remove('active-link');
+        });
+
+        // Normalización y mapeo de IDs de página
+        const pageMapping = {
+          'Dashboard': 'Dashboard',
+          'NuevaVenta': 'NuevaVenta',
+          'Nueva venta': 'NuevaVenta',
+          'RegistrarPago': 'RegistrarPago',
+          'Registrar Pago': 'RegistrarPago',
+          'Registro de pago': 'RegistrarPago',
+          'Estadisticas': 'Estadisticas',
+          'Reporte': 'Estadisticas',
+          'Reportes': 'Estadisticas'
+        };
+
+        const technicalId = pageMapping[pageId] || pageId;
+        console.log("ID técnico detectado:", technicalId);
+
+        // Mostrar la seleccionada
+        const targetPage = document.getElementById('page-' + technicalId);
+        if (targetPage) {
+          targetPage.style.display = 'block';
+
+          // Actualizar link de navegación
+          const link = document.getElementById('link-' + technicalId);
+          if (link && link.classList) link.classList.add('active-link');
+
+          // Inicializadores específicos
+          try {
+            if (technicalId === 'Dashboard') {
+              if (typeof inicializarDashboard === 'function') {
+                inicializarDashboard();
+              } else {
+                console.warn("inicializarDashboard no definida");
+                toggleLoading(false);
+              }
+            } else if (technicalId === 'Estadisticas') {
+              if (typeof inicializarReportes === 'function') {
+                inicializarReportes();
+              } else {
+                console.warn("inicializarReportes no definida");
+                toggleLoading(false);
+              }
+            } else if (technicalId === 'RegistrarPago') {
+              if (typeof inicializarRegistrarPago === 'function') {
+                inicializarRegistrarPago();
+              } else {
+                console.warn("inicializarRegistrarPago no definida");
+                toggleLoading(false);
+              }
+            } else {
+              // Páginas estáticas o sin init
+              console.log("Página sin inicializador dinámico:", technicalId);
+              setTimeout(() => toggleLoading(false), 200);
+            }
+          } catch (e) {
+            console.error("Error ejecutando inicializador de " + technicalId, e);
+            toggleLoading(false);
+          }
+        } else {
+          console.error("No existe el contenedor para la página:", technicalId);
+          toggleLoading(false);
+          // Prevenir bucle infinito si Dashboard no existe
+          if (technicalId !== 'Dashboard') {
+            cargarPagina('Dashboard');
+          }
+        }
+      }
+
+      function inicializarSelectsAgentes() {
+        if (!currentAppConfig) return;
+        const selects = document.querySelectorAll('select[name="agente"], #filtro-agente');
+        selects.forEach(select => {
+          const isFiltro = select.id === 'filtro-agente';
+          let html = isFiltro ? '<option value="Global">Vista Global</option>' : '<option value="">Seleccione...</option>';
+          currentAppConfig.AGENTES_PERMITIDOS.forEach(agente => {
+            html += `<option value="${agente}">${agente}</option>`;
+          });
+          select.innerHTML = html;
+        });
+      }
+
+      function formatCurrency(amount) {
+        return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount || 0);
+      }
+
+      function toggleLoading(show) {
+        document.getElementById('loading-overlay').style.display = show ? 'block' : 'none';
+      }
+
+      function imprimirRecibo(datos) {
+        console.log("Preparando impresión...", datos);
+        if (currentAppConfig.LOGO_URL) document.getElementById('receipt-logo').src = currentAppConfig.LOGO_URL;
+        document.getElementById('receipt-folio').innerText = datos.folio;
+        document.getElementById('receipt-cliente').innerText = datos.cliente;
+        document.getElementById('receipt-correo').innerText = datos.correo || "";
+        document.getElementById('receipt-fecha').innerText = new Date(datos.fecha).toLocaleString();
+        document.getElementById('receipt-hotel').innerText = datos.hotel || "Servicios FriendTravel";
+        document.getElementById('receipt-tipo').innerText = datos.tipo || "Pago";
+        document.getElementById('receipt-monto').innerText = formatCurrency(datos.monto || datos.anticipo);
+        document.getElementById('receipt-total').innerText = formatCurrency(datos.total);
+        document.getElementById('receipt-saldo').innerText = formatCurrency(datos.saldo);
+
+        // Mostrar, imprimir y ocultar
+        const receipt = document.getElementById('printable-receipt');
+        receipt.style.display = 'block';
+        window.print();
+        receipt.style.display = 'none';
+      }
+    </script>
+  </body>
+</html>

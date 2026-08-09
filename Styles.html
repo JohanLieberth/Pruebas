@@ -1,0 +1,111 @@
+<style>
+  :root {
+    --navy: #1a3a5c;
+    --orange: #f4a261;
+    --light-gray: #f8f9fa;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--light-gray);
+    color: #333;
+  }
+
+  .bg-navy {
+    background-color: var(--navy) !important;
+  }
+
+  .text-orange {
+    color: var(--orange) !important;
+  }
+
+  .active-link {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left: 4px solid var(--orange);
+    border-radius: 0 !important;
+  }
+
+  .card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
+  }
+
+  .card:hover {
+    transform: translateY(-5px);
+  }
+
+  .kpi-icon {
+    font-size: 2rem;
+    opacity: 0.3;
+  }
+
+  .table-responsive {
+    border-radius: 12px;
+    background: white;
+    padding: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  }
+
+  .btn-primary {
+    background-color: var(--navy);
+    border-color: var(--navy);
+  }
+
+  .btn-primary:hover {
+    background-color: #122a42;
+  }
+
+  .btn-accent {
+    background-color: var(--orange);
+    color: white;
+  }
+
+  .status-badge {
+    padding: 0.5em 1em;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .badge-pendiente { background-color: #fff3cd; color: #856404; }
+  .badge-pagado { background-color: #d4edda; color: #155724; }
+  .badge-cancelado { background-color: #f8d7da; color: #721c24; }
+
+  /* Custom Sidebar scroll */
+  @media (min-width: 576px) {
+    .h-sm-100 {
+      height: 100%;
+    }
+    .sticky-top {
+      height: 100vh;
+    }
+  }
+
+  /* Estilos para impresión del recibo */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    #printable-receipt, #printable-receipt * {
+      visibility: visible;
+    }
+    #printable-receipt {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      background: white;
+    }
+    .no-print {
+      display: none !important;
+    }
+  }
+
+  #printable-receipt {
+    display: none;
+    font-family: 'Arial', sans-serif;
+    color: #333;
+  }
+</style>
