@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { padding: 20px; }
+    .config-section { margin-bottom: 25px; padding: 15px; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h4>Configuración del Sistema</h4>
+    <hr>
+
+    <div id="loading" class="text-center p-3">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p>Cargando configuración...</p>
+    </div>
+
+    <div id="content" class="d-none">
+    <div class="config-section">
+      <h5>Parámetros de Tiempo (Días Hábiles)</h5>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Estándar - Límite Verde</label>
+          <input type="number" id="estandarVerde" class="form-control" value="3">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Estándar - Límite Amarillo</label>
+          <input type="number" id="estandarAmarillo" class="form-control" value="5">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Secretaría - Límite Verde</label>
+          <input type="number" id="secretariaVerde" class="form-control" value="5">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Secretaría - Límite Amarillo</label>
+          <input type="number" id="secretariaAmarillo" class="form-control" value="9">
+        </div>
+      </div>
+    </div>
+
+    <div class="config-section">
+      <h5>Google Drive</h5>
+      <div class="mb-3">
+        <label class="form-label">ID Carpeta Raíz para Documentos</label>
+        <input type="text" id="folderId" class="form-control" placeholder="ID de la carpeta en Drive">
+      </div>
+    </div>
+
+    <div class="mt-4 mb-5">
+      <button class="btn btn-primary w-100" onclick="guardarConfig()">Guardar Configuración</button>
+    </div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      const userRol = sessionStorage.getItem('userRol');
+      if (userRol === 'Auditor') {
+        // Desactivar entradas de configuración e iniciar deshabilitado
+        const saveBtn = document.querySelector('button.btn-primary');
+        if (saveBtn) saveBtn.style.display = 'none';
+
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(el => el.disabled = true);
+      }
+
+      google.script.run
+        .withSuccessHandler(config => {
+          document.getElementById('estandarVerde').value = config.estandarVerde;
+          document.getElementById('estandarAmarillo').value = config.estandarAmarillo;
+          document.getElementById('secretariaVerde').value = config.secretariaVerde;
+          document.getElementById('secretariaAmarillo').value = config.secretariaAmarillo;
+          document.getElementById('folderId').value = config.folderId;
+          document.getElementById('loading').classList.add('d-none');
+          document.getElementById('content').classList.remove('d-none');
+
+          if (userRol === 'Auditor') {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(el => el.disabled = true);
+          }
+        })
+        .obtenerConfiguracionFull();
+    };
+
+    function guardarConfig() {
+      const config = {
+        estandarVerde: document.getElementById('estandarVerde').value,
+        estandarAmarillo: document.getElementById('estandarAmarillo').value,
+        secretariaVerde: document.getElementById('secretariaVerde').value,
+        secretariaAmarillo: document.getElementById('secretariaAmarillo').value,
+        folderId: document.getElementById('folderId').value
+      };
+
+      google.script.run
+        .withSuccessHandler(() => alert('Configuración guardada exitosamente'))
+        .guardarConfiguracionServer(config);
+    }
+  </script>
+</body>
+</html>

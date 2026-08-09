@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; padding: 20px; }
+    .card { margin-bottom: 20px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .card-header { background-color: #fff; font-weight: bold; border-bottom: 1px solid #eee; color: #333; }
+    .estado-verde { background: #d4edda; border-left: 5px solid #28a745; }
+    .estado-amarillo { background: #fff3cd; border-left: 5px solid #ffc107; }
+    .estado-rojo { background: #f8d7da; border-left: 5px solid #dc3545; }
+    .indicador-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+    .dot-verde { background: #28a745; }
+    .dot-amarillo { background: #ffc107; }
+    .dot-rojo { background: #dc3545; }
+    .dot-gris { background: #ccc; }
+    .nav-tabs .nav-link { color: #666; font-weight: 500; }
+    .nav-tabs .nav-link.active { color: #0d6efd; border-bottom: 3px solid #0d6efd; }
+    .stage-row td { vertical-align: middle; }
+    .hidden { display: none; }
+    .btn-indicators { background: linear-gradient(135deg, #6B2C91 0%, #4B1F66 100%); color: white; border: none; }
+    .btn-indicators:hover { color: #eee; transform: translateY(-2px); }
+    #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div id="loader"><div class="spinner-border text-primary"></div></div>
+  <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center bg-white p-3 mb-4 rounded shadow-sm">
+      <div class="d-flex align-items-center">
+        <h3 id="header_title" class="mb-0 me-3">Registro de Gestión de Contratos</h3>
+        <span id="userWelcome" class="badge bg-secondary"></span>
+      </div>
+      <div>
+        <button id="btnNuevo" class="btn btn-outline-primary me-2" onclick="nuevoRegistro()">+ Nuevo Registro</button>
+        <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
+        <button class="btn btn-indicators me-2" onclick="verDashboard()">📊 Dashboard de Indicadores</button>
+        <button id="btnBitacora" class="btn btn-outline-warning me-2 d-none" onclick="verBitacora()">📜 Bitácora</button>
+        <button id="btnAdminUsuarios" class="btn btn-outline-dark me-2 d-none" onclick="verAdminUsuarios()">👥 Usuarios</button>
+        <button class="btn btn-outline-danger" onclick="logout()">Cerrar Sesión</button>
+      </div>
+    </div>
+
+    <!-- Información General -->
+    <!-- Timeline (Solo visible en modificación) -->
+    <div id="timeline_container" class="card hidden">
+      <div class="card-header">Estatus del Proceso</div>
+      <div class="card-body">
+        <div id="timeline_barras" class="timeline-barras" style="display: flex; height: 30px; border-radius: 5px; overflow: hidden; margin-bottom: 10px; background: #eee;">
+          <!-- Dinámico -->
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">1. Información General</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Número de Contrato</label>
+            <input type="text" id="info_numContrato" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Dependencia Ejecutora</label>
+            <select id="info_dependencia" class="form-select"></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Tipo de Contratación</label>
+            <select id="info_tipoContratacion" class="form-select"></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Procedimiento</label>
+            <select id="info_procedimiento" class="form-select"></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Tipo de Contrato</label>
+            <select id="info_tipoContrato" class="form-select">
+              <option value="Nuevo">Nuevo</option>
+              <option value="Modificatorio">Modificatorio</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Proveedor</label>
+            <input type="text" id="info_proveedor" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Inicio Vigencia</label>
+            <input type="date" id="info_inicioVigencia" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fin Vigencia</label>
+            <input type="date" id="info_finVigencia" class="form-control">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Monto</label>
+            <input type="number" id="info_monto" class="form-control" step="0.01">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Desglose</label>
+            <input type="text" id="info_desglose" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha Aprobación</label>
+            <input type="date" id="info_fechaAprobacion" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha Solicitud</label>
+            <input type="date" id="info_fechaSolicitud" class="form-control">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Objeto</label>
+            <textarea id="info_objeto" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Etapas de Proceso -->
+    <ul class="nav nav-tabs" id="tabsProceso" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabInterna">Etapa Interna</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabExterna">Etapa Externa</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDocumentos">Documentos</button></li>
+    </ul>
+
+    <div class="tab-content card p-3 border-top-0 rounded-bottom">
+      <div class="tab-pane fade show active" id="tabInterna">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th width="20%">Sub-etapa</th>
+              <th width="15%">Estatus</th>
+              <th width="15%">Inicio</th>
+              <th width="15%">Observación / Solv.</th>
+              <th width="15%">Fin</th>
+              <th>Días / Ind.</th>
+            </tr>
+          </thead>
+          <tbody id="bodyInterna"></tbody>
+        </table>
+      </div>
+      <div class="tab-pane fade" id="tabExterna">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th width="20%">Área / Etapa</th>
+              <th width="15%">Estatus</th>
+              <th width="15%">Inicio</th>
+              <th width="15%">Observación / Solv.</th>
+              <th width="15%">Fin</th>
+              <th>Días / Ind.</th>
+            </tr>
+          </thead>
+          <tbody id="bodyExterna"></tbody>
+        </table>
+      </div>
+      <div class="tab-pane fade" id="tabDocumentos">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Expediente (URL)</label>
+            <input type="url" id="doc_expediente" class="form-control" placeholder="https://ejemplo.com/expediente">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Contrato con garantía (URL)</label>
+            <input type="url" id="doc_contrato" class="form-control" placeholder="https://ejemplo.com/contrato">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4">
+      <button id="btnGuardar" class="btn btn-success btn-lg px-5" onclick="guardarRegistro()">GUARDAR REGISTRO</button>
+      <div id="msgReadOnly" class="alert alert-info d-none">
+        Usted está en modo de solo lectura. No puede guardar cambios.
+        <br><small>(Cuenta: <?= Session.getActiveUser().getEmail() ?>)</small>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const WEB_APP_URL = "<?= webAppUrl ?>";
+    let contratoActual = { consecutivo: "", infoGeneral: {}, etapaInterna: {}, etapasExternas: {}, documentos: {} };
+    let lists = {};
+
+    function logout() {
+      sessionStorage.clear();
+      window.top.location.href = buildUrl({ page: 'Login' });
+    }
+
+    window.onload = function() {
+      // Verificar sesión
+      const userEmail = sessionStorage.getItem('userEmail');
+      const userNombre = sessionStorage.getItem('userNombre');
+      const userRol = sessionStorage.getItem('userRol');
+
+      if (!userEmail) {
+        window.top.location.href = buildUrl({ page: 'Login' });
+        return;
+      }
+
+      document.getElementById('userWelcome').innerText = `${userNombre} (${userRol})`;
+
+      if (userRol === 'Administrador') {
+        const btnBitacora = document.getElementById('btnBitacora');
+        if (btnBitacora) btnBitacora.classList.remove('d-none');
+
+        const btnAdminUsuarios = document.getElementById('btnAdminUsuarios');
+        if (btnAdminUsuarios) btnAdminUsuarios.classList.remove('d-none');
+      }
+
+      // Intento de obtener ID de la plantilla GAS o directamente de la URL (más resiliente)
+      let idCarga = "<?= idCarga ?>";
+      if (!idCarga || idCarga === "null") {
+        const urlParams = new URLSearchParams(window.location.search);
+        idCarga = urlParams.get('id') || urlParams.get('consecutivo') || "";
+      }
+
+      console.log("window.onload: idCarga detectado =", idCarga);
+
+      google.script.run
+        .withFailureHandler(err => {
+          console.error("Error al cargar configuraciones:", err);
+          alert("Error al cargar configuraciones iniciales. Intente recargar la página.");
+          document.getElementById('loader').style.display = 'none';
+        })
+        .withSuccessHandler(res => {
+          lists = res;
+          populateDropdowns();
+          renderStages();
+
+          if (idCarga && idCarga !== "") {
+            document.getElementById('header_title').innerText = "Modificación de Registro: " + idCarga;
+            document.getElementById('timeline_container').classList.remove('hidden');
+
+            console.log("Solicitando datos del servidor para ID:", idCarga);
+            google.script.run
+              .withFailureHandler(err => {
+                console.error("Error fatal en obtenerDatosContrato:", err);
+                alert("Error crítico al intentar recuperar la información del contrato.");
+                document.getElementById('loader').style.display = 'none';
+              })
+              .withSuccessHandler(data => {
+                console.log("Respuesta del servidor para obtenerDatosContrato:", data);
+                if (data) {
+                  cargarDatosEnForm(data);
+                  calcIndicatorsBatch();
+                  disableAllInputsForAuditor();
+                } else {
+                  console.warn("Registro no localizado en el servidor para ID:", idCarga);
+                  alert("ATENCIÓN: No se encontró el registro con ID '" + idCarga + "' en la hoja 'CONTRATOS'. Asegúrese de que el ID esté en la columna A.");
+                }
+                document.getElementById('loader').style.display = 'none';
+              }).obtenerDatosContrato(idCarga);
+          } else {
+            document.getElementById('header_title').innerText = "Nuevo Registro de Contrato";
+            document.getElementById('timeline_container').classList.add('hidden');
+            disableAllInputsForAuditor();
+            document.getElementById('loader').style.display = 'none';
+          }
+        }).getDropdownLists();
+    };
+
+    function disableAllInputsForAuditor() {
+      const userRol = sessionStorage.getItem('userRol');
+      if (userRol !== 'Auditor') return;
+
+      // Desactivar todos los inputs, select y textareas
+      const inputs = document.querySelectorAll('input, select, textarea');
+      inputs.forEach(el => {
+        el.disabled = true;
+      });
+
+      // Ocultar botones de Guardar y Nuevo
+      const btnGuardar = document.getElementById('btnGuardar');
+      if (btnGuardar) btnGuardar.style.display = 'none';
+
+      const btnNuevo = document.getElementById('btnNuevo');
+      if (btnNuevo) btnNuevo.style.display = 'none';
+
+      // Mostrar mensaje de solo lectura
+      const msgReadOnly = document.getElementById('msgReadOnly');
+      if (msgReadOnly) {
+        msgReadOnly.classList.remove('d-none');
+        msgReadOnly.innerHTML = `Usted está en modo de solo lectura como Auditor. No puede crear ni guardar cambios.`;
+      }
+    }
+
+    function cargarDatosEnForm(data) {
+      contratoActual = data;
+      const info = data.infoGeneral;
+      document.getElementById('info_numContrato').value = info.numContrato || '';
+      document.getElementById('info_dependencia').value = info.dependencia || '';
+      document.getElementById('info_tipoContratacion').value = info.tipoContratacion || '';
+      document.getElementById('info_procedimiento').value = info.procedimiento || '';
+      document.getElementById('info_tipoContrato').value = info.tipoContrato || 'Nuevo';
+      document.getElementById('info_proveedor').value = info.proveedor || '';
+      document.getElementById('info_inicioVigencia').value = formatDateForInput(info.inicioVigencia);
+      document.getElementById('info_finVigencia').value = formatDateForInput(info.finVigencia);
+      document.getElementById('info_monto').value = info.monto || '';
+      document.getElementById('info_desglose').value = info.desglose || '';
+      document.getElementById('info_fechaAprobacion').value = formatDateForInput(info.fechaAprobacion);
+      document.getElementById('info_fechaSolicitud').value = formatDateForInput(info.fechaSolicitud);
+      document.getElementById('info_objeto').value = info.objeto || '';
+
+      stagesDef.forEach(s => {
+        const stage = s.cat === 'I' ? data.etapaInterna[s.key] : data.etapasExternas[s.key];
+        if (stage) {
+          document.getElementById(`st_${s.key}_est`).value = stage.estatus || 'Pendiente';
+          document.getElementById(`st_${s.key}_ini`).value = formatDateForInput(stage.inicio);
+          document.getElementById(`st_${s.key}_fin`).value = formatDateForInput(stage.fin);
+          document.getElementById(`st_${s.key}_fechaObs`).value = formatDateForInput(stage.fechaObs);
+          document.getElementById(`st_${s.key}_detalleObs`).value = stage.detalleObs || '';
+          document.getElementById(`st_${s.key}_fechaSolv`).value = formatDateForInput(stage.fechaSolv);
+
+          if (stage.tipoObs === "Interna") document.getElementById(`st_${s.key}_tipo_int`).checked = true;
+          if (stage.tipoObs === "Externa") document.getElementById(`st_${s.key}_tipo_ext`).checked = true;
+          document.getElementById(`st_${s.key}_orig_jur`).checked = (stage.origenJuridico === true || stage.origenJuridico === "true");
+          document.getElementById(`st_${s.key}_orig_dep`).checked = (stage.origenDependencia === true || stage.origenDependencia === "true");
+
+          if (s.key === 'anexo') {
+            document.getElementById(`st_${s.key}_vig`).value = formatDateForInput(stage.fechaVigencia);
+            document.getElementById(`st_${s.key}_monto_sin_iva`).value = stage.montoSinIva || "";
+
+            const chkSeExime = document.getElementById(`st_${s.key}_se_exime`);
+            if (chkSeExime) {
+              chkSeExime.checked = (stage.seExime === "SÍ" || stage.seExime === "si" || stage.seExime === "SI" || stage.seExime === true || stage.seExime === "true");
+              toggleExencion();
+            }
+
+            const dateExencion = document.getElementById(`st_${s.key}_fecha_exencion`);
+            if (dateExencion) {
+              dateExencion.value = formatDateForInput(stage.fechaExencion);
+            }
+          }
+
+          handleStatusChange(s.key);
+          toggleObsMetadata(s.key);
+          toggleExternaOptions(s.key);
+          calcInd(s.key, s.sec);
+        }
+      });
+
+      document.getElementById('doc_expediente').value = (data.documentos && data.documentos.expediente) || "";
+      document.getElementById('doc_contrato').value = (data.documentos && data.documentos.contratoFirmado) || "";
+    }
+
+    function formatDateForInput(date) {
+      if (!date) return '';
+      // Si ya es un string ISO (ej. "2023-10-27T00:00:00.000Z"), lo recortamos
+      if (typeof date === 'string' && date.includes('T')) {
+        return date.split('T')[0];
+      }
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+
+      // Ajuste de zona horaria para evitar desfase de un día
+      const userTimezoneOffset = d.getTimezoneOffset() * 60000;
+      const adjustedDate = new Date(d.getTime() + userTimezoneOffset);
+      return adjustedDate.toISOString().split('T')[0];
+    }
+
+    function populateDropdowns() {
+      const fill = (id, arr) => {
+        const el = document.getElementById(id);
+        el.innerHTML = arr.map(i => `<option value="${i}">${i}</option>`).join('');
+      };
+      fill('info_dependencia', lists.dependencias);
+      fill('info_tipoContratacion', lists.tiposContratacion);
+      fill('info_procedimiento', lists.procedimientos);
+    }
+
+    const stagesDef = [
+      { key: 'revisionDoc', label: 'Revisión Documentación', cat: 'I' },
+      { key: 'elaboracion', label: 'Elaboración Contrato', cat: 'I' },
+      { key: 'validacion', label: 'Validación Jurídico', cat: 'I' },
+      { key: 'gobernacion', label: 'Gobernación', cat: 'E' },
+      { key: 'proveedor', label: 'Proveedor', cat: 'E' },
+      { key: 'dependenciaEjecutora', label: 'Dep. Ejecutora', cat: 'E' },
+      { key: 'administracion', label: 'Administración', cat: 'E' },
+      { key: 'secretaria', label: 'Secretaría Municipal', cat: 'E', sec: true },
+      { key: 'alcaldesa', label: 'Alcaldesa', cat: 'E' },
+      { key: 'anexo', label: 'Anexo Cheque/Fianza', cat: 'E' },
+      { key: 'entrega', label: 'Entrega', cat: 'E' }
+    ];
+
+    function renderStages() {
+      const bI = document.getElementById('bodyInterna');
+      const bE = document.getElementById('bodyExterna');
+      bI.innerHTML = ''; bE.innerHTML = '';
+
+      stagesDef.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.className = 'stage-row';
+        tr.innerHTML = `
+          <td><strong>${s.label}</strong></td>
+          <td><select class="form-select form-select-sm" id="st_${s.key}_est" onchange="handleStatusChange('${s.key}')">
+            ${lists.estatus.map(e => `<option value="${e}">${e}</option>`).join('')}
+          </select></td>
+          <td><input type="date" class="form-control form-control-sm" id="st_${s.key}_ini" onchange="calcInd('${s.key}', ${s.sec})"></td>
+          <td>
+            <div id="obs_box_${s.key}" class="hidden mb-1">
+              <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_fechaObs" placeholder="Fecha Obs">
+              <input type="text" class="form-control form-control-sm mb-1" id="st_${s.key}_detalleObs" placeholder="Detalle Obs" oninput="toggleObsMetadata('${s.key}')">
+              <div id="obs_metadata_${s.key}" class="hidden small p-2 border rounded bg-light">
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="tipo_obs_${s.key}" id="st_${s.key}_tipo_int" value="Interna" onchange="toggleExternaOptions('${s.key}')">
+                  <label class="form-check-label">Interna</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="tipo_obs_${s.key}" id="st_${s.key}_tipo_ext" value="Externa" onchange="toggleExternaOptions('${s.key}')">
+                  <label class="form-check-label">Externa</label>
+                </div>
+                <div id="externa_options_${s.key}" class="hidden mt-1 border-top pt-1">
+                   <div class="form-check">
+                     <input class="form-check-input" type="checkbox" id="st_${s.key}_orig_jur">
+                     <label class="form-check-label">Jurídico</label>
+                   </div>
+                   <div class="form-check">
+                     <input class="form-check-input" type="checkbox" id="st_${s.key}_orig_dep">
+                     <label class="form-check-label">Dependencia</label>
+                   </div>
+                </div>
+              </div>
+            </div>
+            <input type="date" class="form-control form-control-sm" id="st_${s.key}_fechaSolv" placeholder="Solv." onchange="handleSolvChange('${s.key}')">
+          </td>
+          <td>
+            <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_fin" disabled onchange="calcInd('${s.key}', ${s.sec})">
+            ${s.key === 'anexo' ? `
+              <div class="mt-1 border-top pt-1">
+                <input type="date" class="form-control form-control-sm mb-1" id="st_${s.key}_vig" placeholder="Fecha Vigencia" title="Fecha de Vigencia">
+                <input type="number" class="form-control form-control-sm mb-1" id="st_${s.key}_monto_sin_iva" placeholder="Monto sin IVA" title="Monto sin IVA" step="0.01">
+
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="st_${s.key}_se_exime" onchange="toggleExencion()">
+                  <label class="form-check-label small" for="st_${s.key}_se_exime">Se exime</label>
+                </div>
+
+                <div id="exencion_box" class="hidden mt-1">
+                  <label class="small text-muted mb-0">Fecha de exención</label>
+                  <input type="date" class="form-control form-control-sm" id="st_${s.key}_fecha_exencion">
+                </div>
+              </div>
+            ` : ''}
+          </td>
+          <td>
+            <span id="st_${s.key}_dias">0d</span>
+            <span id="st_${s.key}_dot" class="indicador-dot dot-gris"></span>
+          </td>
+        `;
+        if (s.cat === 'I') bI.appendChild(tr); else bE.appendChild(tr);
+      });
+    }
+
+    function handleStatusChange(key) {
+      const est = document.getElementById(`st_${key}_est`).value;
+      const obsBox = document.getElementById(`obs_box_${key}`);
+      const finInput = document.getElementById(`st_${key}_fin`);
+
+      if (est === 'Observación') {
+        obsBox.classList.remove('hidden');
+        finInput.disabled = true;
+      } else if (est === 'Completa') {
+        finInput.disabled = false;
+        obsBox.classList.add('hidden');
+      } else {
+        obsBox.classList.add('hidden');
+        finInput.disabled = true;
+      }
+    }
+
+    function handleSolvChange(key) {
+      const solv = document.getElementById(`st_${key}_fechaSolv`).value;
+      const finInput = document.getElementById(`st_${key}_fin`);
+      if (solv) finInput.disabled = false;
+    }
+
+    function toggleObsMetadata(key) {
+      const detail = document.getElementById(`st_${key}_detalleObs`).value;
+      const meta = document.getElementById(`obs_metadata_${key}`);
+      if (detail && detail.trim() !== "") {
+        meta.classList.remove('hidden');
+      } else {
+        meta.classList.add('hidden');
+      }
+    }
+
+    function toggleExternaOptions(key) {
+      const isExt = document.getElementById(`st_${key}_tipo_ext`).checked;
+      const options = document.getElementById(`externa_options_${key}`);
+      if (isExt) {
+        options.classList.remove('hidden');
+      } else {
+        options.classList.add('hidden');
+      }
+    }
+
+    function calcInd(key, isSec) {
+      const ini = document.getElementById(`st_${key}_ini`).value;
+      const fin = document.getElementById(`st_${key}_fin`).value;
+      if (ini && fin) {
+        google.script.run.withSuccessHandler(res => {
+          applyIndicatorUI(res.key, res.dias, res.ind);
+        }).getIndicatorLocal(ini, fin, isSec, key);
+      }
+    }
+
+    function calcIndicatorsBatch() {
+      const batchData = stagesDef.map(s => {
+        return {
+          key: s.key,
+          ini: document.getElementById(`st_${s.key}_ini`).value,
+          fin: document.getElementById(`st_${s.key}_fin`).value,
+          isSec: s.sec || false
+        };
+      }).filter(s => s.ini && s.fin);
+
+      if (batchData.length > 0) {
+        google.script.run.withSuccessHandler(results => {
+          results.forEach(res => {
+            applyIndicatorUI(res.key, res.dias, res.ind);
+          });
+        }).getIndicatorsBatch(batchData);
+      }
+    }
+
+    function applyIndicatorUI(key, dias, ind) {
+      document.getElementById(`st_${key}_dias`).innerText = dias + 'd';
+      const dot = document.getElementById(`st_${key}_dot`);
+      let colorClass = 'dot-gris';
+      if (ind.color === 'VERDE') colorClass = 'dot-verde';
+      else if (ind.color === 'AMARILLO') colorClass = 'dot-amarillo';
+      else if (ind.color === 'ROJO') colorClass = 'dot-rojo';
+
+      dot.className = 'indicador-dot ' + colorClass;
+      actualizarTimeline();
+    }
+
+    function actualizarTimeline() {
+      const timeline = document.getElementById('timeline_barras');
+      if (!timeline) return;
+      timeline.innerHTML = '';
+
+      stagesDef.forEach(s => {
+        const dot = document.getElementById(`st_${s.key}_dot`);
+        let color = '#ccc';
+        if (dot.classList.contains('dot-verde')) color = '#28a745';
+        else if (dot.classList.contains('dot-amarillo')) color = '#ffc107';
+        else if (dot.classList.contains('dot-rojo')) color = '#dc3545';
+
+        const segment = document.createElement('div');
+        segment.style.flex = "1";
+        segment.style.background = color;
+        segment.style.borderRight = "1px solid white";
+        segment.style.display = "flex";
+        segment.style.alignItems = "center";
+        segment.style.justifyContent = "center";
+        segment.style.fontSize = "10px";
+        segment.style.fontWeight = "bold";
+        segment.style.color = (color === '#ffc107' || color === '#ccc') ? '#333' : '#fff';
+        segment.style.padding = "0 4px";
+        segment.style.overflow = "hidden";
+        segment.style.textOverflow = "ellipsis";
+        segment.style.whiteSpace = "nowrap";
+        segment.title = s.label;
+        segment.innerText = s.label;
+        timeline.appendChild(segment);
+      });
+    }
+
+    function buildUrl(params) {
+      const sep = WEB_APP_URL.indexOf('?') !== -1 ? '&' : '?';
+      let query = '';
+      for (let key in params) {
+        query += (query ? '&' : '') + key + '=' + encodeURIComponent(params[key]);
+      }
+      return WEB_APP_URL + sep + query;
+    }
+
+    function verDashboard() {
+      window.top.location.href = buildUrl({ page: 'dashboardKPI' });
+    }
+
+    function verBitacora() {
+      window.top.location.href = buildUrl({ page: 'Bitacora' });
+    }
+
+    function verAdminUsuarios() {
+      window.top.location.href = buildUrl({ page: 'Usuarios_Admin' });
+    }
+
+    function nuevoRegistro() {
+      window.top.location.href = buildUrl({ page: 'panelContrato' });
+    }
+
+    function irAListado() {
+      window.top.location.href = buildUrl({ page: 'listaRegistros' });
+    }
+
+    function toggleExencion() {
+      const chk = document.getElementById('st_anexo_se_exime');
+      const box = document.getElementById('exencion_box');
+      const inputFecha = document.getElementById('st_anexo_fecha_exencion');
+
+      if (chk && chk.checked) {
+        if (box) box.classList.remove('hidden');
+        if (inputFecha) inputFecha.disabled = false;
+      } else {
+        if (box) box.classList.add('hidden');
+        if (inputFecha) {
+          inputFecha.disabled = true;
+          inputFecha.value = "";
+        }
+      }
+    }
+
+    function isValidUrl(string) {
+      try {
+        const url = new URL(string);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function guardarRegistro() {
+      const expUrl = document.getElementById('doc_expediente').value.trim();
+      const contUrl = document.getElementById('doc_contrato').value.trim();
+
+      if (expUrl !== "" && !isValidUrl(expUrl)) {
+        alert("El campo 'Expediente' debe ser una URL válida (ej: https://ejemplo.com).");
+        return;
+      }
+      if (contUrl !== "" && !isValidUrl(contUrl)) {
+        alert("El campo 'Contrato con garantía' debe ser una URL válida (ej: https://ejemplo.com).");
+        return;
+      }
+
+      const data = {
+        consecutivo: contratoActual.consecutivo,
+        infoGeneral: {
+          numContrato: document.getElementById('info_numContrato').value,
+          dependencia: document.getElementById('info_dependencia').value,
+          tipoContratacion: document.getElementById('info_tipoContratacion').value,
+          procedimiento: document.getElementById('info_procedimiento').value,
+          tipoContrato: document.getElementById('info_tipoContrato').value,
+          proveedor: document.getElementById('info_proveedor').value,
+          inicioVigencia: document.getElementById('info_inicioVigencia').value,
+          finVigencia: document.getElementById('info_finVigencia').value,
+          monto: document.getElementById('info_monto').value,
+          desglose: document.getElementById('info_desglose').value,
+          fechaAprobacion: document.getElementById('info_fechaAprobacion').value,
+          fechaSolicitud: document.getElementById('info_fechaSolicitud').value,
+          objeto: document.getElementById('info_objeto').value
+        },
+        etapaInterna: {},
+        etapasExternas: {},
+        documentos: {
+          comite: "",
+          expediente: expUrl,
+          contratoFirmado: contUrl
+        }
+      };
+
+      stagesDef.forEach(s => {
+        const tipoInt = document.getElementById(`st_${s.key}_tipo_int`).checked;
+        const tipoExt = document.getElementById(`st_${s.key}_tipo_ext`).checked;
+
+        const chkSeExime = document.getElementById(`st_${s.key}_se_exime`);
+        const dateExencion = document.getElementById(`st_${s.key}_fecha_exencion`);
+
+        const stageData = {
+          estatus: document.getElementById(`st_${s.key}_est`).value,
+          inicio: document.getElementById(`st_${s.key}_ini`).value,
+          fin: document.getElementById(`st_${s.key}_fin`).value,
+          fechaObs: document.getElementById(`st_${s.key}_fechaObs`).value,
+          detalleObs: document.getElementById(`st_${s.key}_detalleObs`).value,
+          fechaSolv: document.getElementById(`st_${s.key}_fechaSolv`).value,
+          tipoObs: tipoInt ? "Interna" : (tipoExt ? "Externa" : ""),
+          origenJuridico: document.getElementById(`st_${s.key}_orig_jur`).checked,
+          origenDependencia: document.getElementById(`st_${s.key}_orig_dep`).checked,
+          fechaVigencia: s.key === 'anexo' ? document.getElementById(`st_${s.key}_vig`).value : "",
+          montoSinIva: s.key === 'anexo' ? document.getElementById(`st_${s.key}_monto_sin_iva`).value : "",
+          seExime: s.key === 'anexo' ? (chkSeExime && chkSeExime.checked ? "SÍ" : "NO") : "",
+          fechaExencion: s.key === 'anexo' ? (chkSeExime && chkSeExime.checked && dateExencion ? dateExencion.value : "") : ""
+        };
+        if (s.cat === 'I') data.etapaInterna[s.key] = stageData;
+        else data.etapasExternas[s.key] = stageData;
+      });
+
+      const userNombre = sessionStorage.getItem('userNombre');
+      google.script.run.withSuccessHandler(res => {
+        alert(res.message);
+        contratoActual.consecutivo = res.consecutivo;
+      }).guardarProgresoContrato(data, userNombre);
+    }
+  </script>
+</body>
+</html>

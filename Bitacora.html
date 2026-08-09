@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { padding: 20px; background-color: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
+    .table-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .badge-crear { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .badge-editar { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .badge-eliminar { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div id="loader"><div class="spinner-border text-primary"></div></div>
+
+  <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center bg-white p-3 mb-4 rounded shadow-sm">
+      <div class="d-flex align-items-center">
+        <h4 class="mb-0 me-3">Bitácora de Auditoría</h4>
+        <span id="userWelcome" class="badge bg-secondary"></span>
+      </div>
+      <div>
+        <button class="btn btn-outline-secondary me-2" onclick="irAListado()">📋 Ver Listado</button>
+        <button class="btn btn-outline-info me-2" onclick="verDashboard()">📊 Dashboard</button>
+        <button id="btnAdminUsuarios" class="btn btn-outline-dark me-2 d-none" onclick="verAdminUsuarios()">👥 Usuarios</button>
+        <button class="btn btn-outline-danger" onclick="logout()">🚪 Cerrar Sesión</button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5>Historial de Actividades</h5>
+        <button class="btn btn-sm btn-primary" onclick="cargarBitacora()">🔄 Actualizar</button>
+      </div>
+
+      <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+        <table class="table table-hover table-striped">
+          <thead class="table-light sticky-top" style="z-index: 1;">
+            <tr>
+              <th>Fecha/Hora</th>
+              <th>Usuario</th>
+              <th>Acción</th>
+              <th>Módulo</th>
+              <th>Detalle/ID afectado</th>
+            </tr>
+          </thead>
+          <tbody id="bitacoraBody">
+            <tr><td colspan="5" class="text-center">Cargando bitácora...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WEB_APP_URL = "<?= webAppUrl ?>";
+
+    function buildUrl(params) {
+      const sep = WEB_APP_URL.indexOf('?') !== -1 ? '&' : '?';
+      let query = '';
+      for (let key in params) {
+        query += (query ? '&' : '') + key + '=' + encodeURIComponent(params[key]);
+      }
+      return WEB_APP_URL + sep + query;
+    }
+
+    function irAListado() {
+      window.top.location.href = buildUrl({ page: 'listaRegistros' });
+    }
+
+    function verDashboard() {
+      window.top.location.href = buildUrl({ page: 'dashboardKPI' });
+    }
+
+    function verAdminUsuarios() {
+      window.top.location.href = buildUrl({ page: 'Usuarios_Admin' });
+    }
+
+    function logout() {
+      sessionStorage.clear();
+      window.top.location.href = buildUrl({ page: 'Login' });
+    }
+
+    function cargarBitacora() {
+      document.getElementById('loader').style.display = 'flex';
+      const userEmail = sessionStorage.getItem('userEmail');
+
+      google.script.run
+        .withFailureHandler(err => {
+          console.error("Error al obtener registros de bitácora:", err);
+          alert("Error: " + err);
+          document.getElementById('loader').style.display = 'none';
+        })
+        .withSuccessHandler(data => {
+          renderBitacora(data);
+          document.getElementById('loader').style.display = 'none';
+        })
+        .obtenerRegistrosBitacora(userEmail);
+    }
+
+    function renderBitacora(data) {
+      const body = document.getElementById('bitacoraBody');
+      if (!data || data.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center">Sin registros</td></tr>';
+        return;
+      }
+
+      body.innerHTML = data.map(item => {
+        let actionBadge = '';
+        if (item.accion === 'Crear') {
+          actionBadge = `<span class="badge badge-crear">Crear</span>`;
+        } else if (item.accion === 'Editar') {
+          actionBadge = `<span class="badge badge-editar">Editar</span>`;
+        } else if (item.accion === 'Eliminar') {
+          actionBadge = `<span class="badge badge-eliminar">Eliminar</span>`;
+        } else {
+          actionBadge = `<span class="badge bg-secondary">${item.accion}</span>`;
+        }
+
+        // Formatear Fecha si es un objeto Date serializado
+        let displayFecha = item.fechaHora;
+        if (displayFecha && displayFecha.includes('T')) {
+          try {
+            const d = new Date(displayFecha);
+            displayFecha = d.toLocaleString();
+          } catch (_) {}
+        }
+
+        return `
+          <tr>
+            <td><strong>${displayFecha}</strong></td>
+            <td>${item.usuario}</td>
+            <td>${actionBadge}</td>
+            <td>${item.modulo}</td>
+            <td>${item.detalle}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    window.onload = function() {
+      // Verificar sesión
+      const userEmail = sessionStorage.getItem('userEmail');
+      const userNombre = sessionStorage.getItem('userNombre');
+      const userRol = sessionStorage.getItem('userRol');
+
+      if (!userEmail) {
+        window.top.location.href = buildUrl({ page: 'Login' });
+        return;
+      }
+
+      if (userRol !== 'Administrador') {
+        alert("Acceso denegado: Se requiere rol de Administrador para acceder a la Bitácora.");
+        window.top.location.href = buildUrl({ page: 'listaRegistros' });
+        return;
+      }
+
+      document.getElementById('userWelcome').innerText = `${userNombre} (${userRol})`;
+
+      if (userRol === 'Administrador') {
+        const btnAdminUsuarios = document.getElementById('btnAdminUsuarios');
+        if (btnAdminUsuarios) btnAdminUsuarios.classList.remove('d-none');
+      }
+
+      cargarBitacora();
+    };
+  </script>
+</body>
+</html>
