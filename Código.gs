@@ -363,10 +363,18 @@ function procesarRegistro(data) {
       var emailRecipient = data.empresa.correo;
       var emailSubject = "Registro exitoso";
 
-      // Reemplazar la referencia del logo por el enlace directo de Google Drive proporcionado.
-      // Para asegurar la correcta visibilidad en los clientes de correo (Gmail, Outlook, etc.),
-      // utilizamos la URL de visualización directa de la imagen (uc?export=view).
-      var logoUrl = "https://drive.google.com/uc?export=view&id=18copYW5Cg9qDfBMm4EHOnyxSBTdJ3KmV";
+      // Obtener el logo según las preferencias: Opción A (Config_General 'link_logo') con fallback a Opción B
+      var rawLogoUrl = getConfigValue("link_logo");
+      if (!rawLogoUrl || String(rawLogoUrl).trim() === "") {
+        rawLogoUrl = "https://drive.google.com/file/d/1iuDRJMp2PLPF1Vji-6qqI-EDWsZjbcWx/view?usp=drive_link";
+      }
+
+      // Convertir enlaces de Google Drive a formato directo para asegurar compatibilidad en Gmail/Outlook
+      var logoUrl = rawLogoUrl;
+      var driveMatch = String(rawLogoUrl).match(/\/file\/d\/([^\/]+)/) || String(rawLogoUrl).match(/id=([^&]+)/);
+      if (driveMatch && driveMatch[1]) {
+        logoUrl = "https://drive.google.com/uc?export=view&id=" + driveMatch[1];
+      }
 
       // Obtener el nombre de la sucursal registrada (primera sucursal)
       var branchName = "No especificada";
