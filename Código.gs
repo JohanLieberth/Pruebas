@@ -429,11 +429,37 @@ function procesarRegistro(data) {
                      "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático del Sistema de Mujeres Seguras. Por favor no responda directamente a este correo.</p>" +
                      "</div>";
 
-      MailApp.sendEmail({
-        to: emailRecipient,
-        subject: emailSubject,
-        htmlBody: htmlBody
-      });
+      // Validación básica para asegurar que el destinatario y el asunto no estén vacíos
+      if (!emailRecipient || String(emailRecipient).trim() === "") {
+        throw new Error("El destinatario del correo (correo electrónico) está vacío.");
+      }
+      if (!emailSubject || String(emailSubject).trim() === "") {
+        throw new Error("El asunto del correo está vacío.");
+      }
+
+      // Implementación robusta de envío con GmailApp y fallback a MailApp con manejo de excepciones
+      var correoEnviado = false;
+      try {
+        GmailApp.sendEmail(emailRecipient, emailSubject, "", {
+          htmlBody: htmlBody
+        });
+        correoEnviado = true;
+        console.log("Correo enviado exitosamente usando GmailApp.");
+      } catch (e1) {
+        console.warn("Fallo al enviar correo con GmailApp: " + e1.toString() + ". Intentando MailApp...");
+        try {
+          MailApp.sendEmail({
+            to: emailRecipient,
+            subject: emailSubject,
+            htmlBody: htmlBody
+          });
+          correoEnviado = true;
+          console.log("Correo enviado exitosamente usando MailApp.");
+        } catch (e2) {
+          console.error("Fallo definitivo de envío de correo (GmailApp y MailApp): " + e2.toString());
+          throw e2;
+        }
+      }
     } catch (mailError) {
       console.error("Error al enviar el correo de registro exitoso: " + mailError.toString());
     }
