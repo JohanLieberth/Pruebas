@@ -964,3 +964,128 @@ function agregarCursosManual(idSeguimientoBase, idCursoNuevo) {
 }
 
 // Las funciones de administración getRegistrosAdmin y cambiarEstatus han sido ELIMINADAS.
+
+/**
+ * Función de prueba para verificar el envío de correos desde el Editor de Google Apps Script.
+ * Puede seleccionar esta función en el menú desplegable del editor y hacer clic en "Ejecutar".
+ * Reemplace "su_correo@ejemplo.com" con su correo real para recibir la prueba.
+ */
+function probarEnvioCorreo() {
+  var correoDePrueba = Session.getActiveUser().getEmail() || "su_correo@ejemplo.com";
+
+  Logger.log("Iniciando prueba de envío de correo a: " + correoDePrueba);
+
+  // Simulamos los datos del registro de una empresa y curso
+  var dummyData = {
+    empresa: {
+      rfc: "DUMMY1234567",
+      nombreEmpresa: "Empresa de Prueba S.A. de C.V.",
+      telefono: "555-123-4567",
+      correo: correoDePrueba,
+      password: "passwordPrueba123"
+    },
+    sucursales: [
+      {
+        nombre: "Sucursal Norte Centro",
+        direccion: "Av. Paseo de la Reforma 123",
+        coordenadas: "19.4326,-99.1332",
+        telefono: "555-987-6543",
+        responsable: "Juan Pérez",
+        cargo: "Gerente",
+        compromisos: ["Compromiso 1", "Compromiso 2"]
+      }
+    ],
+    compromisos: ["Compromiso General 1"],
+    capacitacionInicial: {
+      idCurso: "1", // El ID del curso a buscar en la hoja de cálculo
+      hora: "10:00 AM",
+      sede: "Oficina Central - Sala de Conferencias A"
+    }
+  };
+
+  try {
+    // 1. Validar destinatario y asunto
+    var emailRecipient = dummyData.empresa.correo;
+    var emailSubject = "Prueba de Registro Exitoso - Mujeres Seguras";
+
+    // 2. Resolver Logo
+    var rawLogoUrl = getConfigValue("link_logo");
+    if (!rawLogoUrl || String(rawLogoUrl).trim() === "") {
+      rawLogoUrl = "https://drive.google.com/file/d/1iuDRJMp2PLPF1Vji-6qqI-EDWsZjbcWx/view?usp=drive_link";
+    }
+    var logoUrl = rawLogoUrl;
+    var driveMatch = String(rawLogoUrl).match(/\/file\/d\/([^\/]+)/) || String(rawLogoUrl).match(/id=([^&]+)/);
+    if (driveMatch && driveMatch[1]) {
+      logoUrl = "https://drive.google.com/uc?export=view&id=" + driveMatch[1];
+    }
+
+    // 3. Resolver datos del curso
+    var courseName = "Módulo de Prueba";
+    var courseDate = Utilities.formatDate(new Date(), "GMT-6", "dd/MM/yyyy");
+    var coursePlace = dummyData.capacitacionInicial.sede;
+
+    // Intentar buscar un curso real de la hoja si existe
+    try {
+      var cursosList = getCursosDisponibles();
+      if (cursosList && cursosList.length > 0) {
+        var selectedCourse = cursosList[0]; // Usar el primero disponible para la prueba
+        courseName = selectedCourse.nombre;
+        courseDate = selectedCourse.fecha;
+        coursePlace = selectedCourse.sede;
+        Logger.log("Se encontró un curso real en 'Cursos_Disponibles' para la prueba: " + courseName);
+      }
+    } catch (eCursos) {
+      Logger.log("Nota: No se pudo leer la lista de cursos reales, usando valores dummy: " + eCursos.toString());
+    }
+
+    // 4. Construir cuerpo HTML
+    var htmlBody = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>" +
+                   "<div style='text-align: center; margin-bottom: 20px;'>" +
+                   "<img src='" + logoUrl + "' alt='Logo Mujeres Seguras' style='max-height: 120px; max-width: 100%; height: auto; object-fit: contain;'>" +
+                   "</div>" +
+                   "<h2 style='color: #DE007B; text-align: center;'>¡Registro Exitoso! (Prueba de Envío)</h2>" +
+                   "<p>Estimado/a,</p>" +
+                   "<p>Le confirmamos que el registro de su organización de prueba <strong>" + dummyData.empresa.nombreEmpresa + "</strong> ha sido procesado correctamente.</p>" +
+                   "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                   "<h3 style='color: #F47C20;'>Detalles de Registro:</h3>" +
+                   "<p><strong>Sucursal Registrada:</strong> " + dummyData.sucursales[0].nombre + "</p>" +
+                   "<p><strong>Curso de Capacitación Inicial:</strong> " + courseName + "</p>" +
+                   "<p><strong>Lugar:</strong> " + coursePlace + "</p>" +
+                   "<p><strong>Fecha:</strong> " + courseDate + "</p>" +
+                   "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                   "<h3 style='color: #F47C20;'>Credenciales de Acceso:</h3>" +
+                   "<p><strong>Usuario / Correo:</strong> " + emailRecipient + "</p>" +
+                   "<p><strong>Contraseña:</strong> " + dummyData.empresa.password + "</p>" +
+                   "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático de prueba del Sistema de Mujeres Seguras.</p>" +
+                   "</div>";
+
+    // 5. Enviar usando la lógica robusta
+    var correoEnviado = false;
+    try {
+      GmailApp.sendEmail(emailRecipient, emailSubject, "", {
+        htmlBody: htmlBody
+      });
+      correoEnviado = true;
+      Logger.log("¡ÉXITO! El correo de prueba se envió correctamente usando GmailApp.");
+    } catch (e1) {
+      Logger.log("Advertencia: Falló GmailApp (" + e1.toString() + "). Intentando con MailApp...");
+      try {
+        MailApp.sendEmail({
+          to: emailRecipient,
+          subject: emailSubject,
+          htmlBody: htmlBody
+        });
+        correoEnviado = true;
+        Logger.log("¡ÉXITO! El correo de prueba se envió correctamente usando MailApp.");
+      } catch (e2) {
+        Logger.log("ERROR CRÍTICO: No se pudo enviar el correo de prueba con ninguno de los servicios: " + e2.toString());
+        throw e2;
+      }
+    }
+
+    return "Prueba finalizada. ¿Enviado con éxito?: " + (correoEnviado ? "SÍ" : "NO");
+  } catch (err) {
+    Logger.log("Error durante la ejecución de la prueba: " + err.toString());
+    return "Error: " + err.toString();
+  }
+}
