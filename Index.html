@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div id="loader">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="header">
+      <img id="app-logo" src="" alt="Logo Mujeres Seguras" class="header-logo" style="display:none;">
+      <h1>Mujeres Seguras</h1>
+      <p>Certificación de Espacios Seguros para Mujeres</p>
+    </div>
+
+    <div class="container" id="main-content">
+      <!-- Módulo de Inicio (Layout de Dos Columnas) -->
+      <div id="welcome-section" class="step-section active">
+        <div class="welcome-grid">
+          <!-- Columna Izquierda: Catálogo de Sucursales Certificadas -->
+          <div class="welcome-column">
+            <h2 style="color: var(--primary-color);">Espacios Certificados</h2>
+            <p>Lugares que ya cuentan con el distintivo <strong>Mujeres Seguras</strong>:</p>
+            <div id="public-catalog" class="catalog-list">
+              <p style="color: #666; font-style: italic;">Cargando catálogo...</p>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Acciones -->
+          <div class="welcome-column action-panel">
+            <h2 style="color: var(--secondary-color);">Panel de Acciones</h2>
+
+            <!-- Sección de Video (Carrusel) -->
+            <div id="video-container" style="display:none; margin-bottom: 25px;">
+              <div class="video-carousel">
+                <div class="video-wrapper">
+                  <iframe id="youtube-video" width="100%" height="200" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                <div id="carousel-controls" class="carousel-controls" style="display: none;">
+                  <button type="button" class="carousel-btn" onclick="prevVideo()" aria-label="Video anterior">&lt;</button>
+                  <span id="carousel-indicator" class="carousel-indicator">1 / 1</span>
+                  <button type="button" class="carousel-btn" onclick="nextVideo()" aria-label="Siguiente video">&gt;</button>
+                </div>
+              </div>
+            </div>
+
+            <p>Inicia o continúa el proceso de certificación para tu empresa.</p>
+            <div class="action-buttons">
+              <button class="btn btn-primary btn-large" onclick="showWizard()">
+                <div class="btn-icon">📝</div>
+                <span>Nuevo Registro</span>
+              </button>
+              <button class="btn btn-secondary btn-large" onclick="showLogin()">
+                <div class="btn-icon">📁</div>
+                <span>Continuar Registro / Plan de Trabajo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Login por RFC -->
+      <div id="login-section" class="step-section">
+        <h2>Acceso para Empresas Registradas</h2>
+        <div class="form-group">
+          <label>Ingrese su RFC:</label>
+          <input type="text" id="login-rfc" placeholder="RFC de 12 o 13 caracteres" maxlength="13">
+        </div>
+        <div class="button-group">
+          <button class="btn btn-outline" onclick="showWelcome()">Volver</button>
+          <button class="btn btn-primary" onclick="accederPorRFC()">Acceder</button>
+        </div>
+      </div>
+
+      <!-- Wizard de Registro -->
+      <div id="wizard-section" class="step-section">
+        <div class="progress-container">
+          <div class="progress-step active" id="p-step-1">1</div>
+          <div class="progress-step" id="p-step-2">2</div>
+          <div class="progress-step" id="p-step-3">3</div>
+          <div class="progress-step" id="p-step-4">4</div>
+          <div class="progress-step" id="p-step-5">5</div>
+        </div>
+
+        <form id="registroForm">
+          <!-- PASO 1: DATOS FISCALES -->
+          <div id="step-1" class="step-content active">
+            <h2>Paso 1: Datos Fiscales de la Empresa</h2>
+            <div class="form-group">
+              <label>RFC:</label>
+              <input type="text" name="rfc" id="reg-rfc" required placeholder="12 o 13 caracteres">
+            </div>
+            <div class="form-group">
+              <label>Nombre de la Empresa Principal:</label>
+              <input type="text" name="nombreEmpresa" required>
+            </div>
+            <div class="form-group">
+              <label>Teléfono de contacto:</label>
+              <input type="tel" name="telefono" required>
+            </div>
+            <div class="form-group">
+              <label>Correo electrónico:</label>
+              <input type="email" name="correo" required>
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="showWelcome()">Cancelar</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(1)">Continuar a Sucursales</button>
+            </div>
+          </div>
+
+          <!-- PASO 2: SUCURSALES -->
+          <div id="step-2" class="step-content" style="display:none;">
+            <h2>Paso 2: Registro de Sucursales</h2>
+            <div id="sucursales-container">
+              <!-- Las sucursales se agregarán aquí dinámicamente -->
+            </div>
+            <button type="button" class="btn btn-outline" onclick="addBranch()" style="margin-bottom: 20px;">+ Agregar otra sucursal</button>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(2)">Atrás</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(2)">Continuar a Compromisos</button>
+            </div>
+          </div>
+
+          <!-- PASO 3: COMPROMISOS -->
+          <div id="step-3" class="step-content" style="display:none;">
+            <h2>Paso 3: Compromisos Generales</h2>
+            <p>Al registrarse, la empresa se compromete a:</p>
+            <div class="checkbox-group">
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-1" class="compromiso">
+                <label for="comp-1">Permitir acceso temporal a mujeres en situación de riesgo</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-2" class="compromiso">
+                <label for="comp-2">Habilitar espacio privado para su resguardo</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-3" class="compromiso">
+                <label for="comp-3">Autorizar uso del teléfono para llamadas de emergencia</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-4" class="compromiso">
+                <label for="comp-4">Permitir uso de internet para contactar autoridades</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-5" class="compromiso">
+                <label for="comp-5">Colocar visiblemente el distintivo "Mujeres Seguras"</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="comp-6" class="compromiso">
+                <label for="comp-6">Actividades para la autonomía y empoderamiento de las Mujeres</label>
+              </div>
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(3)">Atrás</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep(3)">Continuar a Capacitación</button>
+            </div>
+          </div>
+
+          <!-- PASO 4: SELECCIÓN DE CURSO (CALENDARIO) -->
+          <div id="step-4" class="step-content" style="display:none;">
+            <h2>Paso 4: Calendario de Capacitaciones</h2>
+            <p>Seleccione la fecha y sede de su primera capacitación obligatoria:</p>
+            <div id="calendar-view" class="calendar-container">
+              <!-- Se llena con JS -->
+            </div>
+            <input type="hidden" id="selected-course-id">
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(4)">Atrás</button>
+              <button type="button" class="btn btn-primary" id="btn-next-step-4" onclick="nextStep(4)">Continuar a Confirmación</button>
+            </div>
+          </div>
+
+          <!-- PASO 5: CONFIRMACIÓN FINAL -->
+          <div id="step-5" class="step-content" style="display:none;">
+            <h2>Paso 5: Confirmación y Finalización</h2>
+            <div id="resumen-registro" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <!-- Se llena con JS -->
+            </div>
+            <div class="button-group">
+              <button type="button" class="btn btn-outline" onclick="prevStep(5)">Atrás</button>
+              <button type="button" class="btn btn-secondary" onclick="submitRegistro()">Finalizar Registro</button>
+            </div>
+          </div>
+
+          <!-- ÉXITO / COMPROBANTE FINAL -->
+          <div id="step-6" class="step-content" style="display:none;">
+            <div class="success-card">
+              <h2 style="color: green;">¡Registro e Inscripción Completados!</h2>
+              <p>Guarde su folio y comprobante de capacitación:</p>
+              <div class="folio-box" id="success-folio"></div>
+
+              <div id="comprobante-inscripcion" style="border: 2px solid #6B2C91; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; background: #fff;">
+                <!-- Se llena con JS -->
+              </div>
+
+              <div class="button-group">
+                <button type="button" class="btn btn-primary" onclick="window.print()">Descargar Comprobante</button>
+                <button type="button" class="btn btn-outline" onclick="resetApp()">Finalizar y Volver al Inicio</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Dashboard de Usuario Post-Registro -->
+      <div id="user-dashboard" class="step-section">
+        <h2 id="dash-empresa">Empresa</h2>
+        <div id="dash-info" style="margin-bottom: 20px; background: #fefefe; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+           <p><strong>Folio:</strong> <span id="dash-folio"></span></p>
+        </div>
+
+        <div id="training-progress-section" style="margin-bottom: 30px; background: #f0ebf5; padding: 20px; border-radius: 8px;">
+          <h3>Seguimiento de Capacitación</h3>
+          <div class="table-container">
+            <table style="background: white;">
+              <thead>
+                <tr>
+                  <th>ID_Seg</th>
+                  <th>Sucursal</th>
+                  <th>Nombre del curso</th>
+                  <th>Fecha</th>
+                  <th>Hora</th>
+                  <th>Sede</th>
+                  <th>Estatus</th>
+                </tr>
+              </thead>
+              <tbody id="lista-capacitacion"></tbody>
+            </table>
+          </div>
+          <div id="comprobante-termino-container" style="display: none; margin-top: 20px; text-align: center;">
+             <button class="btn btn-secondary" onclick="descargarTermino()">Descargar Comprobante de Término</button>
+          </div>
+        </div>
+
+        <div id="plan-trabajo-history" style="margin-bottom: 30px;">
+          <h3>Historial de Planes de Trabajo</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sucursal</th>
+                  <th>Tipo de Archivo</th>
+                  <th>Estatus de Plan</th>
+                  <th>Fecha (Últ. Act.)</th>
+                  <th>Cuadro de Observaciones</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="lista-planes">
+                <!-- Se llena con JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="nueva-sucursal-section" style="border-top: 2px solid #eee; padding-top: 20px; margin-bottom: 20px;">
+          <h3>Gestión de Sucursales</h3>
+          <button class="btn btn-primary" onclick="toggleNuevaSucursal()">Registrar Nueva Sucursal</button>
+          <div id="nueva-sucursal-form" style="display: none; margin-top: 20px; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+             <!-- Se llena dinámicamente con JS -->
+          </div>
+        </div>
+
+        <div id="plan-trabajo-section" style="border-top: 2px solid #eee; padding-top: 20px;">
+          <h3>Subir Nuevo Plan de Trabajo</h3>
+          <div class="form-group">
+            <label>Seleccionar Sucursal:</label>
+            <select id="plan-id-ubicacion" required>
+              <option value="">Cargando sucursales...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Descripción detallada del plan:</label>
+            <textarea id="plan-detalle" rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Adjuntar archivo (PDF, DOC, Imágenes):</label>
+            <input type="file" id="plan-archivo" accept=".pdf,.doc,.docx,image/*">
+          </div>
+          <button class="btn btn-secondary" onclick="enviarPlan()">Enviar Plan de Trabajo</button>
+        </div>
+
+        <div class="button-group" style="margin-top: 40px;">
+          <button class="btn btn-outline" onclick="resetApp()">Cerrar Sesión / Volver al Inicio</button>
+        </div>
+      </div>
+
+    </div>
+
+    <?!= include('JavaScript'); ?>
+  </body>
+</html>
