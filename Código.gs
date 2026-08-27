@@ -68,7 +68,7 @@ function setupDatabase() {
     "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
     "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
-    "Config_Espacios": ["Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps", "Estatus"],
+    "Config_Espacios": ["Nombre Comercial", "Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps", "Estatus"],
     "Config_General": ["Clave", "Valor"],
     "Usuarios": ["Correo", "PasswordHash", "RFC_Asociado", "EsPasswordTemporal", "Activo"]
   };
@@ -676,18 +676,47 @@ function getSucursalesCertificadas() {
   try {
     var sheet = getSheetSafe("Config_Espacios");
     var data = sheet.getDataRange().getValues();
-    var result = [];
+    if (!data || data.length <= 1) return [];
 
-    // [Nombre de la Empresa, Sucursal, Dirección, Teléfono, URL_Maps, Estatus]
+    var headers = data[0].map(function(h) { return String(h || "").trim().toLowerCase(); });
+
+    var idxComercial = headers.indexOf("nombre comercial");
+    var idxEmpresa = headers.indexOf("nombre de la empresa");
+    if (idxEmpresa === -1) idxEmpresa = headers.indexOf("empresa");
+    var idxSucursal = headers.indexOf("sucursal");
+    var idxDireccion = headers.indexOf("dirección");
+    if (idxDireccion === -1) idxDireccion = headers.indexOf("direccion");
+    var idxTelefono = headers.indexOf("teléfono");
+    if (idxTelefono === -1) idxTelefono = headers.indexOf("telefono");
+    var idxMaps = headers.indexOf("url_maps");
+    if (idxMaps === -1) idxMaps = headers.indexOf("url maps");
+    var idxEstatus = headers.indexOf("estatus");
+
+    // Fallbacks si las cabeceras no coinciden exactamente
+    if (idxSucursal === -1) {
+      if (idxComercial !== -1) {
+        idxEmpresa = 1; idxSucursal = 2; idxDireccion = 3; idxTelefono = 4; idxMaps = 5; idxEstatus = 6;
+      } else {
+        idxEmpresa = 0; idxSucursal = 1; idxDireccion = 2; idxTelefono = 3; idxMaps = 4; idxEstatus = 5;
+      }
+    }
+
+    var result = [];
     for (var i = 1; i < data.length; i++) {
-      if (data[i][1]) { // Si tiene nombre de sucursal
+      var row = data[i];
+      var nombreSuc = (idxSucursal !== -1 && row[idxSucursal]) ? String(row[idxSucursal]).trim() : "";
+      var nombreEmp = (idxEmpresa !== -1 && row[idxEmpresa]) ? String(row[idxEmpresa]).trim() : "";
+      var nombreCom = (idxComercial !== -1 && row[idxComercial]) ? String(row[idxComercial]).trim() : "";
+
+      if (nombreSuc || nombreCom || nombreEmp) {
         result.push({
-          empresa: data[i][0],
-          nombre: data[i][1],
-          direccion: data[i][2],
-          telefono: data[i][3],
-          urlMaps: data[i][4],
-          estatus: data[i][5] || "Sin insignia"
+          nombreComercial: nombreCom,
+          empresa: nombreEmp,
+          nombre: nombreSuc,
+          direccion: (idxDireccion !== -1 && row[idxDireccion]) ? String(row[idxDireccion]).trim() : "",
+          telefono: (idxTelefono !== -1 && row[idxTelefono]) ? String(row[idxTelefono]).trim() : "",
+          urlMaps: (idxMaps !== -1 && row[idxMaps]) ? String(row[idxMaps]).trim() : "",
+          estatus: (idxEstatus !== -1 && row[idxEstatus]) ? String(row[idxEstatus]).trim() : "Sin insignia"
         });
       }
     }

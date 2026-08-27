@@ -76,14 +76,15 @@
 
             html += '<div class="catalog-card">' +
                       '<div style="display: flex; justify-content: space-between; align-items: flex-start;">' +
-                        '<small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase;">' + (suc.empresa || '') + '</small>' +
+                        '<h4 style="margin: 0; color: var(--primary-color);">' + (suc.nombreComercial || '') + '</h4>' +
                         insigniaHtml +
                       '</div>' +
-                    '<h4 style="margin-top: 5px;">' + suc.nombre + '</h4>' +
-                    '<p>📍 ' + suc.direccion + '</p>' +
-                    (suc.telefono ? '<p>📞 ' + suc.telefono + '</p>' : '') +
-                    (suc.urlMaps ? '<div style="margin-top:10px;"><button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="window.open(\'' + suc.urlMaps + '\', \'_blank\')">Ver en Google Maps</button></div>' : '') +
-                  '</div>';
+                      '<small style="color: var(--secondary-color); font-weight: bold; text-transform: uppercase; display: block; margin-top: 2px;">' + (suc.empresa || '') + '</small>' +
+                      '<p style="margin-top: 5px; font-weight: 600; color: var(--text-color);">' + (suc.nombre || '') + '</p>' +
+                      '<p>📍 ' + (suc.direccion || '') + '</p>' +
+                      (suc.telefono ? '<p>📞 ' + suc.telefono + '</p>' : '') +
+                      (suc.urlMaps ? '<div style="margin-top:10px;"><button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="window.open(\'' + suc.urlMaps + '\', \'_blank\')">Ver en Google Maps</button></div>' : '') +
+                    '</div>';
           }
           catalogDiv.innerHTML = html;
         }).getConfigValue('link_insignia');
