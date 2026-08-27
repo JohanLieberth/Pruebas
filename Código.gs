@@ -8,6 +8,10 @@ function doGet(e) {
   if (page === 'Admin') page = 'Index';
 
   try {
+    // Asegurar que la base de datos y la migración se ejecuten automáticamente
+    setupDatabase();
+    migrarEmpresasExistentes();
+
     return HtmlService.createTemplateFromFile(page)
         .evaluate()
         .setTitle('Mujeres Seguras - Registro de Certificación')
@@ -65,7 +69,8 @@ function setupDatabase() {
     "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
     "Config_Espacios": ["Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps", "Estatus"],
-    "Config_General": ["Clave", "Valor"]
+    "Config_General": ["Clave", "Valor"],
+    "Usuarios": ["Correo", "PasswordHash", "RFC_Asociado", "EsPasswordTemporal", "Activo"]
   };
 
   for (var name in sheets) {
@@ -93,6 +98,166 @@ function validarRFCExistente(rfc) {
     if (data[i][0] === rfc) return true;
   }
   return false;
+}
+
+/**
+ * Valida si un correo electrónico ya existe en la hoja de Usuarios
+ */
+function validarCorreoExistente(correo) {
+  var sheet = getSheetSafe("Usuarios");
+  var data = sheet.getDataRange().getValues();
+  var cClean = String(correo).trim().toLowerCase();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === cClean) return true;
+  }
+  return false;
+}
+
+/**
+ * Genera un hash SHA-256 seguro a partir de una contraseña usando un Salt básico (el correo del usuario)
+ */
+function hashPassword(password, correo) {
+  var salt = String(correo).trim().toLowerCase();
+  var rawInput = password + salt;
+  var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, rawInput, Utilities.Charset.UTF_8);
+  var hexString = "";
+  for (var i = 0; i < rawHash.length; i++) {
+    var hex = (rawHash[i] < 0 ? rawHash[i] + 256 : rawHash[i]).toString(16);
+    if (hex.length === 1) hex = "0" + hex;
+    hexString += hex;
+  }
+  return hexString;
+}
+
+/**
+ * Autentica un usuario con su correo y contraseña
+ */
+function autenticarUsuario(correo, password) {
+  try {
+    var sheet = getSheetSafe("Usuarios");
+    var data = sheet.getDataRange().getValues();
+    var cClean = String(correo).trim().toLowerCase();
+
+    for (var i = 1; i < data.length; i++) {
+      var userCorreo = String(data[i][0]).trim().toLowerCase();
+      if (userCorreo === cClean) {
+        var storedPassword = data[i][1];
+        var rfc = data[i][2];
+        var esTemporal = data[i][3];
+        var activo = data[i][4];
+
+        if (activo !== true && String(activo).toUpperCase() !== "TRUE" && String(activo).toUpperCase() !== "SI" && activo !== 1) {
+          return { success: false, error: "El usuario se encuentra inactivo." };
+        }
+
+        var passwordMatched = false;
+
+        // Comparación directa de la contraseña sin aplicar hash ni transformaciones
+        if (password === String(storedPassword)) {
+          passwordMatched = true;
+        }
+
+        if (passwordMatched) {
+          // Buscar info de la empresa
+          var userObj = buscarPorRFC(rfc);
+          if (!userObj) {
+            return { success: false, error: "Empresa asociada no encontrada." };
+          }
+          return {
+            success: true,
+            rfc: rfc,
+            correo: userCorreo,
+            nombreEmpresa: userObj.nombreEmpresa,
+            folio: userObj.folio,
+            esPasswordTemporal: (esTemporal === true || String(esTemporal).toUpperCase() === "TRUE" || esTemporal === 1 || String(esTemporal).trim() === "SI")
+          };
+        } else {
+          return { success: false, error: "Contraseña incorrecta." };
+        }
+      }
+    }
+    return { success: false, error: "El correo electrónico no está registrado." };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Cambia la contraseña temporal de un usuario por primera vez
+ */
+function cambiarContrasenaTemporal(correo, nuevaPassword) {
+  try {
+    var sheet = getSheetSafe("Usuarios");
+    var data = sheet.getDataRange().getValues();
+    var cClean = String(correo).trim().toLowerCase();
+
+    for (var i = 1; i < data.length; i++) {
+      var userCorreo = String(data[i][0]).trim().toLowerCase();
+      if (userCorreo === cClean) {
+        // Almacenar la nueva contraseña directamente sin aplicar hash ni transformaciones
+        sheet.getRange(i + 1, 2).setValue(nuevaPassword); // Update Password column directly
+        sheet.getRange(i + 1, 4).setValue("FALSE"); // EsPasswordTemporal = false
+        return { success: true };
+      }
+    }
+    return { success: false, error: "Usuario no encontrado." };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Realiza la migración de empresas existentes a la hoja Usuarios,
+ * asignándoles el correo registrado en la empresa y un password temporal (el RFC).
+ */
+function migrarEmpresasExistentes() {
+  try {
+    var sheetEmp = getSheetSafe("Empresas");
+    var empData = sheetEmp.getDataRange().getValues();
+
+    var sheetUser = getSheetSafe("Usuarios");
+    var userRange = sheetUser.getDataRange();
+    var userData = userRange.getValues();
+
+    var registeredRFCs = {};
+    for (var i = 1; i < userData.length; i++) {
+      var rfc = String(userData[i][2]).trim().toUpperCase();
+      if (rfc) {
+        registeredRFCs[rfc] = true;
+      }
+    }
+
+    var migratedCount = 0;
+    for (var j = 1; j < empData.length; j++) {
+      var rfc = String(empData[j][0]).trim().toUpperCase();
+      var correo = String(empData[j][3]).trim();
+
+      if (rfc && correo && !registeredRFCs[rfc]) {
+        // Si el correo ya está en uso por otro usuario, usamos un sufijo o lo omitimos para evitar colisiones
+        var correoFinal = correo;
+        if (validarCorreoExistente(correoFinal)) {
+          correoFinal = rfc.toLowerCase() + "@mujeresseguras.tmp";
+        }
+
+        // Generar password temporal que es el mismo RFC (en minúsculas por simplicidad)
+        var tempPassword = rfc.toLowerCase();
+
+        sheetUser.appendRow([
+          correoFinal,
+          tempPassword,
+          rfc,
+          "TRUE", // EsPasswordTemporal
+          "TRUE"  // Activo
+        ]);
+        migratedCount++;
+      }
+    }
+    if (migratedCount > 0) {
+      console.log("Migración completada. Registros migrados: " + migratedCount);
+    }
+  } catch (e) {
+    console.error("Error durante migración: " + e.toString());
+  }
 }
 
 /**
@@ -126,6 +291,10 @@ function procesarRegistro(data) {
       throw new Error("El RFC ya se encuentra registrado.");
     }
 
+    if (validarCorreoExistente(data.empresa.correo)) {
+      throw new Error("El correo electrónico ya se encuentra registrado.");
+    }
+
     var folio = generarFolio();
     var fecha = new Date();
 
@@ -139,6 +308,17 @@ function procesarRegistro(data) {
       fecha,
       "Pendiente",
       JSON.stringify(data.compromisos)
+    ]);
+
+    // Crear Usuario de acceso
+    var sheetUser = getSheetSafe("Usuarios");
+    // Almacenar esa contraseña exactamente como la ingresó el usuario
+    sheetUser.appendRow([
+      data.empresa.correo,
+      data.empresa.password,
+      data.empresa.rfc,
+      "FALSE", // EsPasswordTemporal = false (lo asignó el usuario)
+      "TRUE"   // Activo
     ]);
 
     var firstSucursalId = "";
@@ -177,6 +357,112 @@ function procesarRegistro(data) {
     }
 
     var qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(folio) + "&size=200";
+
+    // Requerimiento: Envío de correo electrónico tras registro de empresa
+    try {
+      var emailRecipient = data.empresa.correo;
+      var emailSubject = "Registro exitoso";
+
+      // Obtener el logo según las preferencias: Opción A (Config_General 'link_logo') con fallback a Opción B
+      var rawLogoUrl = getConfigValue("link_logo");
+      if (!rawLogoUrl || String(rawLogoUrl).trim() === "") {
+        rawLogoUrl = "https://drive.google.com/file/d/1iuDRJMp2PLPF1Vji-6qqI-EDWsZjbcWx/view?usp=drive_link";
+      }
+
+      // Convertir enlaces de Google Drive a formato directo para asegurar compatibilidad en Gmail/Outlook
+      var logoUrl = rawLogoUrl;
+      var driveMatch = String(rawLogoUrl).match(/\/file\/d\/([^\/]+)/) || String(rawLogoUrl).match(/id=([^&]+)/);
+      if (driveMatch && driveMatch[1]) {
+        logoUrl = "https://drive.google.com/uc?export=view&id=" + driveMatch[1];
+      }
+
+      // Obtener el nombre de la sucursal registrada (primera sucursal)
+      var branchName = "No especificada";
+      if (data.sucursales && data.sucursales.length > 0) {
+        branchName = data.sucursales[0].nombre;
+      }
+
+      // Obtener el nombre, fecha y lugar del curso elegido durante el registro
+      var courseName = "Módulo General";
+      var courseDate = "No especificada";
+      var coursePlace = "No especificado";
+
+      if (data.capacitacionInicial && data.capacitacionInicial.idCurso) {
+        var cursosList = getCursosDisponibles();
+        var selectedCourse = cursosList.find(function(c) {
+          return String(c.id) === String(data.capacitacionInicial.idCurso);
+        });
+        if (selectedCourse) {
+          if (selectedCourse.nombre) {
+            courseName = selectedCourse.nombre;
+          }
+          if (selectedCourse.fecha) {
+            courseDate = selectedCourse.fecha;
+          }
+          if (selectedCourse.sede) {
+            coursePlace = selectedCourse.sede;
+          }
+        } else {
+          if (data.capacitacionInicial.sede) {
+            coursePlace = data.capacitacionInicial.sede;
+          }
+        }
+      }
+
+      var htmlBody = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>" +
+                     "<div style='text-align: center; margin-bottom: 20px;'>" +
+                     "<img src='" + logoUrl + "' alt='Logo Mujeres Seguras' style='max-height: 120px; max-width: 100%; height: auto; object-fit: contain;'>" +
+                     "</div>" +
+                     "<h2 style='color: #DE007B; text-align: center;'>¡Registro Exitoso!</h2>" +
+                     "<p>Estimado/a,</p>" +
+                     "<p>Le confirmamos que el registro de su organización <strong>" + data.empresa.nombreEmpresa + "</strong> ha sido procesado correctamente.</p>" +
+                     "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                     "<h3 style='color: #F47C20;'>Detalles de Registro:</h3>" +
+                     "<p><strong>Sucursal Registrada:</strong> " + branchName + "</p>" +
+                     "<p><strong>Curso de Capacitación Inicial:</strong> " + courseName + "</p>" +
+                     "<p><strong>Lugar:</strong> " + coursePlace + "</p>" +
+                     "<p><strong>Fecha:</strong> " + courseDate + "</p>" +
+                     "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                     "<h3 style='color: #F47C20;'>Credenciales de Acceso:</h3>" +
+                     "<p><strong>Usuario / Correo:</strong> " + emailRecipient + "</p>" +
+                     "<p><strong>Contraseña:</strong> " + data.empresa.password + "</p>" +
+                     "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático del Sistema de Mujeres Seguras. Por favor no responda directamente a este correo.</p>" +
+                     "</div>";
+
+      // Validación básica para asegurar que el destinatario y el asunto no estén vacíos
+      if (!emailRecipient || String(emailRecipient).trim() === "") {
+        throw new Error("El destinatario del correo (correo electrónico) está vacío.");
+      }
+      if (!emailSubject || String(emailSubject).trim() === "") {
+        throw new Error("El asunto del correo está vacío.");
+      }
+
+      // Implementación robusta de envío con GmailApp y fallback a MailApp con manejo de excepciones
+      var correoEnviado = false;
+      try {
+        GmailApp.sendEmail(emailRecipient, emailSubject, "", {
+          htmlBody: htmlBody
+        });
+        correoEnviado = true;
+        console.log("Correo enviado exitosamente usando GmailApp.");
+      } catch (e1) {
+        console.warn("Fallo al enviar correo con GmailApp: " + e1.toString() + ". Intentando MailApp...");
+        try {
+          MailApp.sendEmail({
+            to: emailRecipient,
+            subject: emailSubject,
+            htmlBody: htmlBody
+          });
+          correoEnviado = true;
+          console.log("Correo enviado exitosamente usando MailApp.");
+        } catch (e2) {
+          console.error("Fallo definitivo de envío de correo (GmailApp y MailApp): " + e2.toString());
+          throw e2;
+        }
+      }
+    } catch (mailError) {
+      console.error("Error al enviar el correo de registro exitoso: " + mailError.toString());
+    }
 
     return {
       success: true,
@@ -706,3 +992,128 @@ function agregarCursosManual(idSeguimientoBase, idCursoNuevo) {
 }
 
 // Las funciones de administración getRegistrosAdmin y cambiarEstatus han sido ELIMINADAS.
+
+/**
+ * Función de prueba para verificar el envío de correos desde el Editor de Google Apps Script.
+ * Puede seleccionar esta función en el menú desplegable del editor y hacer clic en "Ejecutar".
+ * Reemplace "su_correo@ejemplo.com" con su correo real para recibir la prueba.
+ */
+function probarEnvioCorreo() {
+  var correoDePrueba = Session.getActiveUser().getEmail() || "su_correo@ejemplo.com";
+
+  Logger.log("Iniciando prueba de envío de correo a: " + correoDePrueba);
+
+  // Simulamos los datos del registro de una empresa y curso
+  var dummyData = {
+    empresa: {
+      rfc: "DUMMY1234567",
+      nombreEmpresa: "Empresa de Prueba S.A. de C.V.",
+      telefono: "555-123-4567",
+      correo: correoDePrueba,
+      password: "passwordPrueba123"
+    },
+    sucursales: [
+      {
+        nombre: "Sucursal Norte Centro",
+        direccion: "Av. Paseo de la Reforma 123",
+        coordenadas: "19.4326,-99.1332",
+        telefono: "555-987-6543",
+        responsable: "Juan Pérez",
+        cargo: "Gerente",
+        compromisos: ["Compromiso 1", "Compromiso 2"]
+      }
+    ],
+    compromisos: ["Compromiso General 1"],
+    capacitacionInicial: {
+      idCurso: "1", // El ID del curso a buscar en la hoja de cálculo
+      hora: "10:00 AM",
+      sede: "Oficina Central - Sala de Conferencias A"
+    }
+  };
+
+  try {
+    // 1. Validar destinatario y asunto
+    var emailRecipient = dummyData.empresa.correo;
+    var emailSubject = "Prueba de Registro Exitoso - Mujeres Seguras";
+
+    // 2. Resolver Logo
+    var rawLogoUrl = getConfigValue("link_logo");
+    if (!rawLogoUrl || String(rawLogoUrl).trim() === "") {
+      rawLogoUrl = "https://drive.google.com/file/d/1iuDRJMp2PLPF1Vji-6qqI-EDWsZjbcWx/view?usp=drive_link";
+    }
+    var logoUrl = rawLogoUrl;
+    var driveMatch = String(rawLogoUrl).match(/\/file\/d\/([^\/]+)/) || String(rawLogoUrl).match(/id=([^&]+)/);
+    if (driveMatch && driveMatch[1]) {
+      logoUrl = "https://drive.google.com/uc?export=view&id=" + driveMatch[1];
+    }
+
+    // 3. Resolver datos del curso
+    var courseName = "Módulo de Prueba";
+    var courseDate = Utilities.formatDate(new Date(), "GMT-6", "dd/MM/yyyy");
+    var coursePlace = dummyData.capacitacionInicial.sede;
+
+    // Intentar buscar un curso real de la hoja si existe
+    try {
+      var cursosList = getCursosDisponibles();
+      if (cursosList && cursosList.length > 0) {
+        var selectedCourse = cursosList[0]; // Usar el primero disponible para la prueba
+        courseName = selectedCourse.nombre;
+        courseDate = selectedCourse.fecha;
+        coursePlace = selectedCourse.sede;
+        Logger.log("Se encontró un curso real en 'Cursos_Disponibles' para la prueba: " + courseName);
+      }
+    } catch (eCursos) {
+      Logger.log("Nota: No se pudo leer la lista de cursos reales, usando valores dummy: " + eCursos.toString());
+    }
+
+    // 4. Construir cuerpo HTML
+    var htmlBody = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>" +
+                   "<div style='text-align: center; margin-bottom: 20px;'>" +
+                   "<img src='" + logoUrl + "' alt='Logo Mujeres Seguras' style='max-height: 120px; max-width: 100%; height: auto; object-fit: contain;'>" +
+                   "</div>" +
+                   "<h2 style='color: #DE007B; text-align: center;'>¡Registro Exitoso! (Prueba de Envío)</h2>" +
+                   "<p>Estimado/a,</p>" +
+                   "<p>Le confirmamos que el registro de su organización de prueba <strong>" + dummyData.empresa.nombreEmpresa + "</strong> ha sido procesado correctamente.</p>" +
+                   "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                   "<h3 style='color: #F47C20;'>Detalles de Registro:</h3>" +
+                   "<p><strong>Sucursal Registrada:</strong> " + dummyData.sucursales[0].nombre + "</p>" +
+                   "<p><strong>Curso de Capacitación Inicial:</strong> " + courseName + "</p>" +
+                   "<p><strong>Lugar:</strong> " + coursePlace + "</p>" +
+                   "<p><strong>Fecha:</strong> " + courseDate + "</p>" +
+                   "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
+                   "<h3 style='color: #F47C20;'>Credenciales de Acceso:</h3>" +
+                   "<p><strong>Usuario / Correo:</strong> " + emailRecipient + "</p>" +
+                   "<p><strong>Contraseña:</strong> " + dummyData.empresa.password + "</p>" +
+                   "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático de prueba del Sistema de Mujeres Seguras.</p>" +
+                   "</div>";
+
+    // 5. Enviar usando la lógica robusta
+    var correoEnviado = false;
+    try {
+      GmailApp.sendEmail(emailRecipient, emailSubject, "", {
+        htmlBody: htmlBody
+      });
+      correoEnviado = true;
+      Logger.log("¡ÉXITO! El correo de prueba se envió correctamente usando GmailApp.");
+    } catch (e1) {
+      Logger.log("Advertencia: Falló GmailApp (" + e1.toString() + "). Intentando con MailApp...");
+      try {
+        MailApp.sendEmail({
+          to: emailRecipient,
+          subject: emailSubject,
+          htmlBody: htmlBody
+        });
+        correoEnviado = true;
+        Logger.log("¡ÉXITO! El correo de prueba se envió correctamente usando MailApp.");
+      } catch (e2) {
+        Logger.log("ERROR CRÍTICO: No se pudo enviar el correo de prueba con ninguno de los servicios: " + e2.toString());
+        throw e2;
+      }
+    }
+
+    return "Prueba finalizada. ¿Enviado con éxito?: " + (correoEnviado ? "SÍ" : "NO");
+  } catch (err) {
+    Logger.log("Error durante la ejecución de la prueba: " + err.toString());
+    return "Error: " + err.toString();
+  }
+}

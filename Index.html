@@ -61,16 +61,38 @@
         </div>
       </div>
 
-      <!-- Login por RFC -->
+      <!-- Login por Correo y Contraseña -->
       <div id="login-section" class="step-section">
         <h2>Acceso para Empresas Registradas</h2>
         <div class="form-group">
-          <label>Ingrese su RFC:</label>
-          <input type="text" id="login-rfc" placeholder="RFC de 12 o 13 caracteres" maxlength="13">
+          <label>Correo electrónico:</label>
+          <input type="email" id="login-correo" placeholder="ejemplo@empresa.com">
+        </div>
+        <div class="form-group">
+          <label>Contraseña:</label>
+          <input type="password" id="login-password" placeholder="Ingrese su contraseña">
         </div>
         <div class="button-group">
           <button class="btn btn-outline" onclick="showWelcome()">Volver</button>
-          <button class="btn btn-primary" onclick="accederPorRFC()">Acceder</button>
+          <button class="btn btn-primary" onclick="accederPorCorreo()">Acceder</button>
+        </div>
+      </div>
+
+      <!-- Pantalla de Cambio de Contraseña Obligatorio -->
+      <div id="change-password-section" class="step-section">
+        <h2>Cambio de Contraseña Requerido</h2>
+        <p>Por motivos de seguridad, debe cambiar su contraseña temporal de primer ingreso.</p>
+        <div class="form-group">
+          <label>Nueva Contraseña:</label>
+          <input type="password" id="change-new-password" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="form-group">
+          <label>Confirmar Nueva Contraseña:</label>
+          <input type="password" id="change-confirm-password" placeholder="Confirme su contraseña">
+        </div>
+        <div class="button-group">
+          <button class="btn btn-outline" onclick="resetApp()">Cancelar</button>
+          <button class="btn btn-primary" onclick="guardarNuevaContrasena()">Guardar y Continuar</button>
         </div>
       </div>
 
@@ -102,7 +124,15 @@
             </div>
             <div class="form-group">
               <label>Correo electrónico:</label>
-              <input type="email" name="correo" required>
+              <input type="email" name="correo" id="reg-correo" required placeholder="correo@empresa.com">
+            </div>
+            <div class="form-group">
+              <label>Contraseña de acceso:</label>
+              <input type="password" name="password" id="reg-password" required placeholder="Mínimo 6 caracteres">
+            </div>
+            <div class="form-group">
+              <label>Confirmar contraseña:</label>
+              <input type="password" name="passwordConfirm" id="reg-password-confirm" required placeholder="Confirme su contraseña">
             </div>
             <div class="button-group">
               <button type="button" class="btn btn-outline" onclick="showWelcome()">Cancelar</button>
