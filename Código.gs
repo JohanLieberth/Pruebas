@@ -79,7 +79,7 @@ function setupDatabase() {
     if (!sheet) {
       sheet = ss.insertSheet(name);
       sheet.appendRow(sheets[name]);
-      sheet.getRange(1, 1, 1, sheets[name].length).setFontWeight("bold").setBackground("#6B2C91").setFontColor("white");
+      sheet.getRange(1, 1, 1, sheets[name].length).setFontWeight("bold").setBackground("#4A148C").setFontColor("white");
     }
   }
 
@@ -414,17 +414,17 @@ function procesarRegistro(data) {
                      "<div style='text-align: center; margin-bottom: 20px;'>" +
                      "<img src='" + logoUrl + "' alt='Logo Mujeres Seguras' style='max-height: 120px; max-width: 100%; height: auto; object-fit: contain;'>" +
                      "</div>" +
-                     "<h2 style='color: #DE007B; text-align: center;'>¡Registro Exitoso!</h2>" +
+                     "<h2 style='color: #4A148C; text-align: center;'>¡Registro Exitoso!</h2>" +
                      "<p>Estimado/a,</p>" +
                      "<p>Le confirmamos que el registro de su organización <strong>" + data.empresa.nombreEmpresa + "</strong> ha sido procesado correctamente.</p>" +
                      "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
-                     "<h3 style='color: #F47C20;'>Detalles de Registro:</h3>" +
+                     "<h3 style='color: #D81B60;'>Detalles de Registro:</h3>" +
                      "<p><strong>Sucursal Registrada:</strong> " + branchName + "</p>" +
                      "<p><strong>Curso de Capacitación Inicial:</strong> " + courseName + "</p>" +
                      "<p><strong>Lugar:</strong> " + coursePlace + "</p>" +
                      "<p><strong>Fecha:</strong> " + courseDate + "</p>" +
                      "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
-                     "<h3 style='color: #F47C20;'>Credenciales de Acceso:</h3>" +
+                     "<h3 style='color: #D81B60;'>Credenciales de Acceso:</h3>" +
                      "<p><strong>Usuario / Correo:</strong> " + emailRecipient + "</p>" +
                      "<p><strong>Contraseña:</strong> " + data.empresa.password + "</p>" +
                      "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático del Sistema de Mujeres Seguras. Por favor no responda directamente a este correo.</p>" +
@@ -1129,17 +1129,17 @@ function probarEnvioCorreo() {
                    "<div style='text-align: center; margin-bottom: 20px;'>" +
                    "<img src='" + logoUrl + "' alt='Logo Mujeres Seguras' style='max-height: 120px; max-width: 100%; height: auto; object-fit: contain;'>" +
                    "</div>" +
-                   "<h2 style='color: #DE007B; text-align: center;'>¡Registro Exitoso! (Prueba de Envío)</h2>" +
+                   "<h2 style='color: #4A148C; text-align: center;'>¡Registro Exitoso! (Prueba de Envío)</h2>" +
                    "<p>Estimado/a,</p>" +
                    "<p>Le confirmamos que el registro de su organización de prueba <strong>" + dummyData.empresa.nombreEmpresa + "</strong> ha sido procesado correctamente.</p>" +
                    "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
-                   "<h3 style='color: #F47C20;'>Detalles de Registro:</h3>" +
+                   "<h3 style='color: #D81B60;'>Detalles de Registro:</h3>" +
                    "<p><strong>Sucursal Registrada:</strong> " + dummyData.sucursales[0].nombre + "</p>" +
                    "<p><strong>Curso de Capacitación Inicial:</strong> " + courseName + "</p>" +
                    "<p><strong>Lugar:</strong> " + coursePlace + "</p>" +
                    "<p><strong>Fecha:</strong> " + courseDate + "</p>" +
                    "<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>" +
-                   "<h3 style='color: #F47C20;'>Credenciales de Acceso:</h3>" +
+                   "<h3 style='color: #D81B60;'>Credenciales de Acceso:</h3>" +
                    "<p><strong>Usuario / Correo:</strong> " + emailRecipient + "</p>" +
                    "<p><strong>Contraseña:</strong> " + dummyData.empresa.password + "</p>" +
                    "<p style='font-size: 12px; color: #666; margin-top: 30px; text-align: center;'>Este es un mensaje automático de prueba del Sistema de Mujeres Seguras.</p>" +
