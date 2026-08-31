@@ -19,12 +19,23 @@
       <!-- Módulo de Inicio (Layout de Dos Columnas) -->
       <div id="welcome-section" class="step-section active">
         <div class="welcome-grid">
-          <!-- Columna Izquierda: Catálogo de Sucursales Certificadas -->
+          <!-- Columna Izquierda: Acciones e Espacios Certificados -->
           <div class="welcome-column">
-            <h2 style="color: var(--primary-color);">Espacios Certificados</h2>
-            <p>Lugares que ya cuentan con el distintivo <strong>Mujeres Seguras</strong>:</p>
-            <div id="public-catalog" class="catalog-list">
-              <p style="color: #666; font-style: italic;">Cargando catálogo...</p>
+            <!-- Apartado: Acciones -->
+            <div id="acciones-section" style="margin-bottom: 30px;">
+              <h2 style="color: var(--primary-color);">Acciones</h2>
+              <div id="acciones-list" class="acciones-list">
+                <p style="color: #666; font-style: italic;">Cargando acciones...</p>
+              </div>
+            </div>
+
+            <!-- Apartado: Espacios Certificados (Reubicado debajo) -->
+            <div id="espacios-certificados-section">
+              <h2 style="color: var(--primary-color);">Espacios Certificados</h2>
+              <p>Lugares que ya cuentan con el distintivo <strong>Mujeres Seguras</strong>:</p>
+              <div id="public-catalog" class="catalog-list">
+                <p style="color: #666; font-style: italic;">Cargando catálogo...</p>
+              </div>
             </div>
           </div>
 
@@ -319,6 +330,28 @@
       </div>
 
     </div>
+
+    <footer class="app-footer">
+      <div class="footer-container">
+        <div class="footer-column">
+          <h4>Instituto de las Mujeres</h4>
+          <p>Calle 50 por 71 número 550-A,</p>
+          <p>Col. Centro</p>
+          <p>Barrio de San Cristobal, Mérida, México</p>
+        </div>
+        <div class="footer-column">
+          <h4>Línea Mujer</h4>
+          <p>Línea gratuita: 800.455.76.72</p>
+          <p>App móvil: <a href="https://apps.apple.com/mx/app/l%C3%ADnea-mujer/id1293535345" target="_blank" rel="noopener">iOS</a> | <a href="https://play.google.com/store/apps/details?id=com.ayuntamientodemerida.linearosa" target="_blank" rel="noopener">Android</a></p>
+        </div>
+        <div class="footer-column">
+          <h4>Contáctanos</h4>
+          <p>Teléfono: (999) 924.02.96</p>
+          <p>Lunes a viernes de 8:00 a.m. a 6:00 p.m.</p>
+          <p><a href="mailto:mujer@merida.gob.mx">mujer@merida.gob.mx</a></p>
+        </div>
+      </div>
+    </footer>
 
     <?!= include('JavaScript'); ?>
   </body>

@@ -70,7 +70,8 @@ function setupDatabase() {
     "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
     "Config_Espacios": ["Nombre Comercial", "Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps", "Estatus"],
     "Config_General": ["Clave", "Valor"],
-    "Usuarios": ["Correo", "PasswordHash", "RFC_Asociado", "EsPasswordTemporal", "Activo"]
+    "Usuarios": ["Correo", "PasswordHash", "RFC_Asociado", "EsPasswordTemporal", "Activo"],
+    "Acciones": ["Título", "Descripción"]
   };
 
   for (var name in sheets) {
@@ -667,6 +668,34 @@ function guardarPlanTrabajo(data) {
   }
 }
 
+
+/**
+ * Obtiene la lista de acciones desde la pestaña 'Acciones'
+ * Formato: Columna A = Título, Columna B = Descripción
+ */
+function getAcciones() {
+  try {
+    var sheet = getSheetSafe("Acciones");
+    var data = sheet.getDataRange().getValues();
+    if (!data || data.length <= 1) return [];
+
+    var result = [];
+    for (var i = 1; i < data.length; i++) {
+      var titulo = data[i][0] ? String(data[i][0]).trim() : "";
+      var descripcion = data[i][1] ? String(data[i][1]).trim() : "";
+      if (titulo || descripcion) {
+        result.push({
+          titulo: titulo,
+          descripcion: descripcion
+        });
+      }
+    }
+    return result;
+  } catch (e) {
+    console.error("Error en getAcciones: " + e.toString());
+    return [];
+  }
+}
 
 /**
  * Obtiene las sucursales que ya cuentan con certificación aprobada

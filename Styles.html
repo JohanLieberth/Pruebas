@@ -91,6 +91,23 @@
     font-size: 32px;
   }
 
+  /* Acciones Section */
+  .acciones-list {
+    max-height: 350px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+
+  .accion-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-left: 4px solid var(--primary-color);
+    padding: 12px 15px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  }
+
   /* Catalog Cards */
   .catalog-list {
     max-height: 500px;
@@ -478,6 +495,49 @@
   .calendar-item p { margin: 2px 0; font-size: 12px; }
 
 
+  /* Footer */
+  .app-footer {
+    background-color: var(--white);
+    border-top: 3px solid var(--primary-color);
+    padding: 25px 20px;
+    margin-top: 40px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  }
+
+  .footer-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+  }
+
+  .footer-column h4 {
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 16px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 5px;
+  }
+
+  .footer-column p {
+    margin: 4px 0;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.4;
+  }
+
+  .footer-column a {
+    color: var(--primary-color);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .footer-column a:hover {
+    text-decoration: underline;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .welcome-grid {
@@ -499,6 +559,10 @@
     }
     .btn {
       width: 100%;
+    }
+    .footer-container {
+      grid-template-columns: 1fr;
+      gap: 20px;
     }
   }
 

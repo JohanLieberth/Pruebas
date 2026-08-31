@@ -20,6 +20,7 @@
 
   function showWelcome() {
     showSection('welcome-section');
+    cargarAcciones();
     cargarCatalogoPublico();
   }
 
@@ -178,8 +179,36 @@
     mostrarVideoActual();
   }
 
+  function cargarAcciones() {
+    var accionesDiv = document.getElementById('acciones-list');
+    if (!accionesDiv) return;
+
+    google.script.run
+      .withFailureHandler(function(err) {
+        console.error("Error al cargar acciones:", err);
+        accionesDiv.innerHTML = '<p style="color: #d9534f;">Error al cargar las acciones.</p>';
+      })
+      .withSuccessHandler(function(acciones) {
+        if (!acciones || acciones.length === 0) {
+          accionesDiv.innerHTML = '<p style="color: #999;">No hay acciones registradas.</p>';
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < acciones.length; i++) {
+          var item = acciones[i];
+          html += '<div class="accion-card">' +
+                    (item.titulo ? '<h4 style="margin: 0 0 5px 0; color: var(--primary-color); font-size: 15px;">' + item.titulo + '</h4>' : '') +
+                    (item.descripcion ? '<p style="margin: 0; color: #555; font-size: 13px; line-height: 1.4;">' + item.descripcion + '</p>' : '') +
+                  '</div>';
+        }
+        accionesDiv.innerHTML = html;
+      })
+      .getAcciones();
+  }
+
   // Cargar catálogo y configuración al inicio
   window.addEventListener('load', function() {
+    cargarAcciones();
     cargarCatalogoPublico();
     cargarConfiguracionGeneral();
   });
