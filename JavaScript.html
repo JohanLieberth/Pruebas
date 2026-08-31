@@ -119,12 +119,13 @@
 
   function getEmbedUrl(videoUrl) {
     if (!videoUrl) return null;
+    var rawUrl = String(videoUrl).trim();
     var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    var match = String(videoUrl).trim().match(regExp);
+    var match = rawUrl.match(regExp);
     if (match && match[2].length === 11) {
-      return "https://www.youtube.com/embed/" + match[2];
+      return "https://www.youtube.com/embed/" + match[2] + "?autoplay=1&mute=1&enablejsapi=1";
     }
-    return null;
+    return rawUrl;
   }
 
   function procesarVideos(urls) {
@@ -149,10 +150,40 @@
 
   function mostrarVideoActual() {
     if (videoList.length === 0) return;
+    var url = videoList[currentVideoIndex];
     var iframe = document.getElementById('youtube-video');
-    if (iframe) {
-      iframe.src = videoList[currentVideoIndex];
+    var videoEl = document.getElementById('html5-video');
+
+    var isYouTube = url && (url.indexOf('youtube.com') !== -1 || url.indexOf('youtu.be') !== -1);
+
+    if (isYouTube) {
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.style.display = 'none';
+      }
+      if (iframe) {
+        iframe.style.display = 'block';
+        iframe.src = url;
+      }
+    } else {
+      if (iframe) {
+        iframe.style.display = 'none';
+        iframe.src = '';
+      }
+      if (videoEl) {
+        videoEl.style.display = 'block';
+        videoEl.src = url;
+        videoEl.muted = true;
+        videoEl.autoplay = true;
+        var playPromise = videoEl.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(function(error) {
+            console.log("Autoplay con sonido bloqueado o interacción requerida:", error);
+          });
+        }
+      }
     }
+
     var controls = document.getElementById('carousel-controls');
     var indicator = document.getElementById('carousel-indicator');
     if (controls) {
@@ -168,16 +199,30 @@
   }
 
   function prevVideo() {
-    if (videoList.length <= 1) return;
+    if (videoList.length === 0) return;
     currentVideoIndex = (currentVideoIndex - 1 + videoList.length) % videoList.length;
     mostrarVideoActual();
   }
 
   function nextVideo() {
-    if (videoList.length <= 1) return;
+    if (videoList.length === 0) return;
     currentVideoIndex = (currentVideoIndex + 1) % videoList.length;
     mostrarVideoActual();
   }
+
+  window.addEventListener('message', function(event) {
+    try {
+      var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      if (data && (data.event === 'onStateChange' || data.info !== undefined)) {
+        if (data.info === 0) {
+          nextVideo();
+        }
+      }
+    } catch(e) {}
+  });
+
+  window.nextVideo = nextVideo;
+  window.prevVideo = prevVideo;
 
   function cargarAcciones() {
     var accionesDiv = document.getElementById('acciones-list');
