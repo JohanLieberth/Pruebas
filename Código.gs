@@ -8,8 +8,6 @@ function doGet(e) {
   if (page === 'Admin') page = 'Index';
 
   try {
-    // Asegurar que la base de datos y la migración se ejecuten automáticamente
-    setupDatabase();
     migrarEmpresasExistentes();
 
     return HtmlService.createTemplateFromFile(page)
@@ -27,16 +25,11 @@ function include(filename) {
 }
 
 /**
- * Asegura que la hoja exista, si no, la crea con la nueva estructura
+ * Obtiene una hoja directamente por su nombre
  */
 function getSheetSafe(name) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    setupDatabase();
-    sheet = ss.getSheetByName(name);
-  }
-  return sheet;
+  return ss.getSheetByName(name);
 }
 
 /**
@@ -56,38 +49,6 @@ function getNextSeguimientoId() {
 }
 
 
-/**
- * Inicializa las hojas de cálculo necesarias con la estructura solicitada
- */
-function setupDatabase() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheets = {
-    "Empresas": ["RFC", "NombreEmpresa", "Teléfono", "Correo", "Folio", "FechaRegistro", "Estatus", "CompromisosGenerales"],
-    "Sucursales": ["ID", "RFC_Empresa", "NombreSucursal", "Dirección", "Latitud", "Longitud", "Horario", "TeléfonoLocal", "Responsable", "Cargo", "CompromisosSucursal"],
-    "PlanesTrabajo": ["ID", "RFC", "Folio", "FechaEnvio", "PlanDetalle", "Estatus", "Observaciones", "ID_Sucursal", "URL_Archivo", "Tipo_Archivo", "Ultima_Actualizacion"],
-    "Cursos_Disponibles": ["ID_Curso", "Nombre_Curso", "Fecha_Calendario", "Hora_Inicio", "ID_Sede", "Cupo_Máximo"],
-    "Seguimiento": ["ID_Seguimiento", "RFC_Empresa", "ID_Sucursal", "ID_Curso", "Fecha_Accion", "Estatus", "Hora", "Sede"],
-    "UsuariosAppSheet": ["Usuario", "Contraseña", "Rol"],
-    "Config_Espacios": ["Nombre Comercial", "Nombre de la Empresa", "Sucursal", "Dirección", "Teléfono", "URL_Maps", "Estatus"],
-    "Config_General": ["Clave", "Valor"],
-    "Usuarios": ["Correo", "PasswordHash", "RFC_Asociado", "EsPasswordTemporal", "Activo"],
-    "Acciones": ["Título", "Descripción"]
-  };
-
-  for (var name in sheets) {
-    var sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-      sheet.appendRow(sheets[name]);
-      sheet.getRange(1, 1, 1, sheets[name].length).setFontWeight("bold").setBackground("#4A148C").setFontColor("white");
-    }
-  }
-
-
-  // La hoja 'Cursos_Disponibles' se lee directamente de la configuración manual del administrador.
-
-  return "Base de datos configurada correctamente.";
-}
 
 /**
  * Valida si un RFC ya existe
