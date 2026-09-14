@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Administrador — Tarjeta de Mujeres</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --violeta-intenso: #4A148C;
+      --violeta-oscuro: #311B92;
+      --violeta-medio: #7B1FA2;
+      --violeta-claro: #9C27B0;
+      --lila-suave: #CE93D8;
+      --lila-pastel: #F3E5F5;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f6f9;
+      color: #333333;
+    }
+
+    .navbar-admin {
+      background: linear-gradient(135deg, var(--violeta-intenso), var(--violeta-oscuro));
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .login-card {
+      max-width: 420px;
+      margin: 5rem auto;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      border: none;
+      overflow: hidden;
+    }
+
+    .login-header {
+      background: linear-gradient(135deg, var(--violeta-intenso), var(--violeta-medio));
+      color: white;
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+
+    .card-panel {
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+      background: #ffffff;
+      margin-bottom: 2rem;
+    }
+
+    .card-panel-header {
+      background-color: #ffffff;
+      border-bottom: 2px solid var(--lila-pastel);
+      padding: 1.25rem 1.5rem;
+      font-weight: 700;
+      color: var(--violeta-intenso);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-status {
+      font-weight: 600;
+      padding: 0.4em 0.8em;
+      border-radius: 50px;
+    }
+
+    .badge-PENDIENTE { background-color: #fff3cd; color: #856404; }
+    .badge-OBSERVADO { background-color: #ffe8cc; color: #d9480f; }
+    .badge-NO_APLICA { background-color: #f8d7da; color: #721c24; }
+    .badge-APROBADO { background-color: #d4edda; color: #155724; }
+
+    .table-responsive {
+      max-height: 550px;
+      overflow-y: auto;
+    }
+
+    .email-readonly {
+      background-color: #e9ecef;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-admin">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand fw-bold" href="#">
+        <i class="fa-solid fa-user-shield me-2"></i>Panel Administrador — Tarjeta de Mujeres
+      </a>
+      <div id="nav-user-controls" class="ms-auto d-none">
+        <button onclick="cerrarSesion()" class="btn btn-outline-light btn-sm rounded-pill px-3">
+          <i class="fa-solid fa-right-from-bracket me-1"></i>Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- VISTA 1: FORMULARIO DE LOGIN -->
+  <div id="login-container" class="container">
+    <div class="login-card card">
+      <div class="login-header">
+        <i class="fa-solid fa-lock fs-1 mb-2"></i>
+        <h4 class="fw-bold mb-0">Acceso Requerido</h4>
+        <small class="opacity-75">Panel de Administración Municipal</small>
+      </div>
+      <div class="card-body p-4">
+        <div id="login-error" class="alert alert-danger d-none py-2 px-3 small" role="alert"></div>
+        <form onsubmit="realizarLogin(event)">
+          <div class="mb-3">
+            <label for="adminUser" class="form-label fw-semibold">Usuario</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+              <input type="text" id="adminUser" class="form-control" placeholder="Usuario administrador" required>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label for="adminPass" class="form-label fw-semibold">Contraseña</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fa-solid fa-key"></i></span>
+              <input type="password" id="adminPass" class="form-control" placeholder="••••••••" required>
+            </div>
+          </div>
+          <button id="btn-login" type="submit" class="btn w-100 fw-bold text-white py-2" style="background-color: var(--violeta-intenso); border-radius: 8px;">
+            Ingresar al Panel
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- VISTA 2: DASHBOARD PRINCIPAL -->
+  <div id="dashboard-container" class="container-fluid px-4 py-4 d-none">
+
+    <!-- MÓDULO 4: PROGRAMAR PERIODO DE REGISTRO -->
+    <div class="card card-panel">
+      <div class="card-panel-header">
+        <span><i class="fa-solid fa-clock me-2"></i>Programar Periodo de Registro / Control de Acceso</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePeriodo">
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+      </div>
+      <div id="collapsePeriodo" class="collapse show card-body">
+        <form id="periodo-form" onsubmit="guardarPeriodoConfig(event)">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label for="fechaInicio" class="form-label fw-semibold small">Fecha y Hora de Inicio</label>
+              <input type="datetime-local" id="fechaInicio" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label for="fechaFin" class="form-label fw-semibold small">Fecha y Hora de Cierre</label>
+              <input type="datetime-local" id="fechaFin" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label for="modoPeriodo" class="form-label fw-semibold small">Modo de Control</label>
+              <select id="modoPeriodo" class="form-select" onchange="toggleModoManual()">
+                <option value="auto">Automático (por fechas)</option>
+                <option value="manual">Manual (toggle directo)</option>
+              </select>
+            </div>
+            <div class="col-md-3" id="bloqueManualToggle">
+              <label class="form-label fw-semibold small">Estado Manual</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" id="toggleAbiertoManual" style="width: 2.5em; height: 1.25em;">
+                <label class="form-check-label fw-semibold ms-2" for="toggleAbiertoManual" id="labelAbiertoManual">CERRADO</label>
+              </div>
+            </div>
+            <div class="col-12 text-end mt-3">
+              <button type="submit" id="btn-guardar-periodo" class="btn text-white px-4 fw-semibold" style="background-color: var(--violeta-medio);">
+                <i class="fa-solid fa-floppy-disk me-1"></i>Guardar Configuración
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MÓDULO 3.1: TABLA DE REGISTROS -->
+    <div class="card card-panel">
+      <div class="card-panel-header">
+        <span><i class="fa-solid fa-table-list me-2"></i>Solicitudes de Registro</span>
+        <button onclick="cargarRegistrosServidor()" class="btn btn-sm btn-outline-primary rounded-pill">
+          <i class="fa-solid fa-rotate me-1"></i>Actualizar
+        </button>
+      </div>
+      <div class="card-body">
+
+        <!-- Filtros y Buscador -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-3">
+            <label for="filtroEstatus" class="form-label small fw-semibold">Filtrar por Estatus</label>
+            <select id="filtroEstatus" class="form-select form-select-sm" onchange="aplicarFiltrosTabla()">
+              <option value="">-- Todos los estatus --</option>
+              <option value="PENDIENTE">PENDIENTE</option>
+              <option value="OBSERVADO">OBSERVADO</option>
+              <option value="NO_APLICA">NO_APLICA</option>
+              <option value="APROBADO">APROBADO</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label for="filtroUbicacion" class="form-label small fw-semibold">Filtrar por Colonia/Comisaría</label>
+            <input type="text" id="filtroUbicacion" class="form-control form-control-sm" placeholder="ej. Cholul, Centro..." onkeyup="aplicarFiltrosTabla()">
+          </div>
+          <div class="col-md-3">
+            <label for="filtroFecha" class="form-label small fw-semibold">Filtrar por Fecha Registro</label>
+            <input type="date" id="filtroFecha" class="form-control form-control-sm" onchange="aplicarFiltrosTabla()">
+          </div>
+          <div class="col-md-3">
+            <label for="buscadorTexto" class="form-label small fw-semibold">Buscador (CURP, Nombre, Email)</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+              <input type="text" id="buscadorTexto" class="form-control" placeholder="Buscar..." onkeyup="aplicarFiltrosTabla()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla -->
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Folio ID</th>
+                <th>CURP</th>
+                <th>Email (Solo Lectura)</th>
+                <th>Nombre Completo</th>
+                <th>Ubicación</th>
+                <th>Fecha Registro</th>
+                <th>Estatus</th>
+                <th class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-registros-body">
+              <tr>
+                <td colspan="8" class="text-center py-4 text-muted">Cargando registros...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODALES DE ACCIÓN -->
+
+  <!-- Modal Observación -->
+  <div class="modal fade" id="modalObservacion" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header text-white" style="background-color: var(--violeta-medio);">
+          <h5 class="modal-title"><i class="fa-solid fa-triangle-exclamation me-2"></i>Generar Observación</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">Ingresa el detalle de los puntos a solventar. Se enviará un correo automático a la beneficiaria.</p>
+          <input type="hidden" id="obs-registro-id">
+          <div class="mb-3">
+            <label for="obsText" class="form-label fw-semibold">Observaciones <span class="text-danger">*</span></label>
+            <textarea id="obsText" class="form-control" rows="4" placeholder="Detalla qué documento o dato falta o debe corregirse..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" onclick="confirmarObservacion()" class="btn text-white" style="background-color: var(--violeta-intenso);">
+            Guardar y Enviar Correo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal No Aplica -->
+  <div class="modal fade" id="modalNoAplica" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header text-white bg-danger">
+          <h5 class="modal-title"><i class="fa-solid fa-circle-xmark me-2"></i>Rechazar Solicitud (No Aplica)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">Ingresa el motivo del rechazo. Se enviará un correo automático a la beneficiaria.</p>
+          <input type="hidden" id="noaplica-registro-id">
+          <div class="mb-3">
+            <label for="noAplicaText" class="form-label fw-semibold">Motivo del Rechazo <span class="text-danger">*</span></label>
+            <textarea id="noAplicaText" class="form-control" rows="4" placeholder="Indica el motivo institucional..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" onclick="confirmarNoAplica()" class="btn btn-danger">
+            Confirmar Rechazo y Enviar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Aprobar y Asignar Tarjeta -->
+  <div class="modal fade" id="modalAprobar" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header text-white bg-success">
+          <h5 class="modal-title"><i class="fa-solid fa-circle-check me-2"></i>Aprobar y Asignar Tarjeta</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">Captura los datos de la tarjeta y cita de entrega. La CURP se agregará automáticamente a CURPs_Bloqueadas.</p>
+          <input type="hidden" id="aprobar-registro-id">
+          <div class="mb-3">
+            <label for="numTarjeta" class="form-label fw-semibold">Número de Tarjeta Asignada <span class="text-danger">*</span></label>
+            <input type="text" id="numTarjeta" class="form-control" placeholder="ej. TM-2025-001" required>
+          </div>
+          <div class="mb-3">
+            <label for="lugarEntrega" class="form-label fw-semibold">Lugar de Entrega <span class="text-danger">*</span></label>
+            <input type="text" id="lugarEntrega" class="form-control" placeholder="ej. Palacio Municipal / Subdirección de la Mujer" required>
+          </div>
+          <div class="mb-3">
+            <label for="fechaHoraEntrega" class="form-label fw-semibold">Fecha y Hora de Entrega <span class="text-danger">*</span></label>
+            <input type="text" id="fechaHoraEntrega" class="form-control" placeholder="ej. 15 de Noviembre de 2025, 10:00 AM" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" onclick="confirmarAprobacion()" class="btn btn-success">
+            Aprobar y Notificar por Correo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- JavaScript -->
+  <script>
+    let sessionUser = '';
+    let sessionPass = '';
+    let todosLosRegistros = [];
+
+    // Modales Bootstrap
+    let modalObsObj, modalNoAplicaObj, modalAprobarObj;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      modalObsObj = new bootstrap.Modal(document.getElementById('modalObservacion'));
+      modalNoAplicaObj = new bootstrap.Modal(document.getElementById('modalNoAplica'));
+      modalAprobarObj = new bootstrap.Modal(document.getElementById('modalAprobar'));
+
+      document.getElementById('toggleAbiertoManual').addEventListener('change', (e) => {
+        document.getElementById('labelAbiertoManual').innerText = e.target.checked ? 'ABIERTO' : 'CERRADO';
+      });
+    });
+
+    function realizarLogin(e) {
+      if (e) e.preventDefault();
+      const u = document.getElementById('adminUser').value.trim();
+      const p = document.getElementById('adminPass').value.trim();
+      const errBox = document.getElementById('login-error');
+
+      errBox.classList.add('d-none');
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.exito) {
+              sessionUser = u;
+              sessionPass = p;
+              document.getElementById('login-container').classList.add('d-none');
+              document.getElementById('dashboard-container').classList.remove('d-none');
+              document.getElementById('nav-user-controls').classList.remove('d-none');
+
+              cargarRegistrosServidor();
+              cargarConfiguracionPeriodoServidor();
+            } else {
+              errBox.innerText = (res && res.mensaje) ? res.mensaje : "Credenciales inválidas.";
+              errBox.classList.remove('d-none');
+            }
+          })
+          .validarLogin(u, p);
+      } else {
+        // Fallback simulación local
+        sessionUser = u;
+        sessionPass = p;
+        document.getElementById('login-container').classList.add('d-none');
+        document.getElementById('dashboard-container').classList.remove('d-none');
+        document.getElementById('nav-user-controls').classList.remove('d-none');
+      }
+    }
+
+    function cerrarSesion() {
+      sessionUser = '';
+      sessionPass = '';
+      location.reload();
+    }
+
+    function cargarConfiguracionPeriodoServidor() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res) {
+              if (res.inicio) document.getElementById('fechaInicio').value = res.inicio;
+              if (res.fin) document.getElementById('fechaFin').value = res.fin;
+              if (res.modo) document.getElementById('modoPeriodo').value = res.modo;
+
+              const isAbierto = (res.abiertoManual === 'SI');
+              const toggle = document.getElementById('toggleAbiertoManual');
+              toggle.checked = isAbierto;
+              document.getElementById('labelAbiertoManual').innerText = isAbierto ? 'ABIERTO' : 'CERRADO';
+
+              toggleModoManual();
+            }
+          })
+          .validarPeriodo();
+      }
+    }
+
+    function toggleModoManual() {
+      const modo = document.getElementById('modoPeriodo').value;
+      const toggleBox = document.getElementById('bloqueManualToggle');
+      if (modo === 'manual') {
+        toggleBox.style.opacity = '1';
+        document.getElementById('toggleAbiertoManual').disabled = false;
+      } else {
+        toggleBox.style.opacity = '0.5';
+        document.getElementById('toggleAbiertoManual').disabled = true;
+      }
+    }
+
+    function guardarPeriodoConfig(e) {
+      if (e) e.preventDefault();
+      const payload = {
+        usuario: sessionUser,
+        contrasena: sessionPass,
+        fechaInicio: document.getElementById('fechaInicio').value,
+        fechaFin: document.getElementById('fechaFin').value,
+        modo: document.getElementById('modoPeriodo').value,
+        abierto: document.getElementById('toggleAbiertoManual').checked ? 'SI' : 'NO'
+      };
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            alert((res && res.mensaje) ? res.mensaje : "Configuración guardada.");
+          })
+          .guardarConfiguracionPeriodo(payload);
+      }
+    }
+
+    function cargarRegistrosServidor() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.exito) {
+              todosLosRegistros = res.registros || [];
+              aplicarFiltrosTabla();
+            } else {
+              alert("Error al cargar registros: " + (res.mensaje || ''));
+            }
+          })
+          .obtenerRegistros(sessionUser, sessionPass);
+      }
+    }
+
+    function aplicarFiltrosTabla() {
+      const fEstatus = document.getElementById('filtroEstatus').value;
+      const fUbicacion = document.getElementById('filtroUbicacion').value.toLowerCase().trim();
+      const fFecha = document.getElementById('filtroFecha').value;
+      const fTexto = document.getElementById('buscadorTexto').value.toLowerCase().trim();
+
+      const filtrados = todosLosRegistros.filter(r => {
+        if (fEstatus && r.estatus !== fEstatus) return false;
+        if (fUbicacion && !r.coloniaComisaria.toLowerCase().includes(fUbicacion) && !r.tipoUbicacion.toLowerCase().includes(fUbicacion)) return false;
+        if (fFecha && !r.fechaRegistro.includes(fFecha)) return false;
+        if (fTexto) {
+          const matchCurp = r.curp.toLowerCase().includes(fTexto);
+          const matchNombre = r.nombreCompleto.toLowerCase().includes(fTexto);
+          const matchEmail = r.email.toLowerCase().includes(fTexto);
+          const matchId = r.id.toLowerCase().includes(fTexto);
+          if (!matchCurp && !matchNombre && !matchEmail && !matchId) return false;
+        }
+        return true;
+      });
+
+      renderizarTabla(filtrados);
+    }
+
+    function renderizarTabla(registros) {
+      const tbody = document.getElementById('tabla-registros-body');
+      tbody.innerHTML = '';
+
+      if (!registros || registros.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No se encontraron solicitudes.</td></tr>';
+        return;
+      }
+
+      registros.forEach(r => {
+        const tr = document.createElement('tr');
+
+        const docsButtons = `
+          <div class="btn-group btn-group-sm mb-1" role="group">
+            <a href="${r.ineUrl}" target="_blank" class="btn btn-outline-secondary ${!r.ineUrl ? 'disabled' : ''}" title="Ver INE">
+              <i class="fa-solid fa-file-pdf text-danger me-1"></i>INE
+            </a>
+            <a href="${r.comprobanteUrl}" target="_blank" class="btn btn-outline-secondary ${!r.comprobanteUrl ? 'disabled' : ''}" title="Ver Comprobante">
+              <i class="fa-solid fa-file-image text-primary me-1"></i>Comp.
+            </a>
+          </div>
+        `;
+
+        const actionButtons = `
+          <div class="btn-group btn-group-sm" role="group">
+            <button onclick="abrirModalObs('${r.id}')" class="btn btn-warning text-dark" title="Generar Observación">
+              <i class="fa-solid fa-pen"></i> Obs
+            </button>
+            <button onclick="abrirModalNoAplica('${r.id}')" class="btn btn-danger" title="Rechazar">
+              <i class="fa-solid fa-xmark"></i> No Aplica
+            </button>
+            <button onclick="abrirModalAprobar('${r.id}')" class="btn btn-success" title="Aprobar">
+              <i class="fa-solid fa-check"></i> Aprobar
+            </button>
+          </div>
+        `;
+
+        tr.innerHTML = `
+          <td class="fw-bold">${r.id}</td>
+          <td><span class="font-monospace">${r.curp}</span></td>
+          <td><input type="text" class="form-control form-control-sm email-readonly" value="${r.email}" readonly></td>
+          <td class="fw-semibold">${r.nombreCompleto}</td>
+          <td><small class="d-block text-muted">${r.tipoUbicacion}</small>${r.coloniaComisaria}</td>
+          <td class="small">${r.fechaRegistro}</td>
+          <td><span class="badge badge-status badge-${r.estatus}">${r.estatus}</span></td>
+          <td class="text-center">
+            ${docsButtons}
+            <br>
+            ${actionButtons}
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Handlers Modales
+    function abrirModalObs(id) {
+      document.getElementById('obs-registro-id').value = id;
+      document.getElementById('obsText').value = '';
+      modalObsObj.show();
+    }
+
+    function confirmarObservacion() {
+      const id = document.getElementById('obs-registro-id').value;
+      const obs = document.getElementById('obsText').value.trim();
+      if (!obs) {
+        alert("Debes ingresar el texto de la observación.");
+        return;
+      }
+      ejecutarActualizacionEstatus({
+        usuario: sessionUser,
+        contrasena: sessionPass,
+        id: id,
+        estatus: 'OBSERVADO',
+        observaciones: obs
+      }, modalObsObj);
+    }
+
+    function abrirModalNoAplica(id) {
+      document.getElementById('noaplica-registro-id').value = id;
+      document.getElementById('noAplicaText').value = '';
+      modalNoAplicaObj.show();
+    }
+
+    function confirmarNoAplica() {
+      const id = document.getElementById('noaplica-registro-id').value;
+      const mot = document.getElementById('noAplicaText').value.trim();
+      if (!mot) {
+        alert("Debes ingresar el motivo del rechazo.");
+        return;
+      }
+      ejecutarActualizacionEstatus({
+        usuario: sessionUser,
+        contrasena: sessionPass,
+        id: id,
+        estatus: 'NO_APLICA',
+        motivo: mot
+      }, modalNoAplicaObj);
+    }
+
+    function abrirModalAprobar(id) {
+      document.getElementById('aprobar-registro-id').value = id;
+      document.getElementById('numTarjeta').value = '';
+      document.getElementById('lugarEntrega').value = '';
+      document.getElementById('fechaHoraEntrega').value = '';
+      modalAprobarObj.show();
+    }
+
+    function confirmarAprobacion() {
+      const id = document.getElementById('aprobar-registro-id').value;
+      const tar = document.getElementById('numTarjeta').value.trim();
+      const lug = document.getElementById('lugarEntrega').value.trim();
+      const fec = document.getElementById('fechaHoraEntrega').value.trim();
+
+      if (!tar || !lug || !fec) {
+        alert("Todos los campos para la entrega son obligatorios.");
+        return;
+      }
+
+      ejecutarActualizacionEstatus({
+        usuario: sessionUser,
+        contrasena: sessionPass,
+        id: id,
+        estatus: 'APROBADO',
+        numeroTarjeta: tar,
+        lugarEntrega: lug,
+        fechaHoraEntrega: fec
+      }, modalAprobarObj);
+    }
+
+    function ejecutarActualizacionEstatus(payload, modalObj) {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (modalObj) modalObj.hide();
+            if (res && res.exito) {
+              alert(res.mensaje);
+              cargarRegistrosServidor();
+            } else {
+              alert("Error: " + (res ? res.mensaje : 'Desconocido'));
+            }
+          })
+          .actualizarEstatusRegistro(payload);
+      }
+    }
+  </script>
+</body>
+</html>
