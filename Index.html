@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tarjeta de Mujeres — Mujeres Seguras, Mérida, Yucatán</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --violeta-intenso: #4A148C;
+      --violeta-oscuro: #311B92;
+      --violeta-medio: #7B1FA2;
+      --violeta-claro: #9C27B0;
+      --lila-suave: #CE93D8;
+      --lila-pastel: #F3E5F5;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f9fa;
+      color: #333333;
+    }
+
+    .navbar-custom {
+      background: linear-gradient(135deg, var(--violeta-intenso), var(--violeta-oscuro));
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .hero-header {
+      background: linear-gradient(135deg, var(--lila-pastel), #ffffff);
+      padding: 3rem 1rem 2rem 1rem;
+      border-bottom: 2px solid var(--lila-suave);
+    }
+
+    /* Carousel Custom Styling */
+    .carousel-container {
+      position: relative;
+      max-width: 900px;
+      margin: 0 auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(74, 20, 140, 0.15);
+      background: #ffffff;
+    }
+
+    .carousel-slide {
+      display: none;
+      padding: 3.5rem 2rem;
+      text-align: center;
+      min-height: 320px;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      animation: fadeIn 0.6s ease-in-out;
+    }
+
+    .carousel-slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-icon {
+      font-size: 3.5rem;
+      color: var(--violeta-medio);
+      margin-bottom: 1.2rem;
+    }
+
+    .slide-title {
+      color: var(--violeta-intenso);
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .slide-text {
+      color: #555;
+      font-size: 1.1rem;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .carousel-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background-color: rgba(74, 20, 140, 0.7);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      z-index: 10;
+    }
+
+    .carousel-btn:hover {
+      background-color: var(--violeta-intenso);
+      scale: 1.1;
+    }
+
+    .carousel-btn.prev { left: 15px; }
+    .carousel-btn.next { right: 15px; }
+
+    .carousel-indicators {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .indicator-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #ccc;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .indicator-dot.active {
+      background-color: var(--violeta-medio);
+      width: 28px;
+      border-radius: 10px;
+    }
+
+    /* Action Section */
+    .cta-container {
+      max-width: 700px;
+      margin: 2.5rem auto;
+      text-align: center;
+    }
+
+    .btn-primary-custom {
+      background: linear-gradient(135deg, var(--violeta-medio), var(--violeta-intenso));
+      color: white;
+      border: none;
+      padding: 1rem 2.5rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      border-radius: 50px;
+      box-shadow: 0 6px 18px rgba(123, 31, 162, 0.3);
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary-custom:hover {
+      background: linear-gradient(135deg, var(--violeta-intenso), var(--violeta-oscuro));
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 22px rgba(123, 31, 162, 0.4);
+    }
+
+    .btn-primary-custom.disabled, .btn-primary-custom:disabled {
+      background: #6c757d;
+      box-shadow: none;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .footer-custom {
+      background-color: var(--violeta-oscuro);
+      color: #ffffff;
+      padding: 2rem 0;
+      margin-top: 4rem;
+    }
+
+    .status-alert {
+      border-radius: 12px;
+      font-size: 1.1rem;
+      padding: 1.2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-custom">
+    <div class="container">
+      <a class="navbar-brand fw-bold fs-4" href="#">
+        <i class="fa-solid fa-id-card me-2"></i>Tarjeta de Mujeres
+      </a>
+      <div class="ms-auto">
+        <a href="<?= scriptUrl ?>?v=admin" class="btn btn-outline-light btn-sm rounded-pill px-3">
+          <i class="fa-solid fa-lock me-1"></i>Acceso Admin
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Header -->
+  <header class="hero-header text-center">
+    <div class="container">
+      <span class="badge rounded-pill bg-purple-light text-purple px-3 py-2 mb-2" style="background-color: var(--lila-suave); color: var(--violeta-intenso); font-weight: 600;">
+        Programa Social 2025
+      </span>
+      <h1 class="fw-bold display-5" style="color: var(--violeta-intenso);">Tarjeta de Mujeres</h1>
+      <p class="lead text-secondary fw-semibold">Mujeres Seguras — Mérida, Yucatán y sus Comisarías</p>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container my-5">
+
+    <!-- Carrusel de Información -->
+    <div class="carousel-container">
+      <!-- Slide 1 -->
+      <div class="carousel-slide active" id="slide-0">
+        <div class="slide-icon"><i class="fa-solid fa-hand-holding-heart"></i></div>
+        <h3 class="slide-title">Beneficios de la Tarjeta</h3>
+        <p class="slide-text">Un programa diseñado para impulsar el bienestar, autonomía e integración social de las mujeres en Mérida y sus comisarías mediante apoyos integrales.</p>
+      </div>
+
+      <!-- Slide 2 -->
+      <div class="carousel-slide" id="slide-1">
+        <div class="slide-icon"><i class="fa-solid fa-tags"></i></div>
+        <h3 class="slide-title">Descuentos y Convenios</h3>
+        <p class="slide-text">Accede a tarifario preferencial y descuentos exclusivos en transporte, servicios de salud, laboratorios, educación y comercios locales afiliados.</p>
+      </div>
+
+      <!-- Slide 3 -->
+      <div class="carousel-slide" id="slide-2">
+        <div class="slide-icon"><i class="fa-solid fa-file-signature"></i></div>
+        <h3 class="slide-title">Requisitos y Documentos</h3>
+        <p class="slide-text">Ser residente de Mérida o sus comisarías, contar con CURP oficial, Identificación Oficial (INE) vigente y Comprobante de domicilio reciente en formato digital.</p>
+      </div>
+
+      <!-- Slide 4 -->
+      <div class="carousel-slide" id="slide-3">
+        <div class="slide-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+        <h3 class="slide-title">Periodo y Cobertura</h3>
+        <p class="slide-text">Registro habilitado para todas las colonias del municipio de Mérida y sus 47 comisarías (como Cholul, Caucel, Sitpach, Temozón Norte, San José Tzal, entre otras).</p>
+      </div>
+
+      <!-- Navigation Controls -->
+      <button class="carousel-btn prev" onclick="moveSlide(-1)" aria-label="Anterior">
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
+      <button class="carousel-btn next" onclick="moveSlide(1)" aria-label="Siguiente">
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+
+    <!-- Carousel Indicators -->
+    <div class="carousel-indicators">
+      <div class="indicator-dot active" onclick="setSlide(0)"></div>
+      <div class="indicator-dot" onclick="setSlide(1)"></div>
+      <div class="indicator-dot" onclick="setSlide(2)"></div>
+      <div class="indicator-dot" onclick="setSlide(3)"></div>
+    </div>
+
+    <!-- Call to Action & Period Status Section -->
+    <div class="cta-container">
+
+      <!-- Spinner mientras consulta el servidor -->
+      <div id="loading-status" class="my-4">
+        <div class="spinner-border text-primary" role="status" style="color: var(--violeta-medio) !important;">
+          <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="text-muted mt-2">Verificando estado de la convocatoria...</p>
+      </div>
+
+      <!-- Mensaje de estado (se muestra tras la consulta) -->
+      <div id="status-message" class="status-alert alert alert-info d-none my-4">
+        <i class="fa-solid fa-circle-info me-2"></i><span id="status-text"></span>
+      </div>
+
+      <!-- Botón de Registro -->
+      <div id="btn-container" class="d-none">
+        <a id="btn-iniciar-registro" href="<?= scriptUrl ?>?v=registro" class="btn btn-primary-custom">
+          <i class="fa-solid fa-pen-to-square me-2"></i>Iniciar mi registro
+        </a>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer-custom text-center">
+    <div class="container">
+      <p class="mb-1 fw-semibold">Ayuntamiento de Mérida — Mujeres Seguras</p>
+      <small class="opacity-75">Unidos por una Mérida más justa, segura e incluyente para todas las mujeres.</small>
+    </div>
+  </footer>
+
+  <!-- JavaScript -->
+  <script>
+    // Variable con la URL base de Apps Script
+    const scriptUrl = "<?= scriptUrl ?>";
+
+    // Lógica del Carrusel Automático en JS Puro
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.carousel-slide');
+    const dots = document.querySelectorAll('.indicator-dot');
+    const totalSlides = slides.length;
+    let autoSlideInterval = null;
+
+    function showSlide(index) {
+      slides.forEach((slide, i) => {
+        slide.classList.remove('active');
+        dots[i].classList.remove('active');
+      });
+
+      currentSlide = (index + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+      dots[currentSlide].classList.add('active');
+    }
+
+    function moveSlide(direction) {
+      showSlide(currentSlide + direction);
+      resetAutoSlide();
+    }
+
+    function setSlide(index) {
+      showSlide(index);
+      resetAutoSlide();
+    }
+
+    function startAutoSlide() {
+      autoSlideInterval = setInterval(() => {
+        showSlide(currentSlide + 1);
+      }, 5000); // 5 segundos por slide
+    }
+
+    function resetAutoSlide() {
+      if (autoSlideInterval) {
+        clearInterval(autoSlideInterval);
+      }
+      startAutoSlide();
+    }
+
+    // Inicializar Carrusel al cargar
+    startAutoSlide();
+
+    // Consulta de Estado de Registro mediante google.script.run
+    document.addEventListener("DOMContentLoaded", function() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(procesarEstadoPeriodo)
+          .withFailureHandler(manejarErrorEstado)
+          .validarPeriodo();
+      } else {
+        // Modo Desarrollo Local Fallback (Simulación)
+        console.warn("google.script.run no disponible en este entorno.");
+        document.getElementById('loading-status').classList.add('d-none');
+        document.getElementById('btn-container').classList.remove('d-none');
+      }
+    });
+
+    function procesarEstadoPeriodo(res) {
+      document.getElementById('loading-status').classList.add('d-none');
+      const statusMessageEl = document.getElementById('status-message');
+      const statusTextEl = document.getElementById('status-text');
+      const btnContainerEl = document.getElementById('btn-container');
+      const btnRegistroEl = document.getElementById('btn-iniciar-registro');
+
+      if (res && res.abierto) {
+        btnContainerEl.classList.remove('d-none');
+      } else {
+        statusMessageEl.classList.remove('d-none');
+        statusMessageEl.classList.remove('alert-info');
+        statusMessageEl.classList.add('alert-warning');
+
+        const mensajeFinal = (res && res.mensaje)
+          ? res.mensaje
+          : "El periodo de registro no está disponible actualmente.";
+
+        statusTextEl.innerHTML = `<strong>Atención:</strong> ${mensajeFinal}`;
+        btnContainerEl.classList.add('d-none');
+      }
+    }
+
+    function manejarErrorEstado(err) {
+      document.getElementById('loading-status').classList.add('d-none');
+      const statusMessageEl = document.getElementById('status-message');
+      const statusTextEl = document.getElementById('status-text');
+
+      statusMessageEl.classList.remove('d-none');
+      statusMessageEl.classList.remove('alert-info');
+      statusMessageEl.classList.add('alert-danger');
+      statusTextEl.innerText = "Error de conexión con el servidor al verificar el periodo de registro.";
+    }
+  </script>
+</body>
+</html>
