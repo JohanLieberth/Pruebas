@@ -30,10 +30,32 @@ function include(filename) {
 }
 
 /**
+ * Helper robusto para obtener una hoja por nombre o comodín
+ */
+function obtenerHojaParticipantes(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return null;
+
+  var sheet = ss.getSheetByName(SHEET_PARTICIPANTES);
+  if (sheet) return sheet;
+
+  // Búsqueda insensible a mayúsculas/minúsculas o variaciones
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    var name = sheets[i].getName().toLowerCase().trim();
+    if (name.indexOf("participante") !== -1) {
+      return sheets[i];
+    }
+  }
+  return null;
+}
+
+/**
  * Inicializa la estructura de la base de datos en Google Sheets si las hojas no existen.
  */
 function inicializarBaseDatos() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return;
 
   // 1. Hoja Config
   var sheetConfig = ss.getSheetByName(SHEET_CONFIG);
@@ -48,7 +70,6 @@ function inicializarBaseDatos() {
     ]);
     sheetConfig.getRange("A1:B1").setFontWeight("bold").setBackground("#E8F5E9");
   } else {
-    // Actualizar nombre de competencia en Config si aún decía la anterior
     var valB3 = sheetConfig.getRange("B3").getValue();
     if (!valB3 || String(valB3).indexOf("Control de Peso") !== -1) {
       sheetConfig.getRange("B3").setValue("Kilos Mortales 2025");
@@ -56,7 +77,7 @@ function inicializarBaseDatos() {
   }
 
   // 2. Hoja Participantes
-  var sheetPart = ss.getSheetByName(SHEET_PARTICIPANTES);
+  var sheetPart = obtenerHojaParticipantes(ss);
   if (!sheetPart) {
     sheetPart = ss.insertSheet(SHEET_PARTICIPANTES);
     sheetPart.appendRow([
@@ -85,18 +106,20 @@ function inicializarBaseDatos() {
  */
 function getConfiguracion() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_CONFIG);
+  var sheet = ss ? ss.getSheetByName(SHEET_CONFIG) : null;
   if (!sheet) {
     inicializarBaseDatos();
-    sheet = ss.getSheetByName(SHEET_CONFIG);
+    sheet = ss ? ss.getSheetByName(SHEET_CONFIG) : null;
   }
 
-  var data = sheet.getRange("A1:B5").getValues();
   var config = {
     nombreCompetencia: "Kilos Mortales",
     factorBonoCintura: 0.20
   };
 
+  if (!sheet) return config;
+
+  var data = sheet.getRange("A1:B5").getValues();
   for (var i = 1; i < data.length; i++) {
     var clave = String(data[i][0]).trim();
     var valor = data[i][1];
@@ -113,7 +136,7 @@ function getConfiguracion() {
 function verificarPasswordAdmin(password) {
   if (!password) return false;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_CONFIG);
+  var sheet = ss ? ss.getSheetByName(SHEET_CONFIG) : null;
   if (!sheet) return false;
 
   var passAlmacenada = String(sheet.getRange("B2").getValue()).trim();
@@ -128,7 +151,6 @@ function registrarParticipante(datos, password) {
     throw new Error("Acceso denegado: Contraseña de administrador incorrecta.");
   }
 
-  // Validaciones obligatorias
   if (!datos.nombreCompleto || datos.edad === undefined || datos.edad === null || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
     throw new Error("Todos los campos obligatorios deben ser completados.");
   }
@@ -152,18 +174,17 @@ function registrarParticipante(datos, password) {
   if (isNaN(cinturaInicial) || cinturaInicial <= 0) throw new Error("La cintura inicial debe ser un número positivo mayor a cero.");
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_PARTICIPANTES);
+  var sheet = obtenerHojaParticipantes(ss);
   if (!sheet) {
     inicializarBaseDatos();
-    sheet = ss.getSheetByName(SHEET_PARTICIPANTES);
+    sheet = obtenerHojaParticipantes(ss);
   }
 
   var data = sheet.getDataRange().getValues();
 
-  // Validar duplicado por nombre (insensible a mayúsculas/minúsculas)
   var nombreBuscado = String(datos.nombreCompleto).trim().toLowerCase();
   for (var i = 1; i < data.length; i++) {
-    var nombreExistente = String(data[i][1]).trim().toLowerCase();
+    var nombreExistente = String(data[i][1] || "").trim().toLowerCase();
     if (nombreExistente === nombreBuscado) {
       throw new Error("Ya existe un participante registrado con el nombre '" + datos.nombreCompleto + "'.");
     }
@@ -194,7 +215,42 @@ function registrarParticipante(datos, password) {
 }
 
 /**
- * Obtiene la lista completa de participantes para el panel de administración (incluyendo Edad y Sexo).
+ * Función auxiliar para resolver índices de columna con tolerancia.
+ */
+function resolverIndicesHeaders(headersRaw) {
+  var headers = headersRaw.map(function(h) { return String(h).trim().toUpperCase(); });
+
+  function findCol(possibleNames, defaultIndex) {
+    for (var idx = 0; idx < headers.length; idx++) {
+      for (var p = 0; p < possibleNames.length; p++) {
+        if (headers[idx].indexOf(possibleNames[p].toUpperCase()) !== -1) {
+          return idx;
+        }
+      }
+    }
+    return defaultIndex;
+  }
+
+  return {
+    colId: findCol(["ID"], 0),
+    colNombre: findCol(["NOMBRE"], 1),
+    colEdad: findCol(["EDAD"], 2),
+    colSexo: findCol(["SEXO"], 3),
+    colEmail: findCol(["EMAIL", "CORREO"], 4),
+    colEstatura: findCol(["ESTATURA"], 5),
+    colPesoIni: findCol(["PESO INICIAL", "PESO INI"], 6),
+    colCinturaIni: findCol(["CINTURA INICIAL", "CINTURA INI"], 7),
+    colFechaIni: findCol(["FECHA INICIO"], 8),
+    colCategoria: findCol(["CATEGORIA", "CATEGORÍA"], 9),
+    colActivo: findCol(["ACTIVO"], 10),
+    colPesoFin: findCol(["PESO FINAL", "PESO FIN"], 11),
+    colCinturaFin: findCol(["CINTURA FINAL", "CINTURA FIN"], 12),
+    colFechaFin: findCol(["FECHA FINAL"], 13)
+  };
+}
+
+/**
+ * Obtiene la lista completa de participantes para el panel de administración (leyendo directamente de la hoja de cálculo).
  */
 function obtenerTodosLosParticipantesAdmin(password) {
   if (!verificarPasswordAdmin(password)) {
@@ -202,37 +258,32 @@ function obtenerTodosLosParticipantesAdmin(password) {
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_PARTICIPANTES);
+  var sheet = obtenerHojaParticipantes(ss);
   if (!sheet) return [];
 
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
 
-  var headers = data[0];
-  // Identificar índices dinámicamente por si varían
-  var colId = headers.indexOf("ID");
-  var colNombre = headers.indexOf("Nombre Completo");
-  var colEdad = headers.indexOf("Edad");
-  var colSexo = headers.indexOf("Sexo");
-  var colCategoria = headers.indexOf("Categoría");
-  var colActivo = headers.indexOf("Activo");
-  var colPesoIni = headers.indexOf("Peso Inicial (kg)");
-  var colCinturaIni = headers.indexOf("Cintura Inicial (cm)");
-
+  var idxs = resolverIndicesHeaders(data[0]);
   var lista = [];
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    if (!row[colId]) continue;
+    var nombreVal = idxs.colNombre < row.length ? String(row[idxs.colNombre] || "").trim() : "";
+    var idVal = idxs.colId < row.length ? String(row[idxs.colId] || "").trim() : "";
+
+    // Si la fila no tiene ni nombre ni id, omitir fila vacía
+    if (!nombreVal && !idVal) continue;
 
     lista.push({
-      id: row[colId],
-      nombre: row[colNombre],
-      edad: colEdad !== -1 ? row[colEdad] : "N/A",
-      sexo: colSexo !== -1 ? row[colSexo] : "N/A",
-      categoria: colCategoria !== -1 ? row[colCategoria] : "N/A",
-      pesoInicial: colPesoIni !== -1 ? row[colPesoIni] : 0,
-      cinturaInicial: colCinturaIni !== -1 ? row[colCinturaIni] : 0,
-      activo: colActivo !== -1 ? row[colActivo] : "Sí"
+      id: idVal || ("PART-" + i),
+      nombre: nombreVal || ("Participante " + i),
+      edad: (idxs.colEdad < row.length && row[idxs.colEdad] !== "") ? row[idxs.colEdad] : "N/A",
+      sexo: (idxs.colSexo < row.length && row[idxs.colSexo] !== "") ? row[idxs.colSexo] : "N/A",
+      categoria: (idxs.colCategoria < row.length && row[idxs.colCategoria] !== "") ? row[idxs.colCategoria] : "N/A",
+      pesoInicial: (idxs.colPesoIni < row.length && row[idxs.colPesoIni] !== "") ? Number(row[idxs.colPesoIni]) : 0,
+      cinturaInicial: (idxs.colCinturaIni < row.length && row[idxs.colCinturaIni] !== "") ? Number(row[idxs.colCinturaIni]) : 0,
+      activo: (idxs.colActivo < row.length && row[idxs.colActivo] !== "") ? String(row[idxs.colActivo]) : "Sí"
     });
   }
 
@@ -244,37 +295,29 @@ function obtenerTodosLosParticipantesAdmin(password) {
  */
 function obtenerParticipantesActivos() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_PARTICIPANTES);
+  var sheet = obtenerHojaParticipantes(ss);
   if (!sheet) return [];
 
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
 
-  var headers = data[0];
-  var colId = headers.indexOf("ID");
-  var colNombre = headers.indexOf("Nombre Completo");
-  var colEdad = headers.indexOf("Edad");
-  var colSexo = headers.indexOf("Sexo");
-  var colActivo = headers.indexOf("Activo");
-  var colPesoIni = headers.indexOf("Peso Inicial (kg)");
-  var colCinturaIni = headers.indexOf("Cintura Inicial (cm)");
-
+  var idxs = resolverIndicesHeaders(data[0]);
   var lista = [];
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var id = row[colId];
-    var nombre = row[colNombre];
-    var activo = String(row[colActivo]).toLowerCase();
+    var idVal = idxs.colId < row.length ? String(row[idxs.colId] || "").trim() : "";
+    var nombreVal = idxs.colNombre < row.length ? String(row[idxs.colNombre] || "").trim() : "";
+    var activoVal = idxs.colActivo < row.length ? String(row[idxs.colActivo] || "").toLowerCase().trim() : "sí";
 
-    if (id && (activo === "sí" || activo === "si" || activo === "true")) {
+    if ((nombreVal || idVal) && (activoVal === "sí" || activoVal === "si" || activoVal === "true" || activoVal === "")) {
       lista.push({
-        id: id,
-        nombre: nombre,
-        edad: colEdad !== -1 ? row[colEdad] : "",
-        sexo: colSexo !== -1 ? row[colSexo] : "",
-        pesoInicial: Number(row[colPesoIni]),
-        cinturaInicial: Number(row[colCinturaIni])
+        id: idVal || ("PART-" + i),
+        nombre: nombreVal || ("Participante " + i),
+        edad: (idxs.colEdad < row.length && row[idxs.colEdad] !== "") ? row[idxs.colEdad] : "",
+        sexo: (idxs.colSexo < row.length && row[idxs.colSexo] !== "") ? row[idxs.colSexo] : "",
+        pesoInicial: (idxs.colPesoIni < row.length && row[idxs.colPesoIni] !== "") ? Number(row[idxs.colPesoIni]) : 0,
+        cinturaInicial: (idxs.colCinturaIni < row.length && row[idxs.colCinturaIni] !== "") ? Number(row[idxs.colCinturaIni]) : 0
       });
     }
   }
@@ -284,7 +327,6 @@ function obtenerParticipantesActivos() {
 
 /**
  * Registra un check-in semanal de un participante.
- * Retorna advertencia si la pérdida semanal supera el 1% del peso corporal.
  */
 function registrarMedicionSemanal(datos, password) {
   if (!verificarPasswordAdmin(password)) {
@@ -302,21 +344,20 @@ function registrarMedicionSemanal(datos, password) {
   if (isNaN(cintura) || cintura <= 0) throw new Error("La cintura no puede ser negativa ni cero.");
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetPart = ss.getSheetByName(SHEET_PARTICIPANTES);
-  var dataPart = sheetPart.getDataRange().getValues();
-  var headersPart = dataPart[0];
+  var sheetPart = obtenerHojaParticipantes(ss);
+  if (!sheetPart) throw new Error("No se encontró la hoja de Participantes.");
 
-  var colIdPart = headersPart.indexOf("ID");
-  var colNombrePart = headersPart.indexOf("Nombre Completo");
-  var colPesoIniPart = headersPart.indexOf("Peso Inicial (kg)");
+  var dataPart = sheetPart.getDataRange().getValues();
+  var idxs = resolverIndicesHeaders(dataPart[0]);
 
   var participanteEncontrado = null;
   for (var i = 1; i < dataPart.length; i++) {
-    if (String(dataPart[i][colIdPart]) === String(datos.idParticipante)) {
+    var currentId = idxs.colId < dataPart[i].length ? String(dataPart[i][idxs.colId] || "").trim() : "";
+    if (currentId === String(datos.idParticipante).trim()) {
       participanteEncontrado = {
-        id: dataPart[i][colIdPart],
-        nombre: dataPart[i][colNombrePart],
-        pesoInicial: Number(dataPart[i][colPesoIniPart])
+        id: currentId,
+        nombre: dataPart[i][idxs.colNombre] || "Participante",
+        pesoInicial: Number(dataPart[i][idxs.colPesoIni] || 0)
       };
       break;
     }
@@ -326,7 +367,6 @@ function registrarMedicionSemanal(datos, password) {
     throw new Error("Participante no encontrado.");
   }
 
-  // Obtener mediciones previas para calcular la pérdida semanal o acumulada
   var sheetMed = ss.getSheetByName(SHEET_MEDICIONES);
   if (!sheetMed) {
     inicializarBaseDatos();
@@ -338,7 +378,7 @@ function registrarMedicionSemanal(datos, password) {
   var medicionesAnteriores = [];
 
   for (var j = 1; j < dataMed.length; j++) {
-    if (String(dataMed[j][1]) === String(datos.idParticipante)) {
+    if (String(dataMed[j][1]).trim() === String(datos.idParticipante).trim()) {
       medicionesAnteriores.push({
         fecha: dataMed[j][3],
         peso: Number(dataMed[j][4])
@@ -350,7 +390,6 @@ function registrarMedicionSemanal(datos, password) {
     pesoAnterior = medicionesAnteriores[medicionesAnteriores.length - 1].peso;
   }
 
-  // Advertencia de pérdida saludable (> 1% de pérdida semanal)
   var advertenciaSaludable = false;
   var porcentajePerdidaSemanale = 0;
   if (pesoAnterior > 0) {
@@ -406,23 +445,20 @@ function registrarMedicionFinal(datos, password) {
   if (isNaN(cinturaFinal) || cinturaFinal <= 0) throw new Error("La cintura final no puede ser negativa ni cero.");
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetPart = ss.getSheetByName(SHEET_PARTICIPANTES);
-  var dataPart = sheetPart.getDataRange().getValues();
-  var headersPart = dataPart[0];
+  var sheetPart = obtenerHojaParticipantes(ss);
+  if (!sheetPart) throw new Error("No se encontró la hoja de Participantes.");
 
-  var colIdPart = headersPart.indexOf("ID");
-  var colNombrePart = headersPart.indexOf("Nombre Completo");
-  var colPesoFinPart = headersPart.indexOf("Peso Final (kg)");
-  var colCinturaFinPart = headersPart.indexOf("Cintura Final (cm)");
-  var colFechaFinPart = headersPart.indexOf("Fecha Final");
+  var dataPart = sheetPart.getDataRange().getValues();
+  var idxs = resolverIndicesHeaders(dataPart[0]);
 
   var rowIndex = -1;
   var nombreParticipante = "";
 
   for (var i = 1; i < dataPart.length; i++) {
-    if (String(dataPart[i][colIdPart]) === String(datos.idParticipante)) {
+    var currentId = idxs.colId < dataPart[i].length ? String(dataPart[i][idxs.colId] || "").trim() : "";
+    if (currentId === String(datos.idParticipante).trim()) {
       rowIndex = i + 1; // 1-based index in Google Sheets
-      nombreParticipante = dataPart[i][colNombrePart];
+      nombreParticipante = dataPart[i][idxs.colNombre] || "Participante";
       break;
     }
   }
@@ -431,10 +467,9 @@ function registrarMedicionFinal(datos, password) {
     throw new Error("No se puede registrar la medición final porque no existe la medición inicial del participante.");
   }
 
-  // Actualizar columnas Peso Final, Cintura Final, Fecha Final según sus índices
-  sheetPart.getRange(rowIndex, colPesoFinPart + 1).setValue(pesoFinal);
-  sheetPart.getRange(rowIndex, colCinturaFinPart + 1).setValue(cinturaFinal);
-  sheetPart.getRange(rowIndex, colFechaFinPart + 1).setValue(datos.fechaFinal);
+  sheetPart.getRange(rowIndex, idxs.colPesoFin + 1).setValue(pesoFinal);
+  sheetPart.getRange(rowIndex, idxs.colCinturaFin + 1).setValue(cinturaFinal);
+  sheetPart.getRange(rowIndex, idxs.colFechaFin + 1).setValue(datos.fechaFinal);
 
   return {
     exito: true,
@@ -444,7 +479,6 @@ function registrarMedicionFinal(datos, password) {
 
 /**
  * Calcula la desviación estándar muestral de un arreglo de números.
- * Si n < 2, retorna 0.
  */
 function calcularDesviacionEstandar(valores) {
   if (!valores || valores.length < 2) return 0;
@@ -469,8 +503,8 @@ function calcularDesviacionEstandar(valores) {
  */
 function calcularClasificacion() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetPart = ss.getSheetByName(SHEET_PARTICIPANTES);
-  var sheetMed = ss.getSheetByName(SHEET_MEDICIONES);
+  var sheetPart = obtenerHojaParticipantes(ss);
+  var sheetMed = ss ? ss.getSheetByName(SHEET_MEDICIONES) : null;
 
   if (!sheetPart) return { leaderboard: [], estadisticas: {} };
 
@@ -480,24 +514,14 @@ function calcularClasificacion() {
   var dataPart = sheetPart.getDataRange().getValues();
   if (dataPart.length <= 1) return { leaderboard: [], estadisticas: {} };
 
-  var headersPart = dataPart[0];
-  var colId = headersPart.indexOf("ID");
-  var colNombre = headersPart.indexOf("Nombre Completo");
-  var colEdad = headersPart.indexOf("Edad");
-  var colSexo = headersPart.indexOf("Sexo");
-  var colPesoIni = headersPart.indexOf("Peso Inicial (kg)");
-  var colCinturaIni = headersPart.indexOf("Cintura Inicial (cm)");
-  var colCategoria = headersPart.indexOf("Categoría");
-  var colActivo = headersPart.indexOf("Activo");
-  var colPesoFin = headersPart.indexOf("Peso Final (kg)");
-  var colCinturaFin = headersPart.indexOf("Cintura Final (cm)");
+  var idxs = resolverIndicesHeaders(dataPart[0]);
 
   var dataMed = sheetMed ? sheetMed.getDataRange().getValues() : [];
 
   // Agrupar mediciones por participante
   var medicionesPorParticipante = {};
   for (var m = 1; m < dataMed.length; m++) {
-    var idPart = String(dataMed[m][1]);
+    var idPart = String(dataMed[m][1]).trim();
     var pesoMed = Number(dataMed[m][4]);
     if (!medicionesPorParticipante[idPart]) {
       medicionesPorParticipante[idPart] = [];
@@ -511,23 +535,21 @@ function calcularClasificacion() {
 
   for (var i = 1; i < dataPart.length; i++) {
     var row = dataPart[i];
-    var id = String(row[colId]);
-    var nombre = String(row[colNombre] || "");
-    var edad = colEdad !== -1 ? row[colEdad] : "";
-    var sexo = colSexo !== -1 ? row[colSexo] : "";
-    var pesoInicial = Number(row[colPesoIni]);
-    var cinturaInicial = Number(row[colCinturaIni]);
-    var categoria = String(row[colCategoria] || "");
-    var activo = String(row[colActivo]).toLowerCase();
+    var id = idxs.colId < row.length ? String(row[idxs.colId] || "").trim() : "";
+    var nombre = idxs.colNombre < row.length ? String(row[idxs.colNombre] || "").trim() : "";
+    var edad = idxs.colEdad < row.length ? row[idxs.colEdad] : "";
+    var sexo = idxs.colSexo < row.length ? row[idxs.colSexo] : "";
+    var pesoInicial = Number(row[idxs.colPesoIni] || 0);
+    var cinturaInicial = Number(row[idxs.colCinturaIni] || 0);
+    var categoria = idxs.colCategoria < row.length ? String(row[idxs.colCategoria] || "") : "";
+    var activo = idxs.colActivo < row.length ? String(row[idxs.colActivo] || "").toLowerCase().trim() : "sí";
 
-    // Solo procesar participantes activos con datos válidos
-    if (!id || (activo !== "sí" && activo !== "si" && activo !== "true")) continue;
+    if ((!id && !nombre) || (activo !== "sí" && activo !== "si" && activo !== "true" && activo !== "")) continue;
     if (isNaN(pesoInicial) || pesoInicial <= 0 || isNaN(cinturaInicial) || cinturaInicial <= 0) continue;
 
-    var pesoFinalVal = row[colPesoFin];
-    var cinturaFinalVal = row[colCinturaFin];
+    var pesoFinalVal = row[idxs.colPesoFin];
+    var cinturaFinalVal = row[idxs.colCinturaFin];
 
-    // Obtener mediciones semanales
     var listaPesosSemana = medicionesPorParticipante[id] || [];
     var totalCheckIns = listaPesosSemana.length;
 
@@ -539,22 +561,19 @@ function calcularClasificacion() {
                         ? Number(cinturaFinalVal)
                         : cinturaInicial;
 
-    // Fórmulas de Puntaje
     var pctPesoPerdido = ((pesoInicial - pesoActual) / pesoInicial) * 100;
     var cmCinturaReducidos = cinturaInicial - cinturaActual;
     var bonoCintura = cmCinturaReducidos * factorBono;
     var puntajeFinal = pctPesoPerdido + bonoCintura;
 
-    // Criterios para desempate
     var pctReduccionCintura = ((cinturaInicial - cinturaActual) / cinturaInicial) * 100;
 
-    // Variación estándar de pesos semanales
     var historialPesosCompleto = [pesoInicial].concat(listaPesosSemana);
     var stdDev = calcularDesviacionEstandar(historialPesosCompleto);
 
     participantesProcesados.push({
-      id: id,
-      nombre: nombre,
+      id: id || ("PART-" + i),
+      nombre: nombre || ("Participante " + i),
       edad: edad,
       sexo: sexo,
       categoria: categoria,
@@ -569,7 +588,7 @@ function calcularClasificacion() {
       pctReduccionCintura: pctReduccionCintura,
       totalCheckIns: totalCheckIns,
       stdDev: stdDev,
-      tieneFinal: (pesoFinalVal !== "" && pesoFinalVal !== null)
+      tieneFinal: (pesoFinalVal !== "" && pesoFinalVal !== null && pesoFinalVal !== undefined)
     });
   }
 
@@ -590,12 +609,10 @@ function calcularClasificacion() {
     return a.stdDev - b.stdDev;
   });
 
-  // Asignar posiciones
   for (var k = 0; k < participantesProcesados.length; k++) {
     participantesProcesados[k].posicion = k + 1;
   }
 
-  // Calcular Estadísticas Generales
   var totalParticipantes = participantesProcesados.length;
   var sumaPctPerdida = 0;
   var masConstante = null;
