@@ -4,13 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kilos Mortales</title>
+  <script>
+    // URL del logo almacenado en Google Drive
+    const LOGO_DRIVE_URL = "https://lh3.googleusercontent.com/d/1jZWkMUZpQ_aYiD6syGStyyLXO-fPOTTR";
+  </script>
   <?!= include('Styles'); ?>
 </head>
 <body>
 
   <header>
     <div class="header-content">
-      <img src="<?!= include('logo_base64.txt'); ?>" alt="Kilos Mortales Logo" class="header-logo">
+      <img id="app-logo" src="https://lh3.googleusercontent.com/d/1jZWkMUZpQ_aYiD6syGStyyLXO-fPOTTR" alt="Kilos Mortales Logo" class="header-logo">
       <div class="header-text">
         <h1>🏆 Kilos Mortales</h1>
         <p>Puntuación equitativa basada en % de peso perdido y bono de cintura</p>

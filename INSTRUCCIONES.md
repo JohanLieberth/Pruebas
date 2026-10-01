@@ -49,13 +49,14 @@ La aplicación inicializa automáticamente tres (3) hojas si no existen:
 1. En la hoja de cálculo, ve al menú superior: **Extensiones** > **Apps Script**.
 
 ### Paso 3: Copiar los Archivos de Código
-Crea los siguientes 5 archivos en el editor de Apps Script:
+Crea los siguientes 4 archivos en el editor de Apps Script:
 
 1. **`Code.gs`** (Archivo de script principal)
 2. **`Index.html`** (Archivo HTML principal)
 3. **`Styles.html`** (Estilos CSS)
 4. **`JavaScript.html`** (Lógica cliente JS)
-5. **`logo_base64.txt`** (Contenido Base64 del logo)
+
+*Nota: La imagen del logo se carga dinámicamente vía Google Drive URL (`https://lh3.googleusercontent.com/d/1jZWkMUZpQ_aYiD6syGStyyLXO-fPOTTR`).*
 
 ### Paso 4: Desplegar como Web App
 1. En la esquina superior derecha del editor de Apps Script, haz clic en **Desplegar** > **Nuevo despliegue**.
