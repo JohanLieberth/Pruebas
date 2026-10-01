@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Competencia de Control de Peso</title>
+  <title>Kilos Mortales</title>
   <?!= include('Styles'); ?>
 </head>
 <body>
 
   <header>
-    <h1>🏆 Competencia de Control de Peso</h1>
-    <p>Puntuación equitativa basada en % de peso perdido y bono de cintura</p>
+    <div class="header-content">
+      <img src="<?!= include('logo_base64.txt'); ?>" alt="Kilos Mortales Logo" class="header-logo">
+      <div class="header-text">
+        <h1>🏆 Kilos Mortales</h1>
+        <p>Puntuación equitativa basada en % de peso perdido y bono de cintura</p>
+      </div>
+    </div>
   </header>
 
   <div class="container">
@@ -43,7 +48,7 @@
 
       <!-- Banner Ganador -->
       <div id="winner-banner-container" class="winner-banner" style="display:none;">
-        <h2>🥇 ¡Líder de la Competencia! 🥇</h2>
+        <h2>🥇 ¡Líder de Kilos Mortales! 🥇</h2>
         <div id="winner-name" class="winner-name">-</div>
         <div id="winner-details" class="winner-score">-</div>
       </div>
@@ -97,7 +102,7 @@
       <!-- CONTENIDO PANEL ADMIN (Solo visible si autenticado) -->
       <div id="admin-panel-content" style="display:none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <h2 style="font-size: 1.3rem; color: var(--primary-dark);">Gestión de Competencia</h2>
+          <h2 style="font-size: 1.3rem; color: var(--primary-dark);">Gestión de Kilos Mortales</h2>
           <button onclick="cerrarSesionAdmin()" class="btn btn-secondary" style="background-color: #757575;">Cerrar Sesión</button>
         </div>
 
@@ -106,6 +111,7 @@
           <button id="subtab-btn-registro" class="sub-tab-btn active" onclick="cambiarSubTabAdmin('registro')">➕ Registrar Participante</button>
           <button id="subtab-btn-medicion" class="sub-tab-btn" onclick="cambiarSubTabAdmin('medicion')">📅 Check-In Semanal</button>
           <button id="subtab-btn-final" class="sub-tab-btn" onclick="cambiarSubTabAdmin('final')">🏁 Medición Final</button>
+          <button id="subtab-btn-listado" class="sub-tab-btn" onclick="cambiarSubTabAdmin('listado')">📋 Lista Participantes</button>
         </div>
 
         <!-- SUB-TAB 1: Registrar Participante -->
@@ -122,16 +128,31 @@
                 <input type="text" id="reg-nombre" class="form-control" placeholder="Ej. Juan Pérez" required>
               </div>
               <div class="form-group">
-                <label for="reg-email">Email (opcional)</label>
-                <input type="email" id="reg-email" class="form-control" placeholder="juan@ejemplo.com">
+                <label for="reg-edad">Edad *</label>
+                <input type="number" id="reg-edad" class="form-control" min="1" max="119" step="1" placeholder="Ej. 30" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-sexo">Sexo *</label>
+                <select id="reg-sexo" class="form-control" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="Masculino">Masculino</option>
+                </select>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
+                <label for="reg-email">Email (opcional)</label>
+                <input type="email" id="reg-email" class="form-control" placeholder="juan@ejemplo.com">
+              </div>
+              <div class="form-group">
                 <label for="reg-estatura">Estatura (m) *</label>
                 <input type="number" id="reg-estatura" class="form-control" step="0.01" min="0.5" max="2.5" placeholder="Ej. 1.75" required>
               </div>
+            </div>
+
+            <div class="form-row">
               <div class="form-group">
                 <label for="reg-peso">Peso Inicial (kg) *</label>
                 <input type="number" id="reg-peso" class="form-control" step="0.1" min="1" max="300" placeholder="Ej. 85.5" required>
@@ -227,6 +248,33 @@
 
             <button type="submit" id="btn-guardar-final" class="btn btn-primary btn-block" style="margin-top: 10px; background-color: var(--accent-color);">Registrar Medición Final</button>
           </form>
+        </div>
+
+        <!-- SUB-TAB 4: Lista de Participantes Admin (con Edad y Sexo) -->
+        <div id="admin-listado" class="card admin-subtab" style="display:none;">
+          <div class="card-title">
+            <span>📋 Lista de Participantes Registrados</span>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Nombre Completo</th>
+                  <th>Edad</th>
+                  <th>Sexo</th>
+                  <th>Categoría</th>
+                  <th>Peso / Cintura Inicial</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="admin-listado-body">
+                <tr>
+                  <td colspan="7" style="text-align:center; padding: 15px;">Cargando participantes...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>

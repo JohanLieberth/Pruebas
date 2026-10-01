@@ -1,6 +1,6 @@
-# 🏆 Competencia de Control de Peso - Guía de Instalación y Despliegue
+# 🏆 Kilos Mortales - Guía de Instalación y Despliegue
 
-Esta es una aplicación web completa desarrollada en **Google Apps Script** con base de datos en **Google Sheets** y una interfaz moderna e interactiva (**HtmlService**) diseñada para gestionar competencias de control de peso equitativas.
+Esta es una aplicación web completa desarrollada en **Google Apps Script** con base de datos en **Google Sheets** y una interfaz moderna e interactiva (**HtmlService**) diseñada para gestionar la competencia **Kilos Mortales**.
 
 ---
 
@@ -28,12 +28,12 @@ La aplicación inicializa automáticamente tres (3) hojas si no existen:
 1. **`Config`**:
    - `A1:B1` -> `PARAMETRO | VALOR`
    - `A2:B2` -> `PASSWORD_ADMIN | admin123` *(Configurable)*
-   - `A3:B3` -> `NOMBRE_COMPETENCIA | Desafío Control de Peso 2025`
+   - `A3:B3` -> `NOMBRE_COMPETENCIA | Kilos Mortales 2025`
    - `A4:B4` -> `FACTOR_BONO_CINTURA | 0.20`
    - `A5:B5` -> `FECHA_INICIO | [Fecha]`
 
 2. **`Participantes`**:
-   - Encabezados: `ID`, `Nombre Completo`, `Email`, `Estatura (m)`, `Peso Inicial (kg)`, `Cintura Inicial (cm)`, `Fecha Inicio`, `Categoría`, `Activo`, `Peso Final (kg)`, `Cintura Final (cm)`, `Fecha Final`, `Fecha Registro`
+   - Encabezados: `ID`, `Nombre Completo`, `Edad`, `Sexo`, `Email`, `Estatura (m)`, `Peso Inicial (kg)`, `Cintura Inicial (cm)`, `Fecha Inicio`, `Categoría`, `Activo`, `Peso Final (kg)`, `Cintura Final (cm)`, `Fecha Final`, `Fecha Registro`
 
 3. **`Mediciones`**:
    - Encabezados: `ID Medición`, `ID Participante`, `Nombre Participante`, `Fecha Medición`, `Peso (kg)`, `Cintura (cm)`, `Fecha Registro`
@@ -43,28 +43,25 @@ La aplicación inicializa automáticamente tres (3) hojas si no existen:
 ## 🚀 Pasos para Desplegar la Web App
 
 ### Paso 1: Crear la Hoja de Cálculo
-1. Ve a [Google Sheets](https://sheets.google.com) y crea un libro en blanco titulado **"Competencia Control de Peso"**.
+1. Ve a [Google Sheets](https://sheets.google.com) y crea un libro en blanco titulado **"Kilos Mortales"**.
 
 ### Paso 2: Abrir el Editor de Google Apps Script
 1. En la hoja de cálculo, ve al menú superior: **Extensiones** > **Apps Script**.
 
 ### Paso 3: Copiar los Archivos de Código
-Crea los siguientes 4 archivos en el editor de Apps Script:
+Crea los siguientes 5 archivos en el editor de Apps Script:
 
 1. **`Code.gs`** (Archivo de script principal)
-   - Copia el contenido integro de `Code.gs`.
-2. **`Index.html`** (Archivo HTML)
-   - Haz clic en `+` > **HTML**, nombraló `Index` y pega el contenido de `Index.html`.
-3. **`Styles.html`** (Archivo HTML)
-   - Haz clic en `+` > **HTML**, nombraló `Styles` y pega el contenido de `Styles.html`.
-4. **`JavaScript.html`** (Archivo HTML)
-   - Haz clic en `+` > **HTML**, nombraló `JavaScript` y pega el contenido de `JavaScript.html`.
+2. **`Index.html`** (Archivo HTML principal)
+3. **`Styles.html`** (Estilos CSS)
+4. **`JavaScript.html`** (Lógica cliente JS)
+5. **`logo_base64.txt`** (Contenido Base64 del logo)
 
 ### Paso 4: Desplegar como Web App
 1. En la esquina superior derecha del editor de Apps Script, haz clic en **Desplegar** > **Nuevo despliegue**.
 2. Selecciona el icono de engranaje ⚙️ y elige **Aplicación web**.
 3. Configura los parámetros:
-   - **Descripción**: Competencia de Control de Peso v1.0
+   - **Descripción**: Kilos Mortales v1.0
    - **Ejecutar como**: *Yo (tu cuenta de Google)*
    - **Quién tiene acceso**: *Cualquier persona* (Anyone)
 4. Haz clic en **Desplegar**.
@@ -73,7 +70,7 @@ Crea los siguientes 4 archivos en el editor de Apps Script:
 1. Al desplegar por primera vez, Google te pedirá autorizar el acceso.
 2. Haz clic en **Revisar permisos**.
 3. Selecciona tu cuenta de Google.
-4. Haz clic en **Configuración avanzada** (Advanced) y luego en **Ir a Competencia (no seguro)**.
+4. Haz clic en **Configuración avanzada** (Advanced) y luego en **Ir a Kilos Mortales (no seguro)**.
 5. Haz clic en **Permitir**.
 6. Copia la **URL de la aplicación web** generada. ¡Ese es el enlace público de tu aplicación!
 
@@ -84,9 +81,10 @@ Crea los siguientes 4 archivos en el editor de Apps Script:
 - Para acceder al panel de administración, haz clic en la pestaña **"🔒 Panel Administrador"**.
 - Ingresa la contraseña configurada en la celda `B2` de la hoja `Config` (por defecto: `admin123`).
 - Desde ahí podrás:
-  1. **Registrar Participantes**: Ingresar datos iniciales, estatura, peso y cintura inicial.
+  1. **Registrar Participantes**: Ingresar datos iniciales (incluyendo Edad y Sexo), estatura, peso y cintura inicial.
   2. **Check-In Semanal**: Registrar el avance periódico del participante. Muestra una advertencia automática si la pérdida supera el 1% semanal.
   3. **Medición Final**: Registrar los datos definitivos al término de la competencia.
+  4. **Lista Participantes**: Ver el padrón completo de participantes registrados con su edad, sexo y datos iniciales.
 
 ---
 
