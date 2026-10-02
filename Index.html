@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Control Documental - Ayuntamiento de Mérida</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* ==========================================
+       ESTILOS INSTITUCIONALES - AYUNTAMIENTO DE MÉRIDA
+       ========================================== */
+    :root {
+      --primary-color: #003366; /* Azul Institucional */
+      --primary-dark: #002244;
+      --secondary-color: #008080; /* Teal Accent */
+      --bg-light: #F4F6F9;
+      --card-bg: #FFFFFF;
+      --text-main: #333333;
+      --text-muted: #666666;
+      --border-color: #E0E0E0;
+      --success-color: #2E7D32;
+      --warning-color: #F57F17;
+      --danger-color: #C62828;
+      --info-color: #0288D1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-light);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding-bottom: 40px;
+    }
+
+    /* Header Principal */
+    header.main-header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+      color: #FFFFFF;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    header.main-header .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header.main-header .brand h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    header.main-header .brand span.sub {
+      font-size: 0.85rem;
+      opacity: 0.85;
+      display: block;
+    }
+
+    header.main-header .user-info {
+      text-align: right;
+      font-size: 0.85rem;
+    }
+
+    header.main-header .user-info span.role-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      background-color: rgba(255, 255, 255, 0.2);
+      margin-left: 6px;
+    }
+
+    /* Navegación por pestañas */
+    nav.tab-nav {
+      background-color: #FFFFFF;
+      border-bottom: 2px solid var(--border-color);
+      display: flex;
+      overflow-x: auto;
+      padding: 0 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+
+    nav.tab-nav button.tab-btn {
+      background: none;
+      border: none;
+      padding: 14px 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    nav.tab-nav button.tab-btn:hover {
+      color: var(--primary-color);
+      background-color: rgba(0, 51, 102, 0.03);
+    }
+
+    nav.tab-nav button.tab-btn.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+    }
+
+    /* Contenedor Principal */
+    main.container {
+      max-width: 1280px;
+      margin: 24px auto;
+      padding: 0 20px;
+    }
+
+    /* Secciones Vistas */
+    .view-section {
+      display: none;
+    }
+
+    .view-section.active {
+      display: block;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Tarjetas (Cards) */
+    .card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+    }
+
+    /* Grid de Métricas en Dashboard */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background-color: #FFFFFF;
+      border-left: 4px solid var(--primary-color);
+      border-radius: 6px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      border-top: 1px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .metric-card.success { border-left-color: var(--success-color); }
+    .metric-card.warning { border-left-color: var(--warning-color); }
+    .metric-card.danger { border-left-color: var(--danger-color); }
+
+    .metric-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+
+    .metric-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Formularios y Campos */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    input, select, textarea {
+      padding: 9px 12px;
+      font-size: 0.9rem;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background-color: #FFFFFF;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(0, 51, 102, 0.1);
+    }
+
+    input[disabled], select[disabled] {
+      background-color: #E9ECEF;
+      cursor: not-allowed;
+      color: #6C757D;
+    }
+
+    /* Botones */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary { background-color: var(--primary-color); color: #FFFFFF; }
+    .btn-primary:hover { background-color: var(--primary-dark); }
+
+    .btn-secondary { background-color: #6C757D; color: #FFFFFF; }
+    .btn-secondary:hover { background-color: #5A6268; }
+
+    .btn-success { background-color: var(--success-color); color: #FFFFFF; }
+    .btn-success:hover { background-color: #1B5E20; }
+
+    .btn-danger { background-color: var(--danger-color); color: #FFFFFF; }
+    .btn-danger:hover { background-color: #B71C1C; }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 0.8rem;
+    }
+
+    /* Tablas */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      background: #FFFFFF;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      background-color: #F8F9FA;
+      color: var(--primary-color);
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    th:hover {
+      background-color: #E9ECEF;
+    }
+
+    tr:hover {
+      background-color: #F1F5F9;
+    }
+
+    /* Semáforos y Badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .badge-verde { background-color: #E8F5E9; color: #2E7D32; }
+    .badge-amarillo { background-color: #FFFDE7; color: #F57F17; }
+    .badge-rojo { background-color: #FFEBEE; color: #C62828; }
+
+    .badge-vigente { background-color: #E8F5E9; color: #2E7D32; }
+    .badge-revision { background-color: #E3F2FD; color: #0288D1; }
+    .badge-obsoleto { background-color: #ECEFF1; color: #546E7A; }
+
+    /* Paginación */
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      font-size: 0.85rem;
+    }
+
+    /* Vista Previa Código */
+    .code-preview-box {
+      background-color: #EBF3FA;
+      border: 1px dashed var(--primary-color);
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .code-preview-box strong {
+      font-size: 1.2rem;
+      color: var(--primary-color);
+      letter-spacing: 1px;
+    }
+
+    /* Gráfica CSS en Dashboard */
+    .css-chart-bar-container {
+      margin-bottom: 8px;
+    }
+    .css-chart-label {
+      font-size: 0.8rem;
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .css-chart-track {
+      background-color: #E0E0E0;
+      height: 16px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .css-chart-fill {
+      background-color: var(--primary-color);
+      height: 100%;
+      transition: width 0.4s ease;
+    }
+
+    /* Tree View para Formatos */
+    .tree-doc-header {
+      background-color: #EBF3FA;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      color: var(--primary-color);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tree-format-item {
+      margin-left: 24px;
+      border-left: 2px solid var(--primary-color);
+      padding-left: 12px;
+      margin-bottom: 10px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #FFFFFF;
+      width: 90%;
+      max-width: 600px;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    /* Toasts / Alert Toast */
+    #toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      padding: 12px 20px;
+      border-radius: 6px;
+      color: #FFFFFF;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      animation: slideIn 0.3s ease;
+    }
+
+    .toast.success { background-color: var(--success-color); }
+    .toast.error { background-color: var(--danger-color); }
+    .toast.info { background-color: var(--info-color); }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Loader global */
+    .loader-spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary-color);
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Estilos de impresión para Reportes */
+    @media print {
+      header.main-header, nav.tab-nav, .no-print, .btn {
+        display: none !important;
+      }
+      body {
+        background-color: #FFFFFF;
+      }
+      .card {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER PRINCIPAL INSTITUCIONAL -->
+  <header class="main-header">
+    <div class="brand">
+      <div>
+        <h1>Ayuntamiento de Mérida</h1>
+        <span class="sub">Sistema de Control Documental - Calidad y Mejora Continua</span>
+      </div>
+    </div>
+    <div class="user-info">
+      <span id="user-email">Cargando usuario...</span>
+      <span id="user-role-badge" class="role-badge">Consulta</span>
+    </div>
+  </header>
+
+  <!-- NAVEGACIÓN POR PESTAÑAS -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('alta')">Alta de Documento</button>
+    <button class="tab-btn" onclick="switchTab('consulta')">Consulta / Edición</button>
+    <button class="tab-btn" onclick="switchTab('formatos')">Gestión de Formatos</button>
+    <button class="tab-btn" onclick="switchTab('reportes')">Reportes y Migración</button>
+  </nav>
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="container">
+
+    <!-- ==================== PESTAÑA 1: DASHBOARD ==================== -->
+    <section id="tab-dashboard" class="view-section active">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Total Documentos</div>
+          <div id="metric-total" class="metric-value">0</div>
+        </div>
+        <div class="metric-card success">
+          <div class="metric-label">Vigentes</div>
+          <div id="metric-vigentes" class="metric-value">0</div>
+        </div>
+        <div class="metric-card warning">
+          <div class="metric-label">En Revisión</div>
+          <div id="metric-revision" class="metric-value">0</div>
+        </div>
+        <div class="metric-card danger">
+          <div class="metric-label">Obsoletos</div>
+          <div id="metric-obsoletos" class="metric-value">0</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Gráfica por Dirección -->
+        <div class="card">
+          <div class="card-title">Documentos por Dirección</div>
+          <div id="chart-direccion-container">
+            <p style="text-align: center; color: var(--text-muted);">Cargando gráfico...</p>
+          </div>
+        </div>
+
+        <!-- Distribución por Tipo -->
+        <div class="card">
+          <div class="card-title">Documentos por Tipo</div>
+          <div id="chart-tipo-container">
+            <p style="text-align: center; color: var(--text-muted);">Cargando gráfico...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla Semáforo de Antigüedad -->
+      <div class="card">
+        <div class="card-title">
+          <span>Documentos con Antigüedad &gt; 12 Meses sin Actualización</span>
+          <button class="btn btn-sm btn-secondary" onclick="cargarDashboard()">Actualizar</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Semáforo</th>
+                <th>Código</th>
+                <th>Nombre del Documento</th>
+                <th>Dirección</th>
+                <th>Última Actualización</th>
+                <th>Meses Transcurridos</th>
+                <th>Estatus</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-semaforo-body">
+              <tr><td colspan="7" style="text-align: center;">Cargando información...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PESTAÑA 2: ALTA DE DOCUMENTO ==================== -->
+    <section id="tab-alta" class="view-section">
+      <div class="card">
+        <div class="card-title">Registro de Nuevo Documento del Sistema de Gestión</div>
+
+        <form id="form-alta-doc" onsubmit="guardarNuevoDocumento(event)">
+          <div class="form-grid">
+
+            <!-- Cascading Level 1: Dirección -->
+            <div class="form-group">
+              <label for="alta-direccion">1. Dirección *</label>
+              <select id="alta-direccion" required onchange="alCambiarDireccionAlta()">
+                <option value="">-- Seleccione Dirección --</option>
+              </select>
+            </div>
+
+            <!-- Cascading Level 2: Subdirección -->
+            <div class="form-group">
+              <label for="alta-subdireccion">2. Subdirección *</label>
+              <select id="alta-subdireccion" required onchange="alCambiarSubdireccionAlta()">
+                <option value="">-- Seleccione Subdirección --</option>
+              </select>
+            </div>
+
+            <!-- Cascading Level 3: Departamento -->
+            <div class="form-group">
+              <label for="alta-departamento">3. Departamento / Área *</label>
+              <select id="alta-departamento" required onchange="actualizarVistaPreviaCodigo()">
+                <option value="">-- Seleccione Departamento --</option>
+              </select>
+            </div>
+
+            <!-- Tipo de Documento -->
+            <div class="form-group">
+              <label for="alta-tipo">Tipo de Documento *</label>
+              <select id="alta-tipo" required onchange="actualizarVistaPreviaCodigo()">
+                <option value="">-- Seleccione Tipo --</option>
+              </select>
+            </div>
+
+            <!-- Nombre -->
+            <div class="form-group full-width">
+              <label for="alta-nombre">Nombre del Documento *</label>
+              <input type="text" id="alta-nombre" placeholder="Ej. Procedimiento para Control de Inventarios" required>
+            </div>
+
+            <!-- Fecha Edición -->
+            <div class="form-group">
+              <label for="alta-fecha-edicion">Fecha de Edición *</label>
+              <input type="date" id="alta-fecha-edicion" required>
+            </div>
+
+            <!-- Fecha Actualización -->
+            <div class="form-group">
+              <label for="alta-fecha-act">Fecha de Actualización *</label>
+              <input type="date" id="alta-fecha-act" required>
+            </div>
+
+            <!-- Revisión -->
+            <div class="form-group">
+              <label for="alta-revision">Revisión (ej. 0, 1, 01, NR) *</label>
+              <input type="text" id="alta-revision" value="0" pattern="^(NR)?\d{1,2}$" title="Un entero de 1 o 2 dígitos, opcionalmente iniciado con NR" required>
+            </div>
+
+            <!-- Difundido -->
+            <div class="form-group">
+              <label for="alta-difundido">¿Difundido? *</label>
+              <select id="alta-difundido" required>
+                <option value="Sí">Sí</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+          </div>
+
+          <!-- Vista previa del código generado -->
+          <div class="code-preview-box">
+            <div>
+              <span style="font-size:0.85rem; color:var(--text-muted); display:block;">Código Tentativo Generado automáticamente:</span>
+              <strong id="preview-codigo-str">-- Seleccione área y tipo --</strong>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="actualizarVistaPreviaCodigo()">Recalcular Vista Previa</button>
+          </div>
+
+          <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="reset" class="btn btn-secondary">Limpiar Formulario</button>
+            <button type="submit" id="btn-guardar-doc" class="btn btn-primary">
+              <span>Guardar Documento</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Sección inmediata para formatos hijos al guardar -->
+      <div id="seccion-formatos-inmediata" class="card" style="display:none; border-left: 4px solid var(--secondary-color);">
+        <div class="card-title">
+          <span>Capturar Formatos Hijos para el Documento: <span id="lbl-doc-recien-creado"></span></span>
+        </div>
+        <form id="form-alta-formato-inmediato" onsubmit="guardarFormatoInmediato(event)">
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label for="inm-nombre-formato">Nombre del Formato *</label>
+              <input type="text" id="inm-nombre-formato" placeholder="Ej. Formato de Solicitud de Materiales" required>
+            </div>
+            <div class="form-group">
+              <label for="inm-revision-formato">Revisión *</label>
+              <input type="text" id="inm-revision-formato" value="0" pattern="^(NR)?\d{1,2}$" required>
+            </div>
+            <div class="form-group">
+              <label for="inm-fecha-formato">Fecha Actualización *</label>
+              <input type="date" id="inm-fecha-formato" required>
+            </div>
+          </div>
+          <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-success">+ Agregar Formato Hijo</button>
+          </div>
+        </form>
+
+        <div style="margin-top: 16px;">
+          <strong>Formatos agregados a este documento:</strong>
+          <ul id="lista-formatos-inmediatos" style="margin-top:8px; padding-left: 20px;">
+            <li style="color:var(--text-muted);">Sin formatos agregados aún.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PESTAÑA 3: CONSULTA / EDICIÓN ==================== -->
+    <section id="tab-consulta" class="view-section">
+      <div class="card">
+        <div class="card-title">Buscador y Filtros de Documentos</div>
+        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+          <div class="form-group">
+            <label for="filtro-busqueda">Búsqueda rápida</label>
+            <input type="text" id="filtro-busqueda" placeholder="Buscar código, nombre..." oninput="ejecutarBusquedaConsulta()">
+          </div>
+          <div class="form-group">
+            <label for="filtro-direccion">Dirección</label>
+            <select id="filtro-direccion" onchange="ejecutarBusquedaConsulta()">
+              <option value="">-- Todas las Direcciones --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="filtro-tipo">Tipo</label>
+            <select id="filtro-tipo" onchange="ejecutarBusquedaConsulta()">
+              <option value="">-- Todos los Tipos --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="filtro-estatus">Estatus</label>
+            <select id="filtro-estatus" onchange="ejecutarBusquedaConsulta()">
+              <option value="">-- Todos --</option>
+              <option value="Vigente">Vigente</option>
+              <option value="En revisión">En revisión</option>
+              <option value="Obsoleto">Obsoleto</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Documentos -->
+      <div class="card">
+        <div class="card-title">
+          <span>Listado de Documentos (<span id="total-docs-count">0</span>)</span>
+          <button class="btn btn-sm btn-primary" onclick="cargarDocumentosServidor()">Recargar</button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th onclick="ordenarTablaConsulta('codigo')">Código ⇅</th>
+                <th onclick="ordenarTablaConsulta('tipo')">Tipo ⇅</th>
+                <th onclick="ordenarTablaConsulta('nombre')">Nombre del Documento ⇅</th>
+                <th onclick="ordenarTablaConsulta('direccion')">Dirección / Área ⇅</th>
+                <th onclick="ordenarTablaConsulta('fecha_actualizacion')">Actualizado ⇅</th>
+                <th onclick="ordenarTablaConsulta('revision')">Rev. ⇅</th>
+                <th>Formatos</th>
+                <th onclick="ordenarTablaConsulta('estatus')">Estatus ⇅</th>
+                <th class="no-print">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-consulta-body">
+              <tr><td colspan="9" style="text-align:center;">Cargando documentos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginador -->
+        <div class="pagination">
+          <div id="paginacion-info">Mostrando 0-0 de 0</div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-secondary" onclick="cambiarPaginaConsulta(-1)">Anterior</button>
+            <span id="pagina-actual" style="align-self:center; font-weight:bold;">1</span>
+            <button class="btn btn-sm btn-secondary" onclick="cambiarPaginaConsulta(1)">Siguiente</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PESTAÑA 4: GESTIÓN DE FORMATOS ==================== -->
+    <section id="tab-formatos" class="view-section">
+      <div class="card">
+        <div class="card-title">Árbol de Documentos y Formatos Asociados</div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+          Seleccione un documento para visualizar sus formatos hijos registrados, agregar nuevos formatos o actualizar su estatus.
+        </p>
+
+        <div class="form-group" style="max-width: 500px;">
+          <label for="select-doc-formatos">Seleccionar Documento:</label>
+          <select id="select-doc-formatos" onchange="cargarTreeFormatosDoc()">
+            <option value="">-- Seleccione un documento --</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="tree-formatos-container">
+        <!-- Renderizado dinámico tipo árbol -->
+      </div>
+    </section>
+
+    <!-- ==================== PESTAÑA 5: REPORTES Y MIGRACIÓN ==================== -->
+    <section id="tab-reportes" class="view-section">
+      <!-- Sub-navegación de Reportes -->
+      <div style="display:flex; gap:10px; margin-bottom:16px;">
+        <button class="btn btn-primary" onclick="mostrarSubReporte('inv-dir')">Inventario por Dirección</button>
+        <button class="btn btn-secondary" onclick="mostrarSubReporte('rev-pend')">Revisiones Pendientes</button>
+        <button class="btn btn-secondary" onclick="mostrarSubReporte('bitacora')">Historial (Bitácora)</button>
+        <button class="btn btn-secondary admin-only" onclick="mostrarSubReporte('migracion')">Migración Masiva CSV/Excel</button>
+      </div>
+
+      <!-- Sub-Reporte 1: Inventario por Dirección -->
+      <div id="sub-inv-dir" class="card sub-reporte-block">
+        <div class="card-title">
+          <span>Inventario Oficial por Dirección</span>
+          <div class="no-print" style="display:flex; gap:8px;">
+            <select id="rep-filter-dir" onchange="renderizarInventarioDireccion()" style="padding:4px 8px;">
+              <option value="">-- Todas las Direcciones --</option>
+            </select>
+            <button class="btn btn-sm btn-success" onclick="imprimirOExportar('Inventario')">Imprimir / Guardar PDF</button>
+          </div>
+        </div>
+
+        <div id="reporte-inventario-print-area" class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Nombre</th>
+                <th>Subdirección</th>
+                <th>Departamento</th>
+                <th>Edición</th>
+                <th>Actualización</th>
+                <th>Rev.</th>
+                <th>Estatus</th>
+              </tr>
+            </thead>
+            <tbody id="rep-inv-body">
+              <tr><td colspan="9" style="text-align:center;">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sub-Reporte 2: Revisiones Pendientes -->
+      <div id="sub-rev-pend" class="card sub-reporte-block" style="display:none;">
+        <div class="card-title">Documentos En Revisión o Próximos a Vencer (&gt; 10 Meses)</div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Dirección</th>
+                <th>Última Actualización</th>
+                <th>Estatus</th>
+                <th>Días/Meses sin Cambio</th>
+              </tr>
+            </thead>
+            <tbody id="rep-rev-body">
+              <tr><td colspan="6" style="text-align:center;">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sub-Reporte 3: Historial Bitácora -->
+      <div id="sub-bitacora" class="card sub-reporte-block" style="display:none;">
+        <div class="card-title">
+          <span>Historial de Auditoría de Cambios (Bitácora)</span>
+          <input type="text" id="filtro-bitacora-codigo" placeholder="Filtrar por código..." oninput="cargarBitacoraServidor()" style="font-size:0.8rem; padding:4px 8px;">
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha/Hora</th>
+                <th>Usuario</th>
+                <th>Acción</th>
+                <th>Tabla</th>
+                <th>Código</th>
+                <th>Campo</th>
+                <th>Valor Anterior</th>
+                <th>Valor Nuevo</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-bitacora-body">
+              <tr><td colspan="8" style="text-align:center;">Cargando bitácora...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sub-Reporte 4: Migración Masiva -->
+      <div id="sub-migracion" class="card sub-reporte-block admin-only" style="display:none;">
+        <div class="card-title">Importar Inventario Actual desde Excel / CSV</div>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">
+          Pegue a continuación las filas de su archivo Excel o CSV separadas por tabuladores o comas.<br>
+          <strong>Formato por columna esperado:</strong><br>
+          <code>Código | Tipo | Nombre | Dirección | Subdirección | Departamento | Fecha Edición (dd/mm/aaaa) | Fecha Actualización | Revisión | Estatus | Difundido</code>
+        </p>
+
+        <div class="form-group">
+          <textarea id="txt-migracion-csv" rows="10" placeholder="Pague aquí el contenido copiado desde Excel..." style="width:100%; font-family:monospace; font-size:0.8rem;"></textarea>
+        </div>
+
+        <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+          <span id="migracion-status" style="font-weight:bold; font-size:0.9rem;"></span>
+          <button class="btn btn-primary" onclick="ejecutarMigracion()">Procesar e Importar Datos</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODALES ==================== -->
+
+  <!-- Modal Edición de Documento -->
+  <div id="modal-editar-doc" class="modal-overlay">
+    <div class="modal-content">
+      <h3 style="color: var(--primary-color); margin-bottom: 16px;">Editar Documento</h3>
+
+      <p style="font-size:0.8rem; background-color:#FFF3CD; color:#856404; padding:8px; border-radius:4px; margin-bottom:12px;">
+        ⚠️ <strong>Bloqueo de Seguridad:</strong> El código y la estructura organizacional (Dirección, Subdirección, Departamento) son inmodificables. Si se registró en el área equivocada, debe marcarlo como <strong>Obsoleto</strong> y crear un nuevo registro.
+      </p>
+
+      <form id="form-editar-doc" onsubmit="guardarEdicionDocumento(event)">
+        <div class="form-group">
+          <label>Código (Bloqueado):</label>
+          <input type="text" id="edit-doc-codigo" disabled>
+        </div>
+
+        <div class="form-group">
+          <label>Dirección / Subdirección / Departamento (Bloqueado):</label>
+          <input type="text" id="edit-doc-jerarquia" disabled>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-doc-nombre">Nombre del Documento *</label>
+          <input type="text" id="edit-doc-nombre" required>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="edit-doc-fecha-edicion">Fecha Edición *</label>
+            <input type="date" id="edit-doc-fecha-edicion" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-doc-fecha-act">Fecha Actualización *</label>
+            <input type="date" id="edit-doc-fecha-act" required>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="edit-doc-revision">Revisión *</label>
+            <input type="text" id="edit-doc-revision" pattern="^(NR)?\d{1,2}$" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-doc-estatus">Estatus *</label>
+            <select id="edit-doc-estatus" required>
+              <option value="Vigente">Vigente</option>
+              <option value="En revisión">En revisión</option>
+              <option value="Obsoleto">Obsoleto</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-doc-difundido">¿Difundido? *</label>
+          <select id="edit-doc-difundido" required>
+            <option value="Sí">Sí</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModal('modal-editar-doc')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICACIONES -->
+  <div id="toast-container"></div>
+
+  <!-- ==================== LÓGICA JAVASCRIPT CLIENTE ==================== -->
+  <script>
+    // ESTADO GLOBAL DE LA APLICACIÓN
+    var state = {
+      catalogos: null,
+      userRole: { email: '', esAdmin: false },
+      docs: [],
+      docsFiltrados: [],
+      paginaActual: 1,
+      filasPorPagina: 50,
+      columnaOrden: 'codigo',
+      ordenAsc: true,
+      docSeleccionadoCreacion: null
+    };
+
+    // INICIALIZACIÓN AL Cargar
+    window.addEventListener('DOMContentLoaded', function() {
+      cargarInfoUsuario();
+      cargarCatalogosServidor();
+      cargarDashboard();
+      cargarDocumentosServidor();
+    });
+
+    // Notificaciones Toast
+    function showToast(mensaje, tipo) {
+      tipo = tipo || 'info';
+      var container = document.getElementById('toast-container');
+      var toast = document.createElement('div');
+      toast.className = 'toast ' + tipo;
+      toast.innerText = mensaje;
+      container.appendChild(toast);
+      setTimeout(function() {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 4000);
+    }
+
+    function abrirModal(id) {
+      document.getElementById(id).classList.add('active');
+    }
+    function cerrarModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // Cambiar Pestañas Principales
+    function switchTab(tabKey) {
+      var buttons = document.querySelectorAll('nav.tab-nav button');
+      buttons.forEach(function(btn) { btn.classList.remove('active'); });
+
+      var sections = document.querySelectorAll('.view-section');
+      sections.forEach(function(sec) { sec.classList.remove('active'); });
+
+      var selectedBtn = Array.from(buttons).find(function(b) {
+        return b.getAttribute('onclick').indexOf(tabKey) !== -1;
+      });
+      if (selectedBtn) selectedBtn.classList.add('active');
+
+      var selectedSec = document.getElementById('tab-' + tabKey);
+      if (selectedSec) selectedSec.classList.add('active');
+
+      if (tabKey === 'dashboard') cargarDashboard();
+      if (tabKey === 'consulta') cargarDocumentosServidor();
+      if (tabKey === 'formatos') poblarSelectorDocsFormatos();
+      if (tabKey === 'reportes') mostrarSubReporte('inv-dir');
+    }
+
+    // Cargar Info de Usuario y Rol
+    function cargarInfoUsuario() {
+      google.script.run
+        .withSuccessHandler(function(info) {
+          state.userRole = info;
+          document.getElementById('user-email').innerText = info.email;
+          var badge = document.getElementById('user-role-badge');
+          if (info.esAdmin) {
+            badge.innerText = 'Administrador';
+            badge.style.backgroundColor = '#2E7D32';
+          } else {
+            badge.innerText = 'Consulta';
+            badge.style.backgroundColor = '#0288D1';
+            aplicarRestriccionesRolConsulta();
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error al obtener usuario: ' + err.message, 'error');
+        })
+        .getUserRoleInfo();
+    }
+
+    function aplicarRestriccionesRolConsulta() {
+      // Ocultar controles reservados para Administrador
+      var adminElems = document.querySelectorAll('.admin-only, #btn-guardar-doc');
+      adminElems.forEach(function(el) { el.style.display = 'none'; });
+    }
+
+    // Cargar Catálogos del Servidor y Poblar Dropdowns
+    function cargarCatalogosServidor() {
+      google.script.run
+        .withSuccessHandler(function(catData) {
+          state.catalogos = catData;
+          poblarDropdownDireccionesAlta();
+          poblarDropdownsFiltrosConsulta();
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error cargando catálogos: ' + err.message, 'error');
+        })
+        .getCatalogosData();
+    }
+
+    // ==================== CASCADING DROPDOWNS (3 NIVELES) ====================
+    function poblarDropdownDireccionesAlta() {
+      var selectDir = document.getElementById('alta-direccion');
+      var selectTipo = document.getElementById('alta-tipo');
+      if (!state.catalogos) return;
+
+      selectDir.innerHTML = '<option value="">-- Seleccione Dirección --</option>';
+      Object.keys(state.catalogos.direcciones).sort().forEach(function(dirKey) {
+        var opt = document.createElement('option');
+        opt.value = dirKey;
+        opt.innerText = dirKey + ' (' + state.catalogos.direcciones[dirKey].sigla + ')';
+        selectDir.appendChild(opt);
+      });
+
+      selectTipo.innerHTML = '<option value="">-- Seleccione Tipo --</option>';
+      state.catalogos.tiposDoc.forEach(function(t) {
+        var opt = document.createElement('option');
+        opt.value = t.nombre;
+        opt.innerText = t.combo;
+        selectTipo.appendChild(opt);
+      });
+    }
+
+    function alCambiarDireccionAlta() {
+      var dirSel = document.getElementById('alta-direccion').value;
+      var selectSub = document.getElementById('alta-subdireccion');
+      var selectDep = document.getElementById('alta-departamento');
+
+      selectSub.innerHTML = '<option value="">-- Seleccione Subdirección --</option>';
+      selectDep.innerHTML = '<option value="">-- Seleccione Departamento --</option>';
+
+      if (!dirSel || !state.catalogos.direcciones[dirSel]) {
+        actualizarVistaPreviaCodigo();
+        return;
+      }
+
+      var subs = state.catalogos.direcciones[dirSel].subdirecciones;
+      Object.keys(subs).sort().forEach(function(sKey) {
+        var subObj = subs[sKey];
+        var opt = document.createElement('option');
+        opt.value = sKey;
+        opt.innerText = sKey + (subObj.sigla ? ' (' + subObj.sigla + ')' : '');
+        selectSub.appendChild(opt);
+      });
+
+      actualizarVistaPreviaCodigo();
+    }
+
+    function alCambiarSubdireccionAlta() {
+      var dirSel = document.getElementById('alta-direccion').value;
+      var subSel = document.getElementById('alta-subdireccion').value;
+      var selectDep = document.getElementById('alta-departamento');
+
+      selectDep.innerHTML = '<option value="">-- Seleccione Departamento --</option>';
+
+      if (!dirSel || !subSel || !state.catalogos.direcciones[dirSel] || !state.catalogos.direcciones[dirSel].subdirecciones[subSel]) {
+        actualizarVistaPreviaCodigo();
+        return;
+      }
+
+      var deps = state.catalogos.direcciones[dirSel].subdirecciones[subSel].departamentos;
+      deps.forEach(function(d) {
+        var opt = document.createElement('option');
+        opt.value = d.nombre;
+        opt.setAttribute('data-sigla-area', d.sigla);
+        opt.innerText = d.nombre + (d.sigla ? ' (' + d.sigla + ')' : '');
+        selectDep.appendChild(opt);
+      });
+
+      actualizarVistaPreviaCodigo();
+    }
+
+    // Calular Vista Previa de Código antes de guardar
+    function actualizarVistaPreviaCodigo() {
+      var dirSel = document.getElementById('alta-direccion').value;
+      var subSel = document.getElementById('alta-subdireccion').value;
+      var depSelect = document.getElementById('alta-departamento');
+      var tipoSel = document.getElementById('alta-tipo').value;
+
+      var lblPreview = document.getElementById('preview-codigo-str');
+
+      if (!dirSel || !depSelect.value || !tipoSel) {
+        lblPreview.innerText = '-- Complete Dirección, Departamento y Tipo --';
+        return;
+      }
+
+      var siglaDir = state.catalogos.direcciones[dirSel] ? state.catalogos.direcciones[dirSel].sigla : 'ADM';
+      var selectedOpt = depSelect.options[depSelect.selectedIndex];
+      var siglaArea = selectedOpt ? selectedOpt.getAttribute('data-sigla-area') : '';
+
+      lblPreview.innerText = 'Calculando...';
+
+      google.script.run
+        .withSuccessHandler(function(codigoTentativo) {
+          lblPreview.innerText = codigoTentativo;
+        })
+        .withFailureHandler(function(err) {
+          lblPreview.innerText = 'Error al calcular';
+        })
+        .calcularCodigoTentativo(tipoSel, siglaDir, siglaArea);
+    }
+
+    // GUARDAR NUEVO DOCUMENTO
+    function guardarNuevoDocumento(e) {
+      e.preventDefault();
+
+      if (!state.userRole.esAdmin) {
+        showToast('Acceso denegado: Se requiere rol de Administrador.', 'error');
+        return;
+      }
+
+      var dirSel = document.getElementById('alta-direccion').value;
+      var subSel = document.getElementById('alta-subdireccion').value;
+      var depSelect = document.getElementById('alta-departamento');
+      var selectedOpt = depSelect.options[depSelect.selectedIndex];
+
+      var siglaDir = state.catalogos.direcciones[dirSel] ? state.catalogos.direcciones[dirSel].sigla : '';
+      var siglaArea = selectedOpt ? selectedOpt.getAttribute('data-sigla-area') : '';
+
+      var docData = {
+        direccion: dirSel,
+        subdireccion: subSel,
+        departamento: depSelect.value,
+        siglaDir: siglaDir,
+        siglaArea: siglaArea,
+        tipo: document.getElementById('alta-tipo').value,
+        nombre: document.getElementById('alta-nombre').value,
+        fecha_edicion: document.getElementById('alta-fecha-edicion').value,
+        fecha_actualizacion: document.getElementById('alta-fecha-act').value,
+        revision: document.getElementById('alta-revision').value,
+        difundido: document.getElementById('alta-difundido').value,
+        estatus: 'Vigente'
+      };
+
+      var btn = document.getElementById('btn-guardar-doc');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader-spinner"></span> Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Guardar Documento</span>';
+          showToast(res.mensaje, 'success');
+
+          // Habilitar sección inmediata de formatos
+          state.docSeleccionadoCreacion = res.codigo;
+          document.getElementById('lbl-doc-recien-creado').innerText = res.codigo;
+          document.getElementById('seccion-formatos-inmediata').style.display = 'block';
+          document.getElementById('lista-formatos-inmediatos').innerHTML = '<li style="color:var(--text-muted);">Sin formatos agregados aún.</li>';
+
+          // Limpiar formulario principal
+          document.getElementById('form-alta-doc').reset();
+          actualizarVistaPreviaCodigo();
+          cargarDocumentosServidor();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Guardar Documento</span>';
+          showToast('Error: ' + err.message, 'error');
+        })
+        .crearDocumento(docData);
+    }
+
+    // Agregar Formato Hijo Inmediato
+    function guardarFormatoInmediato(e) {
+      e.preventDefault();
+      if (!state.docSeleccionadoCreacion) return;
+
+      var formatoData = {
+        codigo_documento: state.docSeleccionadoCreacion,
+        nombre: document.getElementById('inm-nombre-formato').value,
+        revision: document.getElementById('inm-revision-formato').value,
+        fecha_actualizacion: document.getElementById('inm-fecha-formato').value,
+        estatus: 'Vigente'
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          showToast(res.mensaje, 'success');
+          var lista = document.getElementById('lista-formatos-inmediatos');
+          if (lista.children.length === 1 && lista.children[0].innerText.indexOf('Sin formatos') !== -1) {
+            lista.innerHTML = '';
+          }
+          var li = document.createElement('li');
+          li.innerText = res.codigo_formato + ' - ' + formatoData.nombre + ' (Rev. ' + formatoData.revision + ')';
+          lista.appendChild(li);
+
+          document.getElementById('form-alta-formato-inmediato').reset();
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error guardando formato: ' + err.message, 'error');
+        })
+        .crearFormato(formatoData);
+    }
+
+    // ==================== DASHBOARD Y MÉTRICAS ====================
+    function cargarDashboard() {
+      google.script.run
+        .withSuccessHandler(function(dash) {
+          document.getElementById('metric-total').innerText = dash.totales.total;
+          document.getElementById('metric-vigentes').innerText = dash.totales.vigentes;
+          document.getElementById('metric-revision').innerText = dash.totales.enRevision;
+          document.getElementById('metric-obsoletos').innerText = dash.totales.obsoletos;
+
+          renderizarGraficaCSS('chart-direccion-container', dash.porDireccion, dash.totales.total);
+          renderizarGraficaCSS('chart-tipo-container', dash.porTipo, dash.totales.total);
+
+          // Tabla Semáforo
+          var tbody = document.getElementById('tabla-semaforo-body');
+          if (!dash.mayoresA12Meses || dash.mayoresA12Meses.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--success-color);">¡Excelente! No hay documentos con más de 12 meses sin actualización.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          dash.mayoresA12Meses.forEach(function(item) {
+            var badgeClass = item.semaforo === 'rojo' ? 'badge-rojo' : 'badge-amarillo';
+            var semaforoTexto = item.semaforo === 'rojo' ? '🔴 ALERTA (&gt;24m)' : '🟡 REVISAR (&gt;12m)';
+            html += '<tr>' +
+              '<td><span class="badge ' + badgeClass + '">' + semaforoTexto + '</span></td>' +
+              '<td><strong>' + item.codigo + '</strong></td>' +
+              '<td>' + item.nombre + '</td>' +
+              '<td>' + item.direccion + '</td>' +
+              '<td>' + item.fecha_actualizacion + '</td>' +
+              '<td>' + item.meses + ' meses</td>' +
+              '<td>' + item.estatus + '</td>' +
+            '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error al cargar dashboard: ' + err.message, 'error');
+        })
+        .getDashboardData();
+    }
+
+    function renderizarGraficaCSS(containerId, mapData, total) {
+      var container = document.getElementById(containerId);
+      if (!mapData || Object.keys(mapData).length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Sin datos disponibles</p>';
+        return;
+      }
+
+      var html = '';
+      Object.keys(mapData).forEach(function(key) {
+        var count = mapData[key];
+        var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        html += '<div class="css-chart-bar-container">' +
+          '<div class="css-chart-label"><span>' + key + '</span><strong>' + count + ' (' + pct + '%)</strong></div>' +
+          '<div class="css-chart-track"><div class="css-chart-fill" style="width:' + pct + '%;"></div></div>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    // ==================== CONSULTA Y PAGO DE TABLA ====================
+    function poblarDropdownsFiltrosConsulta() {
+      if (!state.catalogos) return;
+      var fDir = document.getElementById('filtro-direccion');
+      var fTipo = document.getElementById('filtro-tipo');
+
+      fDir.innerHTML = '<option value="">-- Todas las Direcciones --</option>';
+      Object.keys(state.catalogos.direcciones).sort().forEach(function(d) {
+        fDir.innerHTML += '<option value="' + d + '">' + d + '</option>';
+      });
+
+      fTipo.innerHTML = '<option value="">-- Todos los Tipos --</option>';
+      state.catalogos.tiposDoc.forEach(function(t) {
+        fTipo.innerHTML += '<option value="' + t.nombre + '">' + t.nombre + '</option>';
+      });
+
+      var repDir = document.getElementById('rep-filter-dir');
+      if (repDir) repDir.innerHTML = fDir.innerHTML;
+    }
+
+    function cargarDocumentosServidor() {
+      google.script.run
+        .withSuccessHandler(function(list) {
+          state.docs = list;
+          ejecutarBusquedaConsulta();
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error cargando documentos: ' + err.message, 'error');
+        })
+        .listarDocumentos({});
+    }
+
+    function ejecutarBusquedaConsulta() {
+      var q = (document.getElementById('filtro-busqueda').value || '').toLowerCase();
+      var fDir = document.getElementById('filtro-direccion').value;
+      var fTipo = document.getElementById('filtro-tipo').value;
+      var fEst = document.getElementById('filtro-estatus').value;
+
+      state.docsFiltrados = state.docs.filter(function(d) {
+        if (fDir && d.direccion !== fDir) return false;
+        if (fTipo && d.tipo !== fTipo) return false;
+        if (fEst && d.estatus !== fEst) return false;
+        if (q) {
+          var mCod = d.codigo.toLowerCase().indexOf(q) !== -1;
+          var mNom = d.nombre.toLowerCase().indexOf(q) !== -1;
+          var mDir = d.direccion.toLowerCase().indexOf(q) !== -1;
+          if (!mCod && !mNom && !mDir) return false;
+        }
+        return true;
+      });
+
+      aplicarOrdenacion();
+      state.paginaActual = 1;
+      renderizarTablaConsulta();
+    }
+
+    function ordenarTablaConsulta(colKey) {
+      if (state.columnaOrden === colKey) {
+        state.ordenAsc = !state.ordenAsc;
+      } else {
+        state.columnaOrden = colKey;
+        state.ordenAsc = true;
+      }
+      aplicarOrdenacion();
+      renderizarTablaConsulta();
+    }
+
+    function aplicarOrdenacion() {
+      var key = state.columnaOrden;
+      var asc = state.ordenAsc;
+
+      state.docsFiltrados.sort(function(a, b) {
+        var valA = a[key] !== undefined ? a[key] : '';
+        var valB = b[key] !== undefined ? b[key] : '';
+
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return asc ? -1 : 1;
+        if (valA > valB) return asc ? 1 : -1;
+        return 0;
+      });
+    }
+
+    function renderizarTablaConsulta() {
+      var tbody = document.getElementById('tabla-consulta-body');
+      var total = state.docsFiltrados.length;
+      document.getElementById('total-docs-count').innerText = total;
+
+      if (total === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">No se encontraron documentos registrados con los criterios seleccionados.</td></tr>';
+        document.getElementById('paginacion-info').innerText = 'Mostrando 0 de 0';
+        return;
+      }
+
+      var inicio = (state.paginaActual - 1) * state.filasPorPagina;
+      var fin = Math.min(inicio + state.filasPorPagina, total);
+      var paginaItems = state.docsFiltrados.slice(inicio, fin);
+
+      var html = '';
+      paginaItems.forEach(function(d) {
+        var badgeEst = 'badge-vigente';
+        if (d.estatus === 'En revisión') badgeEst = 'badge-revision';
+        if (d.estatus === 'Obsoleto') badgeEst = 'badge-obsoleto';
+
+        var acciones = '';
+        if (state.userRole.esAdmin) {
+          acciones = '<button class="btn btn-sm btn-secondary" onclick="abrirModalEditarDoc(\'' + d.codigo + '\')">Editar</button> ';
+          if (d.estatus !== 'Obsoleto') {
+            acciones += '<button class="btn btn-sm btn-danger" onclick="confirmarObsolecerDoc(\'' + d.codigo + '\')">Dar de Baja</button>';
+          }
+        } else {
+          acciones = '<span style="color:var(--text-muted); font-size:0.75rem;">Sólo Consulta</span>';
+        }
+
+        html += '<tr>' +
+          '<td><strong>' + d.codigo + '</strong></td>' +
+          '<td>' + d.tipo + '</td>' +
+          '<td>' + d.nombre + '</td>' +
+          '<td><small>' + d.direccion + ' &gt; ' + d.subdireccion + '</small></td>' +
+          '<td>' + d.fecha_actualizacion + '</td>' +
+          '<td>Rev. ' + d.revision + '</td>' +
+          '<td><span class="badge badge-revision">' + d.num_formatos + '</span></td>' +
+          '<td><span class="badge ' + badgeEst + '">' + d.estatus + '</span></td>' +
+          '<td class="no-print">' + acciones + '</td>' +
+        '</tr>';
+      });
+
+      tbody.innerHTML = html;
+      document.getElementById('paginacion-info').innerText = 'Mostrando ' + (inicio + 1) + '-' + fin + ' de ' + total;
+      document.getElementById('pagina-actual').innerText = state.paginaActual;
+    }
+
+    function cambiarPaginaConsulta(delta) {
+      var maxPaginas = Math.ceil(state.docsFiltrados.length / state.filasPorPagina) || 1;
+      var nuevaPag = state.paginaActual + delta;
+      if (nuevaPag >= 1 && nuevaPag <= maxPaginas) {
+        state.paginaActual = nuevaPag;
+        renderizarTablaConsulta();
+      }
+    }
+
+    // ==================== EDICIÓN Y BAJA LÓGICA ====================
+    function abrirModalEditarDoc(codigoDoc) {
+      var doc = state.docs.find(function(item) { return item.codigo === codigoDoc; });
+      if (!doc) return;
+
+      document.getElementById('edit-doc-codigo').value = doc.codigo;
+      document.getElementById('edit-doc-jerarquia').value = doc.direccion + ' / ' + doc.subdireccion + ' / ' + doc.departamento;
+      document.getElementById('edit-doc-nombre').value = doc.nombre;
+      document.getElementById('edit-doc-fecha-edicion').value = doc.fecha_edicion;
+      document.getElementById('edit-doc-fecha-act').value = doc.fecha_actualizacion;
+      document.getElementById('edit-doc-revision').value = doc.revision;
+      document.getElementById('edit-doc-estatus').value = doc.estatus;
+      document.getElementById('edit-doc-difundido').value = doc.difundido || 'Sí';
+
+      abrirModal('modal-editar-doc');
+    }
+
+    function guardarEdicionDocumento(e) {
+      e.preventDefault();
+
+      var docData = {
+        codigo: document.getElementById('edit-doc-codigo').value,
+        nombre: document.getElementById('edit-doc-nombre').value,
+        fecha_edicion: document.getElementById('edit-doc-fecha-edicion').value,
+        fecha_actualizacion: document.getElementById('edit-doc-fecha-act').value,
+        revision: document.getElementById('edit-doc-revision').value,
+        estatus: document.getElementById('edit-doc-estatus').value,
+        difundido: document.getElementById('edit-doc-difundido').value
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          cerrarModal('modal-editar-doc');
+          showToast(res.mensaje, 'success');
+          cargarDocumentosServidor();
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error al actualizar: ' + err.message, 'error');
+        })
+        .actualizarDocumento(docData);
+    }
+
+    function confirmarObsolecerDoc(codigoDoc) {
+      if (confirm('¿Está seguro de cambiar el estatus del documento ' + codigoDoc + ' a OBSOLETO?\n\nNota: La baja es únicamente lógica y se registrará en la Bitácora de auditoría.')) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            showToast(res.mensaje, 'success');
+            cargarDocumentosServidor();
+          })
+          .withFailureHandler(function(err) {
+            showToast('Error: ' + err.message, 'error');
+          })
+          .obsolecerDocumento(codigoDoc);
+      }
+    }
+
+    // ==================== GESTIÓN DE FORMATOS ====================
+    function poblarSelectorDocsFormatos() {
+      var select = document.getElementById('select-doc-formatos');
+      select.innerHTML = '<option value="">-- Seleccione un documento --</option>';
+      state.docs.forEach(function(d) {
+        if (d.estatus !== 'Obsoleto') {
+          var opt = document.createElement('option');
+          opt.value = d.codigo;
+          opt.innerText = d.codigo + ' - ' + d.nombre;
+          select.appendChild(opt);
+        }
+      });
+    }
+
+    function cargarTreeFormatosDoc() {
+      var codigoDoc = document.getElementById('select-doc-formatos').value;
+      var container = document.getElementById('tree-formatos-container');
+
+      if (!codigoDoc) {
+        container.innerHTML = '';
+        return;
+      }
+
+      var doc = state.docs.find(function(item) { return item.codigo === codigoDoc; });
+
+      google.script.run
+        .withSuccessHandler(function(formatos) {
+          var html = '<div class="card">' +
+            '<div class="tree-doc-header">' +
+              '<span>📄 Documento Padre: ' + doc.codigo + ' - ' + doc.nombre + '</span>' +
+              '<span class="badge badge-vigente">Formatos Activos: ' + formatos.filter(function(f){return f.estatus !== 'Obsoleto';}).length + '</span>' +
+            '</div>';
+
+          if (state.userRole.esAdmin) {
+            html += '<div style="margin-bottom:16px; padding:12px; background:#F8F9FA; border-radius:6px;">' +
+              '<strong>+ Agregar Nuevo Formato a este Documento</strong>' +
+              '<form onsubmit="guardarNuevoFormatoTree(event, \'' + codigoDoc + '\')" style="margin-top:8px; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto; gap:10px; align-items:end;">' +
+                '<div><label>Nombre Formato:</label><input type="text" id="tree-form-nombre" required></div>' +
+                '<div><label>Revisión:</label><input type="text" id="tree-form-rev" value="0" pattern="^(NR)?\\d{1,2}$" required></div>' +
+                '<div><label>Fecha Actualización:</label><input type="date" id="tree-form-fecha" required></div>' +
+                '<button type="submit" class="btn btn-sm btn-success">Guardar Formato</button>' +
+              '</form>' +
+            '</div>';
+          }
+
+          if (formatos.length === 0) {
+            html += '<p style="color:var(--text-muted); margin-left:12px;">No hay formatos registrados para este documento.</p>';
+          } else {
+            formatos.forEach(function(f) {
+              var badgeEst = f.estatus === 'Obsoleto' ? 'badge-obsoleto' : 'badge-vigente';
+              html += '<div class="tree-format-item">' +
+                '<div><strong>' + f.codigo_formato + '</strong>: ' + f.nombre + ' | <small>Rev. ' + f.revision + ' (' + f.fecha_actualizacion + ')</small> <span class="badge ' + badgeEst + '">' + f.estatus + '</span></div>';
+
+              if (state.userRole.esAdmin && f.estatus !== 'Obsoleto') {
+                html += '<div style="margin-top:4px;">' +
+                  '<button class="btn btn-sm btn-danger" onclick="obsolecerFormatoTree(\'' + f.codigo_formato + '\', \'' + codigoDoc + '\')">Marcar Obsoleto</button>' +
+                '</div>';
+              }
+              html += '</div>';
+            });
+          }
+
+          html += '</div>';
+          container.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error cargando formatos: ' + err.message, 'error');
+        })
+        .obtenerFormatosPorDocumento(codigoDoc);
+    }
+
+    function guardarNuevoFormatoTree(e, codigoDoc) {
+      e.preventDefault();
+      var formatoData = {
+        codigo_documento: codigoDoc,
+        nombre: document.getElementById('tree-form-nombre').value,
+        revision: document.getElementById('tree-form-rev').value,
+        fecha_actualizacion: document.getElementById('tree-form-fecha').value,
+        estatus: 'Vigente'
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          showToast(res.mensaje, 'success');
+          cargarTreeFormatosDoc();
+          cargarDocumentosServidor();
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err.message, 'error');
+        })
+        .crearFormato(formatoData);
+    }
+
+    function obsolecerFormatoTree(codigoFormato, codigoDoc) {
+      if (confirm('¿Desea marcar como obsoleto el formato ' + codigoFormato + '?')) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            showToast(res.mensaje, 'success');
+            cargarTreeFormatosDoc();
+            cargarDocumentosServidor();
+          })
+          .withFailureHandler(function(err) {
+            showToast('Error: ' + err.message, 'error');
+          })
+          .obsolecerFormato(codigoFormato, codigoDoc);
+      }
+    }
+
+    // ==================== REPORTES Y MIGRACIÓN ====================
+    function mostrarSubReporte(subKey) {
+      var blocks = document.querySelectorAll('.sub-reporte-block');
+      blocks.forEach(function(b) { b.style.display = 'none'; });
+
+      var target = document.getElementById('sub-' + subKey);
+      if (target) target.style.display = 'block';
+
+      if (subKey === 'inv-dir') renderizarInventarioDireccion();
+      if (subKey === 'rev-pend') renderizarRevisionesPendientes();
+      if (subKey === 'bitacora') cargarBitacoraServidor();
+    }
+
+    function renderizarInventarioDireccion() {
+      var dirFiltro = document.getElementById('rep-filter-dir').value;
+      var tbody = document.getElementById('rep-inv-body');
+
+      var list = state.docs.filter(function(d) {
+        return !dirFiltro || d.direccion === dirFiltro;
+      });
+
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Sin registros.</td></tr>';
+        return;
+      }
+
+      var html = '';
+      list.forEach(function(d) {
+        html += '<tr>' +
+          '<td><strong>' + d.codigo + '</strong></td>' +
+          '<td>' + d.tipo + '</td>' +
+          '<td>' + d.nombre + '</td>' +
+          '<td>' + d.subdireccion + '</td>' +
+          '<td>' + d.departamento + '</td>' +
+          '<td>' + d.fecha_edicion + '</td>' +
+          '<td>' + d.fecha_actualizacion + '</td>' +
+          '<td>Rev. ' + d.revision + '</td>' +
+          '<td>' + d.estatus + '</td>' +
+        '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function renderizarRevisionesPendientes() {
+      var tbody = document.getElementById('rep-rev-body');
+      var hoy = new Date();
+
+      var list = state.docs.filter(function(d) {
+        if (d.estatus === 'En revisión') return true;
+        if (d.estatus === 'Obsoleto') return false;
+
+        var f = new Date(d.fecha_actualizacion);
+        if (isNaN(f.getTime())) return false;
+        var difMeses = (hoy.getFullYear() - f.getFullYear()) * 12 + (hoy.getMonth() - f.getMonth());
+        return difMeses >= 10; // Próximos a requerir revisión (> 10 meses)
+      });
+
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--success-color);">No hay revisiones pendientes acumuladas.</td></tr>';
+        return;
+      }
+
+      var html = '';
+      list.forEach(function(d) {
+        var f = new Date(d.fecha_actualizacion);
+        var difMeses = (hoy.getFullYear() - f.getFullYear()) * 12 + (hoy.getMonth() - f.getMonth());
+        html += '<tr>' +
+          '<td><strong>' + d.codigo + '</strong></td>' +
+          '<td>' + d.nombre + '</td>' +
+          '<td>' + d.direccion + '</td>' +
+          '<td>' + d.fecha_actualizacion + '</td>' +
+          '<td><span class="badge badge-revision">' + d.estatus + '</span></td>' +
+          '<td>' + difMeses + ' meses sin actualización</td>' +
+        '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function cargarBitacoraServidor() {
+      var qDoc = document.getElementById('filtro-bitacora-codigo').value;
+      google.script.run
+        .withSuccessHandler(function(bit) {
+          var tbody = document.getElementById('tabla-bitacora-body');
+          if (bit.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Sin movimientos registrados en Bitácora.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          bit.forEach(function(b) {
+            html += '<tr>' +
+              '<td><small>' + b.fecha + '</small></td>' +
+              '<td>' + b.usuario + '</td>' +
+              '<td><strong>' + b.accion + '</strong></td>' +
+              '<td>' + b.tabla + '</td>' +
+              '<td><strong>' + b.codigo + '</strong></td>' +
+              '<td>' + b.campo + '</td>' +
+              '<td><small>' + b.valor_anterior + '</small></td>' +
+              '<td><small>' + b.valor_nuevo + '</small></td>' +
+            '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error en bitácora: ' + err.message, 'error');
+        })
+        .getHistorialBitacora(qDoc);
+    }
+
+    function ejecutarMigracion() {
+      if (!state.userRole.esAdmin) {
+        showToast('Acceso denegado.', 'error');
+        return;
+      }
+
+      var txt = document.getElementById('txt-migracion-csv').value;
+      if (!txt || !txt.trim()) {
+        showToast('Ingrese el texto a importar.', 'warning');
+        return;
+      }
+
+      var status = document.getElementById('migracion-status');
+      status.innerText = 'Procesando datos e identificando duplicados...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          status.innerText = res.mensaje;
+          showToast('Migración completada exitosamente.', 'success');
+          document.getElementById('txt-migracion-csv').value = '';
+          cargarDocumentosServidor();
+        })
+        .withFailureHandler(function(err) {
+          status.innerText = 'Error durante la migración.';
+          showToast('Error: ' + err.message, 'error');
+        })
+        .importarDesdeExcel(txt);
+    }
+
+    function imprimirOExportar(titulo) {
+      window.print();
+    }
+  </script>
+</body>
+</html>
