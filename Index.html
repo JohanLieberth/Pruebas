@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kilos Mortales</title>
+  <script>
+    // URL del logo almacenado en Google Drive
+    const LOGO_DRIVE_URL = "https://lh3.googleusercontent.com/d/1jZWkMUZpQ_aYiD6syGStyyLXO-fPOTTR";
+  </script>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <header>
+    <div class="header-content">
+      <img id="app-logo" src="https://lh3.googleusercontent.com/d/1jZWkMUZpQ_aYiD6syGStyyLXO-fPOTTR" alt="Kilos Mortales Logo" class="header-logo">
+      <div class="header-text">
+        <h1>🏆 Kilos Mortales</h1>
+        <p>Puntuación equitativa basada en % de peso perdido y bono de cintura</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Navegación Principal -->
+    <nav class="nav-tabs">
+      <button id="btn-tab-leaderboard" class="tab-btn active" onclick="cambiarTab('leaderboard')">📊 Clasificación en Vivo</button>
+      <button id="btn-tab-admin" class="tab-btn" onclick="cambiarTab('admin')">🔒 Panel Administrador</button>
+    </nav>
+
+    <!-- VISTA PÚBLICA: LEADERBOARD Y ESTADÍSTICAS -->
+    <div id="tab-leaderboard" class="tab-content active">
+      <div id="alert-leaderboard" class="alert" style="display:none;"></div>
+
+      <!-- Tarjetas de Estadísticas -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total Participantes</h3>
+          <div id="stat-total-participantes" class="value">0</div>
+        </div>
+        <div class="stat-card">
+          <h3>Promedio % Pérdida</h3>
+          <div id="stat-promedio-perdida" class="value">0.00%</div>
+        </div>
+        <div class="stat-card">
+          <h3>Mayor Constancia</h3>
+          <div id="stat-mas-constante" class="value" style="font-size:1.1rem; line-height: 1.3;">N/A</div>
+        </div>
+      </div>
+
+      <!-- Banner Ganador -->
+      <div id="winner-banner-container" class="winner-banner" style="display:none;">
+        <h2>🥇 ¡Líder de Kilos Mortales! 🥇</h2>
+        <div id="winner-name" class="winner-name">-</div>
+        <div id="winner-details" class="winner-score">-</div>
+      </div>
+
+      <!-- Tabla de Clasificación -->
+      <div class="card">
+        <div class="card-title">
+          <span>🏆 Clasificación General de Competidores</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center; width: 60px;">Pos</th>
+                <th>Participante</th>
+                <th>% Peso Perdido</th>
+                <th>Cintura Red.</th>
+                <th>Puntaje Total</th>
+                <th>Detalles Check-Ins</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+              <tr>
+                <td colspan="6" style="text-align:center; padding: 20px;">Cargando tabla de posiciones...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VISTA ADMIN: PROTEGIDA POR CONTRASEÑA -->
+    <div id="tab-admin" class="tab-content">
+      <div id="alert-admin-global" class="alert" style="display:none;"></div>
+
+      <!-- LOGIN ADMIN -->
+      <div id="admin-login-card" class="card" style="max-width: 450px; margin: 40px auto;">
+        <div class="card-title">
+          <span>🔒 Acceso de Administrador</span>
+        </div>
+        <div id="alert-login" class="alert" style="display:none;"></div>
+        <form onsubmit="autenticarAdmin(event)">
+          <div class="form-group">
+            <label for="admin-password-input">Contraseña de Administrador:</label>
+            <input type="password" id="admin-password-input" class="form-control" placeholder="Ingresa contraseña de acceso" required>
+          </div>
+          <button type="submit" id="btn-login-admin" class="btn btn-primary btn-block">Ingresar al Panel</button>
+        </form>
+      </div>
+
+      <!-- CONTENIDO PANEL ADMIN (Solo visible si autenticado) -->
+      <div id="admin-panel-content" style="display:none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2 style="font-size: 1.3rem; color: var(--primary-dark);">Gestión de Kilos Mortales</h2>
+          <button onclick="cerrarSesionAdmin()" class="btn btn-secondary" style="background-color: #757575;">Cerrar Sesión</button>
+        </div>
+
+        <!-- Sub-pestañas de Administración -->
+        <div class="sub-tabs">
+          <button id="subtab-btn-registro" class="sub-tab-btn active" onclick="cambiarSubTabAdmin('registro')">➕ Registrar Participante</button>
+          <button id="subtab-btn-medicion" class="sub-tab-btn" onclick="cambiarSubTabAdmin('medicion')">📅 Check-In Semanal</button>
+          <button id="subtab-btn-final" class="sub-tab-btn" onclick="cambiarSubTabAdmin('final')">🏁 Medición Final</button>
+          <button id="subtab-btn-listado" class="sub-tab-btn" onclick="cambiarSubTabAdmin('listado')">📋 Lista Participantes</button>
+        </div>
+
+        <!-- SUB-TAB 1: Registrar Participante -->
+        <div id="admin-registro" class="card admin-subtab">
+          <div class="card-title">
+            <span>👤 Registro Inicial de Participante</span>
+          </div>
+          <div id="alert-reg-participante" class="alert" style="display:none;"></div>
+
+          <form id="form-registro-participante" onsubmit="guardarParticipante(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="reg-nombre">Nombre Completo *</label>
+                <input type="text" id="reg-nombre" class="form-control" placeholder="Ej. Juan Pérez" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-edad">Edad *</label>
+                <input type="number" id="reg-edad" class="form-control" min="1" max="119" step="1" placeholder="Ej. 30" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-sexo">Sexo *</label>
+                <select id="reg-sexo" class="form-control" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="Masculino">Masculino</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="reg-email">Email (opcional)</label>
+                <input type="email" id="reg-email" class="form-control" placeholder="juan@ejemplo.com">
+              </div>
+              <div class="form-group">
+                <label for="reg-estatura">Estatura (m) *</label>
+                <input type="number" id="reg-estatura" class="form-control" step="0.01" min="0.5" max="2.5" placeholder="Ej. 1.75" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="reg-peso">Peso Inicial (kg) *</label>
+                <input type="number" id="reg-peso" class="form-control" step="0.1" min="1" max="300" placeholder="Ej. 85.5" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-cintura">Circunferencia Cintura Inicial (cm) *</label>
+                <input type="number" id="reg-cintura" class="form-control" step="0.1" min="1" max="250" placeholder="Ej. 95.0" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="reg-fecha-inicio">Fecha de Inicio *</label>
+                <input type="date" id="reg-fecha-inicio" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-categoria">Categoría *</label>
+                <select id="reg-categoria" class="form-control" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="Sedentario/Sobrepeso">Sedentario / Sobrepeso</option>
+                  <option value="Activo/Peso ideal">Activo / Peso Ideal</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-guardar-participante" class="btn btn-primary btn-block" style="margin-top: 10px;">Registrar Participante</button>
+          </form>
+        </div>
+
+        <!-- SUB-TAB 2: Check-In Semanal -->
+        <div id="admin-medicion" class="card admin-subtab" style="display:none;">
+          <div class="card-title">
+            <span>📏 Registrar Check-In Semanal</span>
+          </div>
+          <div id="alert-medicion" class="alert" style="display:none;"></div>
+
+          <form id="form-medicion-semanal" onsubmit="guardarMedicionSemanal(event)">
+            <div class="form-group">
+              <label for="select-part-medicion">Participante *</label>
+              <select id="select-part-medicion" class="form-control" required>
+                <option value="">Cargando participantes...</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="med-peso">Peso Actual (kg) *</label>
+                <input type="number" id="med-peso" class="form-control" step="0.1" min="1" max="300" placeholder="Ej. 84.0" required>
+              </div>
+              <div class="form-group">
+                <label for="med-cintura">Cintura Actual (cm) *</label>
+                <input type="number" id="med-cintura" class="form-control" step="0.1" min="1" max="250" placeholder="Ej. 93.5" required>
+              </div>
+              <div class="form-group">
+                <label for="med-fecha">Fecha de Medición *</label>
+                <input type="date" id="med-fecha" class="form-control" required>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-guardar-medicion" class="btn btn-secondary btn-block" style="margin-top: 10px;">Registrar Check-In Semanal</button>
+          </form>
+        </div>
+
+        <!-- SUB-TAB 3: Medición Final -->
+        <div id="admin-final" class="card admin-subtab" style="display:none;">
+          <div class="card-title">
+            <span>🏁 Registrar Medición Final de Competencia</span>
+          </div>
+          <div id="alert-final" class="alert" style="display:none;"></div>
+
+          <form id="form-medicion-final" onsubmit="guardarMedicionFinal(event)">
+            <div class="form-group">
+              <label for="select-part-final">Participante *</label>
+              <select id="select-part-final" class="form-control" required>
+                <option value="">Cargando participantes...</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="final-peso">Peso Final (kg) *</label>
+                <input type="number" id="final-peso" class="form-control" step="0.1" min="1" max="300" placeholder="Ej. 80.0" required>
+              </div>
+              <div class="form-group">
+                <label for="final-cintura">Cintura Final (cm) *</label>
+                <input type="number" id="final-cintura" class="form-control" step="0.1" min="1" max="250" placeholder="Ej. 88.0" required>
+              </div>
+              <div class="form-group">
+                <label for="final-fecha">Fecha Final *</label>
+                <input type="date" id="final-fecha" class="form-control" required>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-guardar-final" class="btn btn-primary btn-block" style="margin-top: 10px; background-color: var(--accent-color);">Registrar Medición Final</button>
+          </form>
+        </div>
+
+        <!-- SUB-TAB 4: Lista de Participantes Admin (con Edad y Sexo) -->
+        <div id="admin-listado" class="card admin-subtab" style="display:none;">
+          <div class="card-title">
+            <span>📋 Lista de Participantes Registrados</span>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Nombre Completo</th>
+                  <th>Edad</th>
+                  <th>Sexo</th>
+                  <th>Categoría</th>
+                  <th>Peso / Cintura Inicial</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="admin-listado-body">
+                <tr>
+                  <td colspan="8" style="text-align:center; padding: 15px;">Cargando participantes...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL DE EDICIÓN DE PARTICIPANTE -->
+  <div id="modal-editar-participante" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">✏️ Editar Participante</span>
+        <button class="modal-close-btn" onclick="cerrarModalEditar()">&times;</button>
+      </div>
+      <div id="alert-edit-participante" class="alert" style="display:none;"></div>
+
+      <form id="form-editar-participante" onsubmit="guardarEdicionParticipante(event)">
+        <input type="hidden" id="edit-id">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-nombre">Nombre Completo *</label>
+            <input type="text" id="edit-nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-edad">Edad *</label>
+            <input type="number" id="edit-edad" class="form-control" min="1" max="119" step="1" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-sexo">Sexo *</label>
+            <select id="edit-sexo" class="form-control" required>
+              <option value="">-- Selecciona --</option>
+              <option value="Femenino">Femenino</option>
+              <option value="Masculino">Masculino</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-email">Email (opcional)</label>
+            <input type="email" id="edit-email" class="form-control" placeholder="juan@ejemplo.com">
+          </div>
+          <div class="form-group">
+            <label for="edit-estatura">Estatura (m) *</label>
+            <input type="number" id="edit-estatura" class="form-control" step="0.01" min="0.5" max="2.5" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-peso">Peso Inicial (kg) *</label>
+            <input type="number" id="edit-peso" class="form-control" step="0.1" min="1" max="300" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-cintura">Circunferencia Cintura Inicial (cm) *</label>
+            <input type="number" id="edit-cintura" class="form-control" step="0.1" min="1" max="250" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-fecha-inicio">Fecha de Inicio *</label>
+            <input type="date" id="edit-fecha-inicio" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-categoria">Categoría *</label>
+            <select id="edit-categoria" class="form-control" required>
+              <option value="">-- Selecciona --</option>
+              <option value="Sedentario/Sobrepeso">Sedentario / Sobrepeso</option>
+              <option value="Activo/Peso ideal">Activo / Peso Ideal</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px;">
+          <button type="button" onclick="cerrarModalEditar()" class="btn btn-secondary" style="background-color: #757575;">Cancelar</button>
+          <button type="submit" id="btn-guardar-edicion" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Inicializar fechas actuales en los inputs
+    document.addEventListener("DOMContentLoaded", function() {
+      const today = new Date().toISOString().split('T')[0];
+      if (document.getElementById('reg-fecha-inicio')) document.getElementById('reg-fecha-inicio').value = today;
+      if (document.getElementById('med-fecha')) document.getElementById('med-fecha').value = today;
+      if (document.getElementById('final-fecha')) document.getElementById('final-fecha').value = today;
+    });
+  </script>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>

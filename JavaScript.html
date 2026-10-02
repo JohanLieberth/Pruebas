@@ -1,0 +1,504 @@
+<script>
+  // Global State
+  let adminPassword = "";
+  let isAuthenticated = false;
+  let participantesActivos = [];
+  let listaTodosParticipantes = [];
+
+  document.addEventListener("DOMContentLoaded", function() {
+    cargarLeaderboardYEstadisticas();
+  });
+
+  // Navegación entre pestañas principales
+  function cambiarTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+    document.getElementById('btn-tab-' + tabName).classList.add('active');
+    document.getElementById('tab-' + tabName).classList.add('active');
+
+    if (tabName === 'leaderboard') {
+      cargarLeaderboardYEstadisticas();
+    } else if (tabName === 'admin' && isAuthenticated) {
+      cargarListaParticipantesActivos();
+      cargarTablaAdminParticipantes();
+    }
+  }
+
+  // Navegación en sub-pestañas del módulo de Administración
+  function cambiarSubTabAdmin(subTabName) {
+    document.querySelectorAll('.sub-tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.admin-subtab').forEach(content => content.style.display = 'none');
+
+    document.getElementById('subtab-btn-' + subTabName).classList.add('active');
+    const target = document.getElementById('admin-' + subTabName);
+    if (target) {
+      target.style.display = 'block';
+    }
+
+    if (subTabName === 'medicion' || subTabName === 'final') {
+      cargarListaParticipantesActivos();
+    } else if (subTabName === 'listado') {
+      cargarTablaAdminParticipantes();
+    }
+  }
+
+  // Cargar tabla de clasificación y tarjetas de estadísticas
+  function cargarLeaderboardYEstadisticas() {
+    mostrarLoader('leaderboard-body', 'Cargando clasificación...');
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        renderizarLeaderboard(data.leaderboard);
+        renderizarEstadisticas(data.estadisticas);
+      })
+      .withFailureHandler(function(err) {
+        mostrarMensaje('alert-leaderboard', 'Error al cargar la clasificación: ' + err.message, 'danger');
+      })
+      .calcularClasificacion();
+  }
+
+  function renderizarLeaderboard(leaderboard) {
+    const tbody = document.getElementById('leaderboard-body');
+    const winnerBanner = document.getElementById('winner-banner-container');
+    tbody.innerHTML = '';
+
+    if (!leaderboard || leaderboard.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">No hay participantes registrados o activos aún.</td></tr>';
+      winnerBanner.style.display = 'none';
+      return;
+    }
+
+    // Ganador (Posición 1)
+    const ganador = leaderboard[0];
+    if (ganador) {
+      winnerBanner.style.display = 'block';
+      document.getElementById('winner-name').textContent = ganador.nombre;
+      document.getElementById('winner-details').textContent =
+        `Puntaje Total: ${ganador.puntajeFinal.toFixed(2)} pts | % Peso Perdido: ${ganador.pctPesoPerdido.toFixed(2)}% | Cintura Reducida: ${ganador.cmCinturaReducidos.toFixed(1)} cm`;
+    } else {
+      winnerBanner.style.display = 'none';
+    }
+
+    leaderboard.forEach(item => {
+      const tr = document.createElement('tr');
+      if (item.posicion === 1) tr.className = 'pos-1';
+      else if (item.posicion === 2) tr.className = 'pos-2';
+      else if (item.posicion === 3) tr.className = 'pos-3';
+
+      let medalla = `<span class="badge-pos other">${item.posicion}</span>`;
+      if (item.posicion === 1) medalla = `<span class="badge-pos gold">🥇</span>`;
+      else if (item.posicion === 2) medalla = `<span class="badge-pos silver">🥈</span>`;
+      else if (item.posicion === 3) medalla = `<span class="badge-pos bronze">🥉</span>`;
+
+      const catBadge = item.categoria === 'Sedentario/Sobrepeso'
+        ? `<span class="badge-cat sedentario">Sedentario</span>`
+        : `<span class="badge-cat activo">Activo</span>`;
+
+      tr.innerHTML = `
+        <td style="text-align:center;">${medalla}</td>
+        <td><strong>${escapeHtml(item.nombre)}</strong> ${catBadge}</td>
+        <td>${item.pctPesoPerdido.toFixed(2)}%</td>
+        <td>${item.cmCinturaReducidos.toFixed(1)} cm</td>
+        <td><strong>${item.puntajeFinal.toFixed(2)} pts</strong></td>
+        <td>
+          <small class="text-muted">
+            Check-ins: ${item.totalCheckIns} | Red. Cintura: ${item.pctReduccionCintura.toFixed(1)}% | σ: ${item.stdDev.toFixed(2)}
+          </small>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderizarEstadisticas(stats) {
+    if (!stats) return;
+    document.getElementById('stat-total-participantes').textContent = stats.totalParticipantes || 0;
+    document.getElementById('stat-promedio-perdida').textContent = (stats.promedioPctPerdida || '0.00') + '%';
+    document.getElementById('stat-mas-constante').textContent = stats.masConstante || 'N/A';
+  }
+
+  // Autenticación de Administrador
+  function autenticarAdmin(e) {
+    if (e) e.preventDefault();
+    const passInput = document.getElementById('admin-password-input').value;
+    const btn = document.getElementById('btn-login-admin');
+
+    if (!passInput) {
+      mostrarMensaje('alert-login', 'Por favor ingresa la contraseña.', 'danger');
+      return;
+    }
+
+    setBtnLoading(btn, true, 'Verificando...');
+
+    google.script.run
+      .withSuccessHandler(function(esValido) {
+        setBtnLoading(btn, false, 'Ingresar al Panel');
+        if (esValido) {
+          adminPassword = passInput;
+          isAuthenticated = true;
+          document.getElementById('admin-login-card').style.display = 'none';
+          document.getElementById('admin-panel-content').style.display = 'block';
+          mostrarMensaje('alert-admin-global', 'Sesión iniciada correctamente como Administrador.', 'success');
+          cargarListaParticipantesActivos();
+          cargarTablaAdminParticipantes();
+        } else {
+          mostrarMensaje('alert-login', 'Contraseña incorrecta.', 'danger');
+        }
+      })
+      .withFailureHandler(function(err) {
+        setBtnLoading(btn, false, 'Ingresar al Panel');
+        mostrarMensaje('alert-login', 'Error de verificación: ' + err.message, 'danger');
+      })
+      .verificarPasswordAdmin(passInput);
+  }
+
+  function cerrarSesionAdmin() {
+    adminPassword = "";
+    isAuthenticated = false;
+    document.getElementById('admin-password-input').value = "";
+    document.getElementById('admin-login-card').style.display = 'block';
+    document.getElementById('admin-panel-content').style.display = 'none';
+  }
+
+  // Cargar lista de participantes activos para los desplegables del panel admin
+  function cargarListaParticipantesActivos() {
+    google.script.run
+      .withSuccessHandler(function(lista) {
+        participantesActivos = lista;
+        poblarDesplegablesParticipantes();
+      })
+      .withFailureHandler(function(err) {
+        mostrarMensaje('alert-admin-global', 'Error al obtener lista de participantes: ' + err.message, 'danger');
+      })
+      .obtenerParticipantesActivos();
+  }
+
+  function poblarDesplegablesParticipantes() {
+    const selects = [document.getElementById('select-part-medicion'), document.getElementById('select-part-final')];
+
+    selects.forEach(select => {
+      if (!select) return;
+      select.innerHTML = '<option value="">-- Selecciona un participante --</option>';
+      participantesActivos.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.nombre} (${p.edad} años, ${p.sexo}) - Inicial: ${p.pesoInicial}kg / ${p.cinturaInicial}cm`;
+        select.appendChild(opt);
+      });
+    });
+  }
+
+  // Cargar tabla de todos los participantes registrada en el Admin
+  function cargarTablaAdminParticipantes() {
+    const tbody = document.getElementById('admin-listado-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px;"><span class="spinner" style="border-top-color:var(--primary-color)"></span> Cargando lista de participantes...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function(lista) {
+        listaTodosParticipantes = lista || [];
+        tbody.innerHTML = '';
+        if (!lista || lista.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px;">No hay participantes registrados.</td></tr>';
+          return;
+        }
+
+        lista.forEach((p, index) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${index + 1}</td>
+            <td><strong>${escapeHtml(p.nombre)}</strong></td>
+            <td>${p.edad || 'N/A'}</td>
+            <td>${p.sexo || 'N/A'}</td>
+            <td>${escapeHtml(p.categoria)}</td>
+            <td>${p.pesoInicial} kg / ${p.cinturaInicial} cm</td>
+            <td><span class="badge-cat ${p.activo === 'Sí' || p.activo === 'si' ? 'activo' : 'sedentario'}">${p.activo}</span></td>
+            <td>
+              <button onclick="abrirModalEditarParticipante('${p.id}')" class="btn btn-secondary btn-sm">✏️ Editar</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      })
+      .withFailureHandler(function(err) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:red; padding:15px;">Error al cargar datos: ' + err.message + '</td></tr>';
+      })
+      .obtenerTodosLosParticipantesAdmin(adminPassword);
+  }
+
+  // Abrir Modal de Edición de Participante
+  function abrirModalEditarParticipante(id) {
+    const part = listaTodosParticipantes.find(p => String(p.id).trim() === String(id).trim());
+    if (!part) {
+      alert("No se encontró la información del participante.");
+      return;
+    }
+
+    document.getElementById('edit-id').value = part.id;
+    document.getElementById('edit-nombre').value = part.nombre || "";
+    document.getElementById('edit-edad').value = part.edad || "";
+    document.getElementById('edit-sexo').value = part.sexo || "";
+    // Precargar campo opcional email exactamente con su valor o string vacío si no existe
+    document.getElementById('edit-email').value = part.email || "";
+    document.getElementById('edit-estatura').value = part.estatura || "";
+    document.getElementById('edit-peso').value = part.pesoInicial || "";
+    document.getElementById('edit-cintura').value = part.cinturaInicial || "";
+    document.getElementById('edit-fecha-inicio').value = part.fechaInicio || "";
+    document.getElementById('edit-categoria').value = part.categoria || "";
+
+    const alertEl = document.getElementById('alert-edit-participante');
+    if (alertEl) alertEl.style.display = 'none';
+
+    document.getElementById('modal-editar-participante').style.display = 'flex';
+  }
+
+  function cerrarModalEditar() {
+    document.getElementById('modal-editar-participante').style.display = 'none';
+  }
+
+  // Guardar Edición de Participante (permite email vacío por ser opcional)
+  function guardarEdicionParticipante(e) {
+    e.preventDefault();
+    if (!isAuthenticated) return;
+
+    const btn = document.getElementById('btn-guardar-edicion');
+    const datos = {
+      id: document.getElementById('edit-id').value,
+      nombreCompleto: document.getElementById('edit-nombre').value,
+      edad: document.getElementById('edit-edad').value,
+      sexo: document.getElementById('edit-sexo').value,
+      email: document.getElementById('edit-email').value, // OPCIONAL
+      estatura: document.getElementById('edit-estatura').value,
+      pesoInicial: document.getElementById('edit-peso').value,
+      cinturaInicial: document.getElementById('edit-cintura').value,
+      fechaInicio: document.getElementById('edit-fecha-inicio').value,
+      categoria: document.getElementById('edit-categoria').value
+    };
+
+    if (!datos.id || !datos.nombreCompleto || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
+      mostrarMensaje('alert-edit-participante', 'Por favor completa todos los campos obligatorios.', 'danger');
+      return;
+    }
+
+    const edadNum = Number(datos.edad);
+    if (isNaN(edadNum) || edadNum <= 0 || edadNum >= 120 || !Number.isInteger(edadNum)) {
+      mostrarMensaje('alert-edit-participante', 'La edad debe ser un número entero mayor a 0 y menor a 120.', 'danger');
+      return;
+    }
+
+    if (datos.sexo !== "Femenino" && datos.sexo !== "Masculino") {
+      mostrarMensaje('alert-edit-participante', 'Por favor selecciona un sexo válido.', 'danger');
+      return;
+    }
+
+    if (Number(datos.estatura) <= 0 || Number(datos.pesoInicial) <= 0 || Number(datos.cinturaInicial) <= 0) {
+      mostrarMensaje('alert-edit-participante', 'La estatura, peso y cintura deben ser mayores a cero.', 'danger');
+      return;
+    }
+
+    setBtnLoading(btn, true, 'Guardando...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setBtnLoading(btn, false, 'Guardar Cambios');
+        cerrarModalEditar();
+        mostrarMensaje('alert-admin-global', res.mensaje, 'success');
+        cargarListaParticipantesActivos();
+        cargarTablaAdminParticipantes();
+        cargarLeaderboardYEstadisticas();
+      })
+      .withFailureHandler(function(err) {
+        setBtnLoading(btn, false, 'Guardar Cambios');
+        mostrarMensaje('alert-edit-participante', err.message, 'danger');
+      })
+      .actualizarParticipante(datos, adminPassword);
+  }
+
+  // Guardar Nuevo Participante (el campo email es OPCIONAL)
+  function guardarParticipante(e) {
+    e.preventDefault();
+    if (!isAuthenticated) return;
+
+    const btn = document.getElementById('btn-guardar-participante');
+    const datos = {
+      nombreCompleto: document.getElementById('reg-nombre').value,
+      edad: document.getElementById('reg-edad').value,
+      sexo: document.getElementById('reg-sexo').value,
+      email: document.getElementById('reg-email').value, // OPCIONAL
+      estatura: document.getElementById('reg-estatura').value,
+      pesoInicial: document.getElementById('reg-peso').value,
+      cinturaInicial: document.getElementById('reg-cintura').value,
+      fechaInicio: document.getElementById('reg-fecha-inicio').value,
+      categoria: document.getElementById('reg-categoria').value
+    };
+
+    // Validaciones de cliente (Email NO es obligatorio)
+    if (!datos.nombreCompleto || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
+      mostrarMensaje('alert-reg-participante', 'Por favor completa todos los campos obligatorios.', 'danger');
+      return;
+    }
+
+    const edadNum = Number(datos.edad);
+    if (isNaN(edadNum) || edadNum <= 0 || edadNum >= 120 || !Number.isInteger(edadNum)) {
+      mostrarMensaje('alert-reg-participante', 'La edad debe ser un número entero mayor a 0 y menor a 120.', 'danger');
+      return;
+    }
+
+    if (datos.sexo !== "Femenino" && datos.sexo !== "Masculino") {
+      mostrarMensaje('alert-reg-participante', 'Por favor selecciona un sexo válido.', 'danger');
+      return;
+    }
+
+    if (Number(datos.estatura) <= 0 || Number(datos.pesoInicial) <= 0 || Number(datos.cinturaInicial) <= 0) {
+      mostrarMensaje('alert-reg-participante', 'La estatura, peso y cintura deben ser mayores a cero.', 'danger');
+      return;
+    }
+
+    setBtnLoading(btn, true, 'Registrando...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setBtnLoading(btn, false, 'Registrar Participante');
+        mostrarMensaje('alert-reg-participante', res.mensaje, 'success');
+        document.getElementById('form-registro-participante').reset();
+        document.getElementById('reg-fecha-inicio').valueAsDate = new Date();
+        cargarListaParticipantesActivos();
+        cargarTablaAdminParticipantes();
+        cargarLeaderboardYEstadisticas();
+      })
+      .withFailureHandler(function(err) {
+        setBtnLoading(btn, false, 'Registrar Participante');
+        mostrarMensaje('alert-reg-participante', err.message, 'danger');
+      })
+      .registrarParticipante(datos, adminPassword);
+  }
+
+  // Guardar Check-in Semanal
+  function guardarMedicionSemanal(e) {
+    e.preventDefault();
+    if (!isAuthenticated) return;
+
+    const btn = document.getElementById('btn-guardar-medicion');
+    const datos = {
+      idParticipante: document.getElementById('select-part-medicion').value,
+      peso: document.getElementById('med-peso').value,
+      cintura: document.getElementById('med-cintura').value,
+      fechaMedicion: document.getElementById('med-fecha').value
+    };
+
+    if (!datos.idParticipante || !datos.peso || !datos.cintura || !datos.fechaMedicion) {
+      mostrarMensaje('alert-medicion', 'Por favor completa todos los campos requeridos.', 'danger');
+      return;
+    }
+
+    if (Number(datos.peso) <= 0 || Number(datos.cintura) <= 0) {
+      mostrarMensaje('alert-medicion', 'El peso y la cintura no pueden ser negativos ni cero.', 'danger');
+      return;
+    }
+
+    setBtnLoading(btn, true, 'Guardando Check-in...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setBtnLoading(btn, false, 'Registrar Check-in Semanal');
+        const alertType = res.advertencia ? 'warning' : 'success';
+        mostrarMensaje('alert-medicion', res.mensaje, alertType);
+        document.getElementById('form-medicion-semanal').reset();
+        document.getElementById('med-fecha').valueAsDate = new Date();
+        cargarLeaderboardYEstadisticas();
+      })
+      .withFailureHandler(function(err) {
+        setBtnLoading(btn, false, 'Registrar Check-in Semanal');
+        mostrarMensaje('alert-medicion', err.message, 'danger');
+      })
+      .registrarMedicionSemanal(datos, adminPassword);
+  }
+
+  // Guardar Medición Final
+  function guardarMedicionFinal(e) {
+    e.preventDefault();
+    if (!isAuthenticated) return;
+
+    const btn = document.getElementById('btn-guardar-final');
+    const datos = {
+      idParticipante: document.getElementById('select-part-final').value,
+      pesoFinal: document.getElementById('final-peso').value,
+      cinturaFinal: document.getElementById('final-cintura').value,
+      fechaFinal: document.getElementById('final-fecha').value
+    };
+
+    if (!datos.idParticipante || !datos.pesoFinal || !datos.cinturaFinal || !datos.fechaFinal) {
+      mostrarMensaje('alert-final', 'Por favor completa todos los campos obligatorios.', 'danger');
+      return;
+    }
+
+    if (Number(datos.pesoFinal) <= 0 || Number(datos.cinturaFinal) <= 0) {
+      mostrarMensaje('alert-final', 'El peso y la cintura no pueden ser negativos ni cero.', 'danger');
+      return;
+    }
+
+    setBtnLoading(btn, true, 'Registrando Medición Final...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setBtnLoading(btn, false, 'Registrar Medición Final');
+        mostrarMensaje('alert-final', res.mensaje, 'success');
+        document.getElementById('form-medicion-final').reset();
+        document.getElementById('final-fecha').valueAsDate = new Date();
+        cargarLeaderboardYEstadisticas();
+      })
+      .withFailureHandler(function(err) {
+        setBtnLoading(btn, false, 'Registrar Medición Final');
+        mostrarMensaje('alert-final', err.message, 'danger');
+      })
+      .registrarMedicionFinal(datos, adminPassword);
+  }
+
+  // Utilities
+  function mostrarMensaje(elementId, text, type) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.className = `alert alert-${type}`;
+    el.textContent = text;
+    el.style.display = 'block';
+    setTimeout(() => {
+      el.style.display = 'none';
+    }, 8000);
+  }
+
+  function setBtnLoading(btn, isLoading, originalText) {
+    if (isLoading) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Procesando...`;
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  }
+
+  function mostrarLoader(containerId, message) {
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;"><span class="spinner" style="border-top-color:var(--primary-color)"></span> ${message}</td></tr>`;
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // Vincular funciones a la ventana global para invocación desde HTML onclick
+  window.cambiarTab = cambiarTab;
+  window.cambiarSubTabAdmin = cambiarSubTabAdmin;
+  window.autenticarAdmin = autenticarAdmin;
+  window.cerrarSesionAdmin = cerrarSesionAdmin;
+  window.guardarParticipante = guardarParticipante;
+  window.guardarMedicionSemanal = guardarMedicionSemanal;
+  window.guardarMedicionFinal = guardarMedicionFinal;
+  window.abrirModalEditarParticipante = abrirModalEditarParticipante;
+  window.cerrarModalEditar = cerrarModalEditar;
+  window.guardarEdicionParticipante = guardarEdicionParticipante;
+</script>
