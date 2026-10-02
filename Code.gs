@@ -39,7 +39,6 @@ function obtenerHojaParticipantes(ss) {
   var sheet = ss.getSheetByName(SHEET_PARTICIPANTES);
   if (sheet) return sheet;
 
-  // Búsqueda insensible a mayúsculas/minúsculas o variaciones
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     var name = sheets[i].getName().toLowerCase().trim();
@@ -145,12 +144,14 @@ function verificarPasswordAdmin(password) {
 
 /**
  * Registra un nuevo participante con Edad y Sexo.
+ * El campo email es OPCIONAL (no bloquea el registro si está vacío).
  */
 function registrarParticipante(datos, password) {
   if (!verificarPasswordAdmin(password)) {
     throw new Error("Acceso denegado: Contraseña de administrador incorrecta.");
   }
 
+  // Validar sólo campos OBLIGATORIOS
   if (!datos.nombreCompleto || datos.edad === undefined || datos.edad === null || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
     throw new Error("Todos los campos obligatorios deben ser completados.");
   }
@@ -215,6 +216,85 @@ function registrarParticipante(datos, password) {
 }
 
 /**
+ * Actualiza los datos de un participante existente (incluyendo email opcional).
+ */
+function actualizarParticipante(datos, password) {
+  if (!verificarPasswordAdmin(password)) {
+    throw new Error("Acceso denegado: Contraseña de administrador incorrecta.");
+  }
+
+  if (!datos.id) {
+    throw new Error("El ID del participante es obligatorio para actualizar.");
+  }
+
+  if (!datos.nombreCompleto || datos.edad === undefined || datos.edad === null || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
+    throw new Error("Todos los campos obligatorios deben ser completados.");
+  }
+
+  var edad = Number(datos.edad);
+  var sexo = String(datos.sexo).trim();
+  var estatura = Number(datos.estatura);
+  var pesoInicial = Number(datos.pesoInicial);
+  var cinturaInicial = Number(datos.cinturaInicial);
+
+  if (isNaN(edad) || edad <= 0 || edad >= 120 || !Number.isInteger(edad)) {
+    throw new Error("La edad debe ser un número entero mayor a 0 y menor a 120.");
+  }
+
+  if (sexo !== "Femenino" && sexo !== "Masculino") {
+    throw new Error("El sexo debe ser 'Femenino' o 'Masculino'.");
+  }
+
+  if (isNaN(estatura) || estatura <= 0) throw new Error("La estatura debe ser un número positivo mayor a cero.");
+  if (isNaN(pesoInicial) || pesoInicial <= 0) throw new Error("El peso inicial debe ser un número positivo mayor a cero.");
+  if (isNaN(cinturaInicial) || cinturaInicial <= 0) throw new Error("La cintura inicial debe ser un número positivo mayor a cero.");
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = obtenerHojaParticipantes(ss);
+  if (!sheet) throw new Error("No se encontró la hoja de Participantes.");
+
+  var data = sheet.getDataRange().getValues();
+  var idxs = resolverIndicesHeaders(data[0]);
+
+  var rowIndex = -1;
+  var targetId = String(datos.id).trim();
+
+  for (var i = 1; i < data.length; i++) {
+    var currentId = idxs.colId < data[i].length ? String(data[i][idxs.colId] || "").trim() : "";
+    if (currentId === targetId) {
+      rowIndex = i + 1; // Google Sheets es base 1
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    throw new Error("No se encontró el participante a actualizar.");
+  }
+
+  // Validar duplicidad de nombre si cambió
+  var nombreBuscado = String(datos.nombreCompleto).trim().toLowerCase();
+  for (var j = 1; j < data.length; j++) {
+    if (j + 1 === rowIndex) continue; // omitir la misma fila
+    var nombreExistente = String(data[j][idxs.colNombre] || "").trim().toLowerCase();
+    if (nombreExistente === nombreBuscado) {
+      throw new Error("Ya existe otro participante registrado con el nombre '" + datos.nombreCompleto + "'.");
+    }
+  }
+
+  sheet.getRange(rowIndex, idxs.colNombre + 1).setValue(datos.nombreCompleto.trim());
+  sheet.getRange(rowIndex, idxs.colEdad + 1).setValue(edad);
+  sheet.getRange(rowIndex, idxs.colSexo + 1).setValue(sexo);
+  sheet.getRange(rowIndex, idxs.colEmail + 1).setValue((datos.email || "").trim());
+  sheet.getRange(rowIndex, idxs.colEstatura + 1).setValue(estatura);
+  sheet.getRange(rowIndex, idxs.colPesoIni + 1).setValue(pesoInicial);
+  sheet.getRange(rowIndex, idxs.colCinturaIni + 1).setValue(cinturaInicial);
+  sheet.getRange(rowIndex, idxs.colFechaIni + 1).setValue(datos.fechaInicio);
+  sheet.getRange(rowIndex, idxs.colCategoria + 1).setValue(datos.categoria);
+
+  return { exito: true, mensaje: "Participante '" + datos.nombreCompleto + "' actualizado correctamente." };
+}
+
+/**
  * Función auxiliar para resolver índices de columna con tolerancia.
  */
 function resolverIndicesHeaders(headersRaw) {
@@ -250,7 +330,7 @@ function resolverIndicesHeaders(headersRaw) {
 }
 
 /**
- * Obtiene la lista completa de participantes para el panel de administración (leyendo directamente de la hoja de cálculo).
+ * Obtiene la lista completa de participantes para el panel de administración.
  */
 function obtenerTodosLosParticipantesAdmin(password) {
   if (!verificarPasswordAdmin(password)) {
@@ -272,17 +352,27 @@ function obtenerTodosLosParticipantesAdmin(password) {
     var nombreVal = idxs.colNombre < row.length ? String(row[idxs.colNombre] || "").trim() : "";
     var idVal = idxs.colId < row.length ? String(row[idxs.colId] || "").trim() : "";
 
-    // Si la fila no tiene ni nombre ni id, omitir fila vacía
     if (!nombreVal && !idVal) continue;
+
+    var fechaIniRaw = idxs.colFechaIni < row.length ? row[idxs.colFechaIni] : "";
+    var fechaIniFormatted = "";
+    if (fechaIniRaw instanceof Date) {
+      fechaIniFormatted = Utilities.formatDate(fechaIniRaw, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    } else if (fechaIniRaw) {
+      fechaIniFormatted = String(fechaIniRaw).substring(0, 10);
+    }
 
     lista.push({
       id: idVal || ("PART-" + i),
       nombre: nombreVal || ("Participante " + i),
-      edad: (idxs.colEdad < row.length && row[idxs.colEdad] !== "") ? row[idxs.colEdad] : "N/A",
-      sexo: (idxs.colSexo < row.length && row[idxs.colSexo] !== "") ? row[idxs.colSexo] : "N/A",
-      categoria: (idxs.colCategoria < row.length && row[idxs.colCategoria] !== "") ? row[idxs.colCategoria] : "N/A",
+      edad: (idxs.colEdad < row.length && row[idxs.colEdad] !== "") ? row[idxs.colEdad] : "",
+      sexo: (idxs.colSexo < row.length && row[idxs.colSexo] !== "") ? row[idxs.colSexo] : "",
+      email: (idxs.colEmail < row.length && row[idxs.colEmail] !== "") ? String(row[idxs.colEmail]) : "",
+      estatura: (idxs.colEstatura < row.length && row[idxs.colEstatura] !== "") ? Number(row[idxs.colEstatura]) : "",
       pesoInicial: (idxs.colPesoIni < row.length && row[idxs.colPesoIni] !== "") ? Number(row[idxs.colPesoIni]) : 0,
       cinturaInicial: (idxs.colCinturaIni < row.length && row[idxs.colCinturaIni] !== "") ? Number(row[idxs.colCinturaIni]) : 0,
+      fechaInicio: fechaIniFormatted,
+      categoria: (idxs.colCategoria < row.length && row[idxs.colCategoria] !== "") ? row[idxs.colCategoria] : "N/A",
       activo: (idxs.colActivo < row.length && row[idxs.colActivo] !== "") ? String(row[idxs.colActivo]) : "Sí"
     });
   }

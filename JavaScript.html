@@ -3,6 +3,7 @@
   let adminPassword = "";
   let isAuthenticated = false;
   let participantesActivos = [];
+  let listaTodosParticipantes = [];
 
   document.addEventListener("DOMContentLoaded", function() {
     cargarLeaderboardYEstadisticas();
@@ -188,18 +189,19 @@
     });
   }
 
-  // Cargar tabla de todos los participantes registrada en el Admin (muestra Edad y Sexo)
+  // Cargar tabla de todos los participantes registrada en el Admin
   function cargarTablaAdminParticipantes() {
     const tbody = document.getElementById('admin-listado-body');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px;"><span class="spinner" style="border-top-color:var(--primary-color)"></span> Cargando lista de participantes...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px;"><span class="spinner" style="border-top-color:var(--primary-color)"></span> Cargando lista de participantes...</td></tr>';
 
     google.script.run
       .withSuccessHandler(function(lista) {
+        listaTodosParticipantes = lista || [];
         tbody.innerHTML = '';
         if (!lista || lista.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px;">No hay participantes registrados.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px;">No hay participantes registrados.</td></tr>';
           return;
         }
 
@@ -208,22 +210,113 @@
           tr.innerHTML = `
             <td>${index + 1}</td>
             <td><strong>${escapeHtml(p.nombre)}</strong></td>
-            <td>${p.edad}</td>
-            <td>${p.sexo}</td>
+            <td>${p.edad || 'N/A'}</td>
+            <td>${p.sexo || 'N/A'}</td>
             <td>${escapeHtml(p.categoria)}</td>
             <td>${p.pesoInicial} kg / ${p.cinturaInicial} cm</td>
             <td><span class="badge-cat ${p.activo === 'Sí' || p.activo === 'si' ? 'activo' : 'sedentario'}">${p.activo}</span></td>
+            <td>
+              <button onclick="abrirModalEditarParticipante('${p.id}')" class="btn btn-secondary btn-sm">✏️ Editar</button>
+            </td>
           `;
           tbody.appendChild(tr);
         });
       })
       .withFailureHandler(function(err) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red; padding:15px;">Error al cargar datos: ' + err.message + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:red; padding:15px;">Error al cargar datos: ' + err.message + '</td></tr>';
       })
       .obtenerTodosLosParticipantesAdmin(adminPassword);
   }
 
-  // Guardar Nuevo Participante
+  // Abrir Modal de Edición de Participante
+  function abrirModalEditarParticipante(id) {
+    const part = listaTodosParticipantes.find(p => String(p.id).trim() === String(id).trim());
+    if (!part) {
+      alert("No se encontró la información del participante.");
+      return;
+    }
+
+    document.getElementById('edit-id').value = part.id;
+    document.getElementById('edit-nombre').value = part.nombre || "";
+    document.getElementById('edit-edad').value = part.edad || "";
+    document.getElementById('edit-sexo').value = part.sexo || "";
+    // Precargar campo opcional email exactamente con su valor o string vacío si no existe
+    document.getElementById('edit-email').value = part.email || "";
+    document.getElementById('edit-estatura').value = part.estatura || "";
+    document.getElementById('edit-peso').value = part.pesoInicial || "";
+    document.getElementById('edit-cintura').value = part.cinturaInicial || "";
+    document.getElementById('edit-fecha-inicio').value = part.fechaInicio || "";
+    document.getElementById('edit-categoria').value = part.categoria || "";
+
+    const alertEl = document.getElementById('alert-edit-participante');
+    if (alertEl) alertEl.style.display = 'none';
+
+    document.getElementById('modal-editar-participante').style.display = 'flex';
+  }
+
+  function cerrarModalEditar() {
+    document.getElementById('modal-editar-participante').style.display = 'none';
+  }
+
+  // Guardar Edición de Participante (permite email vacío por ser opcional)
+  function guardarEdicionParticipante(e) {
+    e.preventDefault();
+    if (!isAuthenticated) return;
+
+    const btn = document.getElementById('btn-guardar-edicion');
+    const datos = {
+      id: document.getElementById('edit-id').value,
+      nombreCompleto: document.getElementById('edit-nombre').value,
+      edad: document.getElementById('edit-edad').value,
+      sexo: document.getElementById('edit-sexo').value,
+      email: document.getElementById('edit-email').value, // OPCIONAL
+      estatura: document.getElementById('edit-estatura').value,
+      pesoInicial: document.getElementById('edit-peso').value,
+      cinturaInicial: document.getElementById('edit-cintura').value,
+      fechaInicio: document.getElementById('edit-fecha-inicio').value,
+      categoria: document.getElementById('edit-categoria').value
+    };
+
+    if (!datos.id || !datos.nombreCompleto || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
+      mostrarMensaje('alert-edit-participante', 'Por favor completa todos los campos obligatorios.', 'danger');
+      return;
+    }
+
+    const edadNum = Number(datos.edad);
+    if (isNaN(edadNum) || edadNum <= 0 || edadNum >= 120 || !Number.isInteger(edadNum)) {
+      mostrarMensaje('alert-edit-participante', 'La edad debe ser un número entero mayor a 0 y menor a 120.', 'danger');
+      return;
+    }
+
+    if (datos.sexo !== "Femenino" && datos.sexo !== "Masculino") {
+      mostrarMensaje('alert-edit-participante', 'Por favor selecciona un sexo válido.', 'danger');
+      return;
+    }
+
+    if (Number(datos.estatura) <= 0 || Number(datos.pesoInicial) <= 0 || Number(datos.cinturaInicial) <= 0) {
+      mostrarMensaje('alert-edit-participante', 'La estatura, peso y cintura deben ser mayores a cero.', 'danger');
+      return;
+    }
+
+    setBtnLoading(btn, true, 'Guardando...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setBtnLoading(btn, false, 'Guardar Cambios');
+        cerrarModalEditar();
+        mostrarMensaje('alert-admin-global', res.mensaje, 'success');
+        cargarListaParticipantesActivos();
+        cargarTablaAdminParticipantes();
+        cargarLeaderboardYEstadisticas();
+      })
+      .withFailureHandler(function(err) {
+        setBtnLoading(btn, false, 'Guardar Cambios');
+        mostrarMensaje('alert-edit-participante', err.message, 'danger');
+      })
+      .actualizarParticipante(datos, adminPassword);
+  }
+
+  // Guardar Nuevo Participante (el campo email es OPCIONAL)
   function guardarParticipante(e) {
     e.preventDefault();
     if (!isAuthenticated) return;
@@ -233,7 +326,7 @@
       nombreCompleto: document.getElementById('reg-nombre').value,
       edad: document.getElementById('reg-edad').value,
       sexo: document.getElementById('reg-sexo').value,
-      email: document.getElementById('reg-email').value,
+      email: document.getElementById('reg-email').value, // OPCIONAL
       estatura: document.getElementById('reg-estatura').value,
       pesoInicial: document.getElementById('reg-peso').value,
       cinturaInicial: document.getElementById('reg-cintura').value,
@@ -241,7 +334,7 @@
       categoria: document.getElementById('reg-categoria').value
     };
 
-    // Validaciones de cliente
+    // Validaciones de cliente (Email NO es obligatorio)
     if (!datos.nombreCompleto || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
       mostrarMensaje('alert-reg-participante', 'Por favor completa todos los campos obligatorios.', 'danger');
       return;
@@ -396,4 +489,16 @@
     if (!str) return '';
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
+
+  // Vincular funciones a la ventana global para invocación desde HTML onclick
+  window.cambiarTab = cambiarTab;
+  window.cambiarSubTabAdmin = cambiarSubTabAdmin;
+  window.autenticarAdmin = autenticarAdmin;
+  window.cerrarSesionAdmin = cerrarSesionAdmin;
+  window.guardarParticipante = guardarParticipante;
+  window.guardarMedicionSemanal = guardarMedicionSemanal;
+  window.guardarMedicionFinal = guardarMedicionFinal;
+  window.abrirModalEditarParticipante = abrirModalEditarParticipante;
+  window.cerrarModalEditar = cerrarModalEditar;
+  window.guardarEdicionParticipante = guardarEdicionParticipante;
 </script>

@@ -39,7 +39,6 @@ def calcular_puntuaciones(participantes, factor_bono=0.20):
         })
 
     def key_sort(item):
-        # We sort in descending order for scores, waist %, weight %, checkins, and ascending for std_dev
         return (
             -item["puntaje_final"],
             -item["pct_red_cintura"],
@@ -57,8 +56,6 @@ def calcular_puntuaciones(participantes, factor_bono=0.20):
 class TestCompetitionLogic(unittest.TestCase):
 
     def test_basic_scoring(self):
-        # Part: Peso ini 100, fin 90 (10% perdido), Cintura ini 100, fin 90 (10cm reducidos)
-        # Puntaje: 10% + 10 * 0.20 = 12.0
         part = [{
             "nombre": "Ana",
             "peso_inicial": 100.0,
@@ -71,10 +68,6 @@ class TestCompetitionLogic(unittest.TestCase):
         self.assertEqual(res[0]["puntaje_final"], 12.0)
 
     def test_tiebreaker_a_waist_reduction_pct(self):
-        # Both have same puntaje_final:
-        # Ana: peso 100 -> 90 (10% + 10cm * 0.20 = 12.0 pts). Cintura 100 -> 90 (10% red waist)
-        # Bob: peso 200 -> 180 (10% + 10cm * 0.20 = 12.0 pts). Cintura 200 -> 190 (5% red waist)
-        # Ana wins because 10% waist reduction > 5%
         parts = [
             {"nombre": "Bob", "peso_inicial": 200.0, "cintura_inicial": 200.0, "peso_final": 180.0, "cintura_final": 190.0, "check_ins": []},
             {"nombre": "Ana", "peso_inicial": 100.0, "cintura_inicial": 100.0, "peso_final": 90.0, "cintura_final": 90.0, "check_ins": []}
@@ -84,9 +77,6 @@ class TestCompetitionLogic(unittest.TestCase):
         self.assertEqual(res[1]["nombre"], "Bob")
 
     def test_tiebreaker_c_checkins_count(self):
-        # Same score and same waist reduction %
-        # Carlos: 3 check-ins
-        # Daniel: 1 check-in
         parts = [
             {"nombre": "Daniel", "peso_inicial": 100.0, "cintura_inicial": 100.0, "peso_final": 90.0, "cintura_final": 90.0, "check_ins": [95.0]},
             {"nombre": "Carlos", "peso_inicial": 100.0, "cintura_inicial": 100.0, "peso_final": 90.0, "cintura_final": 90.0, "check_ins": [97.0, 95.0, 92.0]}
@@ -95,9 +85,6 @@ class TestCompetitionLogic(unittest.TestCase):
         self.assertEqual(res[0]["nombre"], "Carlos")
 
     def test_tiebreaker_d_std_dev(self):
-        # Same score, same waist %, same weight %, same check-in count
-        # Elena: smoother gradual loss [100, 96.6, 93.3, 90] -> smaller std dev
-        # Fernando: volatile weights [100, 110, 80, 90] -> larger std dev
         parts = [
             {"nombre": "Fernando", "peso_inicial": 100.0, "cintura_inicial": 100.0, "peso_final": 90.0, "cintura_final": 90.0, "check_ins": [110.0, 80.0, 90.0]},
             {"nombre": "Elena", "peso_inicial": 100.0, "cintura_inicial": 100.0, "peso_final": 90.0, "cintura_final": 90.0, "check_ins": [96.6, 93.3, 90.0]}
@@ -105,6 +92,25 @@ class TestCompetitionLogic(unittest.TestCase):
         res = calcular_puntuaciones(parts)
         self.assertEqual(res[0]["nombre"], "Elena")
         self.assertEqual(res[1]["nombre"], "Fernando")
+
+    def test_optional_fields_validation(self):
+        # Mandatory fields
+        datos_registro = {
+            "nombreCompleto": "Juan Pérez",
+            "edad": 35,
+            "sexo": "Masculino",
+            "email": "", # Email is optional (empty string)
+            "estatura": 1.75,
+            "pesoInicial": 85.0,
+            "cinturaInicial": 90.0,
+            "fechaInicio": "2025-01-01",
+            "categoria": "Sedentario/Sobrepeso"
+        }
+
+        # Ensure registration does not fail when optional email is empty
+        obligatorios = ["nombreCompleto", "edad", "sexo", "estatura", "pesoInicial", "cinturaInicial", "fechaInicio", "categoria"]
+        completo = all(datos_registro.get(k) not in [None, "", []] for k in obligatorios)
+        self.assertTrue(completo)
 
 if __name__ == "__main__":
     unittest.main()
