@@ -156,7 +156,7 @@
       </div>
     </div>
 
-    <!-- Client / Device Details Modal (Punto 5) -->
+    <!-- Client / Device Details Modal -->
     <div class="modal fade" id="clientDetailModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -206,33 +206,34 @@
       </div>
     </div>
 
-    <!-- Edit Modal -->
+    <!-- Edit Modal with Per-Device Status Controls -->
     <div class="modal fade" id="editModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
-          <div class="modal-header">
+          <div class="modal-header bg-dark text-white">
             <h5 class="modal-title">Actualizar Servicio: <span id="modalFolio"></span></h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <form id="editForm">
               <input type="hidden" id="editFolio">
-              <div class="row mb-3">
-                <div class="col-md-4">
-                  <label class="form-label fw-bold" for="editEstatus">Estatus</label>
-                  <select id="editEstatus" class="form-select" required>
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="En reparación">En reparación</option>
-                    <option value="Listo">Listo</option>
-                    <option value="Entregado">Entregado</option>
-                    <option value="Cancelado">Cancelado</option>
-                  </select>
+
+              <!-- Section: Estatus por dispositivo -->
+              <div class="mb-4">
+                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-gamepad me-2"></i>Estatus por Dispositivo (Entregas Parciales)</h6>
+                <div id="devicesEditContainer">
+                  <!-- Rendered dynamically -->
                 </div>
-                <div class="col-md-4">
+              </div>
+
+              <hr>
+
+              <div class="row mb-3">
+                <div class="col-md-6">
                   <label class="form-label fw-bold" for="editFechaEntrega">Fecha de Entrega / Promesa</label>
                   <input type="date" id="editFechaEntrega" class="form-control">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                   <label class="form-label fw-bold" for="editTotal">Total ($)</label>
                   <input type="number" step="0.01" id="editTotal" class="form-control">
                 </div>
@@ -247,10 +248,10 @@
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold" for="editSolucion">Solución Aplicada / Notas Internas</label>
-                <textarea id="editSolucion" class="form-control" rows="4"></textarea>
+                <textarea id="editSolucion" class="form-control" rows="3"></textarea>
               </div>
               <div class="alert alert-info py-2 small">
-                <i class="fas fa-info-circle me-2"></i>Si cambias a <strong>Listo</strong>, se enviará un correo automático al cliente.
+                <i class="fas fa-info-circle me-2"></i>Si la orden cambia a <strong>Listo</strong>, se enviará un correo automático al cliente.
               </div>
             </form>
           </div>
@@ -322,7 +323,6 @@
           const navDash = document.getElementById('navDashboard');
           if (navDash) navDash.style.display = 'block';
 
-          // Fix: show the "Asignado a" column header for Admins
           const colAsignacionHeader = document.querySelector('.col-asignacion');
           if (colAsignacionHeader) colAsignacionHeader.style.display = 'table-cell';
 
@@ -421,7 +421,6 @@
               tdFecha.className = 'small';
               tdFecha.textContent = s["Fecha de recepción"];
 
-              // Punto 3: Color differentiation by checkbox state (Azul for Taller, Negro for Normal)
               const tdCliente = document.createElement('td');
               tdCliente.style.cursor = 'pointer';
               tdCliente.onclick = function() { mostrarDetalleCliente(s.Folio); };
@@ -438,7 +437,8 @@
 
               const tdDispositivo = document.createElement('td');
               tdDispositivo.className = 'small';
-              const dispCount = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos.length : 1;
+              const dispList = s.dispositivos || [];
+              const dispCount = dispList.length > 0 ? dispList.length : 1;
               tdDispositivo.innerHTML = `${s["Dispositivo a recibir"]} ${dispCount > 1 ? `<span class="badge bg-secondary ms-1">${dispCount} eq.</span>` : ''}`;
               tdDispositivo.title = s["Dispositivo a recibir"];
 
@@ -463,7 +463,12 @@
               }
 
               const tdEstatus = document.createElement('td');
-              tdEstatus.innerHTML = formatStatus(s["Estatus (admin)"]);
+              let statusSummaryHtml = formatStatus(s["Estatus (admin)"]);
+              if (dispList.length > 1) {
+                const entregadosCount = dispList.filter(d => d.estatus === 'Entregado').length;
+                statusSummaryHtml += `<div class="small text-muted mt-1">${entregadosCount} de ${dispList.length} entregados</div>`;
+              }
+              tdEstatus.innerHTML = statusSummaryHtml;
 
               const tdTotal = document.createElement('td');
               tdTotal.className = 'fw-bold text-success col-total';
@@ -474,7 +479,7 @@
                 <button type="button" class="btn btn-sm btn-outline-info me-1" title="Ver Detalle Dispositivos" onclick="mostrarDetalleCliente('${s.Folio}')">
                   <i class="fas fa-eye"></i>
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="abrirEditarPorFolio('${s.Folio}')">
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Editar Estatus" onclick="abrirEditarPorFolio('${s.Folio}')">
                   <i class="fas fa-edit"></i>
                 </button>
                 <div class="btn-group">
@@ -518,7 +523,6 @@
           .obtenerServicios(filtros, currentUser);
       }
 
-      // Punto 5: Mostrar cliente y dispositivos entregados en el Panel de Admin
       function mostrarDetalleCliente(folio) {
         const s = allServicios.find(item => item.Folio === folio);
         if (!s) return;
@@ -559,21 +563,23 @@
         html += `
             </div>
           </div>
-          <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-boxes me-2"></i>Dispositivos Entregados (${s.dispositivos ? s.dispositivos.length : 1})</h6>
+          <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-boxes me-2"></i>Dispositivos Entregados / Estatus (${s.dispositivos ? s.dispositivos.length : 1})</h6>
         `;
 
         const list = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos : [{
           dispositivo: s["Dispositivo a recibir"],
           falla: s["Descripción de la falla"],
           estadoEquipo: s["Estado del equipo"],
-          fotos: []
+          fotos: [],
+          estatus: s["Estatus (admin)"] || "Pendiente"
         }];
 
         list.forEach((disp, idx) => {
           html += `
             <div class="card mb-3 border shadow-sm">
-              <div class="card-header bg-light fw-bold">
-                <i class="fas fa-gamepad me-2"></i>Dispositivo #${idx + 1}: ${disp.dispositivo || 'Sin nombre'}
+              <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="fas fa-gamepad me-2"></i>Dispositivo #${idx + 1}: ${disp.dispositivo || 'Sin nombre'}</span>
+                <div>${formatStatus(disp.estatus || s["Estatus (admin)"] || 'Pendiente')}</div>
               </div>
               <div class="card-body">
                 <p class="mb-2"><strong>Descripción de la falla:</strong> ${disp.falla || 'N/A'}</p>
@@ -606,14 +612,12 @@
 
         document.getElementById('modalFolio').innerText = s.Folio;
         document.getElementById('editFolio').value = s.Folio;
-        document.getElementById('editEstatus').value = s["Estatus (admin)"];
         document.getElementById('editSolucion').value = s["Solución aplicada (admin)"];
         document.getElementById('editTotal').value = s["Total ($)"] || '';
         if (document.getElementById('editAsignado')) {
           document.getElementById('editAsignado').value = s["Asignado a"] || '';
         }
 
-        // Format date for input type=date (YYYY-MM-DD)
         if (s["Fecha de entrega (admin)"]) {
           const parts = s["Fecha de entrega (admin)"].split('/');
           if (parts.length === 3) {
@@ -623,22 +627,82 @@
           document.getElementById('editFechaEntrega').value = '';
         }
 
+        // Render per-device status dropdowns and quick "Entregar" action button
+        const container = document.getElementById('devicesEditContainer');
+        container.innerHTML = '';
+
+        const devices = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos : [{
+          dispositivo: s["Dispositivo a recibir"] || "Equipo",
+          falla: s["Descripción de la falla"] || "",
+          estatus: s["Estatus (admin)"] || "Pendiente"
+        }];
+
+        devices.forEach((d, idx) => {
+          const currentDispStatus = d.estatus || s["Estatus (admin)"] || "Pendiente";
+          const card = document.createElement('div');
+          card.className = 'card mb-3 border shadow-sm device-status-item';
+          card.innerHTML = `
+            <div class="card-body py-3">
+              <div class="row align-items-center g-2">
+                <div class="col-md-5">
+                  <div class="fw-bold text-dark"><i class="fas fa-gamepad me-1 text-primary"></i> #${idx + 1} ${d.dispositivo}</div>
+                  <div class="small text-muted text-truncate" style="max-width: 250px;" title="${d.falla}">${d.falla}</div>
+                </div>
+                <div class="col-md-4">
+                  <select class="form-select form-select-sm device-status-select" data-index="${idx}">
+                    <option value="Pendiente" ${currentDispStatus === 'Pendiente' ? 'selected' : ''}>Pendiente</option>
+                    <option value="En reparación" ${currentDispStatus === 'En reparación' ? 'selected' : ''}>En reparación</option>
+                    <option value="Listo" ${currentDispStatus === 'Listo' ? 'selected' : ''}>Listo</option>
+                    <option value="Entregado" ${currentDispStatus === 'Entregado' ? 'selected' : ''}>Entregado</option>
+                    <option value="Cancelado" ${currentDispStatus === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                  </select>
+                </div>
+                <div class="col-md-3 text-end">
+                  <button type="button" class="btn btn-sm ${currentDispStatus === 'Entregado' ? 'btn-success disabled' : 'btn-outline-success'}" onclick="marcarEntregadoDispositivo(${idx})">
+                    <i class="fas fa-check-circle me-1"></i>${currentDispStatus === 'Entregado' ? 'Entregado' : 'Entregar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+
         editModal.show();
+      }
+
+      function marcarEntregadoDispositivo(idx) {
+        const select = document.querySelector(`.device-status-select[data-index="${idx}"]`);
+        if (select) {
+          select.value = 'Entregado';
+          const btn = select.closest('.device-status-item').querySelector('.btn-outline-success, .btn-success');
+          if (btn) {
+            btn.className = 'btn btn-sm btn-success disabled';
+            btn.innerHTML = '<i class="fas fa-check-circle me-1"></i>Entregado';
+          }
+        }
       }
 
       function guardarCambios() {
         const folio = document.getElementById('editFolio').value;
-        const estatus = document.getElementById('editEstatus').value;
         const solucion = document.getElementById('editSolucion').value;
         const total = document.getElementById('editTotal').value;
         const asignado = document.getElementById('editAsignado') ? document.getElementById('editAsignado').value : '';
         let fecha = document.getElementById('editFechaEntrega').value;
 
-        // Format back to DD/MM/YYYY
         if (fecha) {
           const [year, month, day] = fecha.split('-');
           fecha = `${day}/${month}/${year}`;
         }
+
+        // Collect per-device status values
+        const selects = document.querySelectorAll('.device-status-select');
+        const dispositivosActualizados = [];
+        selects.forEach(select => {
+          dispositivosActualizados.push({
+            estatus: select.value
+          });
+        });
 
         showLoading(true);
 
@@ -651,7 +715,7 @@
               }
               showLoading(false);
               editModal.hide();
-              showAlert('Actualizado correctamente', 'success');
+              showAlert('Estatus de dispositivos actualizado correctamente', 'success');
               cargarStats();
               cargarServicios();
             } else {
@@ -659,7 +723,7 @@
               showAlert(res.message);
             }
           })
-          .actualizarEstatus(folio, estatus, solucion, fecha, total, currentUser);
+          .actualizarEstatus(folio, "", solucion, fecha, total, currentUser, dispositivosActualizados);
       }
 
       function abrirReenvio(folio) {

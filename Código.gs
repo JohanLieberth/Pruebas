@@ -217,13 +217,20 @@ function registrarServicio(datos) {
   // Handle multi-device or single-device data structure
   let dispositivosList = [];
   if (Array.isArray(datos.dispositivos) && datos.dispositivos.length > 0) {
-    dispositivosList = datos.dispositivos;
+    dispositivosList = datos.dispositivos.map(d => ({
+      dispositivo: d.dispositivo || "",
+      falla: d.falla || "",
+      estadoEquipo: d.estadoEquipo || "",
+      fotos: d.fotos || [],
+      estatus: d.estatus || "Pendiente"
+    }));
   } else if (datos.dispositivo && datos.falla) {
     dispositivosList = [{
       dispositivo: datos.dispositivo,
       falla: datos.falla,
       estadoEquipo: datos.estadoEquipo || "",
-      fotos: datos.fotos || []
+      fotos: datos.fotos || [],
+      estatus: "Pendiente"
     }];
   }
 
@@ -426,8 +433,15 @@ function obtenerServicios(filtros = {}, auth = null) {
         dispositivo: obj["Dispositivo a recibir"] || "",
         falla: obj["Descripción de la falla"] || "",
         estadoEquipo: obj["Estado del equipo"] || "",
-        fotos: []
+        fotos: [],
+        estatus: obj["Estatus (admin)"] || "Pendiente"
       }];
+    } else {
+      // Ensure every device has an estatus (historical compatibility)
+      dispositivos = dispositivos.map(d => ({
+        ...d,
+        estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente"
+      }));
     }
     obj.dispositivos = dispositivos;
 
@@ -492,8 +506,14 @@ function obtenerEstatusPorFolio(folio) {
           dispositivo: obj["Dispositivo a recibir"] || "",
           falla: obj["Descripción de la falla"] || "",
           estadoEquipo: obj["Estado del equipo"] || "",
-          fotos: []
+          fotos: [],
+          estatus: obj["Estatus (admin)"] || "Pendiente"
         }];
+      } else {
+        dispositivos = dispositivos.map(d => ({
+          ...d,
+          estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente"
+        }));
       }
 
       return {
@@ -532,8 +552,14 @@ function obtenerDatosCompletosServicio(folio) {
           dispositivo: obj["Dispositivo a recibir"] || "",
           falla: obj["Descripción de la falla"] || "",
           estadoEquipo: obj["Estado del equipo"] || "",
-          fotos: []
+          fotos: [],
+          estatus: obj["Estatus (admin)"] || "Pendiente"
         }];
+      } else {
+        dispositivos = dispositivos.map(d => ({
+          ...d,
+          estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente"
+        }));
       }
       obj.dispositivos = dispositivos;
       return obj;
@@ -542,12 +568,15 @@ function obtenerDatosCompletosServicio(folio) {
   return null;
 }
 
-function actualizarEstatus(folio, estatus, solucion, fechaEntrega, total, auth) {
+function actualizarEstatus(folio, estatusGeneral, solucion, fechaEntrega, total, auth, dispositivosActualizados) {
   const authRes = checkAuth(auth);
   if (!authRes.authorized) return { success: false, message: "No autorizado" };
 
   const sheet = getSheet("Servicios");
   const data = sheet.getDataRange().getValues();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colJsonIdx = headers.indexOf("Dispositivos JSON") + 1;
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === folio) {
       const oldStatus = data[i][8];
@@ -556,15 +585,75 @@ function actualizarEstatus(folio, estatus, solucion, fechaEntrega, total, auth) 
         return { success: false, message: "No tienes permiso para editar este servicio (no asignado)." };
       }
 
-      sheet.getRange(i + 1, 9).setValue(estatus);
+      // Existing dispositivos from JSON column
+      let existingDispositivos = [];
+      if (colJsonIdx > 0 && data[i][colJsonIdx - 1]) {
+        try { existingDispositivos = JSON.parse(data[i][colJsonIdx - 1]); } catch (e) { existingDispositivos = []; }
+      }
+      if (!Array.isArray(existingDispositivos) || existingDispositivos.length === 0) {
+        existingDispositivos = [{
+          dispositivo: data[i][5] || "",
+          falla: data[i][6] || "",
+          estadoEquipo: data[i][7] || "",
+          fotos: [],
+          estatus: oldStatus || "Pendiente"
+        }];
+      }
+
+      // If dispositivosActualizados parameter is passed, update per-device status
+      let finalDispositivos = existingDispositivos;
+      if (Array.isArray(dispositivosActualizados) && dispositivosActualizados.length > 0) {
+        finalDispositivos = existingDispositivos.map((d, idx) => {
+          const updateObj = dispositivosActualizados[idx];
+          return {
+            ...d,
+            estatus: updateObj && updateObj.estatus ? updateObj.estatus : (d.estatus || estatusGeneral || "Pendiente")
+          };
+        });
+      } else if (estatusGeneral) {
+        // Fallback: apply general status to all devices if no array passed
+        finalDispositivos = existingDispositivos.map(d => ({
+          ...d,
+          estatus: estatusGeneral
+        }));
+      }
+
+      // Calculate order general status from per-device statuses
+      let computedOrderEstatus = estatusGeneral;
+      if (finalDispositivos.length > 0) {
+        const statuses = finalDispositivos.map(d => d.estatus || "Pendiente");
+        const allEntregado = statuses.every(s => s === "Entregado");
+        const allListo = statuses.every(s => s === "Listo");
+        const allCancelado = statuses.every(s => s === "Cancelado");
+        const someEntregado = statuses.some(s => s === "Entregado");
+        const someEnReparacion = statuses.some(s => s === "En reparación");
+
+        if (allEntregado) {
+          computedOrderEstatus = "Entregado";
+        } else if (allListo) {
+          computedOrderEstatus = "Listo";
+        } else if (allCancelado) {
+          computedOrderEstatus = "Cancelado";
+        } else if (someEntregado || someEnReparacion) {
+          computedOrderEstatus = "En reparación";
+        } else if (!estatusGeneral) {
+          computedOrderEstatus = statuses[0];
+        }
+      }
+
+      sheet.getRange(i + 1, 9).setValue(computedOrderEstatus);
       sheet.getRange(i + 1, 10).setValue(solucion);
       sheet.getRange(i + 1, 11).setValue(fechaEntrega);
+
+      if (colJsonIdx > 0) {
+        sheet.getRange(i + 1, colJsonIdx).setValue(JSON.stringify(finalDispositivos));
+      }
 
       if (authRes.rol === 'Administrador' && total !== undefined && total !== null) {
         sheet.getRange(i + 1, 13).setValue(total);
       }
 
-      if (estatus === "Listo" && oldStatus !== "Listo") {
+      if (computedOrderEstatus === "Listo" && oldStatus !== "Listo") {
         enviarCorreoEquipoListo(data[i], folio, solucion, total || data[i][12]);
       }
       return { success: true };
