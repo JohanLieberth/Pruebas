@@ -43,6 +43,9 @@
             </li>
           </ul>
           <div class="ms-auto d-flex align-items-center">
+            <button type="button" class="btn btn-outline-warning btn-sm me-3" data-bs-toggle="modal" data-bs-target="#nfcModal">
+              <i class="fas fa-wifi me-1"></i>Puntos NFC / Tarjeta
+            </button>
             <span class="me-3 d-none d-md-inline" id="adminName"></span>
             <button type="button" class="btn btn-outline-light btn-sm text-black" onclick="logout()" style="color: #000 !important;"><i class="fas fa-sign-out-alt me-1" style="color: #000 !important;"></i>Cerrar Sesión</button>
           </div>
@@ -138,7 +141,7 @@
             <thead class="table-dark">
               <tr>
                 <th>Folio</th>
-                <th>Fecha</th>
+                <th>Fecha / Hora</th>
                 <th>Cliente / Taller</th>
                 <th>Dispositivo(s)</th>
                 <th>Falla</th>
@@ -152,6 +155,124 @@
               <!-- Content loaded via JS -->
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Punto 4: Modal Sistema de Puntos USB NFC Reader -->
+    <div class="modal fade" id="nfcModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title"><i class="fas fa-wifi me-2"></i>Lector USB NFC - Puntos y Tarjetas</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="nav nav-tabs mb-3" id="nfcTabs" role="tablist">
+              <li class="nav-item">
+                <button class="nav-link active" id="tab-scan-tab" data-bs-toggle="tab" data-bs-target="#tab-scan" type="button"><i class="fas fa-credit-card me-1"></i>Escanear / Asignar Puntos</button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" id="tab-register-tab" data-bs-toggle="tab" data-bs-target="#tab-register" type="button"><i class="fas fa-id-card me-1"></i>Asociar Tarjeta NFC a Cliente</button>
+              </li>
+            </ul>
+
+            <div class="tab-content" id="nfcTabContent">
+              <!-- Tab 1: Escanear tarjeta USB HID para abonar puntos -->
+              <div class="tab-pane fade show active" id="tab-scan" role="tabpanel">
+                <div class="alert alert-info py-2 small">
+                  <i class="fas fa-keyboard me-2"></i>Acerque la tarjeta al lector USB NFC. El lector ingresará automáticamente el UID.
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold" for="nfcReaderScanInput">UID Tarjeta NFC (Lectura USB)</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-wifi text-primary"></i></span>
+                    <input type="text" id="nfcReaderScanInput" class="form-control form-control-lg border-primary" placeholder="Acerque tarjeta NFC aquí..." autofocus oninput="handleNfcInputWithTimeout('scan')">
+                    <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('nfcReaderScanInput').value=''; document.getElementById('nfcClientResult').style.display='none';"><i class="fas fa-eraser"></i> Limpiar</button>
+                  </div>
+                  <div class="form-text small text-muted">Acepta entrada por fragmentos teclado HID con timeout automático de 1.5s.</div>
+                </div>
+
+                <!-- Client Search / Found Result -->
+                <div id="nfcClientResult" class="card border-success mt-3" style="display: none;">
+                  <div class="card-header bg-success text-white fw-bold d-flex justify-content-between">
+                    <span><i class="fas fa-user-check me-2"></i>Cliente Localizado</span>
+                    <span id="nfcSaldoBadge" class="badge bg-light text-dark fs-6">0.0 Puntos</span>
+                  </div>
+                  <div class="card-body">
+                    <div class="row mb-3">
+                      <div class="col-md-6">
+                        <p class="mb-1"><strong>Nombre:</strong> <span id="nfcClienteNombre">-</span></p>
+                        <p class="mb-1"><strong>Correo:</strong> <span id="nfcClienteEmail">-</span></p>
+                      </div>
+                      <div class="col-md-6">
+                        <p class="mb-1"><strong>UID Tarjeta:</strong> <code id="nfcClienteUid">-</code></p>
+                      </div>
+                    </div>
+
+                    <div class="card bg-light p-3 border mb-3">
+                      <h6 class="fw-bold text-success"><i class="fas fa-coins me-1"></i>Asignar Puntos por Pago</h6>
+                      <div class="row g-2 align-items-center">
+                        <div class="col-md-5">
+                          <label class="form-label small fw-bold" for="nfcMontoInput">Monto Pagado ($)</label>
+                          <input type="number" step="0.01" id="nfcMontoInput" class="form-control" placeholder="Ej: 250.00" oninput="calcularPrevioPuntos()">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small fw-bold" for="nfcFolioInput">Folio / Concepto (Opcional)</label>
+                          <input type="text" id="nfcFolioInput" class="form-control" placeholder="Ej: BF-00001">
+                        </div>
+                        <div class="col-md-3 mt-4 text-end">
+                          <button type="button" class="btn btn-success w-100" onclick="confirmarAsignarPuntos()"><i class="fas fa-plus-circle me-1"></i>Abonar Puntos</button>
+                        </div>
+                      </div>
+                      <div id="nfcPrevioPuntosText" class="small text-muted mt-2 fw-bold">Regla: $100 = 1 punto</div>
+                    </div>
+
+                    <!-- Historial de Movimientos -->
+                    <h6 class="fw-bold text-dark mt-3">Historial de Puntos Acumulados</h6>
+                    <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                      <table class="table table-sm table-striped small mb-0">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>Folio/Concepto</th>
+                            <th>Monto</th>
+                            <th>Puntos</th>
+                          </tr>
+                        </thead>
+                        <tbody id="nfcHistorialBody">
+                          <!-- Filled dynamically -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab 2: Asociar UID NFC a correo de usuario -->
+              <div class="tab-pane fade" id="tab-register" role="tabpanel">
+                <form id="nfcAssociateForm" onsubmit="event.preventDefault(); guardarAsociacionNfc();">
+                  <div class="mb-3">
+                    <label class="form-label fw-bold" for="nfcEmailInput">Correo Electrónico del Cliente *</label>
+                    <input type="email" id="nfcEmailInput" class="form-control" placeholder="cliente@correo.com" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-bold" for="nfcReaderAssociateInput">Pase o Acerque la Tarjeta NFC *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="fas fa-wifi text-primary"></i></span>
+                      <input type="text" id="nfcReaderAssociateInput" class="form-control form-control-lg border-primary" placeholder="Lectura automática del UID..." oninput="handleNfcInputWithTimeout('associate')" required>
+                    </div>
+                  </div>
+                  <div class="d-grid mt-4">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Asociar UID NFC a Cliente</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -206,7 +327,7 @@
       </div>
     </div>
 
-    <!-- Edit Modal with Per-Device Status Controls -->
+    <!-- Edit Modal with Per-Device Status and Cost Controls -->
     <div class="modal fade" id="editModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -218,9 +339,9 @@
             <form id="editForm">
               <input type="hidden" id="editFolio">
 
-              <!-- Section: Estatus por dispositivo -->
+              <!-- Section: Estatus y Costo por dispositivo -->
               <div class="mb-4">
-                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-gamepad me-2"></i>Estatus por Dispositivo (Entregas Parciales)</h6>
+                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-gamepad me-2"></i>Estatus y Costos por Dispositivo</h6>
                 <div id="devicesEditContainer">
                   <!-- Rendered dynamically -->
                 </div>
@@ -234,8 +355,8 @@
                   <input type="date" id="editFechaEntrega" class="form-control">
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label fw-bold" for="editTotal">Total ($)</label>
-                  <input type="number" step="0.01" id="editTotal" class="form-control">
+                  <label class="form-label fw-bold text-success" for="editTotal">Total Orden Sumado ($)</label>
+                  <input type="number" step="0.01" id="editTotal" class="form-control fw-bold bg-light" readonly>
                 </div>
               </div>
               <div class="row mb-3" id="rowAsignacion" style="display: none;">
@@ -299,8 +420,11 @@
       let editModal;
       let emailModal;
       let clientDetailModal;
+      let nfcModal;
       let currentUser;
       let allServicios = [];
+      let nfcInputTimer = null;
+      let currentNfcClient = null;
 
       window.addEventListener('load', function() {
         const userStr = sessionStorage.getItem('user');
@@ -317,6 +441,7 @@
         editModal = new bootstrap.Modal(document.getElementById('editModal'));
         emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
         clientDetailModal = new bootstrap.Modal(document.getElementById('clientDetailModal'));
+        nfcModal = new bootstrap.Modal(document.getElementById('nfcModal'));
 
         if (currentUser.rol === 'Administrador') {
           document.getElementById('rowAsignacion').style.display = 'flex';
@@ -417,9 +542,10 @@
               tdFolio.className = 'fw-bold';
               tdFolio.textContent = s.Folio;
 
+              // Punto 1: Mostrar Fecha y Hora
               const tdFecha = document.createElement('td');
               tdFecha.className = 'small';
-              tdFecha.textContent = s["Fecha de recepción"];
+              tdFecha.textContent = s["Fecha de recepción"] || '-';
 
               const tdCliente = document.createElement('td');
               tdCliente.style.cursor = 'pointer';
@@ -544,7 +670,7 @@
                 <div class="col-md-6">
                   <p class="mb-1"><strong>Teléfono:</strong> ${s["Teléfono"]}</p>
                   <p class="mb-1"><strong>Correo:</strong> ${s["Correo electrónico"]}</p>
-                  <p class="mb-1"><strong>Fecha Recepción:</strong> ${s["Fecha de recepción"]}</p>
+                  <p class="mb-1"><strong>Fecha/Hora Recepción:</strong> ${s["Fecha de recepción"]}</p>
                 </div>
               </div>
         `;
@@ -563,7 +689,7 @@
         html += `
             </div>
           </div>
-          <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-boxes me-2"></i>Dispositivos Entregados / Estatus (${s.dispositivos ? s.dispositivos.length : 1})</h6>
+          <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-boxes me-2"></i>Dispositivos Entregados / Estatus / Costo (${s.dispositivos ? s.dispositivos.length : 1})</h6>
         `;
 
         const list = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos : [{
@@ -571,7 +697,8 @@
           falla: s["Descripción de la falla"],
           estadoEquipo: s["Estado del equipo"],
           fotos: [],
-          estatus: s["Estatus (admin)"] || "Pendiente"
+          estatus: s["Estatus (admin)"] || "Pendiente",
+          costo: s["Total ($)"] || 0
         }];
 
         list.forEach((disp, idx) => {
@@ -579,7 +706,10 @@
             <div class="card mb-3 border shadow-sm">
               <div class="card-header bg-light d-flex justify-content-between align-items-center">
                 <span class="fw-bold"><i class="fas fa-gamepad me-2"></i>Dispositivo #${idx + 1}: ${disp.dispositivo || 'Sin nombre'}</span>
-                <div>${formatStatus(disp.estatus || s["Estatus (admin)"] || 'Pendiente')}</div>
+                <div>
+                  <span class="fw-bold text-success me-2">$${parseFloat(disp.costo || 0).toFixed(2)}</span>
+                  ${formatStatus(disp.estatus || s["Estatus (admin)"] || 'Pendiente')}
+                </div>
               </div>
               <div class="card-body">
                 <p class="mb-2"><strong>Descripción de la falla:</strong> ${disp.falla || 'N/A'}</p>
@@ -613,7 +743,6 @@
         document.getElementById('modalFolio').innerText = s.Folio;
         document.getElementById('editFolio').value = s.Folio;
         document.getElementById('editSolucion').value = s["Solución aplicada (admin)"];
-        document.getElementById('editTotal').value = s["Total ($)"] || '';
         if (document.getElementById('editAsignado')) {
           document.getElementById('editAsignado').value = s["Asignado a"] || '';
         }
@@ -627,28 +756,35 @@
           document.getElementById('editFechaEntrega').value = '';
         }
 
-        // Render per-device status dropdowns and quick "Entregar" action button
+        // Render per-device status and cost inputs
         const container = document.getElementById('devicesEditContainer');
         container.innerHTML = '';
 
         const devices = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos : [{
           dispositivo: s["Dispositivo a recibir"] || "Equipo",
           falla: s["Descripción de la falla"] || "",
-          estatus: s["Estatus (admin)"] || "Pendiente"
+          estatus: s["Estatus (admin)"] || "Pendiente",
+          costo: s["Total ($)"] || 0
         }];
 
         devices.forEach((d, idx) => {
           const currentDispStatus = d.estatus || s["Estatus (admin)"] || "Pendiente";
+          const currentDispCosto = parseFloat(d.costo || 0).toFixed(2);
           const card = document.createElement('div');
           card.className = 'card mb-3 border shadow-sm device-status-item';
           card.innerHTML = `
             <div class="card-body py-3">
               <div class="row align-items-center g-2">
-                <div class="col-md-5">
-                  <div class="fw-bold text-dark"><i class="fas fa-gamepad me-1 text-primary"></i> #${idx + 1} ${d.dispositivo}</div>
-                  <div class="small text-muted text-truncate" style="max-width: 250px;" title="${d.falla}">${d.falla}</div>
-                </div>
                 <div class="col-md-4">
+                  <div class="fw-bold text-dark"><i class="fas fa-gamepad me-1 text-primary"></i> #${idx + 1} ${d.dispositivo}</div>
+                  <div class="small text-muted text-truncate" style="max-width: 200px;" title="${d.falla}">${d.falla}</div>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-1">Costo ($)</label>
+                  <input type="number" step="0.01" min="0" class="form-control form-control-sm device-cost-input" data-index="${idx}" value="${currentDispCosto}" oninput="recambiarTotalModal()">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-1">Estatus</label>
                   <select class="form-select form-select-sm device-status-select" data-index="${idx}">
                     <option value="Pendiente" ${currentDispStatus === 'Pendiente' ? 'selected' : ''}>Pendiente</option>
                     <option value="En reparación" ${currentDispStatus === 'En reparación' ? 'selected' : ''}>En reparación</option>
@@ -657,7 +793,7 @@
                     <option value="Cancelado" ${currentDispStatus === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
                   </select>
                 </div>
-                <div class="col-md-3 text-end">
+                <div class="col-md-2 text-end pt-3">
                   <button type="button" class="btn btn-sm ${currentDispStatus === 'Entregado' ? 'btn-success disabled' : 'btn-outline-success'}" onclick="marcarEntregadoDispositivo(${idx})">
                     <i class="fas fa-check-circle me-1"></i>${currentDispStatus === 'Entregado' ? 'Entregado' : 'Entregar'}
                   </button>
@@ -668,7 +804,17 @@
           container.appendChild(card);
         });
 
+        recambiarTotalModal();
         editModal.show();
+      }
+
+      function recambiarTotalModal() {
+        let total = 0;
+        const inputs = document.querySelectorAll('.device-cost-input');
+        inputs.forEach(inp => {
+          total += parseFloat(inp.value) || 0;
+        });
+        document.getElementById('editTotal').value = total.toFixed(2);
       }
 
       function marcarEntregadoDispositivo(idx) {
@@ -695,12 +841,15 @@
           fecha = `${day}/${month}/${year}`;
         }
 
-        // Collect per-device status values
         const selects = document.querySelectorAll('.device-status-select');
+        const costInputs = document.querySelectorAll('.device-cost-input');
         const dispositivosActualizados = [];
-        selects.forEach(select => {
+
+        selects.forEach((select, idx) => {
+          const costVal = costInputs[idx] ? parseFloat(costInputs[idx].value) || 0 : 0;
           dispositivosActualizados.push({
-            estatus: select.value
+            estatus: select.value,
+            costo: costVal
           });
         });
 
@@ -715,7 +864,7 @@
               }
               showLoading(false);
               editModal.hide();
-              showAlert('Estatus de dispositivos actualizado correctamente', 'success');
+              showAlert('Servicio y costos por dispositivo actualizados correctamente', 'success');
               cargarStats();
               cargarServicios();
             } else {
@@ -724,6 +873,133 @@
             }
           })
           .actualizarEstatus(folio, "", solucion, fecha, total, currentUser, dispositivosActualizados);
+      }
+
+      /**
+       * PUNTO 4: Lector USB NFC HID Input handler con Timeout
+       */
+      function handleNfcInputWithTimeout(type) {
+        const inputId = (type === 'scan') ? 'nfcReaderScanInput' : 'nfcReaderAssociateInput';
+        const inputEl = document.getElementById(inputId);
+        if (!inputEl) return;
+
+        if (nfcInputTimer) {
+          clearTimeout(nfcInputTimer);
+        }
+
+        nfcInputTimer = setTimeout(function() {
+          const uidVal = inputEl.value.trim();
+          if (uidVal.length >= 4) { // Valid NFC UID length
+            if (type === 'scan') {
+              buscarClienteNfc(uidVal);
+            } else if (type === 'associate') {
+              showAlert('UID NFC capturado correctamente: ' + uidVal, 'info');
+            }
+          }
+        }, 1500); // 1.5 second inactivity timeout for USB HID keyboard stream
+      }
+
+      function buscarClienteNfc(uid) {
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            showLoading(false);
+            const container = document.getElementById('nfcClientResult');
+            if (res && res.success) {
+              currentNfcClient = res.cliente;
+              document.getElementById('nfcClienteNombre').innerText = res.cliente.nombre;
+              document.getElementById('nfcClienteEmail').innerText = res.cliente.email;
+              document.getElementById('nfcClienteUid').innerText = res.cliente.uid;
+              document.getElementById('nfcSaldoBadge').innerText = res.cliente.saldoPuntos + ' Puntos';
+              document.getElementById('nfcMontoInput').value = '';
+              document.getElementById('nfcFolioInput').value = '';
+
+              renderHistorialNfc(res.cliente.historial);
+              container.style.display = 'block';
+            } else {
+              container.style.display = 'none';
+              showAlert(res ? res.message : 'Cliente no encontrado', 'warning');
+            }
+          })
+          .obtenerClientePorUid(uid, currentUser);
+      }
+
+      function renderHistorialNfc(historial) {
+        const tbody = document.getElementById('nfcHistorialBody');
+        tbody.innerHTML = '';
+
+        if (!historial || historial.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin movimientos registrados</td></tr>';
+          return;
+        }
+
+        historial.slice().reverse().forEach(h => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${h.fecha}</td>
+            <td>${h.folio || h.concepto}</td>
+            <td class="text-success">$${parseFloat(h.monto || 0).toFixed(2)}</td>
+            <td class="fw-bold">+${h.puntos} pts</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function calcularPrevioPuntos() {
+        const monto = parseFloat(document.getElementById('nfcMontoInput').value) || 0;
+        const pts = Math.round((monto / 100) * 10) / 10;
+        document.getElementById('nfcPrevioPuntosText').innerText = `Regla: $100 = 1 punto ➔ Puntos a abonar: +${pts} pts`;
+      }
+
+      function confirmarAsignarPuntos() {
+        if (!currentNfcClient) return;
+
+        const monto = parseFloat(document.getElementById('nfcMontoInput').value);
+        if (isNaN(monto) || monto <= 0) {
+          showAlert('Ingrese un monto pagado válido.', 'warning');
+          return;
+        }
+
+        const folio = document.getElementById('nfcFolioInput').value.trim();
+
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            showLoading(false);
+            if (res && res.success) {
+              showAlert(res.message, 'success');
+              buscarClienteNfc(currentNfcClient.uid); // Refresh
+            } else {
+              showAlert(res ? res.message : 'Error al abonar puntos.');
+            }
+          })
+          .asignarPuntosPorMonto(currentNfcClient.uid, monto, currentUser, folio, 'Pago de Servicio');
+      }
+
+      function guardarAsociacionNfc() {
+        const email = document.getElementById('nfcEmailInput').value.trim();
+        const uid = document.getElementById('nfcReaderAssociateInput').value.trim();
+
+        if (!email || !uid) {
+          showAlert('Ingrese el correo y pase la tarjeta NFC para obtener el UID.', 'warning');
+          return;
+        }
+
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            showLoading(false);
+            if (res && res.success) {
+              showAlert(res.message, 'success');
+              document.getElementById('nfcAssociateForm').reset();
+            } else {
+              showAlert(res ? res.message : 'Error al asociar tarjeta NFC.');
+            }
+          })
+          .asociarUidCliente(email, uid, currentUser);
       }
 
       function abrirReenvio(folio) {

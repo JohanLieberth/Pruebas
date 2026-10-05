@@ -73,7 +73,7 @@
                   </div>
                 </div>
 
-                <!-- Punto 4: Dispositivos Múltiples -->
+                <!-- Dispositivos Múltiples con Costo Individual -->
                 <div class="mb-4">
                   <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 text-primary"><i class="fas fa-laptop-house me-2"></i>Dispositivos a Recibir</h5>
@@ -97,8 +97,8 @@
                     <input type="number" name="abono" id="abonoInput" class="form-control" step="0.01">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label" for="pagoTotalInput">Pago Total ($)</label>
-                    <input type="number" name="pagoTotal" id="pagoTotalInput" class="form-control" step="0.01">
+                    <label class="form-label fw-bold text-success" for="pagoTotalInput">Pago Total Acumulado ($) *</label>
+                    <input type="number" name="pagoTotal" id="pagoTotalInput" class="form-control bg-light fw-bold" step="0.01" readonly placeholder="Suma automática de dispositivos">
                   </div>
                 </div>
 
@@ -204,9 +204,15 @@
             ${!isFirst ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDispositivo('${id}')"><i class="fas fa-trash me-1"></i>Eliminar</button>` : ''}
           </div>
           <div class="card-body">
-            <div class="mb-3">
-              <label class="form-label" for="${id}_dispositivo">Dispositivo a recibir *</label>
-              <input type="text" id="${id}_dispositivo" class="form-control device-field-dispositivo" placeholder="Ej: PS5, Joycon Izquierdo, Nintendo Switch..." required>
+            <div class="row mb-3">
+              <div class="col-md-8">
+                <label class="form-label" for="${id}_dispositivo">Dispositivo a recibir *</label>
+                <input type="text" id="${id}_dispositivo" class="form-control device-field-dispositivo" placeholder="Ej: PS5, Joycon Izquierdo, Nintendo Switch..." required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-bold text-success" for="${id}_costo">Costo Estimado ($) *</label>
+                <input type="number" step="0.01" min="0" id="${id}_costo" class="form-control device-field-costo" placeholder="0.00" oninput="calcularTotalAcumulado()" required>
+              </div>
             </div>
             <div class="mb-3">
               <label class="form-label" for="${id}_falla">Descripción de la falla *</label>
@@ -225,6 +231,7 @@
         `;
         container.appendChild(card);
         actualizarTitulosDispositivos();
+        calcularTotalAcumulado();
       }
 
       function eliminarDispositivo(id) {
@@ -233,6 +240,7 @@
           el.remove();
           delete dispositivosFotos[id];
           actualizarTitulosDispositivos();
+          calcularTotalAcumulado();
         }
       }
 
@@ -244,6 +252,16 @@
             title.innerHTML = `<i class="fas fa-gamepad me-1"></i> Dispositivo #${idx + 1}`;
           }
         });
+      }
+
+      function calcularTotalAcumulado() {
+        let total = 0;
+        const costoInputs = document.querySelectorAll('.device-field-costo');
+        costoInputs.forEach(input => {
+          const val = parseFloat(input.value) || 0;
+          total += val;
+        });
+        document.getElementById('pagoTotalInput').value = total > 0 ? total.toFixed(2) : '0.00';
       }
 
       function validarFotosDispositivo(deviceId, input) {
@@ -260,7 +278,6 @@
         Array.from(input.files).forEach(file => {
           const reader = new FileReader();
           reader.onload = function(e) {
-            // Compress image using canvas
             const img = new Image();
             img.onload = function() {
               const canvas = document.createElement('canvas');
@@ -345,6 +362,7 @@
           const dispVal = block.querySelector('.device-field-dispositivo').value.trim();
           const fallaVal = block.querySelector('.device-field-falla').value.trim();
           const estadoVal = block.querySelector('.device-field-estado').value.trim();
+          const costoVal = parseFloat(block.querySelector('.device-field-costo').value) || 0;
           const fotosVal = dispositivosFotos[id] || [];
 
           if (!dispVal || !fallaVal || !estadoVal) {
@@ -356,7 +374,9 @@
             dispositivo: dispVal,
             falla: fallaVal,
             estadoEquipo: estadoVal,
-            fotos: fotosVal
+            costo: costoVal,
+            fotos: fotosVal,
+            estatus: 'Pendiente'
           });
 
           allFotos = allFotos.concat(fotosVal);
@@ -371,7 +391,6 @@
           esTaller: esTaller,
           responsables: responsables,
           dispositivos: dispositivos,
-          // Legacy backward compatibility fields
           dispositivo: dispositivos[0].dispositivo,
           falla: dispositivos[0].falla,
           estadoEquipo: dispositivos[0].estadoEquipo,

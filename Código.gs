@@ -143,6 +143,8 @@ function getSheet(name) {
       sheet.appendRow(["Email", "Contraseña", "Rol", "Nombre"]);
     } else if (name === "Usuarios_Clientes") {
       sheet.appendRow(["Email", "Contraseña", "Nombre", "Teléfono", "Fecha de Registro"]);
+    } else if (name === "Puntos_NFC") {
+      sheet.appendRow(["Email", "UID_NFC", "Saldo_Puntos", "Historial_JSON", "Ultima_Actualizacion"]);
     } else if (name === "Config") {
       sheet.appendRow(["Parámetro", "Valor"]);
       sheet.appendRow(["Logo Principal", ""]);
@@ -222,7 +224,9 @@ function registrarServicio(datos) {
       falla: d.falla || "",
       estadoEquipo: d.estadoEquipo || "",
       fotos: d.fotos || [],
-      estatus: d.estatus || "Pendiente"
+      estatus: d.estatus || "Pendiente",
+      costo: parseFloat(d.costo) || 0,
+      notificadoListo: false
     }));
   } else if (datos.dispositivo && datos.falla) {
     dispositivosList = [{
@@ -230,7 +234,9 @@ function registrarServicio(datos) {
       falla: datos.falla,
       estadoEquipo: datos.estadoEquipo || "",
       fotos: datos.fotos || [],
-      estatus: "Pendiente"
+      estatus: "Pendiente",
+      costo: parseFloat(datos.pagoTotal || datos.costo) || 0,
+      notificadoListo: false
     }];
   }
 
@@ -250,7 +256,8 @@ function registrarServicio(datos) {
   const folio = generateFolio();
   const sheet = getSheet("Servicios");
   const timestamp = new Date();
-  const fechaRecepcion = Utilities.formatDate(timestamp, "GMT-6", "dd/MM/yyyy");
+  // Punto 1: Incluir hora en formato dd/MM/yyyy HH:mm
+  const fechaRecepcion = Utilities.formatDate(timestamp, "GMT-6", "dd/MM/yyyy HH:mm");
 
   // Summary strings for table display
   const mainDispositivo = dispositivosList.map(d => d.dispositivo).join(" | ");
@@ -267,6 +274,13 @@ function registrarServicio(datos) {
   const esTallerVal = (datos.esTaller === true || datos.esTaller === "Sí") ? "Sí" : "No";
   const responsablesVal = Array.isArray(datos.responsables) ? datos.responsables.join(", ") : (datos.responsables || "");
 
+  // Punto 3: Suma dinámica de costo total
+  let totalCalculado = 0;
+  dispositivosList.forEach(d => {
+    totalCalculado += parseFloat(d.costo) || 0;
+  });
+  const pagoTotalFinal = parseFloat(datos.pagoTotal) > 0 ? parseFloat(datos.pagoTotal) : totalCalculado;
+
   sheet.appendRow([
     folio,
     datos.nombre,
@@ -280,10 +294,10 @@ function registrarServicio(datos) {
     "",
     "",
     timestamp,
-    "", // Total ($)
+    pagoTotalFinal, // Total ($)
     datos.anticipo || 0,
     datos.abono || 0,
-    datos.pagoTotal || 0,
+    pagoTotalFinal,
     "", // Asignado a
     datos.garantia || "No",
     datos.venceGarantia || "",
@@ -428,19 +442,25 @@ function obtenerServicios(filtros = {}, auth = null) {
         dispositivos = [];
       }
     }
+    const generalCost = parseFloat(obj["Total ($)"] || obj["PagoTotal"]) || 0;
     if (!Array.isArray(dispositivos) || dispositivos.length === 0) {
       dispositivos = [{
         dispositivo: obj["Dispositivo a recibir"] || "",
         falla: obj["Descripción de la falla"] || "",
         estadoEquipo: obj["Estado del equipo"] || "",
         fotos: [],
-        estatus: obj["Estatus (admin)"] || "Pendiente"
+        estatus: obj["Estatus (admin)"] || "Pendiente",
+        costo: generalCost,
+        notificadoListo: false
       }];
     } else {
-      // Ensure every device has an estatus (historical compatibility)
+      // Ensure every device has estatus, costo, and notificadoListo (historical compatibility)
+      const equalShareCost = (dispositivos.length > 0 && generalCost > 0) ? (generalCost / dispositivos.length) : 0;
       dispositivos = dispositivos.map(d => ({
         ...d,
-        estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente"
+        estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente",
+        costo: (d.costo !== undefined && d.costo !== null) ? parseFloat(d.costo) : equalShareCost,
+        notificadoListo: d.notificadoListo === true
       }));
     }
     obj.dispositivos = dispositivos;
@@ -501,18 +521,24 @@ function obtenerEstatusPorFolio(folio) {
       if (obj["Dispositivos JSON"]) {
         try { dispositivos = JSON.parse(obj["Dispositivos JSON"]); } catch (e) { dispositivos = []; }
       }
+      const generalCost = parseFloat(obj["Total ($)"] || obj["PagoTotal"]) || 0;
       if (!Array.isArray(dispositivos) || dispositivos.length === 0) {
         dispositivos = [{
           dispositivo: obj["Dispositivo a recibir"] || "",
           falla: obj["Descripción de la falla"] || "",
           estadoEquipo: obj["Estado del equipo"] || "",
           fotos: [],
-          estatus: obj["Estatus (admin)"] || "Pendiente"
+          estatus: obj["Estatus (admin)"] || "Pendiente",
+          costo: generalCost,
+          notificadoListo: false
         }];
       } else {
+        const equalShareCost = (dispositivos.length > 0 && generalCost > 0) ? (generalCost / dispositivos.length) : 0;
         dispositivos = dispositivos.map(d => ({
           ...d,
-          estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente"
+          estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente",
+          costo: (d.costo !== undefined && d.costo !== null) ? parseFloat(d.costo) : equalShareCost,
+          notificadoListo: d.notificadoListo === true
         }));
       }
 
@@ -547,18 +573,24 @@ function obtenerDatosCompletosServicio(folio) {
       if (obj["Dispositivos JSON"]) {
         try { dispositivos = JSON.parse(obj["Dispositivos JSON"]); } catch (e) { dispositivos = []; }
       }
+      const generalCost = parseFloat(obj["Total ($)"] || obj["PagoTotal"]) || 0;
       if (!Array.isArray(dispositivos) || dispositivos.length === 0) {
         dispositivos = [{
           dispositivo: obj["Dispositivo a recibir"] || "",
           falla: obj["Descripción de la falla"] || "",
           estadoEquipo: obj["Estado del equipo"] || "",
           fotos: [],
-          estatus: obj["Estatus (admin)"] || "Pendiente"
+          estatus: obj["Estatus (admin)"] || "Pendiente",
+          costo: generalCost,
+          notificadoListo: false
         }];
       } else {
+        const equalShareCost = (dispositivos.length > 0 && generalCost > 0) ? (generalCost / dispositivos.length) : 0;
         dispositivos = dispositivos.map(d => ({
           ...d,
-          estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente"
+          estatus: d.estatus || obj["Estatus (admin)"] || "Pendiente",
+          costo: (d.costo !== undefined && d.costo !== null) ? parseFloat(d.costo) : equalShareCost,
+          notificadoListo: d.notificadoListo === true
         }));
       }
       obj.dispositivos = dispositivos;
@@ -568,7 +600,7 @@ function obtenerDatosCompletosServicio(folio) {
   return null;
 }
 
-function actualizarEstatus(folio, estatusGeneral, solucion, fechaEntrega, total, auth, dispositivosActualizados) {
+function actualizarEstatus(folio, estatusGeneral, solucion, fechaEntrega, totalOverride, auth, dispositivosActualizados) {
   const authRes = checkAuth(auth);
   if (!authRes.authorized) return { success: false, message: "No autorizado" };
 
@@ -580,6 +612,8 @@ function actualizarEstatus(folio, estatusGeneral, solucion, fechaEntrega, total,
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === folio) {
       const oldStatus = data[i][8];
+      const correoCliente = data[i][4];
+      const nombreCliente = data[i][1];
 
       if (authRes.rol === 'Supervisor' && data[i][16] !== authRes.nombre) {
         return { success: false, message: "No tienes permiso para editar este servicio (no asignado)." };
@@ -596,27 +630,64 @@ function actualizarEstatus(folio, estatusGeneral, solucion, fechaEntrega, total,
           falla: data[i][6] || "",
           estadoEquipo: data[i][7] || "",
           fotos: [],
-          estatus: oldStatus || "Pendiente"
+          estatus: oldStatus || "Pendiente",
+          costo: parseFloat(data[i][12]) || 0,
+          notificadoListo: false
         }];
       }
 
-      // If dispositivosActualizados parameter is passed, update per-device status
+      const newlyReadyDevices = [];
+
+      // Update per-device status and costs
       let finalDispositivos = existingDispositivos;
       if (Array.isArray(dispositivosActualizados) && dispositivosActualizados.length > 0) {
         finalDispositivos = existingDispositivos.map((d, idx) => {
-          const updateObj = dispositivosActualizados[idx];
+          const updateObj = dispositivosActualizados[idx] || {};
+          const nextStatus = updateObj.estatus || d.estatus || estatusGeneral || "Pendiente";
+          const nextCosto = (updateObj.costo !== undefined && updateObj.costo !== null && updateObj.costo !== "") ? parseFloat(updateObj.costo) : (parseFloat(d.costo) || 0);
+
+          let wasNotified = d.notificadoListo === true;
+
+          // Punto 2: Detect when device passes to "Listo" for the first time
+          if (nextStatus === "Listo" && !wasNotified) {
+            newlyReadyDevices.push({
+              dispositivo: d.dispositivo,
+              falla: d.falla,
+              costo: nextCosto
+            });
+            wasNotified = true;
+          }
+
           return {
             ...d,
-            estatus: updateObj && updateObj.estatus ? updateObj.estatus : (d.estatus || estatusGeneral || "Pendiente")
+            estatus: nextStatus,
+            costo: nextCosto,
+            notificadoListo: wasNotified
           };
         });
       } else if (estatusGeneral) {
-        // Fallback: apply general status to all devices if no array passed
-        finalDispositivos = existingDispositivos.map(d => ({
-          ...d,
-          estatus: estatusGeneral
-        }));
+        finalDispositivos = existingDispositivos.map(d => {
+          let wasNotified = d.notificadoListo === true;
+          if (estatusGeneral === "Listo" && !wasNotified) {
+            newlyReadyDevices.push({
+              dispositivo: d.dispositivo,
+              falla: d.falla,
+              costo: parseFloat(d.costo) || 0
+            });
+            wasNotified = true;
+          }
+          return {
+            ...d,
+            estatus: estatusGeneral,
+            notificadoListo: wasNotified
+          };
+        });
       }
+
+      // Punto 3: Calculate sum of device costs
+      let calculatedTotal = 0;
+      finalDispositivos.forEach(d => { calculatedTotal += parseFloat(d.costo) || 0; });
+      const finalTotal = (totalOverride !== undefined && totalOverride !== null && totalOverride !== "") ? parseFloat(totalOverride) : calculatedTotal;
 
       // Calculate order general status from per-device statuses
       let computedOrderEstatus = estatusGeneral;
@@ -649,17 +720,64 @@ function actualizarEstatus(folio, estatusGeneral, solucion, fechaEntrega, total,
         sheet.getRange(i + 1, colJsonIdx).setValue(JSON.stringify(finalDispositivos));
       }
 
-      if (authRes.rol === 'Administrador' && total !== undefined && total !== null) {
-        sheet.getRange(i + 1, 13).setValue(total);
+      if (authRes.rol === 'Administrador') {
+        sheet.getRange(i + 1, 13).setValue(finalTotal);
+        sheet.getRange(i + 1, 16).setValue(finalTotal);
       }
 
-      if (computedOrderEstatus === "Listo" && oldStatus !== "Listo") {
-        enviarCorreoEquipoListo(data[i], folio, solucion, total || data[i][12]);
+      // Punto 2: Send email if any device became "Listo" for the first time
+      if (newlyReadyDevices.length > 0) {
+        const allReadyInOrder = finalDispositivos.every(d => d.estatus === "Listo" || d.estatus === "Entregado");
+        enviarCorreoDispositivosListos(correoCliente, nombreCliente, folio, newlyReadyDevices, allReadyInOrder, finalTotal, solucion);
       }
+
       return { success: true };
     }
   }
   return { success: false, message: "Folio no encontrado" };
+}
+
+// Punto 2: Correo al usuario cuando dispositivo(s) pasa a estatus "Listo" sin duplicados
+function enviarCorreoDispositivosListos(correo, nombre, folio, newlyReadyDevices, allReadyInOrder, total, solucion) {
+  const config = getConfig();
+  let logoHtml = "";
+  if (config["Logo Principal"]) {
+    logoHtml = `<img src="${config["Logo Principal"]}" style="max-width: 200px; display: block; margin-bottom: 20px;">`;
+  }
+
+  const subjectText = allReadyInOrder ? `¡Tu orden está lista para recolección! - ${folio}` : `¡Tu dispositivo está listo! - ${folio}`;
+
+  let listHtml = newlyReadyDevices.map(d =>
+    `<li><strong>${d.dispositivo}:</strong> $${parseFloat(d.costo || 0).toFixed(2)}</li>`
+  ).join("");
+
+  const mainNotice = allReadyInOrder
+    ? `<p style="font-size: 1.1em; color: #2ecc71;"><strong>¡Excelente noticia! Todos los dispositivos de tu orden están listos.</strong></p>`
+    : `<p style="font-size: 1.1em; color: #2ecc71;"><strong>¡Excelente noticia! Se ha completado la reparación de los siguientes dispositivos:</strong></p>`;
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+      ${logoHtml}
+      <h2>Notificación de Servicio - ${folio}</h2>
+      <p>Hola <strong>${nombre}</strong>,</p>
+      ${mainNotice}
+      <ul style="background: #f8f9fa; padding: 15px 30px; border-radius: 5px;">
+        ${listHtml}
+      </ul>
+      <p><strong>Solución / Notas:</strong> ${solucion || 'Revisión y reparación completada'}</p>
+      <p><strong>Total acumulado:</strong> $${parseFloat(total || 0).toFixed(2)}</p>
+      <p>Por favor, confírmanos tu recolección:</p>
+      <a href="${getScriptUrl()}?page=confirmar&folio=${folio}" style="background-color: #e94560; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Confirmar Recolección</a>
+      <br><br>
+      <p style="font-size: 0.8em; color: #666; border-top: 1px solid #eee; padding-top: 10px;">${CONFIG.RECOLECCION_AVISO}</p>
+    </div>
+  `;
+
+  try {
+    GmailApp.sendEmail(correo, subjectText, "", { htmlBody: htmlBody });
+  } catch (e) {
+    console.error("Error enviando correo de dispositivos listos: " + e.toString());
+  }
 }
 
 function enviarCorreoEquipoListo(rowData, folio, solucion, total) {
@@ -895,4 +1013,132 @@ function getDashboardData(auth) {
     dailyCollections: dailyCollections,
     supervisorStats: supervisorStats
   };
+}
+
+/**
+ * PUNTO 4: SISTEMA DE PUNTOS CON LECTOR USB NFC
+ * Regla de conversión: 100 pesos = 1 punto ($250 = 2.5 puntos, redondeado a 1 decimal: Math.round((monto/100)*10)/10)
+ */
+
+function asociarUidCliente(email, uid, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized) return { success: false, message: "No autorizado" };
+
+  if (!email || !uid) return { success: false, message: "Correo y UID NFC obligatorios" };
+
+  const cleanUid = uid.toString().trim();
+  const cleanEmail = email.toString().trim().toLowerCase();
+
+  const sheet = getSheet("Puntos_NFC");
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0].toString().toLowerCase() === cleanEmail) {
+      sheet.getRange(i + 1, 2).setValue(cleanUid);
+      sheet.getRange(i + 1, 5).setValue(new Date());
+      return { success: true, message: "UID NFC actualizado correctamente para el usuario." };
+    }
+  }
+
+  sheet.appendRow([
+    cleanEmail,
+    cleanUid,
+    0,
+    JSON.stringify([]),
+    new Date()
+  ]);
+
+  return { success: true, message: "UID NFC registrado correctamente." };
+}
+
+function obtenerClientePorUid(uid, auth) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized) return { success: false, message: "No autorizado" };
+
+  if (!uid) return { success: false, message: "UID no proporcionado." };
+  const cleanUid = uid.toString().trim();
+
+  const nfcSheet = getSheet("Puntos_NFC");
+  const nfcData = nfcSheet.getDataRange().getValues();
+
+  for (let i = 1; i < nfcData.length; i++) {
+    if (nfcData[i][1].toString().trim() === cleanUid) {
+      const email = nfcData[i][0];
+      const saldo = parseFloat(nfcData[i][2]) || 0;
+      let historial = [];
+      try { historial = JSON.parse(nfcData[i][3]); } catch (e) { historial = []; }
+
+      // Fetch client name and last services
+      const clientServices = obtenerServicios({ rol: CONFIG.CLIENT_ROLE, correo: email });
+      const nombre = clientServices.length > 0 ? clientServices[0].Nombre : email;
+
+      return {
+        success: true,
+        cliente: {
+          email: email,
+          nombre: nombre,
+          uid: cleanUid,
+          saldoPuntos: saldo,
+          historial: historial,
+          servicios: clientServices
+        }
+      };
+    }
+  }
+
+  return { success: false, message: "No se encontró ningún cliente asociado a este UID NFC (" + cleanUid + ")." };
+}
+
+function asignarPuntosPorMonto(uid, montoPagado, auth, folio, concepto) {
+  const authRes = checkAuth(auth);
+  if (!authRes.authorized) return { success: false, message: "No autorizado" };
+
+  const monto = parseFloat(montoPagado);
+  if (isNaN(monto) || monto <= 0) {
+    return { success: false, message: "Monto pagado inválido." };
+  }
+
+  const cleanUid = uid ? uid.toString().trim() : "";
+  if (!cleanUid) return { success: false, message: "UID NFC obligatorio." };
+
+  // Rule: $100 = 1 point. Rounded to 1 decimal place (e.g., $250 -> 2.5 pts)
+  const puntosGanados = Math.round((monto / 100) * 10) / 10;
+
+  const sheet = getSheet("Puntos_NFC");
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1].toString().trim() === cleanUid) {
+      const email = data[i][0];
+      const saldoActual = parseFloat(data[i][2]) || 0;
+      const nuevoSaldo = Math.round((saldoActual + puntosGanados) * 10) / 10;
+
+      let historial = [];
+      try { historial = JSON.parse(data[i][3]); } catch (e) { historial = []; }
+
+      const movimiento = {
+        fecha: Utilities.formatDate(new Date(), "GMT-6", "dd/MM/yyyy HH:mm"),
+        folio: folio || "N/A",
+        monto: monto,
+        puntos: puntosGanados,
+        concepto: concepto || "Pago de Servicio"
+      };
+
+      historial.push(movimiento);
+
+      sheet.getRange(i + 1, 3).setValue(nuevoSaldo);
+      sheet.getRange(i + 1, 4).setValue(JSON.stringify(historial));
+      sheet.getRange(i + 1, 5).setValue(new Date());
+
+      return {
+        success: true,
+        puntosGanados: puntosGanados,
+        nuevoSaldo: nuevoSaldo,
+        clienteEmail: email,
+        message: `¡Se asignaron ${puntosGanados} puntos exitosamente! Nuevo saldo: ${nuevoSaldo} pts.`
+      };
+    }
+  }
+
+  return { success: false, message: "Cliente no encontrado con este UID NFC." };
 }
