@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg mb-4 shadow-sm">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="<?= getScriptUrl() ?>">
+          <img id="headerLogo" src="" alt="Logo" style="height: 40px; margin-right: 10px; display: none;">
+          <span id="systemName">BitFix</span>
+        </a>
+        <div class="ms-auto d-flex align-items-center">
+            <a class="btn btn-outline-light btn-sm text-black" href="<?= getScriptUrl() ?>?page=login" style="color: #000 !important;">Acceso / Portal Cliente</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row justify-content-center mt-5">
+        <div class="col-md-8 text-center">
+          <div id="mainLogoContainer" class="mb-4">
+            <img id="mainLogo" src="" alt="Logo Principal" style="max-width: 400px; display: none;">
+          </div>
+          <h1 class="display-4 mb-4" id="welcomeText">Bienvenido a BitFix</h1>
+
+          <div id="videoContainer" class="mb-5 d-none" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; background: #000; border-radius: 8px;">
+            <div id="videoPlayer"></div>
+          </div>
+
+          <p class="lead mb-5">Gestión profesional de servicios técnicos para tus consolas y accesorios.</p>
+
+          <div class="row justify-content-center g-4">
+            <div class="col-md-8">
+              <div class="card p-4">
+                <div class="row align-items-center">
+                  <div class="col-md-3 text-center mb-3 mb-md-0">
+                    <i class="fas fa-search fa-4x text-secondary"></i>
+                  </div>
+                  <div class="col-md-9">
+                    <h3>Consultar Estatus</h3>
+                    <p>¿Quieres saber cómo va tu reparación? Ingresa tu folio abajo.</p>
+                    <div class="input-group">
+                      <input type="text" id="folioInput" class="form-control" placeholder="Ej: BF-00001">
+                      <button type="button" class="btn btn-secondary" type="button" onclick="consultarFolio()">Consultar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?!= include('JS'); ?>
+    <script>
+      window.addEventListener('load', function() {
+        cargarConfig();
+      });
+
+      function cargarConfig() {
+        google.script.run
+          .withSuccessHandler(function(config) {
+            if (config["Logo Principal"]) {
+              document.getElementById('mainLogo').src = config["Logo Principal"];
+              document.getElementById('mainLogo').style.display = 'inline-block';
+              document.getElementById('welcomeText').style.display = 'none';
+            }
+            if (config["Logo Pequeño"]) {
+              document.getElementById('headerLogo').src = config["Logo Pequeño"];
+              document.getElementById('headerLogo').style.display = 'inline-block';
+              document.getElementById('systemName').style.display = 'none';
+            }
+            if (config["URL_Video_Promocional"]) {
+              const videoUrl = config["URL_Video_Promocional"];
+              const videoContainer = document.getElementById('videoContainer');
+              const playerDiv = document.getElementById('videoPlayer');
+
+              videoContainer.classList.remove('d-none');
+
+              if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                let videoId = '';
+                if (videoUrl.includes('v=')) {
+                  videoId = videoUrl.split('v=')[1].split('&')[0];
+                } else if (videoUrl.includes('youtu.be/')) {
+                  videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
+                }
+                playerDiv.innerHTML = `<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+              } else {
+                videoContainer.style.paddingBottom = '0';
+                videoContainer.style.height = 'auto';
+                playerDiv.innerHTML = `<video id="promoVideo" width="100%" height="auto" controls muted autoplay loop>
+                  <source src="${videoUrl}" type="video/mp4">
+                  Tu navegador no soporta el elemento de video.
+                </video>`;
+              }
+            }
+          })
+          .getConfig();
+      }
+
+
+      function consultarFolio() {
+        const folio = document.getElementById('folioInput').value;
+        if (folio) {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=estatus&folio=' + folio;
+        } else {
+          showAlert('Por favor ingresa un folio.');
+        }
+      }
+    </script>
+  </body>
+</html>
