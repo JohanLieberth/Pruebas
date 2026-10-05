@@ -43,7 +43,7 @@
             </li>
           </ul>
           <div class="ms-auto d-flex align-items-center">
-            <button type="button" class="btn btn-outline-warning btn-sm me-3" data-bs-toggle="modal" data-bs-target="#nfcModal">
+            <button type="button" class="btn btn-outline-warning btn-sm me-3" data-bs-toggle="modal" data-bs-target="#nfcModal" onclick="iniciarVerificacionLectorNfc()">
               <i class="fas fa-wifi me-1"></i>Puntos NFC / Tarjeta
             </button>
             <span class="me-3 d-none d-md-inline" id="adminName"></span>
@@ -159,7 +159,7 @@
       </div>
     </div>
 
-    <!-- Punto 4: Modal Sistema de Puntos USB NFC Reader -->
+    <!-- Modal Sistema de Puntos USB NFC Reader con Verificación -->
     <div class="modal fade" id="nfcModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -168,6 +168,21 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
+            <!-- Indicador Global de Estado del Lector NFC -->
+            <div id="nfcReaderStatusCard" class="card mb-3 border-warning bg-light">
+              <div class="card-body d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <span id="nfcStatusBadge" class="badge bg-warning text-dark fs-6"><i class="fas fa-spinner fa-spin me-1"></i>🟡 Verificando lector...</span>
+                  <span id="nfcStatusMessage" class="ms-2 small text-muted">Acerque cualquier tarjeta NFC al lector USB para confirmar respuesta...</span>
+                </div>
+                <button type="button" id="btnRetryNfcCheck" class="btn btn-sm btn-outline-primary" onclick="iniciarVerificacionLectorNfc()"><i class="fas fa-sync-alt me-1"></i>Reverificar Lector</button>
+              </div>
+              <div id="nfcTroubleshootAlert" class="card-footer bg-danger text-white small" style="display: none;">
+                <i class="fas fa-exclamation-triangle me-1"></i> <strong>Lector no detectado / Sin respuesta:</strong>
+                1) Verifique que el lector USB esté bien conectado. 2) Desconecte y vuelva a conectar el lector. 3) Haga clic en "Reverificar Lector" y acerque una tarjeta.
+              </div>
+            </div>
+
             <ul class="nav nav-tabs mb-3" id="nfcTabs" role="tablist">
               <li class="nav-item">
                 <button class="nav-link active" id="tab-scan-tab" data-bs-toggle="tab" data-bs-target="#tab-scan" type="button"><i class="fas fa-credit-card me-1"></i>Escanear / Asignar Puntos</button>
@@ -187,10 +202,10 @@
                   <label class="form-label fw-bold" for="nfcReaderScanInput">UID Tarjeta NFC (Lectura USB)</label>
                   <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-wifi text-primary"></i></span>
-                    <input type="text" id="nfcReaderScanInput" class="form-control form-control-lg border-primary" placeholder="Acerque tarjeta NFC aquí..." autofocus oninput="handleNfcInputWithTimeout('scan')">
+                    <input type="text" id="nfcReaderScanInput" class="form-control form-control-lg border-primary nfc-dependent-input" placeholder="Requiere lector verificado (🟢)..." disabled autofocus oninput="handleNfcInputWithTimeout('scan')">
                     <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('nfcReaderScanInput').value=''; document.getElementById('nfcClientResult').style.display='none';"><i class="fas fa-eraser"></i> Limpiar</button>
                   </div>
-                  <div class="form-text small text-muted">Acepta entrada por fragmentos teclado HID con timeout automático de 1.5s.</div>
+                  <div class="form-text small text-muted">Valida patrones UID hexadecimales de 8 a 14 caracteres recibidos del lector.</div>
                 </div>
 
                 <!-- Client Search / Found Result -->
@@ -222,7 +237,7 @@
                           <input type="text" id="nfcFolioInput" class="form-control" placeholder="Ej: BF-00001">
                         </div>
                         <div class="col-md-3 mt-4 text-end">
-                          <button type="button" class="btn btn-success w-100" onclick="confirmarAsignarPuntos()"><i class="fas fa-plus-circle me-1"></i>Abonar Puntos</button>
+                          <button type="button" id="btnAbonarPuntos" class="btn btn-success w-100 nfc-dependent-btn" disabled onclick="confirmarAsignarPuntos()"><i class="fas fa-plus-circle me-1"></i>Abonar Puntos</button>
                         </div>
                       </div>
                       <div id="nfcPrevioPuntosText" class="small text-muted mt-2 fw-bold">Regla: $100 = 1 punto</div>
@@ -260,11 +275,11 @@
                     <label class="form-label fw-bold" for="nfcReaderAssociateInput">Pase o Acerque la Tarjeta NFC *</label>
                     <div class="input-group">
                       <span class="input-group-text"><i class="fas fa-wifi text-primary"></i></span>
-                      <input type="text" id="nfcReaderAssociateInput" class="form-control form-control-lg border-primary" placeholder="Lectura automática del UID..." oninput="handleNfcInputWithTimeout('associate')" required>
+                      <input type="text" id="nfcReaderAssociateInput" class="form-control form-control-lg border-primary nfc-dependent-input" placeholder="Requiere lector verificado (🟢)..." disabled oninput="handleNfcInputWithTimeout('associate')" required>
                     </div>
                   </div>
                   <div class="d-grid mt-4">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Asociar UID NFC a Cliente</button>
+                    <button type="submit" id="btnAsociarNfc" class="btn btn-primary nfc-dependent-btn" disabled><i class="fas fa-save me-2"></i>Asociar UID NFC a Cliente</button>
                   </div>
                 </form>
               </div>
@@ -424,6 +439,8 @@
       let currentUser;
       let allServicios = [];
       let nfcInputTimer = null;
+      let nfcCheckTimer = null;
+      let isNfcReaderReady = false;
       let currentNfcClient = null;
 
       window.addEventListener('load', function() {
@@ -876,8 +893,77 @@
       }
 
       /**
-       * PUNTO 4: Lector USB NFC HID Input handler con Timeout
+       * VERIFICACIÓN Y CHEQUEO DE CONECTIVIDAD LECTOR USB NFC (HANDSHAKE)
+       * Patrón UID Hexadecimal: 8 a 14 caracteres numéricos/hexadecimales
        */
+
+      function esUidNfcValido(str) {
+        if (!str || typeof str !== 'string') return false;
+        const clean = str.trim();
+        return /^[0-9A-Fa-f]{8,14}$/.test(clean);
+      }
+
+      function setNfcReaderState(status, message) {
+        const badge = document.getElementById('nfcStatusBadge');
+        const msg = document.getElementById('nfcStatusMessage');
+        const card = document.getElementById('nfcReaderStatusCard');
+        const troubleshoot = document.getElementById('nfcTroubleshootAlert');
+        const dependentInputs = document.querySelectorAll('.nfc-dependent-input');
+        const dependentBtns = document.querySelectorAll('.nfc-dependent-btn');
+
+        if (status === 'verifying') {
+          isNfcReaderReady = false;
+          badge.className = 'badge bg-warning text-dark fs-6';
+          badge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>🟡 Verificando lector...';
+          msg.innerText = message || 'Escuchando lector USB NFC. Acerque cualquier tarjeta para confirmar...';
+          card.className = 'card mb-3 border-warning bg-light';
+          troubleshoot.style.display = 'none';
+
+          dependentInputs.forEach(el => { el.disabled = true; el.placeholder = 'Verificando lector USB NFC...'; });
+          dependentBtns.forEach(el => { el.disabled = true; });
+        } else if (status === 'ready') {
+          isNfcReaderReady = true;
+          badge.className = 'badge bg-success text-white fs-6';
+          badge.innerHTML = '<i class="fas fa-check-circle me-1"></i>🟢 Lector listo';
+          msg.innerText = message || 'Lector USB NFC verificado y funcionando correctamente.';
+          card.className = 'card mb-3 border-success bg-light';
+          troubleshoot.style.display = 'none';
+
+          dependentInputs.forEach(el => { el.disabled = false; el.placeholder = 'Acerque tarjeta NFC aquí...'; });
+          dependentBtns.forEach(el => { el.disabled = false; });
+        } else if (status === 'error') {
+          isNfcReaderReady = false;
+          badge.className = 'badge bg-danger text-white fs-6';
+          badge.innerHTML = '<i class="fas fa-times-circle me-1"></i>🔴 Lector no detectado / sin respuesta';
+          msg.innerText = message || 'Tiempo de espera agotado sin recibir UID válido del lector USB.';
+          card.className = 'card mb-3 border-danger bg-light';
+          troubleshoot.style.display = 'block';
+
+          dependentInputs.forEach(el => { el.disabled = true; el.placeholder = 'Requiere lector verificado (🔴)...'; });
+          dependentBtns.forEach(el => { el.disabled = true; });
+        }
+      }
+
+      function iniciarVerificacionLectorNfc() {
+        if (nfcCheckTimer) clearTimeout(nfcCheckTimer);
+        setNfcReaderState('verifying');
+
+        // Focus scan input to receive test card scan
+        const inputEl = document.getElementById('nfcReaderScanInput');
+        if (inputEl) {
+          inputEl.disabled = false;
+          inputEl.value = '';
+          inputEl.focus();
+        }
+
+        // Set 8-second handshake timeout
+        nfcCheckTimer = setTimeout(function() {
+          if (!isNfcReaderReady) {
+            setNfcReaderState('error');
+          }
+        }, 8000);
+      }
+
       function handleNfcInputWithTimeout(type) {
         const inputId = (type === 'scan') ? 'nfcReaderScanInput' : 'nfcReaderAssociateInput';
         const inputEl = document.getElementById(inputId);
@@ -888,15 +974,37 @@
         }
 
         nfcInputTimer = setTimeout(function() {
-          const uidVal = inputEl.value.trim();
-          if (uidVal.length >= 4) { // Valid NFC UID length
-            if (type === 'scan') {
-              buscarClienteNfc(uidVal);
-            } else if (type === 'associate') {
-              showAlert('UID NFC capturado correctamente: ' + uidVal, 'info');
+          const val = inputEl.value.trim();
+
+          // Handshake verification if not already ready
+          if (!isNfcReaderReady) {
+            if (esUidNfcValido(val)) {
+              if (nfcCheckTimer) clearTimeout(nfcCheckTimer);
+              setNfcReaderState('ready', 'Prueba exitosa. UID verificado: ' + val);
+              if (type === 'scan') {
+                buscarClienteNfc(val);
+              }
+            } else {
+              setNfcReaderState('error', 'Entrada no válida ignorada. Debe ser un UID hexadecimal (8-14 caracteres).');
+              inputEl.value = '';
+            }
+            return;
+          }
+
+          // Active reading when reader is verified ready
+          if (val.length >= 4) {
+            if (esUidNfcValido(val)) {
+              if (type === 'scan') {
+                buscarClienteNfc(val);
+              } else if (type === 'associate') {
+                showAlert('UID NFC capturado correctamente: ' + val, 'info');
+              }
+            } else {
+              showAlert('Entrada ignorada: El formato leído no corresponde a un UID NFC válido.', 'warning');
+              inputEl.value = '';
             }
           }
-        }, 1500); // 1.5 second inactivity timeout for USB HID keyboard stream
+        }, 1200); // 1.2 second inactivity timeout for USB HID keyboard stream
       }
 
       function buscarClienteNfc(uid) {
@@ -953,6 +1061,11 @@
       }
 
       function confirmarAsignarPuntos() {
+        if (!isNfcReaderReady) {
+          showAlert('Verifique que el lector USB NFC esté listo (🟢) antes de abonar puntos.', 'danger');
+          return;
+        }
+
         if (!currentNfcClient) return;
 
         const monto = parseFloat(document.getElementById('nfcMontoInput').value);
@@ -979,11 +1092,21 @@
       }
 
       function guardarAsociacionNfc() {
+        if (!isNfcReaderReady) {
+          showAlert('Verifique que el lector USB NFC esté listo (🟢) antes de asociar la tarjeta.', 'danger');
+          return;
+        }
+
         const email = document.getElementById('nfcEmailInput').value.trim();
         const uid = document.getElementById('nfcReaderAssociateInput').value.trim();
 
         if (!email || !uid) {
           showAlert('Ingrese el correo y pase la tarjeta NFC para obtener el UID.', 'warning');
+          return;
+        }
+
+        if (!esUidNfcValido(uid)) {
+          showAlert('El UID ingresado no es un patrón hexadecimal válido.', 'warning');
           return;
         }
 
