@@ -185,10 +185,10 @@
 
             <ul class="nav nav-tabs mb-3" id="nfcTabs" role="tablist">
               <li class="nav-item">
-                <button class="nav-link active" id="tab-scan-tab" data-bs-toggle="tab" data-bs-target="#tab-scan" type="button"><i class="fas fa-credit-card me-1"></i>Escanear / Asignar Puntos</button>
+                <button class="nav-link active" id="tab-scan-tab" data-bs-toggle="tab" data-bs-target="#tab-scan" type="button" onclick="setNfcActiveTab('scan')"><i class="fas fa-credit-card me-1"></i>Escanear / Asignar Puntos</button>
               </li>
               <li class="nav-item">
-                <button class="nav-link" id="tab-register-tab" data-bs-toggle="tab" data-bs-target="#tab-register" type="button"><i class="fas fa-id-card me-1"></i>Asociar Tarjeta NFC a Cliente</button>
+                <button class="nav-link" id="tab-register-tab" data-bs-toggle="tab" data-bs-target="#tab-register" type="button" onclick="setNfcActiveTab('register')"><i class="fas fa-id-card me-1"></i>Asociar Tarjeta NFC a Cliente</button>
               </li>
             </ul>
 
@@ -203,7 +203,7 @@
                   <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-wifi text-primary"></i></span>
                     <input type="text" id="nfcReaderScanInput" class="form-control form-control-lg border-primary nfc-dependent-input" placeholder="Requiere lector verificado (🟢)..." disabled autofocus oninput="handleNfcInputWithTimeout('scan')">
-                    <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('nfcReaderScanInput').value=''; document.getElementById('nfcClientResult').style.display='none';"><i class="fas fa-eraser"></i> Limpiar</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="limpiarScanNfc()"><i class="fas fa-eraser"></i> Limpiar</button>
                   </div>
                   <div class="form-text small text-muted">Valida patrones UID hexadecimales de 8 a 14 caracteres recibidos del lector.</div>
                 </div>
@@ -442,6 +442,9 @@
       let nfcCheckTimer = null;
       let isNfcReaderReady = false;
       let currentNfcClient = null;
+      let activeNfcTab = 'scan';
+      let globalHidBuffer = '';
+      let globalHidTimer = null;
 
       window.addEventListener('load', function() {
         const userStr = sessionStorage.getItem('user');
@@ -474,7 +477,92 @@
         cargarStats();
         cargarServicios();
         cargarConfig();
+        initGlobalHidKeyboardListener();
       });
+
+      function setNfcActiveTab(tab) {
+        activeNfcTab = tab;
+        const targetId = (tab === 'scan') ? 'nfcReaderScanInput' : 'nfcReaderAssociateInput';
+        const targetEl = document.getElementById(targetId);
+        if (targetEl && !targetEl.disabled) {
+          setTimeout(() => targetEl.focus(), 150);
+        }
+      }
+
+      function limpiarScanNfc() {
+        document.getElementById('nfcReaderScanInput').value = '';
+        document.getElementById('nfcClientResult').style.display = 'none';
+        currentNfcClient = null;
+      }
+
+      /**
+       * LISTENER GLOBAL DE TECLADO HID PARA LECTOR USB NFC
+       * Captura lecturas rápidas incluso cuando el foco está fuera del campo de entrada.
+       * No interfiere con escritura manual en otros formularios (solo activo en contexto modal NFC o cuando no se escribe en inputs de texto estándar).
+       */
+      function initGlobalHidKeyboardListener() {
+        window.addEventListener('keydown', function(e) {
+          const nfcModalEl = document.getElementById('nfcModal');
+          const isModalOpen = nfcModalEl && nfcModalEl.classList.contains('show');
+          if (!isModalOpen) return;
+
+          const activeEl = document.activeElement;
+          const isWritingInOtherInput = activeEl && (
+            activeEl.id === 'nfcEmailInput' ||
+            activeEl.id === 'nfcMontoInput' ||
+            activeEl.id === 'nfcFolioInput' ||
+            activeEl.id === 'searchInput'
+          );
+
+          if (isWritingInOtherInput) return;
+
+          // Process alphanumeric keyboard stream from HID reader
+          if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            globalHidBuffer += e.key;
+
+            if (globalHidTimer) clearTimeout(globalHidTimer);
+            globalHidTimer = setTimeout(function() {
+              processGlobalHidBuffer();
+            }, 500); // HID rapid keystroke timeout
+          } else if (e.key === 'Enter') {
+            if (globalHidTimer) clearTimeout(globalHidTimer);
+            processGlobalHidBuffer();
+          }
+        });
+      }
+
+      function processGlobalHidBuffer() {
+        const uid = globalHidBuffer.trim();
+        globalHidBuffer = '';
+
+        if (!uid || uid.length < 4) return;
+
+        const targetInputId = (activeNfcTab === 'scan') ? 'nfcReaderScanInput' : 'nfcReaderAssociateInput';
+        const inputEl = document.getElementById(targetInputId);
+
+        if (!isNfcReaderReady) {
+          if (esUidNfcValido(uid)) {
+            if (nfcCheckTimer) clearTimeout(nfcCheckTimer);
+            setNfcReaderState('ready', 'Prueba exitosa. UID verificado: ' + uid);
+            if (inputEl) inputEl.value = uid;
+            if (activeNfcTab === 'scan') buscarClienteNfc(uid);
+          } else {
+            setNfcReaderState('error', 'Entrada ignorada: Formato de UID hexadecimal inválido (' + uid + ').');
+          }
+          return;
+        }
+
+        if (esUidNfcValido(uid)) {
+          if (inputEl) inputEl.value = uid;
+          if (activeNfcTab === 'scan') {
+            buscarClienteNfc(uid);
+          } else if (activeNfcTab === 'register') {
+            showAlert('UID NFC capturado desde lector: ' + uid, 'info');
+          }
+        } else {
+          showAlert('Entrada ignorada: Formato de UID hexadecimal inválido (' + uid + ').', 'warning');
+        }
+      }
 
       function cargarSupervisores() {
         google.script.run
@@ -948,12 +1036,13 @@
         if (nfcCheckTimer) clearTimeout(nfcCheckTimer);
         setNfcReaderState('verifying');
 
-        // Focus scan input to receive test card scan
-        const inputEl = document.getElementById('nfcReaderScanInput');
+        // Focus active input to receive test card scan
+        const targetInputId = (activeNfcTab === 'scan') ? 'nfcReaderScanInput' : 'nfcReaderAssociateInput';
+        const inputEl = document.getElementById(targetInputId);
         if (inputEl) {
           inputEl.disabled = false;
           inputEl.value = '';
-          inputEl.focus();
+          setTimeout(() => inputEl.focus(), 150);
         }
 
         // Set 8-second handshake timeout
@@ -1010,7 +1099,10 @@
       function buscarClienteNfc(uid) {
         showLoading(true);
         google.script.run
-          .withFailureHandler(handleGlobalError)
+          .withFailureHandler(function(err) {
+            handleGlobalError(err);
+            showAlert('Error de conexión al buscar cliente por UID: ' + (err.message || err.toString()), 'danger');
+          })
           .withSuccessHandler(function(res) {
             showLoading(false);
             const container = document.getElementById('nfcClientResult');
@@ -1027,7 +1119,7 @@
               container.style.display = 'block';
             } else {
               container.style.display = 'none';
-              showAlert(res ? res.message : 'Cliente no encontrado', 'warning');
+              showAlert(res ? res.message : 'Cliente no encontrado con este UID NFC.', 'warning');
             }
           })
           .obtenerClientePorUid(uid, currentUser);
@@ -1078,14 +1170,17 @@
 
         showLoading(true);
         google.script.run
-          .withFailureHandler(handleGlobalError)
+          .withFailureHandler(function(err) {
+            handleGlobalError(err);
+            showAlert('Error al procesar asignación de puntos: ' + (err.message || err.toString()), 'danger');
+          })
           .withSuccessHandler(function(res) {
             showLoading(false);
             if (res && res.success) {
               showAlert(res.message, 'success');
               buscarClienteNfc(currentNfcClient.uid); // Refresh
             } else {
-              showAlert(res ? res.message : 'Error al abonar puntos.');
+              showAlert(res ? res.message : 'Error al abonar puntos.', 'danger');
             }
           })
           .asignarPuntosPorMonto(currentNfcClient.uid, monto, currentUser, folio, 'Pago de Servicio');
@@ -1112,14 +1207,18 @@
 
         showLoading(true);
         google.script.run
-          .withFailureHandler(handleGlobalError)
+          .withFailureHandler(function(err) {
+            handleGlobalError(err);
+            showAlert('Error al asociar UID NFC: ' + (err.message || err.toString()), 'danger');
+          })
           .withSuccessHandler(function(res) {
             showLoading(false);
             if (res && res.success) {
               showAlert(res.message, 'success');
               document.getElementById('nfcAssociateForm').reset();
+              limpiarScanNfc();
             } else {
-              showAlert(res ? res.message : 'Error al asociar tarjeta NFC.');
+              showAlert(res ? res.message : 'Error al asociar tarjeta NFC.', 'danger');
             }
           })
           .asociarUidCliente(email, uid, currentUser);
