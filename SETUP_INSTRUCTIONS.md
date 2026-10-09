@@ -1,50 +1,70 @@
 # Instrucciones de Configuración y Despliegue - Control Machete
 
-**Sistema de Autoevaluación de Control Interno (Marco COSO - 61 Preguntas)**
+**Sistema de Autoevaluación de Control Interno (Marco COSO - Múltiples Lotes / Proyectos)**
 *H. Ayuntamiento de Mérida, Yucatán*
 
 ---
 
 ## 1. Estructura de la Base de Datos (Google Sheets)
 
-El sistema utiliza una única Hoja de Cálculo de Google Sheets. Al ejecutar la función de sembrado (`seedDatabase()`), el sistema creará automáticamente la estructura de pestañas y encabezados necesarios:
+El sistema utiliza una única Hoja de Cálculo de Google Sheets. Al ejecutar la función de migración/sembrado (`seedDatabase()` o `migrateDatabaseStructure()`), la aplicación actualizará o creará las siguientes pestañas y encabezados:
 
 | Nombre de la Hoja | Encabezados de Columna |
 | :--- | :--- |
-| **Preguntas** | `ID`, `Componente`, `Principio`, `Pregunta`, `FundamentoLegal`, `SubdireccionSugerida` |
-| **Usuarios** | `Email`, `Nombre`, `Subdireccion`, `Rol`, `Estado` |
+| **Preguntas** | `ID`, `Componente`, `Principio`, `Pregunta`, `FundamentoLegal`, `SubdireccionSugerida`, `LoteID` |
+| **Usuarios** | `Email`, `Nombre`, `Subdireccion`, `Rol`, `Estado`, `Contrasena` |
 | **Subdirecciones** | `Nombre`, `Activa` |
 | **Asignaciones** | `QuestionID`, `SubdireccionAsignada`, `AsignadoPor`, `FechaAsignacion` |
 | **Respuestas** | `QuestionID`, `Subdireccion`, `Respuesta`, `EvidenciaTextual`, `EvidenciaDocumental`, `Observaciones`, `NivelRiesgo`, `UsuarioQueRespondio`, `FechaCreacion`, `FechaUltimaModificacion` |
+| **Lotes** | `LoteID`, `NombreLote`, `Descripcion`, `FechaCreacion`, `CreadoPor`, `Activo` |
 | **Audit** | `Timestamp`, `Usuario`, `Entidad`, `QuestionID`, `ValorAnterior`, `ValorNuevo` |
 | **Config** | `Clave`, `Valor` |
 
 ---
 
-## 2. Inicialización y Sembrado de Datos (`seedDatabase`)
+## 2. Autenticación y TokenService
+
+- **Login con Correo y Contraseña**: Formulario dedicado en `Index.html` que valida credenciales contra la hoja `Usuarios`.
+- **Hasheado de Contraseñas (SHA-256)**: Las contraseñas nunca se almacenan en texto plano; se utiliza `Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, ...)` para generar el hash.
+- **Gestión de Sesiones (8 Horas)**: Al iniciar sesión exitosamente, se genera un token UUID aleatorio almacenado en `CacheService.getScriptCache()` con expiración automática de 8 horas (`TOKEN_TTL_SECONDS = 28800`).
+- **Validación Backend**: Todas las funciones críticas del backend (`Code.gs`) solicitan `token` como primer parámetro y ejecutan `assertAuthenticatedUser(token)` o `assertAdmin(token)`.
+
+---
+
+## 3. Inicialización y Sembrado de Datos (`seedDatabase`)
 
 1. Abra el editor de **Google Apps Script** asociado al proyecto.
 2. Seleccione la función `seedDatabase` en la barra de herramientas superior.
 3. Haga clic en **Ejecutar**.
 4. La función realizará las siguientes acciones automáticamente:
-   - Creará o abrirá el Spreadsheet `Control Machete - BD`.
-   - Inicializará las 61 preguntas del cuestionario COSO.
-   - Extraerá las Subdirecciones sugeridas e inicializará la hoja de `Subdirecciones`.
-   - Llenará la hoja `Asignaciones` con las subdirecciones sugeridas por defecto (y `SIN_ASIGNAR` para preguntas sin sugerencia).
-   - Registrará al usuario ejecutor como el primer **Administrador (ADMIN)** activo.
+   - Inicializará la hoja `Lotes` con el lote por defecto `LOTE_INICIAL` ("Lote Inicial").
+   - Inicializará las 61 preguntas del cuestionario COSO vinculadas al `LOTE_INICIAL`.
+   - Inicializará la hoja de `Subdirecciones` activas.
+   - Pre-poblará `Asignaciones` con las sugerencias por defecto.
+   - Registrará al usuario Administrador por defecto (`admin@merida.gob.mx` / Contraseña: `admin123`).
+
+*Nota: Para bases de datos existentes, la función `migrateDatabaseStructure()` se ejecuta de forma transparente e idempotente al iniciar sesión, agregando las columnas `Contrasena` en Usuarios y `LoteID` en Preguntas, e iniciando el `LOTE_INICIAL` sin sobrescribir datos.*
 
 ---
 
-## 3. Alcance y Permisos OAuth Requeridos (`appsscript.json`)
+## 4. Módulo de Lotes y Carga Masiva de Preguntas
 
-Asegúrese de contar con los siguientes permisos en el archivo manifiesto `appsscript.json`:
+- **Creación de Lotes**: Permite agregar nuevos conjuntos de preguntas (proyectos o evaluaciones periódicas).
+- **Carga Masiva (ADMIN)**: Interfaz para pegar texto copiando celdas desde Excel/CSV con el formato exacto:
+  `No.` | `Componente` | `Principio` | `Pregunta` | `Fundamento legal` | `Subdirección sugerida`
+- **Vista Previa y Validaciones**: Resalta filas con errores (p. ej. campo de pregunta vacío) antes de confirmar. Evita colisiones de IDs numéricos con preguntas existentes anteponiendo el prefijo del Lote.
+- **Mapeo Transparente**: Las preguntas de nuevos lotes funcionan de inmediato en la asignación por subdirección, autoevaluaciones, subida de evidencias en Google Drive y dashboard global.
+
+---
+
+## 5. Permisos OAuth Requeridos (`appsscript.json`)
 
 ```json
 {
   "timeZone": "America/Merida",
   "dependencies": {},
   "webapp": {
-    "access": "DOMAIN",
+    "access": "ANYONE",
     "executeAs": "USER_DEPLOYING"
   },
   "exceptionLogging": "STACKDRIVER",
@@ -52,7 +72,6 @@ Asegúrese de contar con los siguientes permisos en el archivo manifiesto `appss
   "oauthScopes": [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/script.container.ui"
   ]
 }
@@ -60,31 +79,10 @@ Asegúrese de contar con los siguientes permisos en el archivo manifiesto `appss
 
 ---
 
-## 4. Pasos para el Despliegue de la Aplicación Web
+## 6. Resumen de Archivos Modificados
 
-1. En el editor de Apps Script, haga clic en **Desplegar** > **Nuevo despliegue**.
-2. Seleccione el tipo de despliegue: **Aplicación Web**.
-3. Configure los campos con los siguientes valores:
-   - **Descripción**: `Control Machete - Versión Producción 1.0`
-   - **Ejecutar como**: `Usuario que accede a la aplicación web` (*USER_ACCESSING*) o `Usuario con sesión iniciada` / `Ejecutar como yo` (*USER_DEPLOYING* según requerimiento institucional).
-   - **Quién tiene acceso**: `Cualquiera dentro del dominio` (*H. Ayuntamiento de Mérida*) o `Cualquier persona con cuenta de Google`.
-4. Haga clic en **Desplegar**.
-5. Copie la **URL de la aplicación web** generada para su difusión entre el personal y los titulares de las subdirecciones.
-
----
-
-## 5. Modelo de Seguridad y Filtrado Server-Side
-
-- **Aislamiento de Preguntas**: Cada consulta de preguntas (`getPreguntasParaUsuario`) y guardado de respuestas (`guardarRespuesta`) valida del lado del servidor (*Apps Script backend*) que la pregunta pertenezca estrictamente a la `Subdirección` asignada al usuario en la pestaña `Asignaciones`.
-- **Intento de Modificación No Autorizada**: Retorna un error con código equivalente `403 Forbidden` si un usuario estándar intenta visualizar o editar preguntas asignadas a otra unidad o no asignadas.
-- **Preguntas Sin Asignar**: Las preguntas marcadas como `SIN_ASIGNAR` son respondidas exclusivamente por el **Administrador** desde su vista dedicada *"Mis Preguntas (Sin Asignar)"*.
-- **Almacenamiento de Evidencias en Google Drive**:
-  - Usuarios: `/ControlMachete/{NombreSubdirección}/Pregunta_{ID}/`
-  - Administrador: `/ControlMachete/ADMIN/Pregunta_{ID}/`
-
----
-
-## 6. Soporte y Manejo de Errores
-
-- Todos los métodos del servidor cuentan con bloques `try/catch` informativos en español (es-MX).
-- Las fallas en subida de archivos o permisos despliegan notificaciones flotantes (*Toasts*) y mensajes amigables sin interrumpir el flujo de captura del usuario.
+1. **`Code.gs`**: Servicio de tokens (`loginUsuario`, `logoutUsuario`, `assertAuthenticatedUser`), hashing SHA-256, migración idempotente de columnas, endpoints para gestión de Lotes (`cargarMasivaPreguntas`, `getLotesListAdmin`, `toggleLoteEstado`, `eliminarLoteAdmin`) y filtrado por lotes activos.
+2. **`Index.html`**: Formulario de login interactivo con correo y contraseña, gestión del Token de sesión en `sessionStorage`, barra de usuario con botón de cerrar sesión.
+3. **`UserView.html`**: Adaptado para enviar `currentSessionToken` en cada llamada backend y visualizar el `LoteID` de cada pregunta.
+4. **`AdminView.html`**: Agregada pestaña de **Gestión de Lotes y Carga Masiva**, selector de Lotes en Dashboard Global, filtro por Lote en el Gestor de Asignaciones y campo de contraseña en el CRUD de Usuarios.
+5. **`SETUP_INSTRUCTIONS.md`**: Actualizado con los detalles del nuevo esquema de seguridad, estructura de tablas y procedimientos de migración.

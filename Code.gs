@@ -10,6 +10,7 @@
 // Constantes globales
 const SPREADSHEET_ID_PROP = 'CONTROL_MACHETE_SPREADSHEET_ID';
 const ROOT_DRIVE_FOLDER_NAME = 'ControlMachete';
+const TOKEN_TTL_SECONDS = 6 * 3600; // 6 Horas (Límite máximo permitido por Google Apps Script CacheService)
 
 // Nombres de las pestañas de la Base de Datos
 const SHEETS = {
@@ -18,6 +19,7 @@ const SHEETS = {
   SUBDIRECCIONES: 'Subdirecciones',
   ASIGNACIONES: 'Asignaciones',
   RESPUESTAS: 'Respuestas',
+  LOTES: 'Lotes',
   AUDIT: 'Audit',
   CONFIG: 'Config'
 };
@@ -35,16 +37,7 @@ const RIESGO_MAP = {
  */
 function doGet(e) {
   try {
-    const userEmail = getEffectiveUserEmail();
-    const user = getUserByEmail(userEmail);
-
     const template = HtmlService.createTemplateFromFile('Index');
-    template.userEmail = userEmail;
-    template.userRole = user ? user.role : 'GUEST';
-    template.userName = user ? user.name : 'Usuario no registrado';
-    template.userSubdireccion = user ? user.subdireccion : '';
-    template.isRegistered = !!(user && user.active);
-
     return template.evaluate()
       .setTitle('Control Machete - H. Ayuntamiento de Mérida')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -62,45 +55,157 @@ function include(filename) {
 }
 
 /**
- * Obtiene el correo del usuario activo de forma segura
+ * Genera hash SHA-256 seguro para contraseñas
  */
-function getEffectiveUserEmail() {
-  let email = Session.getActiveUser().getEmail();
-  if (!email || email.trim() === '') {
-    email = Session.getEffectiveUser().getEmail();
+function hashPassword(plainText) {
+  if (!plainText) return '';
+  const rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, plainText, Utilities.Charset.UTF_8);
+  let txtHash = '';
+  for (let i = 0; i < rawHash.length; i++) {
+    let byteVal = rawHash[i];
+    if (byteVal < 0) byteVal += 256;
+    let byteStr = byteVal.toString(16);
+    if (byteStr.length == 1) byteStr = '0' + byteStr;
+    txtHash += byteStr;
   }
-  return email ? email.toLowerCase().trim() : '';
+  return txtHash;
+}
+
+// ==============================================================================
+// SERVICIO DE TOKENS (TokenService) Y AUTENTICACIÓN
+// ==============================================================================
+
+/**
+ * Autentica usuario con correo y contraseña, generando un Token de sesión de 8 horas
+ */
+function loginUsuario(email, password) {
+  if (!email || !password) {
+    throw new Error('Debe proporcionar correo electrónico y contraseña.');
+  }
+
+  // Asegurar migración/estructura inicial antes del login
+  migrateDatabaseStructure();
+
+  const cleanEmail = String(email).toLowerCase().trim();
+  const user = getUserByEmail(cleanEmail);
+
+  if (!user) {
+    throw new Error('Correo o contraseña incorrectos.');
+  }
+
+  if (!user.active) {
+    throw new Error('Usuario inactivo, contacte al administrador.');
+  }
+
+  const passHash = hashPassword(password);
+  if (user.passwordHash !== passHash) {
+    throw new Error('Correo o contraseña incorrectos.');
+  }
+
+  // Generar token único aleatorio
+  const token = Utilities.getUuid();
+  const sessionData = {
+    email: user.email,
+    name: user.name,
+    subdireccion: user.subdireccion,
+    role: user.role,
+    active: user.active,
+    createdAt: new Date().getTime()
+  };
+
+  const cache = CacheService.getScriptCache();
+  cache.put('SESSION_' + token, JSON.stringify(sessionData), TOKEN_TTL_SECONDS);
+
+  logAudit('LOGIN_SUCCESS', '', null, cleanEmail);
+
+  return {
+    success: true,
+    token: token,
+    user: sessionData
+  };
 }
 
 /**
- * Obtiene o crea el Spreadsheet asociado a la aplicación
+ * Invalida el token en CacheService (Cierre de sesión)
  */
+function logoutUsuario(token) {
+  if (token) {
+    const cache = CacheService.getScriptCache();
+    cache.remove('SESSION_' + token);
+  }
+  return { success: true, message: 'Sesión cerrada correctamente.' };
+}
+
+/**
+ * Extrae y valida la sesión activa a partir de un Token.
+ */
+function getSessionByToken(token) {
+  if (!token) {
+    throw new Error('Sesión expirada, inicie sesión nuevamente.');
+  }
+
+  const cache = CacheService.getScriptCache();
+  const cachedStr = cache.get('SESSION_' + token);
+
+  if (!cachedStr) {
+    throw new Error('Sesión expirada, inicie sesión nuevamente.');
+  }
+
+  try {
+    const session = JSON.parse(cachedStr);
+    // Refrescar usuario desde BD para verificar si sigue activo
+    const latestUser = getUserByEmail(session.email);
+    if (!latestUser || !latestUser.active) {
+      cache.remove('SESSION_' + token);
+      throw new Error('Usuario inactivo, contacte al administrador.');
+    }
+    session.subdireccion = latestUser.subdireccion;
+    session.role = latestUser.role;
+    return session;
+  } catch (e) {
+    throw new Error('Sesión expirada, inicie sesión nuevamente.');
+  }
+}
+
+/**
+ * Exige autenticación basada en Token
+ */
+function assertAuthenticatedUser(token) {
+  return getSessionByToken(token);
+}
+
+/**
+ * Exige rol ADMIN basado en Token
+ */
+function assertAdmin(token) {
+  const session = getSessionByToken(token);
+  if (session.role !== 'ADMIN') {
+    throw new Error('ACCESO DENEGADO (403): Se requieren permisos de Administrador.');
+  }
+  return session;
+}
+
+// ==============================================================================
+// BASE DE DATOS Y MIGRACIÓN IDEMPOTENTE
+// ==============================================================================
+
 function getSpreadsheet() {
   const props = PropertiesService.getScriptProperties();
   let ssId = props.getProperty(SPREADSHEET_ID_PROP);
   let ss = null;
 
   if (ssId) {
-    try {
-      ss = SpreadsheetApp.openById(ssId);
-    } catch (e) {
-      ss = null;
-    }
+    try { ss = SpreadsheetApp.openById(ssId); } catch (e) { ss = null; }
   }
 
   if (!ss) {
     try {
       ss = SpreadsheetApp.getActiveSpreadsheet();
-      if (ss) {
-        props.setProperty(SPREADSHEET_ID_PROP, ss.getId());
-      }
-    } catch (e) {
-      ss = null;
-    }
+      if (ss) props.setProperty(SPREADSHEET_ID_PROP, ss.getId());
+    } catch (e) { ss = null; }
   }
 
   if (!ss) {
-    // Si no hay spreadsheet activo o configurado, buscar o crear uno nuevo
     const files = DriveApp.getFilesByName('Control Machete - BD');
     if (files.hasNext()) {
       ss = SpreadsheetApp.open(files.next());
@@ -115,9 +220,6 @@ function getSpreadsheet() {
   return ss;
 }
 
-/**
- * Asegura la existencia de una hoja específica
- */
 function getSheetSafe(sheetName) {
   const ss = getSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
@@ -128,17 +230,14 @@ function getSheetSafe(sheetName) {
   return sheet;
 }
 
-/**
- * Inicializa encabezados de las hojas
- */
 function initSheetHeader(sheet, sheetName) {
   let headers = [];
   switch (sheetName) {
     case SHEETS.PREGUNTAS:
-      headers = ['ID', 'Componente', 'Principio', 'Pregunta', 'FundamentoLegal', 'SubdireccionSugerida'];
+      headers = ['ID', 'Componente', 'Principio', 'Pregunta', 'FundamentoLegal', 'SubdireccionSugerida', 'LoteID'];
       break;
     case SHEETS.USUARIOS:
-      headers = ['Email', 'Nombre', 'Subdireccion', 'Rol', 'Estado'];
+      headers = ['Email', 'Nombre', 'Subdireccion', 'Rol', 'Estado', 'Contrasena'];
       break;
     case SHEETS.SUBDIRECCIONES:
       headers = ['Nombre', 'Activa'];
@@ -148,6 +247,9 @@ function initSheetHeader(sheet, sheetName) {
       break;
     case SHEETS.RESPUESTAS:
       headers = ['QuestionID', 'Subdireccion', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion'];
+      break;
+    case SHEETS.LOTES:
+      headers = ['LoteID', 'NombreLote', 'Descripcion', 'FechaCreacion', 'CreadoPor', 'Activo'];
       break;
     case SHEETS.AUDIT:
       headers = ['Timestamp', 'Usuario', 'Entidad', 'QuestionID', 'ValorAnterior', 'ValorNuevo'];
@@ -162,101 +264,83 @@ function initSheetHeader(sheet, sheetName) {
   }
 }
 
-/**
- * Inicializa todas las hojas de la BD
- */
 function initDatabaseStructure(ss) {
   Object.values(SHEETS).forEach(name => {
     let s = ss.getSheetByName(name);
-    if (!s) {
-      s = ss.insertSheet(name);
-    }
+    if (!s) s = ss.insertSheet(name);
     initSheetHeader(s, name);
   });
 }
 
-// ==============================================================================
-// AUTENTICACIÓN Y ROLES
-// ==============================================================================
-
 /**
- * Obtiene el usuario actual y valida permisos
+ * Migración idempotente para agregar nuevas columnas (Contraseña, LoteID) y Lote Inicial
  */
-function getCurrentUserInfo() {
-  const email = getEffectiveUserEmail();
-  const user = getUserByEmail(email);
+function migrateDatabaseStructure() {
+  const ss = getSpreadsheet();
+  initDatabaseStructure(ss);
 
-  if (!user || !user.active) {
-    return {
-      authenticated: false,
-      email: email,
-      message: 'El correo ' + email + ' no está registrado o se encuentra inactivo. Contacte al Administrador del sistema.'
-    };
+  // 1. Migración de Usuarios -> Columna 'Contrasena' (Columna F / Indice 6)
+  const uSheet = getSheetSafe(SHEETS.USUARIOS);
+  const uData = uSheet.getDataRange().getValues();
+  if (uData.length > 0 && uData[0].length < 6) {
+    uSheet.getRange(1, 6).setValue('Contrasena').setFontWeight('bold');
   }
 
-  return {
-    authenticated: true,
-    email: user.email,
-    name: user.name,
-    subdireccion: user.subdireccion,
-    role: user.role,
-    active: user.active
-  };
-}
-
-/**
- * Busca un usuario por email en la hoja Usuarios
- */
-function getUserByEmail(email) {
-  if (!email) return null;
-  const sheet = getSheetSafe(SHEETS.USUARIOS);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    const rowEmail = String(data[i][0]).toLowerCase().trim();
-    if (rowEmail === email.toLowerCase().trim()) {
-      return {
-        email: data[i][0],
-        name: data[i][1],
-        subdireccion: data[i][2],
-        role: String(data[i][3]).toUpperCase(),
-        active: String(data[i][4]).toUpperCase() === 'ACTIVO' || data[i][4] === true,
-        rowIndex: i + 1
-      };
+  // Hashear contraseñas en texto plano o asignar contraseña por defecto 'admin123' si están vacías
+  if (uData.length > 1) {
+    for (let i = 1; i < uData.length; i++) {
+      let passVal = String(uData[i][5] || '').trim();
+      if (!passVal) {
+        passVal = hashPassword('admin123'); // Contraseña default si estaba vacía
+        uSheet.getRange(i + 1, 6).setValue(passVal);
+      } else if (passVal.length < 64) {
+        // Texto plano detectado -> Hashear
+        passVal = hashPassword(passVal);
+        uSheet.getRange(i + 1, 6).setValue(passVal);
+      }
     }
   }
-  return null;
-}
 
-/**
- * Exige rol de Administrador. Dispara excepción si no cumple.
- */
-function assertAdmin() {
-  const user = getCurrentUserInfo();
-  if (!user.authenticated || user.role !== 'ADMIN') {
-    throw new Error('ACCESO DENEGADO (403): Se requieren permisos de Administrador.');
-  }
-  return user;
-}
+  // 2. Migración de Lotes -> Crear 'LOTE_INICIAL' si no existe
+  const lotesSheet = getSheetSafe(SHEETS.LOTES);
+  const lotesData = lotesSheet.getDataRange().getValues();
+  let loteInicialExiste = false;
 
-/**
- * Exige autenticación de usuario activo. Dispara excepción si no cumple.
- */
-function assertAuthenticatedUser() {
-  const user = getCurrentUserInfo();
-  if (!user.authenticated) {
-    throw new Error('ACCESO DENEGADO (401): Usuario no registrado o inactivo.');
+  for (let i = 1; i < lotesData.length; i++) {
+    if (String(lotesData[i][0]).toUpperCase() === 'LOTE_INICIAL' || String(lotesData[i][1]).toLowerCase() === 'lote inicial') {
+      loteInicialExiste = true;
+      break;
+    }
   }
-  return user;
+
+  if (!loteInicialExiste) {
+    lotesSheet.appendRow(['LOTE_INICIAL', 'Lote Inicial', 'Evaluación COSO 61 preguntas inicial', new Date(), 'SISTEMA', true]);
+  }
+
+  // 3. Migración de Preguntas -> Columna 'LoteID' (Columna G / Indice 7)
+  const pSheet = getSheetSafe(SHEETS.PREGUNTAS);
+  const pData = pSheet.getDataRange().getValues();
+  if (pData.length > 0 && pData[0].length < 7) {
+    pSheet.getRange(1, 7).setValue('LoteID').setFontWeight('bold');
+  }
+
+  if (pData.length > 1) {
+    for (let i = 1; i < pData.length; i++) {
+      const currentLote = String(pData[i][6] || '').trim();
+      if (!currentLote) {
+        pSheet.getRange(i + 1, 7).setValue('LOTE_INICIAL');
+      }
+    }
+  }
 }
 
 // ==============================================================================
 // GESTIÓN DE AUDITORÍA
 // ==============================================================================
 
-function logAudit(entity, questionId, oldValue, newValue) {
+function logAudit(entity, questionId, oldValue, newValue, userEmail) {
   try {
-    const email = getEffectiveUserEmail() || 'SISTEMA';
+    const email = userEmail || 'SISTEMA';
     const sheet = getSheetSafe(SHEETS.AUDIT);
     sheet.appendRow([
       new Date(),
@@ -275,8 +359,30 @@ function logAudit(entity, questionId, oldValue, newValue) {
 // MÓDULO ADMINISTRADOR: GESTIÓN DE USUARIOS
 // ==============================================================================
 
-function getUsuariosAdmin() {
-  assertAdmin();
+function getUserByEmail(email) {
+  if (!email) return null;
+  const sheet = getSheetSafe(SHEETS.USUARIOS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    const rowEmail = String(data[i][0]).toLowerCase().trim();
+    if (rowEmail === email.toLowerCase().trim()) {
+      return {
+        email: data[i][0],
+        name: data[i][1],
+        subdireccion: data[i][2],
+        role: String(data[i][3]).toUpperCase(),
+        active: String(data[i][4]).toUpperCase() === 'ACTIVO' || data[i][4] === true,
+        passwordHash: data[i][5] || '',
+        rowIndex: i + 1
+      };
+    }
+  }
+  return null;
+}
+
+function getUsuariosAdmin(token) {
+  assertAdmin(token);
   const sheet = getSheetSafe(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
   const usuarios = [];
@@ -295,8 +401,8 @@ function getUsuariosAdmin() {
   return usuarios;
 }
 
-function saveUsuarioAdmin(userData) {
-  const admin = assertAdmin();
+function saveUsuarioAdmin(token, userData) {
+  const adminSession = assertAdmin(token);
   if (!userData.email || !userData.name) {
     throw new Error('El correo y el nombre son campos obligatorios.');
   }
@@ -306,10 +412,12 @@ function saveUsuarioAdmin(userData) {
   const targetEmail = userData.email.toLowerCase().trim();
   let foundIndex = -1;
   let oldVal = null;
+  let existingHash = '';
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).toLowerCase().trim() === targetEmail) {
       foundIndex = i + 1;
+      existingHash = data[i][5] || '';
       oldVal = { email: data[i][0], name: data[i][1], subdireccion: data[i][2], role: data[i][3], active: data[i][4] };
       break;
     }
@@ -319,38 +427,47 @@ function saveUsuarioAdmin(userData) {
   const roleStr = userData.role === 'ADMIN' ? 'ADMIN' : 'USER';
   const subdireccionStr = userData.subdireccion || '';
 
+  let finalHash = existingHash;
+  if (userData.password && userData.password.trim() !== '') {
+    finalHash = hashPassword(userData.password.trim());
+  } else if (!finalHash) {
+    finalHash = hashPassword('admin123'); // default
+  }
+
   if (foundIndex > 0) {
-    sheet.getRange(foundIndex, 1, 1, 5).setValues([[
+    sheet.getRange(foundIndex, 1, 1, 6).setValues([[
       userData.email.trim(),
       userData.name.trim(),
       subdireccionStr,
       roleStr,
-      estadoStr
+      estadoStr,
+      finalHash
     ]]);
-    logAudit('USUARIO_EDITAR', '', oldVal, userData);
+    logAudit('USUARIO_EDITAR', '', oldVal, userData, adminSession.email);
   } else {
     sheet.appendRow([
       userData.email.trim(),
       userData.name.trim(),
       subdireccionStr,
       roleStr,
-      estadoStr
+      estadoStr,
+      finalHash
     ]);
-    logAudit('USUARIO_CREAR', '', null, userData);
+    logAudit('USUARIO_CREAR', '', null, userData, adminSession.email);
   }
 
   return { success: true, message: 'Usuario guardado exitosamente.' };
 }
 
-function toggleUsuarioEstado(email, active) {
-  assertAdmin();
+function toggleUsuarioEstado(token, email, active) {
+  const adminSession = assertAdmin(token);
   const sheet = getSheetSafe(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).toLowerCase().trim() === email.toLowerCase().trim()) {
       const nuevoEstado = active ? 'ACTIVO' : 'INACTIVO';
       sheet.getRange(i + 1, 5).setValue(nuevoEstado);
-      logAudit('USUARIO_TOGGLE_ESTADO', '', email, nuevoEstado);
+      logAudit('USUARIO_TOGGLE_ESTADO', '', email, nuevoEstado, adminSession.email);
       return { success: true, message: 'Estado del usuario actualizado.' };
     }
   }
@@ -361,8 +478,8 @@ function toggleUsuarioEstado(email, active) {
 // MÓDULO ADMINISTRADOR: GESTIÓN DE SUBDIRECCIONES
 // ==============================================================================
 
-function getSubdireccionesList() {
-  assertAuthenticatedUser();
+function getSubdireccionesList(token) {
+  if (token) assertAuthenticatedUser(token);
   const sheet = getSheetSafe(SHEETS.SUBDIRECCIONES);
   const data = sheet.getDataRange().getValues();
   const list = [];
@@ -377,8 +494,8 @@ function getSubdireccionesList() {
   return list;
 }
 
-function saveSubdireccionAdmin(nombre) {
-  assertAdmin();
+function saveSubdireccionAdmin(token, nombre) {
+  const adminSession = assertAdmin(token);
   if (!nombre || !nombre.trim()) throw new Error('El nombre de la Subdirección no puede estar vacío.');
   const sheet = getSheetSafe(SHEETS.SUBDIRECCIONES);
   const data = sheet.getDataRange().getValues();
@@ -391,24 +508,265 @@ function saveSubdireccionAdmin(nombre) {
     }
   }
   sheet.appendRow([cleanName, 'ACTIVA']);
-  logAudit('SUBDIRECCION_CREAR', '', null, cleanName);
+  logAudit('SUBDIRECCION_CREAR', '', null, cleanName, adminSession.email);
   return { success: true, message: 'Subdirección agregada exitosamente.' };
+}
+
+// ==============================================================================
+// CAMBIO 2: MÓDULO DE GESTIÓN Y CARGA MASIVA DE LOTES / PROYECTOS
+// ==============================================================================
+
+/**
+ * Obtiene mapa de lotes activos: loteId -> boolean
+ */
+function getLotesActivosMap() {
+  const sheet = getSheetSafe(SHEETS.LOTES);
+  const data = sheet.getDataRange().getValues();
+  const map = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const loteId = String(data[i][0]).trim();
+    if (loteId) {
+      const activo = data[i][5] === true || String(data[i][5]).toUpperCase() === 'TRUE' || String(data[i][5]).toUpperCase() === 'ACTIVO';
+      map[loteId] = activo;
+    }
+  }
+  return map;
+}
+
+/**
+ * Obtiene la lista completa de Lotes con sus métricas para el Admin
+ */
+function getLotesListAdmin(token) {
+  assertAdmin(token);
+  const lotesSheet = getSheetSafe(SHEETS.LOTES);
+  const lData = lotesSheet.getDataRange().getValues();
+
+  const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
+  const pData = preguntasSheet.getDataRange().getValues();
+  const asignacionesMap = getAsignacionesMap();
+  const respuestasMap = getRespuestasMap();
+
+  // Contar preguntas y respuestas por lote
+  const loteStats = {};
+
+  for (let i = 1; i < pData.length; i++) {
+    const qId = String(pData[i][0]);
+    if (!qId) continue;
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+
+    if (!loteStats[loteId]) {
+      loteStats[loteId] = { totalPreguntas: 0, respondidas: 0 };
+    }
+    loteStats[loteId].totalPreguntas++;
+
+    const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    const respKey = qId + '_' + subAsignada;
+    const resp = respuestasMap[respKey];
+
+    if (resp && resp.respuesta && resp.respuesta.trim() !== '') {
+      loteStats[loteId].respondidas++;
+    }
+  }
+
+  const result = [];
+  for (let i = 1; i < lData.length; i++) {
+    const loteId = String(lData[i][0]).trim();
+    if (loteId) {
+      const stats = loteStats[loteId] || { totalPreguntas: 0, respondidas: 0 };
+      const pct = stats.totalPreguntas > 0 ? Math.round((stats.respondidas / stats.totalPreguntas) * 100) : 0;
+      const activo = lData[i][5] === true || String(lData[i][5]).toUpperCase() === 'TRUE' || String(lData[i][5]).toUpperCase() === 'ACTIVO';
+
+      result.push({
+        loteId: loteId,
+        nombreLote: lData[i][1],
+        descripcion: lData[i][2],
+        fechaCreacion: lData[i][3],
+        creadoPor: lData[i][4],
+        activo: activo,
+        totalPreguntas: stats.totalPreguntas,
+        respondidas: stats.respondidas,
+        avancePct: pct
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Cambia el estado Activo/Inactivo de un lote
+ */
+function toggleLoteEstado(token, loteId, active) {
+  const admin = assertAdmin(token);
+  const sheet = getSheetSafe(SHEETS.LOTES);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === String(loteId).trim()) {
+      sheet.getRange(i + 1, 6).setValue(active);
+      logAudit('LOTE_TOGGLE_ESTADO', loteId, data[i][5], active, admin.email);
+      return { success: true, message: 'Estado del lote actualizado.' };
+    }
+  }
+  throw new Error('Lote no encontrado.');
+}
+
+/**
+ * Elimina un lote SOLO si no tiene respuestas registradas
+ */
+function eliminarLoteAdmin(token, loteId) {
+  const admin = assertAdmin(token);
+  if (String(loteId).toUpperCase() === 'LOTE_INICIAL') {
+    throw new Error('El Lote Inicial no puede ser eliminado.');
+  }
+
+  const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
+  const pData = preguntasSheet.getDataRange().getValues();
+  const asignacionesMap = getAsignacionesMap();
+  const respuestasMap = getRespuestasMap();
+
+  const qIdsLote = [];
+  for (let i = 1; i < pData.length; i++) {
+    const qId = String(pData[i][0]);
+    const qLote = String(pData[i][6] || 'LOTE_INICIAL').trim();
+    if (qLote === String(loteId).trim()) {
+      qIdsLote.push(qId);
+    }
+  }
+
+  // Verificar respuestas
+  for (let idx = 0; idx < qIdsLote.length; idx++) {
+    const qId = qIdsLote[idx];
+    const sub = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    const resp = respuestasMap[qId + '_' + sub];
+    if (resp && resp.respuesta && resp.respuesta.trim() !== '') {
+      throw new Error('No se puede eliminar el lote porque ya cuenta con respuestas registradas.');
+    }
+  }
+
+  // Borrar preguntas del lote de la hoja Preguntas
+  for (let i = pData.length - 1; i >= 1; i--) {
+    const qLote = String(pData[i][6] || 'LOTE_INICIAL').trim();
+    if (qLote === String(loteId).trim()) {
+      preguntasSheet.deleteRow(i + 1);
+    }
+  }
+
+  // Borrar lote de la hoja Lotes
+  const lotesSheet = getSheetSafe(SHEETS.LOTES);
+  const lData = lotesSheet.getDataRange().getValues();
+  for (let i = lData.length - 1; i >= 1; i--) {
+    if (String(lData[i][0]).trim() === String(loteId).trim()) {
+      lotesSheet.deleteRow(i + 1);
+      break;
+    }
+  }
+
+  logAudit('LOTE_ELIMINAR', loteId, null, null, admin.email);
+  return { success: true, message: 'Lote eliminado exitosamente.' };
+}
+
+/**
+ * Carga masiva de preguntas desde tabla editable o archivo
+ */
+function cargarMasivaPreguntas(token, payload) {
+  const admin = assertAdmin(token);
+  const nombreLote = payload.nombreLote ? payload.nombreLote.trim() : '';
+  const descripcionLote = payload.descripcionLote ? payload.descripcionLote.trim() : '';
+  const preguntasNuevas = payload.preguntas || [];
+
+  if (!nombreLote) {
+    throw new Error('Debe proporcionar un nombre para el Lote/Proyecto.');
+  }
+
+  if (!Array.isArray(preguntasNuevas) || preguntasNuevas.length === 0) {
+    throw new Error('No se recibieron preguntas para guardar.');
+  }
+
+  const lotesSheet = getSheetSafe(SHEETS.LOTES);
+  const lData = lotesSheet.getDataRange().getValues();
+
+  // Generar un LoteID único
+  let loteId = 'LOTE_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  if (payload.loteIdExistente) {
+    loteId = payload.loteIdExistente.trim();
+  } else {
+    lotesSheet.appendRow([loteId, nombreLote, descripcionLote, new Date(), admin.email, true]);
+    logAudit('LOTE_CREAR', loteId, null, nombreLote, admin.email);
+  }
+
+  const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
+  const pData = preguntasSheet.getDataRange().getValues();
+
+  // Obtener IDs existentes para evitar colisiones
+  const existingIds = new Set();
+  for (let i = 1; i < pData.length; i++) {
+    existingIds.add(String(pData[i][0]).trim());
+  }
+
+  const pRowsToInsert = [];
+  const asigRowsToInsert = [];
+  const now = new Date();
+
+  preguntasNuevas.forEach((q, idx) => {
+    let qId = String(q.no || (idx + 1)).trim();
+    if (existingIds.has(qId)) {
+      // Si el ID numérico ya existe (p.ej. colisiona con 1-61), anteponer prefijo de Lote
+      qId = loteId + '-' + qId;
+    }
+    existingIds.add(qId);
+
+    pRowsToInsert.push([
+      qId,
+      q.componente || 'Sin Componente',
+      q.principio || 'Sin Principio',
+      q.pregunta || '',
+      q.fundamento || '',
+      q.subdireccionSugerida || '',
+      loteId
+    ]);
+
+    const subSugerida = (q.subdireccionSugerida && q.subdireccionSugerida.trim()) ? q.subdireccionSugerida.trim() : 'SIN_ASIGNAR';
+    asigRowsToInsert.push([
+      qId,
+      subSugerida,
+      admin.email,
+      now
+    ]);
+  });
+
+  if (pRowsToInsert.length > 0) {
+    const startRow = preguntasSheet.getLastRow() + 1;
+    preguntasSheet.getRange(startRow, 1, pRowsToInsert.length, 7).setValues(pRowsToInsert);
+  }
+
+  if (asigRowsToInsert.length > 0) {
+    const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
+    const startRowAsig = asigSheet.getLastRow() + 1;
+    asigSheet.getRange(startRowAsig, 1, asigRowsToInsert.length, 4).setValues(asigRowsToInsert);
+  }
+
+  logAudit('PREGUNTAS_CARGA_MASIVA', loteId, null, pRowsToInsert.length + ' preguntas', admin.email);
+
+  return {
+    success: true,
+    loteId: loteId,
+    message: `Se registraron ${pRowsToInsert.length} preguntas en el lote "${nombreLote}" exitosamente.`
+  };
 }
 
 // ==============================================================================
 // ASIGNACIÓN DE PREGUNTAS (CORE FEATURE)
 // ==============================================================================
 
-/**
- * Obtiene mapa de asignaciones actuales de la hoja Asignaciones
- */
 function getAsignacionesMap() {
   const sheet = getSheetSafe(SHEETS.ASIGNACIONES);
   const data = sheet.getDataRange().getValues();
   const map = {}; // questionId -> subdireccion
 
   for (let i = 1; i < data.length; i++) {
-    const qId = Number(data[i][0]);
+    const qId = String(data[i][0]).trim();
     if (qId) {
       const sub = String(data[i][1] || '').trim();
       map[qId] = sub;
@@ -417,19 +775,22 @@ function getAsignacionesMap() {
   return map;
 }
 
-/**
- * Devuelve listado de las 61 preguntas con su asignación actual para la vista Admin
- */
-function getPreguntasConAsignacionAdmin() {
-  assertAdmin();
+function getPreguntasConAsignacionAdmin(token, filtroLote) {
+  assertAdmin(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const data = preguntasSheet.getDataRange().getValues();
   const asignaciones = getAsignacionesMap();
 
   const result = [];
   for (let i = 1; i < data.length; i++) {
-    const qId = Number(data[i][0]);
+    const qId = String(data[i][0]).trim();
     if (qId) {
+      const loteId = String(data[i][6] || 'LOTE_INICIAL').trim();
+
+      if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+        continue;
+      }
+
       const subAsignada = asignaciones[qId] !== undefined ? asignaciones[qId] : 'SIN_ASIGNAR';
       result.push({
         id: qId,
@@ -438,6 +799,7 @@ function getPreguntasConAsignacionAdmin() {
         pregunta: data[i][3],
         fundamentoLegal: data[i][4],
         subdireccionSugerida: data[i][5] || '',
+        loteId: loteId,
         subdireccionAsignada: subAsignada
       });
     }
@@ -445,11 +807,8 @@ function getPreguntasConAsignacionAdmin() {
   return result;
 }
 
-/**
- * Asigna una lista de preguntas a una Subdirección específica (o SIN_ASIGNAR)
- */
-function guardarAsignacionesPreguntas(questionIds, nuevaSubdireccion) {
-  const admin = assertAdmin();
+function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
+  const admin = assertAdmin(token);
   if (!Array.isArray(questionIds) || questionIds.length === 0) {
     throw new Error('Debe seleccionar al menos una pregunta.');
   }
@@ -458,10 +817,9 @@ function guardarAsignacionesPreguntas(questionIds, nuevaSubdireccion) {
   const sheet = getSheetSafe(SHEETS.ASIGNACIONES);
   const data = sheet.getDataRange().getValues();
 
-  // Indexar filas existentes por QuestionID
   const indexMap = {};
   for (let i = 1; i < data.length; i++) {
-    const qId = Number(data[i][0]);
+    const qId = String(data[i][0]).trim();
     if (qId) {
       indexMap[qId] = i + 1;
     }
@@ -469,17 +827,17 @@ function guardarAsignacionesPreguntas(questionIds, nuevaSubdireccion) {
 
   const now = new Date();
   questionIds.forEach(qIdRaw => {
-    const qId = Number(qIdRaw);
+    const qId = String(qIdRaw).trim();
     if (!qId) return;
 
     const rowIndex = indexMap[qId];
     if (rowIndex) {
       const oldSub = data[rowIndex - 1][1];
       sheet.getRange(rowIndex, 2, 1, 3).setValues([[subLimpia, admin.email, now]]);
-      logAudit('ASIGNACION_CAMBIO', qId, oldSub, subLimpia);
+      logAudit('ASIGNACION_CAMBIO', qId, oldSub, subLimpia, admin.email);
     } else {
       sheet.appendRow([qId, subLimpia, admin.email, now]);
-      logAudit('ASIGNACION_CREAR', qId, null, subLimpia);
+      logAudit('ASIGNACION_CREAR', qId, null, subLimpia, admin.email);
     }
   });
 
@@ -495,35 +853,40 @@ function guardarAsignacionesPreguntas(questionIds, nuevaSubdireccion) {
 
 /**
  * Obtiene las preguntas asignadas para el usuario actual.
- * REGLA DE SEGURIDAD CRÍTICA SERVER-SIDE:
- * - Si es ADMIN: Puede solicitar vista "ADMIN_MIS_PREGUNTAS" (sólo SIN_ASIGNAR) o todas.
- * - Si es USER: Retorna ÚNICAMENTE las preguntas explícitamente asignadas a su Subdirección.
+ * SOLO MUESTRA PREGUNTAS DE LOTES ACTIVOS.
  */
-function getPreguntasParaUsuario(modoAdminMisPreguntas) {
-  const user = assertAuthenticatedUser();
+function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
+  const user = assertAuthenticatedUser(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
+  const lotesActivosMap = getLotesActivosMap();
 
   let targetSubdireccion = '';
   if (user.role === 'ADMIN' && modoAdminMisPreguntas) {
     targetSubdireccion = 'SIN_ASIGNAR';
   } else if (user.role === 'USER') {
-    targetSubdireccion = user.subdireccion;
+    targetSubdireccion = user.subdireccion || '';
     if (!targetSubdireccion) {
-      return []; // Si el usuario no tiene subdirección asignada por el admin, no ve nada.
+      return [];
     }
   } else if (user.role === 'ADMIN' && !modoAdminMisPreguntas) {
-    // Si es admin y pide ver global, se le devuelven todas las preguntas etiquetadas
     targetSubdireccion = 'ALL';
   }
 
   const preguntasFiltradas = [];
 
   for (let i = 1; i < pData.length; i++) {
-    const qId = Number(pData[i][0]);
+    const qId = String(pData[i][0]).trim();
     if (!qId) continue;
+
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+
+    // FILTRO DE LOTE ACTIVO: Si el lote no está activo, las preguntas NO aparecen en vistas de captura
+    if (lotesActivosMap[loteId] === false) {
+      continue;
+    }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
@@ -538,7 +901,6 @@ function getPreguntasParaUsuario(modoAdminMisPreguntas) {
     }
 
     if (esVisible) {
-      // Clave de respuesta: qId + "_" + subAsignada
       const respKey = qId + '_' + subAsignada;
       const respObj = respuestasMap[respKey] || {
         respuesta: '',
@@ -555,6 +917,7 @@ function getPreguntasParaUsuario(modoAdminMisPreguntas) {
         pregunta: pData[i][3],
         fundamentoLegal: pData[i][4],
         subdireccionSugerida: pData[i][5] || '',
+        loteId: loteId,
         subdireccionAsignada: subAsignada,
         respuestaData: respObj
       });
@@ -564,16 +927,13 @@ function getPreguntasParaUsuario(modoAdminMisPreguntas) {
   return preguntasFiltradas;
 }
 
-/**
- * Obtiene todas las respuestas indexadas por "QuestionID_Subdireccion"
- */
 function getRespuestasMap() {
   const sheet = getSheetSafe(SHEETS.RESPUESTAS);
   const data = sheet.getDataRange().getValues();
   const map = {};
 
   for (let i = 1; i < data.length; i++) {
-    const qId = Number(data[i][0]);
+    const qId = String(data[i][0]).trim();
     const sub = String(data[i][1] || '').trim();
     if (qId && sub) {
       let docs = [];
@@ -603,25 +963,19 @@ function getRespuestasMap() {
   return map;
 }
 
-/**
- * Guarda o actualiza la respuesta a una pregunta (con AUTOSAVE y cálculo automático de riesgo residual).
- * ENFORCES SERVER-SIDE SECURITY SCOPE CHECK.
- */
-function guardarRespuesta(payload) {
-  const user = assertAuthenticatedUser();
-  const qId = Number(payload.questionId);
+function guardarRespuesta(token, payload) {
+  const user = assertAuthenticatedUser(token);
+  const qId = String(payload.questionId).trim();
   if (!qId) throw new Error('ID de pregunta inválido.');
 
-  // Validar permisos server-side
   const asignacionesMap = getAsignacionesMap();
   const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
   if (user.role === 'USER') {
-    if (subAsignada.toLowerCase().trim() !== user.subdireccion.toLowerCase().trim()) {
+    const userSub = (user.subdireccion || '').toLowerCase().trim();
+    if (subAsignada.toLowerCase().trim() !== userSub) {
       throw new Error('ACCESO DENEGADO (403): La pregunta No. ' + qId + ' no está asignada a su Subdirección.');
     }
-  } else if (user.role === 'ADMIN') {
-    // El admin puede responder si está en SIN_ASIGNAR o responder a nombre de la subdirección
   }
 
   const subdireccionFinal = subAsignada;
@@ -629,7 +983,6 @@ function guardarRespuesta(payload) {
   const evidenciaTextual = payload.evidenciaTextual || '';
   const observaciones = payload.observaciones || '';
 
-  // AUTO-CÁLCULO DEL NIVEL DE RIESGO RESIDUAL
   const nivelRiesgo = RIESGO_MAP[respuesta] || '';
 
   const sheet = getSheetSafe(SHEETS.RESPUESTAS);
@@ -638,7 +991,7 @@ function guardarRespuesta(payload) {
   let oldObj = null;
 
   for (let i = 1; i < data.length; i++) {
-    if (Number(data[i][0]) === qId && String(data[i][1]).trim().toLowerCase() === subdireccionFinal.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subdireccionFinal.toLowerCase()) {
       foundIndex = i + 1;
       let existingDocs = [];
       try { existingDocs = JSON.parse(data[i][4]); } catch (e) {}
@@ -667,10 +1020,10 @@ function guardarRespuesta(payload) {
       observaciones,
       nivelRiesgo,
       user.email,
-      data[foundIndex - 1][8] || now, // Mantener fecha de creación
+      data[foundIndex - 1][8] || now,
       now
     ]]);
-    logAudit('RESPUESTA_GUARDAR', qId, oldObj, { respuesta, evidenciaTextual, observaciones, nivelRiesgo });
+    logAudit('RESPUESTA_GUARDAR', qId, oldObj, { respuesta, evidenciaTextual, observaciones, nivelRiesgo }, user.email);
   } else {
     sheet.appendRow([
       qId,
@@ -684,7 +1037,7 @@ function guardarRespuesta(payload) {
       now,
       now
     ]);
-    logAudit('RESPUESTA_CREAR', qId, null, { respuesta, evidenciaTextual, observaciones, nivelRiesgo });
+    logAudit('RESPUESTA_CREAR', qId, null, { respuesta, evidenciaTextual, observaciones, nivelRiesgo }, user.email);
   }
 
   return {
@@ -698,21 +1051,15 @@ function guardarRespuesta(payload) {
 // SUBIDA Y GESTIÓN DE ARCHIVOS DE EVIDENCIA EN GOOGLE DRIVE
 // ==============================================================================
 
-/**
- * Sube un archivo en formato Base64 a la carpeta adecuada de Google Drive
- * USER: /ControlMachete/{Subdirección}/{QuestionID}/
- * ADMIN: /ControlMachete/ADMIN/{QuestionID}/
- */
-function uploadEvidenceFile(payload) {
-  const user = assertAuthenticatedUser();
-  const qId = Number(payload.questionId);
+function uploadEvidenceFile(token, payload) {
+  const user = assertAuthenticatedUser(token);
+  const qId = String(payload.questionId).trim();
   if (!qId) throw new Error('ID de pregunta inválido.');
 
   const userSub = (user.subdireccion || '').toLowerCase().trim();
   const asignacionesMap = getAsignacionesMap();
   const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
-  // Validar permisos server-side
   if (user.role === 'USER') {
     if (subAsignada.toLowerCase().trim() !== userSub) {
       throw new Error('ACCESO DENEGADO (403): No tiene permiso para adjuntar archivos en esta pregunta.');
@@ -721,7 +1068,6 @@ function uploadEvidenceFile(payload) {
 
   const folderSubName = (subAsignada === 'SIN_ASIGNAR' || subAsignada === '') ? 'ADMIN' : cleanFolderName(subAsignada);
 
-  // Obtener/Crear estructura en Drive
   const rootFolder = getOrCreateDriveFolder(ROOT_DRIVE_FOLDER_NAME);
   const subFolder = getOrCreateSubFolder(rootFolder, folderSubName);
   const qFolder = getOrCreateSubFolder(subFolder, 'Pregunta_' + qId);
@@ -735,7 +1081,6 @@ function uploadEvidenceFile(payload) {
   const mimeType = payload.mimeType || 'application/octet-stream';
   const fileBlob = Utilities.newBlob(bytes, mimeType, fileName);
 
-  // Límite de tamaño: 10MB
   if (fileBlob.getBytes().length > 10 * 1024 * 1024) {
     throw new Error('El archivo excede el tamaño máximo permitido de 10 MB.');
   }
@@ -753,13 +1098,12 @@ function uploadEvidenceFile(payload) {
     uploadedAt: new Date().toISOString()
   };
 
-  // Actualizar en la hoja RESPUESTAS
   const sheet = getSheetSafe(SHEETS.RESPUESTAS);
   const data = sheet.getDataRange().getValues();
   let foundIndex = -1;
 
   for (let i = 1; i < data.length; i++) {
-    if (Number(data[i][0]) === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
       foundIndex = i + 1;
       break;
     }
@@ -785,18 +1129,18 @@ function uploadEvidenceFile(payload) {
     sheet.appendRow([
       qId,
       subAsignada,
-      '', // Respuesta
-      '', // EvidenciaTextual
+      '',
+      '',
       JSON.stringify(existingDocs),
-      '', // Observaciones
-      '', // NivelRiesgo
+      '',
+      '',
       user.email,
       now,
       now
     ]);
   }
 
-  logAudit('ARCHIVO_SUBIR', qId, null, fileInfo);
+  logAudit('ARCHIVO_SUBIR', qId, null, fileInfo, user.email);
 
   return {
     success: true,
@@ -806,24 +1150,21 @@ function uploadEvidenceFile(payload) {
   };
 }
 
-/**
- * Elimina un archivo de evidencia
- */
-function deleteEvidenceFile(qIdRaw, fileId) {
-  const user = assertAuthenticatedUser();
-  const qId = Number(qIdRaw);
+function deleteEvidenceFile(token, qIdRaw, fileId) {
+  const user = assertAuthenticatedUser(token);
+  const qId = String(qIdRaw).trim();
   if (!qId || !fileId) throw new Error('Parámetros inválidos.');
 
   const asignacionesMap = getAsignacionesMap();
   const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
   if (user.role === 'USER') {
-    if (subAsignada.toLowerCase().trim() !== user.subdireccion.toLowerCase().trim()) {
+    const userSub = (user.subdireccion || '').toLowerCase().trim();
+    if (subAsignada.toLowerCase().trim() !== userSub) {
       throw new Error('ACCESO DENEGADO (403): No puede eliminar archivos de esta pregunta.');
     }
   }
 
-  // Eliminar en Drive
   try {
     const file = DriveApp.getFileById(fileId);
     file.setTrashed(true);
@@ -831,13 +1172,12 @@ function deleteEvidenceFile(qIdRaw, fileId) {
     Logger.log('Archivo no encontrado en Drive o ya eliminado: ' + e.toString());
   }
 
-  // Eliminar de la hoja Respuestas
   const sheet = getSheetSafe(SHEETS.RESPUESTAS);
   const data = sheet.getDataRange().getValues();
   let updatedList = [];
 
   for (let i = 1; i < data.length; i++) {
-    if (Number(data[i][0]) === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
       let docs = [];
       try { docs = JSON.parse(data[i][4]); } catch (e) {}
       if (Array.isArray(docs)) {
@@ -849,7 +1189,7 @@ function deleteEvidenceFile(qIdRaw, fileId) {
     }
   }
 
-  logAudit('ARCHIVO_ELIMINAR', qId, fileId, null);
+  logAudit('ARCHIVO_ELIMINAR', qId, fileId, null, user.email);
 
   return {
     success: true,
@@ -864,17 +1204,13 @@ function cleanFolderName(name) {
 
 function getOrCreateDriveFolder(folderName) {
   const folders = DriveApp.getFoldersByName(folderName);
-  if (folders.hasNext()) {
-    return folders.next();
-  }
+  if (folders.hasNext()) return folders.next();
   return DriveApp.createFolder(folderName);
 }
 
 function getOrCreateSubFolder(parentFolder, subFolderName) {
   const folders = parentFolder.getFoldersByName(subFolderName);
-  if (folders.hasNext()) {
-    return folders.next();
-  }
+  if (folders.hasNext()) return folders.next();
   return parentFolder.createFolder(subFolderName);
 }
 
@@ -882,30 +1218,35 @@ function getOrCreateSubFolder(parentFolder, subFolderName) {
 // INDICADORES Y DASHBOARD GLOBAL (ADMIN)
 // ==============================================================================
 
-/**
- * Genera todas las métricas para el Dashboard Global del Administrador
- */
-function getDashboardIndicatorsAdmin() {
-  assertAdmin();
+function getDashboardIndicatorsAdmin(token, filtroLote) {
+  assertAdmin(token);
 
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
 
-  const totalPreguntas = pData.length - 1; // 61
+  let totalPreguntas = 0;
   let totalRespondidasGlobal = 0;
 
   let unassignedTotal = 0;
   let unassignedRespondidas = 0;
 
-  const subMap = {}; // subName -> { total: 0, respondidas: 0, respuestasRiesgo: {Alto:0, Medio:0, Bajo:0, NoAplica:0} }
-  const componenteMap = {}; // compName -> { total: 0, respondidas: 0, distribucion: {Sí:0, Parcial:0, No:0, NoAplica:0} }
+  const subMap = {};
+  const componenteMap = {};
 
   for (let i = 1; i < pData.length; i++) {
-    const qId = Number(pData[i][0]);
+    const qId = String(pData[i][0]).trim();
     if (!qId) continue;
 
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+
+    // Filtro por lote si se especifica
+    if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+      continue;
+    }
+
+    totalPreguntas++;
     const componente = pData[i][1] || 'Sin Componente';
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
@@ -970,11 +1311,8 @@ function getDashboardIndicatorsAdmin() {
   };
 }
 
-/**
- * Obtiene el listado completo de preguntas no respondidas o filtradas para la tabla de detalle Admin
- */
-function getDetallePreguntasAdmin(filtroSubdireccion, filtroComponente) {
-  assertAdmin();
+function getDetallePreguntasAdmin(token, filtroSubdireccion, filtroComponente, filtroLote) {
+  assertAdmin(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
   const asignacionesMap = getAsignacionesMap();
@@ -983,10 +1321,16 @@ function getDetallePreguntasAdmin(filtroSubdireccion, filtroComponente) {
   const list = [];
 
   for (let i = 1; i < pData.length; i++) {
-    const qId = Number(pData[i][0]);
+    const qId = String(pData[i][0]).trim();
     if (!qId) continue;
 
     const comp = pData[i][1];
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+
+    if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+      continue;
+    }
+
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
     if (filtroSubdireccion && filtroSubdireccion !== 'TODAS') {
@@ -1008,6 +1352,7 @@ function getDetallePreguntasAdmin(filtroSubdireccion, filtroComponente) {
       pregunta: pData[i][3],
       fundamentoLegal: pData[i][4],
       subdireccionSugerida: pData[i][5] || '',
+      loteId: loteId,
       subdireccionAsignada: subAsignada,
       respuesta: respObj ? respObj.respuesta : 'PENDIENTE',
       evidenciaTextual: respObj ? respObj.evidenciaTextual : '',
@@ -1022,11 +1367,8 @@ function getDetallePreguntasAdmin(filtroSubdireccion, filtroComponente) {
   return list;
 }
 
-/**
- * Exporta la matriz completa de respuestas a una nueva Hoja de Google Sheets
- */
-function exportarMatrizRespuestasSheet() {
-  assertAdmin();
+function exportarMatrizRespuestasSheet(token, filtroLote) {
+  assertAdmin(token);
 
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
@@ -1038,6 +1380,7 @@ function exportarMatrizRespuestasSheet() {
 
   const headers = [
     'No. ID',
+    'Lote ID',
     'Componente',
     'Principio',
     'Pregunta',
@@ -1056,8 +1399,13 @@ function exportarMatrizRespuestasSheet() {
 
   const rows = [];
   for (let i = 1; i < pData.length; i++) {
-    const qId = Number(pData[i][0]);
+    const qId = String(pData[i][0]).trim();
     if (!qId) continue;
+
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+    if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+      continue;
+    }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
     const respKey = qId + '_' + subAsignada;
@@ -1070,6 +1418,7 @@ function exportarMatrizRespuestasSheet() {
 
     rows.push([
       qId,
+      loteId,
       pData[i][1],
       pData[i][2],
       pData[i][3],
@@ -1090,7 +1439,6 @@ function exportarMatrizRespuestasSheet() {
     sheet.autoResizeColumns(1, headers.length);
   }
 
-  // Permitir lectura a cualquier persona con el enlace
   DriveApp.getFileById(newSs.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   return {
@@ -1104,15 +1452,17 @@ function exportarMatrizRespuestasSheet() {
 // FUNCIÓN DE INICIALIZACIÓN / POBLADO DE LA BASE DE DATOS (SEEDING)
 // ==============================================================================
 
-/**
- * Función de configuración inicial y sembrado de las 61 preguntas COSO y Subdirecciones.
- * Se puede ejecutar directamente desde la consola de Apps Script.
- */
 function seedDatabase() {
   const ss = getSpreadsheet();
   initDatabaseStructure(ss);
 
-  // 1. Sembrar Preguntas (61 preguntas COSO)
+  // 1. Lotes iniciales
+  const lotesSheet = getSheetSafe(SHEETS.LOTES);
+  lotesSheet.clear();
+  initSheetHeader(lotesSheet, SHEETS.LOTES);
+  lotesSheet.appendRow(['LOTE_INICIAL', 'Lote Inicial', 'Evaluación COSO 61 preguntas inicial', new Date(), 'SISTEMA', true]);
+
+  // 2. Sembrar Preguntas (61 preguntas COSO)
   const pSheet = getSheetSafe(SHEETS.PREGUNTAS);
   pSheet.clear();
   initSheetHeader(pSheet, SHEETS.PREGUNTAS);
@@ -1124,11 +1474,12 @@ function seedDatabase() {
     q.principio,
     q.pregunta,
     q.fundamento,
-    q.subdireccionSugerida || ''
+    q.subdireccionSugerida || '',
+    'LOTE_INICIAL'
   ]);
-  pSheet.getRange(2, 1, pRows.length, 6).setValues(pRows);
+  pSheet.getRange(2, 1, pRows.length, 7).setValues(pRows);
 
-  // 2. Sembrar Subdirecciones Únicas extraídas de la columna sugerida
+  // 3. Sembrar Subdirecciones Únicas
   const subSet = new Set();
   rawQuestions.forEach(q => {
     if (q.subdireccionSugerida && q.subdireccionSugerida.trim()) {
@@ -1145,13 +1496,13 @@ function seedDatabase() {
     subSheet.getRange(2, 1, subRows.length, 2).setValues(subRows);
   }
 
-  // 3. Pre-poblar Asignaciones basadas en la sugerencia por defecto
+  // 4. Pre-poblar Asignaciones basadas en la sugerencia por defecto
   const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
   asigSheet.clear();
   initSheetHeader(asigSheet, SHEETS.ASIGNACIONES);
 
   const now = new Date();
-  const adminEmail = getEffectiveUserEmail() || 'ADMIN_SEED';
+  const adminEmail = 'admin@merida.gob.mx';
   const asigRows = rawQuestions.map(q => [
     q.id,
     (q.subdireccionSugerida && q.subdireccionSugerida.trim()) ? q.subdireccionSugerida.trim() : 'SIN_ASIGNAR',
@@ -1160,18 +1511,15 @@ function seedDatabase() {
   ]);
   asigSheet.getRange(2, 1, asigRows.length, 4).setValues(asigRows);
 
-  // 4. Asegurar usuario Admin actual
+  // 5. Asegurar usuario Admin por defecto
   const userSheet = getSheetSafe(SHEETS.USUARIOS);
-  if (userSheet.getLastRow() <= 1) {
-    userSheet.appendRow([adminEmail, 'Administrador Inicial', '', 'ADMIN', 'ACTIVO']);
-  }
+  userSheet.clear();
+  initSheetHeader(userSheet, SHEETS.USUARIOS);
+  userSheet.appendRow([adminEmail, 'Administrador General', '', 'ADMIN', 'ACTIVO', hashPassword('admin123')]);
 
   return 'Base de datos de Control Machete sembrada e inicializada exitosamente con 61 preguntas COSO.';
 }
 
-/**
- * Catálogo completo de las 61 preguntas COSO - Control Machete
- */
 function get61CosoQuestionsData() {
   return [
     // Componente 1: Ambiente de Control (Preguntas 1 a 12)

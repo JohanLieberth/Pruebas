@@ -12,19 +12,13 @@
 
   <div id="user-no-questions-msg" class="alert alert-info text-center my-4" style="display: none;">
     <i class="fa-solid fa-circle-info fa-2x mb-2"></i>
-    <h5>No hay preguntas asignadas a su Subdirección actualmente.</h5>
+    <h5>No hay preguntas asignadas a su Subdirección actualmente en lotes activos.</h5>
     <p>Contacte al Administrador del Sistema para la asignación correspondiente.</p>
   </div>
 </div>
 
 <script>
   let userQuestionsData = [];
-
-  document.addEventListener('DOMContentLoaded', function() {
-    if (USER_ROLE === 'USER') {
-      cargarCuestionarioUsuario(false);
-    }
-  });
 
   function cargarCuestionarioUsuario(modoAdminMisPreguntas) {
     const spinner = document.getElementById('user-loading-spinner');
@@ -44,9 +38,9 @@
       })
       .withFailureHandler(function(err) {
         if (spinner) spinner.style.display = 'none';
-        alert('Error al cargar preguntas: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .getPreguntasParaUsuario(modoAdminMisPreguntas);
+      .getPreguntasParaUsuario(currentSessionToken, modoAdminMisPreguntas);
   }
 
   function renderizarCuestionarioAccordion(data, container, emptyMsg, modoAdmin) {
@@ -112,7 +106,7 @@
       return `
         <div class="card mb-4 border-start border-4 border-primary shadow-sm" id="qcard-${q.id}">
           <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-            <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id}</span>
+            <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id} <small class="text-muted">(${q.loteId})</small></span>
             <div>
               <span class="badge bg-info text-dark me-2">${q.subdireccionAsignada}</span>
               <span class="badge badge-risk-${nivelRiesgo.replace(/\s+/g, '')}" id="badge-risk-${q.id}">
@@ -132,7 +126,7 @@
                 <!-- Dropdown Respuesta -->
                 <div class="col-md-4">
                   <label class="form-label fw-bold text-dark">Respuesta <span class="text-danger">*</span></label>
-                  <select class="form-select border-primary" id="select-resp-${q.id}" onchange="onRespuestaChange(${q.id}, ${compIdx})">
+                  <select class="form-select border-primary" id="select-resp-${q.id}" onchange="onRespuestaChange('${q.id}', ${compIdx})">
                     <option value="" ${!respVal ? 'selected' : ''}>-- Seleccione --</option>
                     <option value="Sí" ${respVal === 'Sí' ? 'selected' : ''}>Sí</option>
                     <option value="Parcial" ${respVal === 'Parcial' ? 'selected' : ''}>Parcial</option>
@@ -157,13 +151,13 @@
                 <!-- Evidencia Textual -->
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual</label>
-                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="triggerAutosave(${q.id})">${evidenciaTextual}</textarea>
+                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="triggerAutosave('${q.id}')">${evidenciaTextual}</textarea>
                 </div>
 
                 <!-- Observaciones -->
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones</label>
-                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" placeholder="Comentarios adicionales o aclaraciones..." oninput="triggerAutosave(${q.id})">${observaciones}</textarea>
+                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" placeholder="Comentarios adicionales o aclaraciones..." oninput="triggerAutosave('${q.id}')">${observaciones}</textarea>
                 </div>
 
                 <!-- Evidencia Documental (Subida de Archivos) -->
@@ -171,7 +165,7 @@
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-paperclip me-1"></i> Evidencia Documental (PDF, Imágenes, Word, Excel - Máx 10MB)</label>
                   <div class="d-flex gap-2 mb-2">
                     <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
-                    <button class="btn btn-outline-primary px-3" type="button" onclick="subirArchivoEvidencia(${q.id})">
+                    <button class="btn btn-outline-primary px-3" type="button" onclick="subirArchivoEvidencia('${q.id}')">
                       <i class="fa-solid fa-upload me-1"></i> Adjuntar
                     </button>
                   </div>
@@ -199,7 +193,7 @@
         <a href="${f.url}" target="_blank" class="text-decoration-none text-primary fw-semibold">
           <i class="fa-solid fa-file-lines me-1"></i> ${f.name}
         </a>
-        <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidencia(${qId}, '${f.id}')">
+        <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidencia('${qId}', '${f.id}')">
           <i class="fa-solid fa-trash"></i>
         </button>
       </li>
@@ -264,9 +258,9 @@
         if (statusSave) {
           statusSave.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Error al guardar';
         }
-        showToast('Error: ' + err.message, 'bg-danger');
+        manejarErrorSesion(err);
       })
-      .guardarRespuesta(payload);
+      .guardarRespuesta(currentSessionToken, payload);
   }
 
   function subirArchivoEvidencia(qId) {
@@ -306,12 +300,12 @@
           showToast('Archivo adjuntado con éxito.', 'bg-success');
         })
         .withFailureHandler(function(err) {
-          alert('Error al subir archivo: ' + err.message);
+          manejarErrorSesion(err);
           if (docsContainer) {
             docsContainer.innerHTML = '<span class="text-danger">Error al subir archivo.</span>';
           }
         })
-        .uploadEvidenceFile(payload);
+        .uploadEvidenceFile(currentSessionToken, payload);
     };
 
     reader.onerror = function() {
@@ -340,9 +334,9 @@
         showToast('Archivo eliminado.', 'bg-info');
       })
       .withFailureHandler(function(err) {
-        alert('Error al eliminar archivo: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .deleteEvidenceFile(qId, fileId);
+      .deleteEvidenceFile(currentSessionToken, qId, fileId);
   }
 
   function actualizarIndicadorAvanceUsuario(data) {

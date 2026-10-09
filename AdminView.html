@@ -1,10 +1,15 @@
-<!-- AdminView.html - Dashboard, Gestor de Asignaciones y Administración -->
+<!-- AdminView.html - Dashboard, Gestor de Asignaciones, Lotes y Administración -->
 
 <!-- VISTA 1: DASHBOARD GLOBAL CON INDICADORES -->
 <div id="admin-dashboard-root">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="text-primary m-0"><i class="fa-solid fa-chart-pie me-2"></i> Dashboard Global de Control Interno</h4>
-    <button class="btn btn-success fw-bold shadow-sm" onclick="exportarMatrizRespuestas()"><i class="fa-solid fa-file-excel me-2"></i> Exportar Matriz a Google Sheets</button>
+    <div class="d-flex gap-2 align-items-center">
+      <select class="form-select form-select-sm fw-bold border-primary" id="dash-filtro-lote" onchange="cargarDashboardIndicatorsAdmin()" style="max-width: 260px;">
+        <option value="TODOS">-- Todos los Lotes / Proyectos --</option>
+      </select>
+      <button class="btn btn-success fw-bold shadow-sm" onclick="exportarMatrizRespuestas()"><i class="fa-solid fa-file-excel me-2"></i> Exportar Matriz a Google Sheets</button>
+    </div>
   </div>
 
   <!-- TARJETAS KPI -->
@@ -14,7 +19,7 @@
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <h6 class="text-uppercase mb-1">Total Preguntas</h6>
-            <h2 class="m-0 fw-bold" id="kpi-total-preguntas">61</h2>
+            <h2 class="m-0 fw-bold" id="kpi-total-preguntas">0</h2>
           </div>
           <i class="fa-solid fa-list-check fa-3x opacity-50"></i>
         </div>
@@ -110,6 +115,7 @@
           <thead class="table-light sticky-top">
             <tr>
               <th style="width: 50px;">No.</th>
+              <th>Lote</th>
               <th>Componente</th>
               <th>Pregunta</th>
               <th>Subdirección Asignada</th>
@@ -119,7 +125,7 @@
             </tr>
           </thead>
           <tbody id="tbody-dash-detalle">
-            <tr><td colspan="7" class="text-center text-muted py-3">Cargando tabla de detalle...</td></tr>
+            <tr><td colspan="8" class="text-center text-muted py-3">Cargando tabla de detalle...</td></tr>
           </tbody>
         </table>
       </div>
@@ -127,16 +133,11 @@
   </div>
 </div>
 
-<!-- TEMPLATE CONTENEDOR PARA LAS OTRAS SECCIONES ADMIN -->
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    if (USER_ROLE === 'ADMIN') {
-      cargarDashboardIndicatorsAdmin();
-      cargarSubdireccionesCatalog();
-    }
-  });
-
   function cargarDashboardIndicatorsAdmin() {
+    poblarSelectorLotesDashboard();
+    const filtroLote = document.getElementById('dash-filtro-lote').value;
+
     google.script.run
       .withSuccessHandler(function(res) {
         document.getElementById('kpi-total-preguntas').innerText = res.kpis.totalPreguntas;
@@ -152,9 +153,26 @@
         cargarDetallePreguntasDashboard();
       })
       .withFailureHandler(function(err) {
-        alert('Error al obtener indicadores del dashboard: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .getDashboardIndicatorsAdmin();
+      .getDashboardIndicatorsAdmin(currentSessionToken, filtroLote);
+  }
+
+  function poblarSelectorLotesDashboard() {
+    google.script.run
+      .withSuccessHandler(function(lotes) {
+        const select = document.getElementById('dash-filtro-lote');
+        const currentVal = select.value;
+        select.innerHTML = '<option value="TODOS">-- Todos los Lotes / Proyectos --</option>';
+        lotes.forEach(l => {
+          const opt = document.createElement('option');
+          opt.value = l.loteId;
+          opt.textContent = `${l.nombreLote} (${l.loteId})`;
+          select.appendChild(opt);
+        });
+        if (currentVal) select.value = currentVal;
+      })
+      .getLotesListAdmin(currentSessionToken);
   }
 
   function renderizarProgresoSubdirecciones(subMap) {
@@ -230,14 +248,15 @@
   function cargarDetallePreguntasDashboard() {
     const subSel = document.getElementById('filtro-dash-subdireccion').value;
     const compSel = document.getElementById('filtro-dash-componente').value;
+    const loteSel = document.getElementById('dash-filtro-lote').value;
     const tbody = document.getElementById('tbody-dash-detalle');
 
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Filtrando registros...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Filtrando registros...</td></tr>';
 
     google.script.run
       .withSuccessHandler(function(list) {
         if (!list || list.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No se encontraron preguntas con los filtros seleccionados.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No se encontraron preguntas con los filtros seleccionados.</td></tr>';
           return;
         }
 
@@ -250,9 +269,10 @@
           return `
             <tr>
               <td class="fw-bold">${q.id}</td>
+              <td><small class="badge bg-secondary">${q.loteId}</small></td>
               <td><small>${q.componente}</small></td>
               <td><span class="fw-semibold">${q.pregunta}</span></td>
-              <td><span class="badge bg-secondary">${q.subdireccionAsignada}</span></td>
+              <td><span class="badge bg-info text-dark">${q.subdireccionAsignada}</span></td>
               <td><span class="badge ${q.respuesta === 'Sí' ? 'bg-success' : q.respuesta === 'No' ? 'bg-danger' : q.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${q.respuesta}</span></td>
               <td><span class="badge badge-risk-${q.nivelRiesgo.replace(/\s+/g, '')}">${q.nivelRiesgo || 'N/A'}</span></td>
               <td>${docsHtml}</td>
@@ -261,23 +281,9 @@
         }).join('');
       })
       .withFailureHandler(function(err) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center py-3">Error: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-3">Error: ${err.message}</td></tr>`;
       })
-      .getDetallePreguntasAdmin(subSel, compSel);
-  }
-
-  function cargarSubdireccionesCatalog() {
-    google.script.run
-      .withSuccessHandler(function(subs) {
-        const selectDash = document.getElementById('filtro-dash-subdireccion');
-        subs.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s;
-          opt.textContent = s;
-          selectDash.appendChild(opt);
-        });
-      })
-      .getSubdireccionesList();
+      .getDetallePreguntasAdmin(currentSessionToken, subSel, compSel, loteSel);
   }
 
   function irAMisPreguntasAdmin() {
@@ -290,6 +296,7 @@
   }
 
   function exportarMatrizRespuestas() {
+    const filtroLote = document.getElementById('dash-filtro-lote').value;
     if (!confirm('¿Desea generar y exportar la Matriz Completa de Respuestas a una nueva Hoja de Google Sheets?')) return;
 
     showToast('Generando reporte Excel...', 'bg-info');
@@ -299,9 +306,9 @@
         window.open(res.url, '_blank');
       })
       .withFailureHandler(function(err) {
-        alert('Error al exportar matriz: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .exportarMatrizRespuestasSheet();
+      .exportarMatrizRespuestasSheet(currentSessionToken, filtroLote);
   }
 
   // ==============================================================================
@@ -312,12 +319,18 @@
     container.innerHTML = `
       <div class="card shadow-sm p-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="text-primary m-0"><i class="fa-solid fa-tasks me-2"></i> Gestor de Asignaciones de Preguntas (61 COSO)</h4>
+          <h4 class="text-primary m-0"><i class="fa-solid fa-tasks me-2"></i> Gestor de Asignaciones de Preguntas</h4>
           <span class="badge bg-dark fs-6" id="asig-counter-badge">Cargando contadores...</span>
         </div>
 
         <!-- FILTROS Y ACCIONES MASIVAS -->
         <div class="row g-3 bg-light p-3 rounded border mb-3">
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Filtrar por Lote / Proyecto</label>
+            <select class="form-select form-select-sm" id="asig-filtro-lote" onchange="cargarListaAsignacionesServer()">
+              <option value="TODOS">-- Todos los Lotes --</option>
+            </select>
+          </div>
           <div class="col-md-3">
             <label class="form-label fw-bold">Filtrar por Componente</label>
             <select class="form-select form-select-sm" id="asig-filtro-comp" onchange="aplicarFiltrosTablaAsignaciones()">
@@ -329,20 +342,20 @@
               <option value="5. Supervisión y Mejora Continua">5. Supervisión y Mejora Continua</option>
             </select>
           </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Filtrar por Asignación</label>
+          <div class="col-md-2">
+            <label class="form-label fw-bold">Estado</label>
             <select class="form-select form-select-sm" id="asig-filtro-estado" onchange="aplicarFiltrosTablaAsignaciones()">
-              <option value="TODAS">-- Todas las Asignaciones --</option>
-              <option value="ASIGNADAS">Asignadas a Subdirecciones</option>
-              <option value="SIN_ASIGNAR">Sin Asignar (Responde Admin)</option>
+              <option value="TODAS">-- Todas --</option>
+              <option value="ASIGNADAS">Asignadas</option>
+              <option value="SIN_ASIGNAR">Sin Asignar</option>
             </select>
           </div>
-          <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
-            <select class="form-select form-select-sm border-primary" id="asig-bulk-subdireccion" style="max-width: 280px;">
-              <option value="SIN_ASIGNAR">Sin Asignar (Responde Administrador)</option>
+          <div class="col-md-4 d-flex align-items-end justify-content-end gap-2">
+            <select class="form-select form-select-sm border-primary" id="asig-bulk-subdireccion">
+              <option value="SIN_ASIGNAR">Sin Asignar (Responde Admin)</option>
             </select>
             <button class="btn btn-primary btn-sm fw-bold" onclick="ejecutarAsignacionMasiva()">
-              <i class="fa-solid fa-check-double me-1"></i> Asignar Seleccionadas
+              <i class="fa-solid fa-check-double me-1"></i> Asignar
             </button>
           </div>
         </div>
@@ -354,6 +367,7 @@
               <tr>
                 <th style="width: 40px;"><input type="checkbox" id="chk-asig-all" onchange="toggleSelectAllAsignaciones(this)"></th>
                 <th style="width: 50px;">No.</th>
+                <th>Lote</th>
                 <th>Componente</th>
                 <th>Principio (Resumido)</th>
                 <th>Pregunta</th>
@@ -362,23 +376,46 @@
               </tr>
             </thead>
             <tbody id="tbody-asignaciones">
-              <tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando catálogo de 61 preguntas...</td></tr>
+              <tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando catálogo de preguntas...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     `;
 
+    poblarOpcionesSubdireccionesAsig();
+    poblarSelectorLotesAsignaciones();
+    cargarListaAsignacionesServer();
+  }
+
+  function poblarSelectorLotesAsignaciones() {
+    google.script.run
+      .withSuccessHandler(function(lotes) {
+        const select = document.getElementById('asig-filtro-lote');
+        if (select) {
+          select.innerHTML = '<option value="TODOS">-- Todos los Lotes --</option>';
+          lotes.forEach(l => {
+            const opt = document.createElement('option');
+            opt.value = l.loteId;
+            opt.textContent = `${l.nombreLote} (${l.loteId})`;
+            select.appendChild(opt);
+          });
+        }
+      })
+      .getLotesListAdmin(currentSessionToken);
+  }
+
+  function cargarListaAsignacionesServer() {
+    const loteSel = document.getElementById('asig-filtro-lote') ? document.getElementById('asig-filtro-lote').value : 'TODOS';
     google.script.run
       .withSuccessHandler(function(preguntas) {
         window.preguntasAsigMaster = preguntas;
-        poblarOpcionesSubdireccionesAsig();
         renderizarTablaAsignaciones(preguntas);
       })
       .withFailureHandler(function(err) {
-        alert('Error al obtener preguntas para asignación: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .getPreguntasConAsignacionAdmin();
+      .getPreguntasConAsignacionAdmin(currentSessionToken, loteSel);
   }
 
   function poblarOpcionesSubdireccionesAsig() {
@@ -395,7 +432,7 @@
           });
         }
       })
-      .getSubdireccionesList();
+      .getSubdireccionesList(currentSessionToken);
   }
 
   function renderizarTablaAsignaciones(preguntas) {
@@ -418,7 +455,7 @@
     }
 
     if (!preguntas || preguntas.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No hay preguntas registradas.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No hay preguntas registradas.</td></tr>';
       return;
     }
 
@@ -437,12 +474,13 @@
         <tr>
           <td><input type="checkbox" class="chk-asig-item" value="${q.id}"></td>
           <td class="fw-bold">${q.id}</td>
+          <td><small class="badge bg-secondary">${q.loteId}</small></td>
           <td><small>${q.componente}</small></td>
-          <td><small class="text-muted" title="${q.principio}">${truncateString(q.principio, 35)}</small></td>
-          <td><span class="fw-semibold" title="${q.pregunta}">${truncateString(q.pregunta, 60)}</span></td>
+          <td><small class="text-muted" title="${q.principio}">${truncateString(q.principio, 30)}</small></td>
+          <td><span class="fw-semibold" title="${q.pregunta}">${truncateString(q.pregunta, 50)}</span></td>
           <td><small class="text-secondary">${q.subdireccionSugerida || '<em>Sin sugerencia</em>'}</small></td>
           <td>
-            <select class="form-select form-select-sm ${isUnassigned ? 'border-warning bg-light-warning' : 'border-success'}" onchange="guardarAsignacionIndividual(${q.id}, this.value)">
+            <select class="form-select form-select-sm ${isUnassigned ? 'border-warning bg-light-warning' : 'border-success'}" onchange="guardarAsignacionIndividual('${q.id}', this.value)">
               ${selectOptions}
             </select>
           </td>
@@ -480,12 +518,12 @@
     google.script.run
       .withSuccessHandler(function(res) {
         showToast('Asignación actualizada.', 'bg-success');
-        cargarAsignacionesAdmin();
+        cargarListaAsignacionesServer();
       })
       .withFailureHandler(function(err) {
-        alert('Error al guardar asignación: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .guardarAsignacionesPreguntas([qId], nuevaSub);
+      .guardarAsignacionesPreguntas(currentSessionToken, [qId], nuevaSub);
   }
 
   function ejecutarAsignacionMasiva() {
@@ -496,7 +534,7 @@
     }
 
     const targetSub = document.getElementById('asig-bulk-subdireccion').value;
-    const ids = Array.from(selectedChks).map(c => Number(c.value));
+    const ids = Array.from(selectedChks).map(c => c.value);
 
     if (!confirm(`¿Está seguro de reasignar ${ids.length} preguntas a "${targetSub}"?`)) return;
 
@@ -504,12 +542,12 @@
     google.script.run
       .withSuccessHandler(function(res) {
         showToast(res.message, 'bg-success');
-        cargarAsignacionesAdmin();
+        cargarListaAsignacionesServer();
       })
       .withFailureHandler(function(err) {
-        alert('Error en asignación masiva: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .guardarAsignacionesPreguntas(ids, targetSub);
+      .guardarAsignacionesPreguntas(currentSessionToken, ids, targetSub);
   }
 
   function truncateString(str, num) {
@@ -518,7 +556,297 @@
   }
 
   // ==============================================================================
-  // VISTA 3: MIS PREGUNTAS (ADMIN)
+  // CAMBIO 2: VISTA 3: GESTIÓN DE LOTES Y CARGA MASIVA DE PREGUNTAS (ADMIN)
+  // ==============================================================================
+  function cargarLotesModuloAdmin() {
+    const container = document.getElementById('lotes-container');
+    container.innerHTML = `
+      <div class="row g-4">
+        <!-- LISTADO DE LOTES -->
+        <div class="col-md-12">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <h5 class="m-0 text-primary fw-bold"><i class="fa-solid fa-layer-group me-2"></i> Lotes y Proyectos de Preguntas</h5>
+              <button class="btn btn-primary btn-sm fw-bold" onclick="abrirModalCargaMasiva()"><i class="fa-solid fa-file-import me-1"></i> Nueva Carga Masiva de Preguntas</button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle m-0 small">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Lote ID</th>
+                      <th>Nombre del Lote</th>
+                      <th>Descripción</th>
+                      <th>Creado Por</th>
+                      <th>Total Preguntas</th>
+                      <th>% Avance</th>
+                      <th>Estado</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-lotes-list">
+                    <tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lotes...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL CARGA MASIVA / NUEVO LOTE -->
+      <div class="modal fade" id="modalCargaMasiva" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title"><i class="fa-solid fa-cloud-arrow-up me-2"></i> Carga Masiva de Preguntas</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Nombre del Lote / Proyecto <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="bulk-lote-nombre" placeholder="Ej. Evaluación Control Interno 2025" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Descripción del Lote</label>
+                  <input type="text" class="form-control" id="bulk-lote-desc" placeholder="Comentarios o alcance de este lote...">
+                </div>
+              </div>
+
+              <div class="card bg-light p-3 mb-3">
+                <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-paste me-2"></i> Pegar Texto o CSV (No. | Componente | Principio | Pregunta | Fundamento)</h6>
+                <textarea class="form-control mb-2" id="bulk-paste-area" rows="5" placeholder="Pegue filas copiadas de Excel o CSV separadas por tabuladores o comas. Ejemplo:
+1	1. Ambiente de Control	Principio 1: Ética	¿Se cuenta con código de conducta?	Reglamento Interior"></textarea>
+                <div class="d-flex justify-content-between">
+                  <small class="text-muted">Formato requerido: No. [Tab] Componente [Tab] Principio [Tab] Pregunta [Tab] Fundamento</small>
+                  <button class="btn btn-sm btn-secondary fw-bold" onclick="procesarTextoIngresado()"><i class="fa-solid fa-magnifying-glass me-1"></i> Validar y Previsualizar Tabla</button>
+                </div>
+              </div>
+
+              <!-- VISTA PREVIA Y TABLA EDITABLE -->
+              <div id="bulk-preview-wrapper" style="display:none;">
+                <h6 class="fw-bold text-primary mb-2"><i class="fa-solid fa-table me-2"></i> Vista Previa de Filas a Importar</h6>
+                <div id="bulk-validation-msg" class="alert py-2 mb-2 small"></div>
+                <div class="table-responsive" style="max-height: 300px;">
+                  <table class="table table-bordered table-sm align-middle small">
+                    <thead class="table-dark">
+                      <tr>
+                        <th style="width: 60px;">No.</th>
+                        <th>Componente</th>
+                        <th>Principio</th>
+                        <th>Pregunta <span class="text-danger">*</span></th>
+                        <th>Fundamento Legal / Normativo</th>
+                        <th>Subdirección Sugerida</th>
+                        <th style="width: 80px;">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbody-bulk-preview"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-success fw-bold" id="btn-confirm-bulk" disabled onclick="confirmarGuardadoCargaMasiva()">
+                <i class="fa-solid fa-cloud-arrow-up me-1"></i> Confirmar y Guardar Lote
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    renderizarTablaLotesAdmin();
+  }
+
+  function renderizarTablaLotesAdmin() {
+    google.script.run
+      .withSuccessHandler(function(lotes) {
+        const tbody = document.getElementById('tbody-lotes-list');
+        if (!tbody) return;
+
+        if (!lotes || lotes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No hay lotes registrados.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = lotes.map(l => `
+          <tr>
+            <td class="fw-bold">${l.loteId}</td>
+            <td class="fw-semibold">${l.nombreLote}</td>
+            <td><small class="text-muted">${l.descripcion || 'Sin descripción'}</small></td>
+            <td><small>${l.creadoPor}</small></td>
+            <td class="text-center fw-bold">${l.totalPreguntas}</td>
+            <td class="text-center"><span class="badge bg-info text-dark">${l.avancePct}%</span></td>
+            <td class="text-center"><span class="badge ${l.activo ? 'bg-success' : 'bg-secondary'}">${l.activo ? 'Activo' : 'Inactivo'}</span></td>
+            <td>
+              <button class="btn btn-sm ${l.activo ? 'btn-outline-danger' : 'btn-outline-success'} me-1" onclick="toggleEstadoLote('${l.loteId}', ${!l.activo})" title="Cambiar Estado">
+                <i class="fa-solid ${l.activo ? 'fa-eye-slash' : 'fa-eye'}"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="eliminarLoteModal('${l.loteId}')" title="Eliminar Lote">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .getLotesListAdmin(currentSessionToken);
+  }
+
+  function toggleEstadoLote(loteId, active) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        renderizarTablaLotesAdmin();
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .toggleLoteEstado(currentSessionToken, loteId, active);
+  }
+
+  function eliminarLoteModal(loteId) {
+    if (!confirm(`¿Está seguro de eliminar el lote ${loteId}? Solo se podrá eliminar si no tiene respuestas registradas.`)) return;
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        renderizarTablaLotesAdmin();
+      })
+      .withFailureHandler(function(err) {
+        alert('No se pudo eliminar el lote: ' + err.message);
+      })
+      .eliminarLoteAdmin(currentSessionToken, loteId);
+  }
+
+  function abrirModalCargaMasiva() {
+    document.getElementById('bulk-lote-nombre').value = '';
+    document.getElementById('bulk-lote-desc').value = '';
+    document.getElementById('bulk-paste-area').value = '';
+    document.getElementById('bulk-preview-wrapper').style.display = 'none';
+    document.getElementById('btn-confirm-bulk').disabled = true;
+
+    window.parsedBulkRows = [];
+
+    const modal = new bootstrap.Modal(document.getElementById('modalCargaMasiva'));
+    modal.show();
+  }
+
+  function procesarTextoIngresado() {
+    const rawText = document.getElementById('bulk-paste-area').value.trim();
+    if (!rawText) {
+      alert('Por favor ingrese o pegue texto para validar.');
+      return;
+    }
+
+    const lines = rawText.split('\n');
+    const parsed = [];
+    let validCount = 0;
+    let invalidCount = 0;
+
+    lines.forEach((line, idx) => {
+      if (!line.trim()) return;
+      // Detectar separador por tabulación \t o coma
+      let parts = line.split('\t');
+      if (parts.length < 3) parts = line.split(',');
+
+      const noVal = (parts[0] || '').trim();
+      const compVal = (parts[1] || '').trim();
+      const prinVal = (parts[2] || '').trim();
+      const pregVal = (parts[3] || '').trim();
+      const fundVal = (parts[4] || '').trim();
+      const subVal = (parts[5] || '').trim();
+
+      const isValid = (pregVal.length > 0);
+      if (isValid) validCount++; else invalidCount++;
+
+      parsed.push({
+        no: noVal || (idx + 1),
+        componente: compVal || 'Sin Componente',
+        principio: prinVal || 'Sin Principio',
+        pregunta: pregVal,
+        fundamento: fundVal,
+        subdireccionSugerida: subVal,
+        isValid: isValid
+      });
+    });
+
+    window.parsedBulkRows = parsed;
+
+    const wrapper = document.getElementById('bulk-preview-wrapper');
+    const msg = document.getElementById('bulk-validation-msg');
+    const tbody = document.getElementById('tbody-bulk-preview');
+    const btnConfirm = document.getElementById('btn-confirm-bulk');
+
+    wrapper.style.display = 'block';
+
+    if (invalidCount > 0) {
+      msg.className = 'alert alert-warning py-2 mb-2 small';
+      msg.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i> Se encontraron ${validCount} filas válidas y ${invalidCount} filas con errores (Pregunta vacía). Permite guardar únicamente las filas válidas.`;
+    } else {
+      msg.className = 'alert alert-success py-2 mb-2 small';
+      msg.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> Todas las ${validCount} filas son válidas.`;
+    }
+
+    tbody.innerHTML = parsed.map((r, i) => `
+      <tr class="${r.isValid ? '' : 'table-danger'}">
+        <td><input type="text" class="form-control form-control-sm py-0" value="${r.no}" onchange="window.parsedBulkRows[${i}].no = this.value"></td>
+        <td><input type="text" class="form-control form-control-sm py-0" value="${r.componente}" onchange="window.parsedBulkRows[${i}].componente = this.value"></td>
+        <td><input type="text" class="form-control form-control-sm py-0" value="${r.principio}" onchange="window.parsedBulkRows[${i}].principio = this.value"></td>
+        <td><input type="text" class="form-control form-control-sm py-0 ${r.isValid ? '' : 'is-invalid'}" value="${r.pregunta}" onchange="window.parsedBulkRows[${i}].pregunta = this.value"></td>
+        <td><input type="text" class="form-control form-control-sm py-0" value="${r.fundamento}" onchange="window.parsedBulkRows[${i}].fundamento = this.value"></td>
+        <td><input type="text" class="form-control form-control-sm py-0" value="${r.subdireccionSugerida}" onchange="window.parsedBulkRows[${i}].subdireccionSugerida = this.value"></td>
+        <td class="text-center">${r.isValid ? '<span class="badge bg-success">Válida</span>' : '<span class="badge bg-danger">Inválida</span>'}</td>
+      </tr>
+    `).join('');
+
+    btnConfirm.disabled = (validCount === 0);
+  }
+
+  function confirmarGuardadoCargaMasiva() {
+    const nombreLote = document.getElementById('bulk-lote-nombre').value.trim();
+    const descLote = document.getElementById('bulk-lote-desc').value.trim();
+
+    if (!nombreLote) {
+      alert('Por favor proporcione un nombre para el Lote/Proyecto.');
+      return;
+    }
+
+    const validRows = (window.parsedBulkRows || []).filter(r => r.pregunta && r.pregunta.trim() !== '');
+    if (validRows.length === 0) {
+      alert('No hay filas válidas con texto de Pregunta para guardar.');
+      return;
+    }
+
+    const payload = {
+      nombreLote: nombreLote,
+      descripcionLote: descLote,
+      preguntas: validRows
+    };
+
+    showToast('Guardando nuevo lote y preguntas...', 'bg-info');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        const modalEl = document.getElementById('modalCargaMasiva');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        renderizarTablaLotesAdmin();
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .cargarMasivaPreguntas(currentSessionToken, payload);
+  }
+
+  // ==============================================================================
+  // VISTA 4: MIS PREGUNTAS (ADMIN)
   // ==============================================================================
   function cargarPreguntasUserAdmin() {
     const container = document.getElementById('admin-mis-preguntas-container');
@@ -535,7 +863,7 @@
   }
 
   // ==============================================================================
-  // VISTA 4: USUARIOS Y SUBDIRECCIONES (ADMIN)
+  // VISTA 5: USUARIOS Y SUBDIRECCIONES (ADMIN)
   // ==============================================================================
   function cargarUsuariosAdmin() {
     const container = document.getElementById('usuarios-container');
@@ -558,7 +886,7 @@
                       <th>Subdirección</th>
                       <th>Rol</th>
                       <th>Estado</th>
-                      <th>Acción</th>
+                      <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody id="tbody-usuarios-list">
@@ -591,7 +919,7 @@
         </div>
       </div>
 
-      <!-- MODAL USUARIO -->
+      <!-- MODAL USUARIO CON CONTRASEÑA -->
       <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -608,6 +936,10 @@
                 <div class="mb-3">
                   <label class="form-label fw-bold">Nombre Completo <span class="text-danger">*</span></label>
                   <input type="text" class="form-control" id="u-name" required placeholder="Nombre Apellido">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Contraseña <small class="text-muted">(Dejar en blanco para no modificar)</small></label>
+                  <input type="password" class="form-control" id="u-password" placeholder="••••••••">
                 </div>
                 <div class="mb-3">
                   <label class="form-label fw-bold">Subdirección Asignada</label>
@@ -669,7 +1001,10 @@
           </tr>
         `).join('');
       })
-      .getUsuariosAdmin();
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .getUsuariosAdmin(currentSessionToken);
   }
 
   function renderizarListaSubdireccionesCrud() {
@@ -697,13 +1032,14 @@
           `).join('');
         }
       })
-      .getSubdireccionesList();
+      .getSubdireccionesList(currentSessionToken);
   }
 
   function abrirModalUsuario() {
     document.getElementById('u-email').value = '';
     document.getElementById('u-email').readOnly = false;
     document.getElementById('u-name').value = '';
+    document.getElementById('u-password').value = '';
     document.getElementById('u-subdireccion').value = '';
     document.getElementById('u-role').value = 'USER';
     document.getElementById('u-active').checked = true;
@@ -719,6 +1055,7 @@
     document.getElementById('u-email').value = user.email;
     document.getElementById('u-email').readOnly = true;
     document.getElementById('u-name').value = user.name;
+    document.getElementById('u-password').value = '';
     document.getElementById('u-subdireccion').value = user.subdireccion || '';
     document.getElementById('u-role').value = user.role;
     document.getElementById('u-active').checked = user.active;
@@ -732,6 +1069,7 @@
     const userData = {
       email: document.getElementById('u-email').value,
       name: document.getElementById('u-name').value,
+      password: document.getElementById('u-password').value,
       subdireccion: document.getElementById('u-subdireccion').value,
       role: document.getElementById('u-role').value,
       active: document.getElementById('u-active').checked
@@ -746,9 +1084,9 @@
         renderizarTablaUsuarios();
       })
       .withFailureHandler(function(err) {
-        alert('Error al guardar usuario: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .saveUsuarioAdmin(userData);
+      .saveUsuarioAdmin(currentSessionToken, userData);
   }
 
   function toggleEstadoUsuario(email, active) {
@@ -758,9 +1096,9 @@
         renderizarTablaUsuarios();
       })
       .withFailureHandler(function(err) {
-        alert('Error al cambiar estado de usuario: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .toggleUsuarioEstado(email, active);
+      .toggleUsuarioEstado(currentSessionToken, email, active);
   }
 
   function guardarNuevaSubdireccion(e) {
@@ -775,8 +1113,8 @@
         renderizarListaSubdireccionesCrud();
       })
       .withFailureHandler(function(err) {
-        alert('Error al agregar subdirección: ' + err.message);
+        manejarErrorSesion(err);
       })
-      .saveSubdireccionAdmin(nombre);
+      .saveSubdireccionAdmin(currentSessionToken, nombre);
   }
 </script>
