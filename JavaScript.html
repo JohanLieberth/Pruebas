@@ -1,5 +1,6 @@
 <script>
   // Global State
+  const OSORIO_ICON_SRC = "<?!= include('OsorioIcon'); ?>";
   let adminPassword = "";
   let isAuthenticated = false;
   let participantesActivos = [];
@@ -58,14 +59,27 @@
       .calcularClasificacion();
   }
 
+  function getOsorioIconsHtml(numIcons) {
+    if (!numIcons || numIcons <= 0) return '';
+    let html = '<span class="osorio-icons-container" title="Cada vez más Osorio">';
+    for (let i = 0; i < numIcons; i++) {
+      html += `<img src="${OSORIO_ICON_SRC}" alt="Osorio" class="osorio-icon-img">`;
+    }
+    html += '</span>';
+    return html;
+  }
+
   function renderizarLeaderboard(leaderboard) {
     const tbody = document.getElementById('leaderboard-body');
     const winnerBanner = document.getElementById('winner-banner-container');
+    const osorioListUl = document.getElementById('osorio-list');
     tbody.innerHTML = '';
+    if (osorioListUl) osorioListUl.innerHTML = '';
 
     if (!leaderboard || leaderboard.length === 0) {
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">No hay participantes registrados o activos aún.</td></tr>';
       winnerBanner.style.display = 'none';
+      if (osorioListUl) osorioListUl.innerHTML = '<li style="font-size:0.85rem; color:#888;">Sin participantes registrados.</li>';
       return;
     }
 
@@ -80,7 +94,18 @@
       winnerBanner.style.display = 'none';
     }
 
-    leaderboard.forEach(item => {
+    const N = leaderboard.length;
+    // Asignar mapa de íconos Osorio según la posición final
+    // N-1 (Último) = 3 íconos
+    // N-2 (Penúltimo) = 2 íconos
+    // N-3 (Antepenúltimo) = 1 ícono
+    const osorioMap = {};
+    if (N >= 1) osorioMap[N - 1] = 3;
+    if (N >= 2) osorioMap[N - 2] = 2;
+    if (N >= 3) osorioMap[N - 3] = 1;
+
+    // Renderizar Filas de Tabla Leaderboard
+    leaderboard.forEach((item, index) => {
       const tr = document.createElement('tr');
       if (item.posicion === 1) tr.className = 'pos-1';
       else if (item.posicion === 2) tr.className = 'pos-2';
@@ -95,9 +120,12 @@
         ? `<span class="badge-cat sedentario">Sedentario</span>`
         : `<span class="badge-cat activo">Activo</span>`;
 
+      const numOsorio = osorioMap[index] || 0;
+      const osorioIconsHtml = getOsorioIconsHtml(numOsorio);
+
       tr.innerHTML = `
         <td style="text-align:center;">${medalla}</td>
-        <td><strong>${escapeHtml(item.nombre)}</strong> ${catBadge}</td>
+        <td><strong>${escapeHtml(item.nombre)}</strong> ${catBadge} ${osorioIconsHtml}</td>
         <td>${item.pctPesoPerdido.toFixed(2)}%</td>
         <td>${item.cmCinturaReducidos.toFixed(1)} cm</td>
         <td><strong>${item.puntajeFinal.toFixed(2)} pts</strong></td>
@@ -109,6 +137,41 @@
       `;
       tbody.appendChild(tr);
     });
+
+    // Renderizar Panel Lateral "Cada vez más Osorio" (Salón de la Infamia)
+    // Mostramos del antepenúltimo al último o en orden de infamia (último primero)
+    if (osorioListUl) {
+      const osorioIndices = [];
+      if (N >= 3) osorioIndices.push(N - 3); // Antepenúltimo (1 icono)
+      if (N >= 2) osorioIndices.push(N - 2); // Penúltimo (2 iconos)
+      if (N >= 1) osorioIndices.push(N - 1); // Último (3 iconos)
+
+      // Ordenar para mostrar el último lugar arriba (3 iconos)
+      osorioIndices.reverse();
+
+      osorioIndices.forEach(idx => {
+        const item = leaderboard[idx];
+        const numIcons = osorioMap[idx];
+        const iconsHtml = getOsorioIconsHtml(numIcons);
+        const li = document.createElement('li');
+        li.className = 'osorio-item';
+
+        let tituloLugar = "Último Lugar";
+        if (idx === N - 2) tituloLugar = "Penúltimo Lugar";
+        else if (idx === N - 3) tituloLugar = "Antepenúltimo Lugar";
+
+        li.innerHTML = `
+          <div class="osorio-item-header">
+            <span class="osorio-item-name">#${item.posicion} ${escapeHtml(item.nombre)}</span>
+            ${iconsHtml}
+          </div>
+          <div class="osorio-item-details">
+            <strong>${tituloLugar}</strong> • Puntaje: ${item.puntajeFinal.toFixed(2)} pts
+          </div>
+        `;
+        osorioListUl.appendChild(li);
+      });
+    }
   }
 
   function renderizarEstadisticas(stats) {
@@ -240,7 +303,6 @@
     document.getElementById('edit-nombre').value = part.nombre || "";
     document.getElementById('edit-edad').value = part.edad || "";
     document.getElementById('edit-sexo').value = part.sexo || "";
-    // Precargar campo opcional email exactamente con su valor o string vacío si no existe
     document.getElementById('edit-email').value = part.email || "";
     document.getElementById('edit-estatura').value = part.estatura || "";
     document.getElementById('edit-peso').value = part.pesoInicial || "";
@@ -258,7 +320,7 @@
     document.getElementById('modal-editar-participante').style.display = 'none';
   }
 
-  // Guardar Edición de Participante (permite email vacío por ser opcional)
+  // Guardar Edición de Participante
   function guardarEdicionParticipante(e) {
     e.preventDefault();
     if (!isAuthenticated) return;
@@ -269,7 +331,7 @@
       nombreCompleto: document.getElementById('edit-nombre').value,
       edad: document.getElementById('edit-edad').value,
       sexo: document.getElementById('edit-sexo').value,
-      email: document.getElementById('edit-email').value, // OPCIONAL
+      email: document.getElementById('edit-email').value,
       estatura: document.getElementById('edit-estatura').value,
       pesoInicial: document.getElementById('edit-peso').value,
       cinturaInicial: document.getElementById('edit-cintura').value,
@@ -316,7 +378,7 @@
       .actualizarParticipante(datos, adminPassword);
   }
 
-  // Guardar Nuevo Participante (el campo email es OPCIONAL)
+  // Guardar Nuevo Participante
   function guardarParticipante(e) {
     e.preventDefault();
     if (!isAuthenticated) return;
@@ -326,7 +388,7 @@
       nombreCompleto: document.getElementById('reg-nombre').value,
       edad: document.getElementById('reg-edad').value,
       sexo: document.getElementById('reg-sexo').value,
-      email: document.getElementById('reg-email').value, // OPCIONAL
+      email: document.getElementById('reg-email').value,
       estatura: document.getElementById('reg-estatura').value,
       pesoInicial: document.getElementById('reg-peso').value,
       cinturaInicial: document.getElementById('reg-cintura').value,
@@ -334,7 +396,6 @@
       categoria: document.getElementById('reg-categoria').value
     };
 
-    // Validaciones de cliente (Email NO es obligatorio)
     if (!datos.nombreCompleto || datos.edad === "" || !datos.sexo || !datos.estatura || !datos.pesoInicial || !datos.cinturaInicial || !datos.fechaInicio || !datos.categoria) {
       mostrarMensaje('alert-reg-participante', 'Por favor completa todos los campos obligatorios.', 'danger');
       return;

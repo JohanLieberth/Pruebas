@@ -57,31 +57,46 @@
         <div id="winner-details" class="winner-score">-</div>
       </div>
 
-      <!-- Tabla de Clasificación -->
-      <div class="card">
-        <div class="card-title">
-          <span>🏆 Clasificación General de Competidores</span>
+      <!-- Grid Principal: Tabla de Posiciones + Panel Lateral "Cada vez más Osorio" (Salón de la Infamia) -->
+      <div class="leaderboard-grid-layout">
+        <!-- Tabla de Clasificación -->
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title">
+            <span>🏆 Clasificación General de Competidores</span>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align:center; width: 60px;">Pos</th>
+                  <th>Participante</th>
+                  <th>% Peso Perdido</th>
+                  <th>Cintura Red.</th>
+                  <th>Puntaje Total</th>
+                  <th>Detalles Check-Ins</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-body">
+                <tr>
+                  <td colspan="6" style="text-align:center; padding: 20px;">Cargando tabla de posiciones...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th style="text-align:center; width: 60px;">Pos</th>
-                <th>Participante</th>
-                <th>% Peso Perdido</th>
-                <th>Cintura Red.</th>
-                <th>Puntaje Total</th>
-                <th>Detalles Check-Ins</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboard-body">
-              <tr>
-                <td colspan="6" style="text-align:center; padding: 20px;">Cargando tabla de posiciones...</td>
-              </tr>
-            </tbody>
-          </table>
+
+        <!-- Panel Lateral "Cada vez más Osorio" (Salón de la Infamia) -->
+        <div id="osorio-panel-container" class="osorio-panel">
+          <div class="panel-title">
+            <span>🦋 Cada vez más Osorio</span>
+          </div>
+          <p style="font-size: 0.8rem; color: #777; margin-bottom: 12px;">Salón de la infamia - Reconocimiento especial para los últimos 3 lugares:</p>
+          <ul id="osorio-list" class="osorio-list">
+            <li style="font-size:0.85rem; color:#888;">Cargando...</li>
+          </ul>
         </div>
       </div>
+
     </div>
 
     <!-- VISTA ADMIN: PROTEGIDA POR CONTRASEÑA -->

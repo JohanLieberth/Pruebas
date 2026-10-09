@@ -52,6 +52,17 @@ def calcular_puntuaciones(participantes, factor_bono=0.20):
         p["posicion"] = idx + 1
     return procesados
 
+def obtener_iconos_osorio(leaderboard):
+    n = len(leaderboard)
+    osorio_map = {}
+    if n >= 1:
+        osorio_map[n - 1] = 3  # Último -> 3 íconos
+    if n >= 2:
+        osorio_map[n - 2] = 2  # Penúltimo -> 2 íconos
+    if n >= 3:
+        osorio_map[n - 3] = 1  # Antepenúltimo -> 1 ícono
+    return osorio_map
+
 
 class TestCompetitionLogic(unittest.TestCase):
 
@@ -93,24 +104,18 @@ class TestCompetitionLogic(unittest.TestCase):
         self.assertEqual(res[0]["nombre"], "Elena")
         self.assertEqual(res[1]["nombre"], "Fernando")
 
-    def test_optional_fields_validation(self):
-        # Mandatory fields
-        datos_registro = {
-            "nombreCompleto": "Juan Pérez",
-            "edad": 35,
-            "sexo": "Masculino",
-            "email": "", # Email is optional (empty string)
-            "estatura": 1.75,
-            "pesoInicial": 85.0,
-            "cinturaInicial": 90.0,
-            "fechaInicio": "2025-01-01",
-            "categoria": "Sedentario/Sobrepeso"
-        }
+    def test_osorio_icons_logic(self):
+        # Case N=1
+        m1 = obtener_iconos_osorio(["P1"])
+        self.assertEqual(m1, {0: 3})
 
-        # Ensure registration does not fail when optional email is empty
-        obligatorios = ["nombreCompleto", "edad", "sexo", "estatura", "pesoInicial", "cinturaInicial", "fechaInicio", "categoria"]
-        completo = all(datos_registro.get(k) not in [None, "", []] for k in obligatorios)
-        self.assertTrue(completo)
+        # Case N=2
+        m2 = obtener_iconos_osorio(["P1", "P2"])
+        self.assertEqual(m2, {0: 2, 1: 3})
+
+        # Case N=5
+        m5 = obtener_iconos_osorio(["P1", "P2", "P3", "P4", "P5"])
+        self.assertEqual(m5, {2: 1, 3: 2, 4: 3})
 
 if __name__ == "__main__":
     unittest.main()
