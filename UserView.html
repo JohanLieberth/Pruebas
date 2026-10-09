@@ -1,0 +1,359 @@
+<div id="user-questionnaire-root">
+  <div class="text-center my-4" id="user-loading-spinner">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando preguntas...</span>
+    </div>
+    <p class="mt-2 text-muted">Cargando cuestionario asignado...</p>
+  </div>
+
+  <div id="user-questions-accordion" class="accordion my-3" style="display: none;">
+    <!-- Acordeón generado dinámicamente por componente -->
+  </div>
+
+  <div id="user-no-questions-msg" class="alert alert-info text-center my-4" style="display: none;">
+    <i class="fa-solid fa-circle-info fa-2x mb-2"></i>
+    <h5>No hay preguntas asignadas a su Subdirección actualmente.</h5>
+    <p>Contacte al Administrador del Sistema para la asignación correspondiente.</p>
+  </div>
+</div>
+
+<script>
+  let userQuestionsData = [];
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (USER_ROLE === 'USER') {
+      cargarCuestionarioUsuario(false);
+    }
+  });
+
+  function cargarCuestionarioUsuario(modoAdminMisPreguntas) {
+    const spinner = document.getElementById('user-loading-spinner');
+    const accordion = document.getElementById('user-questions-accordion');
+    const noQMsg = document.getElementById('user-no-questions-msg');
+
+    if (spinner) spinner.style.display = 'block';
+    if (accordion) accordion.style.display = 'none';
+    if (noQMsg) noQMsg.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        if (spinner) spinner.style.display = 'none';
+        userQuestionsData = data;
+        renderizarCuestionarioAccordion(data, accordion, noQMsg, modoAdminMisPreguntas);
+        actualizarIndicadorAvanceUsuario(data);
+      })
+      .withFailureHandler(function(err) {
+        if (spinner) spinner.style.display = 'none';
+        alert('Error al cargar preguntas: ' + err.message);
+      })
+      .getPreguntasParaUsuario(modoAdminMisPreguntas);
+  }
+
+  function renderizarCuestionarioAccordion(data, container, emptyMsg, modoAdmin) {
+    if (!data || data.length === 0) {
+      if (emptyMsg) emptyMsg.style.display = 'block';
+      return;
+    }
+
+    if (container) container.style.display = 'block';
+    container.innerHTML = '';
+
+    // Agrupar por Componente
+    const grupos = {};
+    data.forEach(q => {
+      const comp = q.componente || 'Sin Componente';
+      if (!grupos[comp]) grupos[comp] = [];
+      grupos[comp].push(q);
+    });
+
+    let compIdx = 0;
+    for (const compName in grupos) {
+      compIdx++;
+      const preguntasComp = grupos[compName];
+      const respCompCount = preguntasComp.filter(p => p.respuestaData && p.respuestaData.respuesta).length;
+      const pctComp = Math.round((respCompCount / preguntasComp.length) * 100);
+
+      const collapseId = 'collapseComp_' + compIdx;
+      const headerId = 'headingComp_' + compIdx;
+
+      const cardHtml = `
+        <div class="accordion-item mb-3 border rounded shadow-sm">
+          <h2 class="accordion-header" id="${headerId}">
+            <button class="accordion-button ${compIdx > 1 ? 'collapsed' : ''} bg-light text-primary fw-bold fs-5" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
+              <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                <span><i class="fa-solid fa-folder-open me-2"></i> ${compName}</span>
+                <span class="badge bg-secondary fs-6" id="badge-comp-pct-${compIdx}">${respCompCount}/${preguntasComp.length} (${pctComp}%)</span>
+              </div>
+            </button>
+          </h2>
+          <div id="${collapseId}" class="accordion-collapse collapse ${compIdx === 1 ? 'show' : ''}" data-bs-parent="#user-questions-accordion">
+            <div class="accordion-body bg-white">
+              <div class="progress mb-3" style="height: 10px;">
+                <div class="progress-bar bg-success" role="progressbar" id="progress-bar-comp-${compIdx}" style="width: ${pctComp}%;"></div>
+              </div>
+              ${renderizarListaPreguntasCards(preguntasComp, compIdx)}
+            </div>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', cardHtml);
+    }
+  }
+
+  function renderizarListaPreguntasCards(preguntas, compIdx) {
+    return preguntas.map(q => {
+      const rData = q.respuestaData || {};
+      const respVal = rData.respuesta || '';
+      const evidenciaTextual = rData.evidenciaTextual || '';
+      const observaciones = rData.observaciones || '';
+      const nivelRiesgo = rData.nivelRiesgo || '';
+      const docs = rData.evidenciaDocumental || [];
+
+      return `
+        <div class="card mb-4 border-start border-4 border-primary shadow-sm" id="qcard-${q.id}">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+            <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id}</span>
+            <div>
+              <span class="badge bg-info text-dark me-2">${q.subdireccionAsignada}</span>
+              <span class="badge badge-risk-${nivelRiesgo.replace(/\s+/g, '')}" id="badge-risk-${q.id}">
+                ${nivelRiesgo ? 'Riesgo: ' + nivelRiesgo : 'Sin Responder'}
+              </span>
+            </div>
+          </div>
+          <div class="card-body">
+            <h6 class="text-secondary small fw-bold mb-1"><i class="fa-solid fa-bookmark me-1"></i> ${q.principio}</h6>
+            <p class="card-text fs-6 fw-semibold text-dark mb-2">${q.pregunta}</p>
+            <p class="small text-muted bg-light p-2 rounded mb-3"><i class="fa-solid fa-scale-balanced me-1"></i> <strong>Fundamento:</strong> ${q.fundamentoLegal || 'N/A'}</p>
+
+            <form id="form-q-${q.id}" onsubmit="return false;">
+              <input type="hidden" name="questionId" value="${q.id}">
+
+              <div class="row g-3">
+                <!-- Dropdown Respuesta -->
+                <div class="col-md-4">
+                  <label class="form-label fw-bold text-dark">Respuesta <span class="text-danger">*</span></label>
+                  <select class="form-select border-primary" id="select-resp-${q.id}" onchange="onRespuestaChange(${q.id}, ${compIdx})">
+                    <option value="" ${!respVal ? 'selected' : ''}>-- Seleccione --</option>
+                    <option value="Sí" ${respVal === 'Sí' ? 'selected' : ''}>Sí</option>
+                    <option value="Parcial" ${respVal === 'Parcial' ? 'selected' : ''}>Parcial</option>
+                    <option value="No" ${respVal === 'No' ? 'selected' : ''}>No</option>
+                    <option value="No Aplica" ${respVal === 'No Aplica' ? 'selected' : ''}>No Aplica</option>
+                  </select>
+                </div>
+
+                <!-- Nivel Riesgo Residual Calculado -->
+                <div class="col-md-4">
+                  <label class="form-label fw-bold text-dark">Nivel de Riesgo Residual</label>
+                  <input type="text" class="form-control bg-light fw-bold" id="input-risk-${q.id}" value="${nivelRiesgo}" readonly placeholder="Auto-calculado">
+                </div>
+
+                <!-- Estado de guardado -->
+                <div class="col-md-4 d-flex align-items-end">
+                  <span class="small text-muted" id="status-save-${q.id}">
+                    ${respVal ? '<i class="fa-solid fa-check text-success me-1"></i> Registrado' : '<i class="fa-solid fa-clock text-warning me-1"></i> Pendiente'}
+                  </span>
+                </div>
+
+                <!-- Evidencia Textual -->
+                <div class="col-md-12">
+                  <label class="form-label fw-bold text-dark"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual</label>
+                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="triggerAutosave(${q.id})">${evidenciaTextual}</textarea>
+                </div>
+
+                <!-- Observaciones -->
+                <div class="col-md-12">
+                  <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones</label>
+                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" placeholder="Comentarios adicionales o aclaraciones..." oninput="triggerAutosave(${q.id})">${observaciones}</textarea>
+                </div>
+
+                <!-- Evidencia Documental (Subida de Archivos) -->
+                <div class="col-md-12">
+                  <label class="form-label fw-bold text-dark"><i class="fa-solid fa-paperclip me-1"></i> Evidencia Documental (PDF, Imágenes, Word, Excel - Máx 10MB)</label>
+                  <div class="d-flex gap-2 mb-2">
+                    <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                    <button class="btn btn-outline-primary px-3" type="button" onclick="subirArchivoEvidencia(${q.id})">
+                      <i class="fa-solid fa-upload me-1"></i> Adjuntar
+                    </button>
+                  </div>
+
+                  <!-- Lista de archivos subidos -->
+                  <div id="docs-list-${q.id}" class="mt-2">
+                    ${renderizarListaDocsHtml(q.id, docs)}
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderizarListaDocsHtml(qId, docs) {
+    if (!docs || docs.length === 0) {
+      return '<small class="text-muted italic"><i class="fa-solid fa-file-circle-xmark me-1"></i> Sin archivos adjuntos.</small>';
+    }
+
+    return '<ul class="list-group list-group-flush border rounded">' + docs.map(f => `
+      <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small">
+        <a href="${f.url}" target="_blank" class="text-decoration-none text-primary fw-semibold">
+          <i class="fa-solid fa-file-lines me-1"></i> ${f.name}
+        </a>
+        <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidencia(${qId}, '${f.id}')">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </li>
+    `).join('') + '</ul>';
+  }
+
+  function onRespuestaChange(qId, compIdx) {
+    const select = document.getElementById('select-resp-' + qId);
+    const val = select.value;
+
+    const riskMap = {
+      'Sí': 'Alto',
+      'Parcial': 'Bajo',
+      'No': 'Medio',
+      'No Aplica': 'No Aplica'
+    };
+
+    const newRisk = riskMap[val] || '';
+    const riskInput = document.getElementById('input-risk-' + qId);
+    if (riskInput) riskInput.value = newRisk;
+
+    const badge = document.getElementById('badge-risk-' + qId);
+    if (badge) {
+      badge.className = 'badge badge-risk-' + newRisk.replace(/\s+/g, '');
+      badge.innerText = newRisk ? 'Riesgo: ' + newRisk : 'Sin Responder';
+    }
+
+    guardarRespuestaServidor(qId);
+  }
+
+  function triggerAutosave(qId) {
+    const statusSave = document.getElementById('status-save-' + qId);
+    if (statusSave) statusSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary me-1"></i> Guardando...';
+
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() {
+      guardarRespuestaServidor(qId);
+    }, 600);
+  }
+
+  function guardarRespuestaServidor(qId) {
+    const respVal = document.getElementById('select-resp-' + qId).value;
+    const evidenciaTextual = document.getElementById('text-evidencia-' + qId).value;
+    const observaciones = document.getElementById('text-obs-' + qId).value;
+    const statusSave = document.getElementById('status-save-' + qId);
+
+    const payload = {
+      questionId: qId,
+      respuesta: respVal,
+      evidenciaTextual: evidenciaTextual,
+      observaciones: observaciones
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (statusSave) {
+          statusSave.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i> Guardado ✓';
+        }
+        showToast('Respuesta de pregunta ' + qId + ' guardada.', 'bg-success');
+      })
+      .withFailureHandler(function(err) {
+        if (statusSave) {
+          statusSave.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Error al guardar';
+        }
+        showToast('Error: ' + err.message, 'bg-danger');
+      })
+      .guardarRespuesta(payload);
+  }
+
+  function subirArchivoEvidencia(qId) {
+    const fileInput = document.getElementById('file-input-' + qId);
+    const file = fileInput.files[0];
+    if (!file) {
+      alert('Por favor seleccione un archivo antes de adjuntar.');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('El archivo excede el tamaño máximo permitido de 10 MB.');
+      return;
+    }
+
+    const docsContainer = document.getElementById('docs-list-' + qId);
+    if (docsContainer) {
+      docsContainer.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div> Procesando y subiendo archivo a Google Drive...';
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result.split(',')[1];
+      const payload = {
+        questionId: qId,
+        fileName: file.name,
+        mimeType: file.type,
+        base64Data: base64Data
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          fileInput.value = '';
+          if (docsContainer) {
+            docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles);
+          }
+          showToast('Archivo adjuntado con éxito.', 'bg-success');
+        })
+        .withFailureHandler(function(err) {
+          alert('Error al subir archivo: ' + err.message);
+          if (docsContainer) {
+            docsContainer.innerHTML = '<span class="text-danger">Error al subir archivo.</span>';
+          }
+        })
+        .uploadEvidenceFile(payload);
+    };
+
+    reader.onerror = function() {
+      alert('Error al leer el archivo en el navegador.');
+      if (docsContainer) {
+        docsContainer.innerHTML = '<span class="text-danger">Error al leer archivo local.</span>';
+      }
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function eliminarArchivoEvidencia(qId, fileId) {
+    if (!confirm('¿Está seguro de que desea eliminar este archivo de evidencia?')) return;
+
+    const docsContainer = document.getElementById('docs-list-' + qId);
+    if (docsContainer) {
+      docsContainer.innerHTML = '<div class="spinner-border spinner-border-sm text-danger" role="status"></div> Eliminando...';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (docsContainer) {
+          docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles);
+        }
+        showToast('Archivo eliminado.', 'bg-info');
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al eliminar archivo: ' + err.message);
+      })
+      .deleteEvidenceFile(qId, fileId);
+  }
+
+  function actualizarIndicadorAvanceUsuario(data) {
+    if (!data || data.length === 0) return;
+    const total = data.length;
+    const respondidas = data.filter(q => q.respuestaData && q.respuestaData.respuesta).length;
+    const pct = Math.round((respondidas / total) * 100);
+
+    const badge = document.getElementById('user-progress-badge');
+    if (badge) {
+      badge.innerText = `${respondidas} / ${total} Respondidas (${pct}%)`;
+    }
+  }
+</script>

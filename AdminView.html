@@ -1,0 +1,782 @@
+<!-- AdminView.html - Dashboard, Gestor de Asignaciones y Administración -->
+
+<!-- VISTA 1: DASHBOARD GLOBAL CON INDICADORES -->
+<div id="admin-dashboard-root">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="text-primary m-0"><i class="fa-solid fa-chart-pie me-2"></i> Dashboard Global de Control Interno</h4>
+    <button class="btn btn-success fw-bold shadow-sm" onclick="exportarMatrizRespuestas()"><i class="fa-solid fa-file-excel me-2"></i> Exportar Matriz a Google Sheets</button>
+  </div>
+
+  <!-- TARJETAS KPI -->
+  <div class="row g-3 mb-4" id="admin-kpi-cards">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-uppercase mb-1">Total Preguntas</h6>
+            <h2 class="m-0 fw-bold" id="kpi-total-preguntas">61</h2>
+          </div>
+          <i class="fa-solid fa-list-check fa-3x opacity-50"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-uppercase mb-1">Respondidas</h6>
+            <h2 class="m-0 fw-bold" id="kpi-total-respondidas">0</h2>
+          </div>
+          <i class="fa-solid fa-circle-check fa-3x opacity-50"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-uppercase mb-1">% Avance Global</h6>
+            <h2 class="m-0 fw-bold" id="kpi-avance-pct">0%</h2>
+          </div>
+          <i class="fa-solid fa-chart-line fa-3x opacity-50"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-uppercase mb-1">Pendientes Admin</h6>
+            <h2 class="m-0 fw-bold" id="kpi-unassigned-pending">0</h2>
+          </div>
+          <i class="fa-solid fa-user-clock fa-3x opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TARJETA SEPARADA DE ALERTA DE PREGUNTAS SIN ASIGNAR -->
+  <div class="alert alert-warning border-start border-4 border-warning shadow-sm d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h5 class="alert-heading m-0"><i class="fa-solid fa-triangle-exclamation me-2"></i> Preguntas sin asignar pendientes de respuesta por el Administrador</h5>
+      <p class="m-0 mt-1 small text-dark" id="alert-unassigned-text">Cargando estado de preguntas sin asignar...</p>
+    </div>
+    <button class="btn btn-outline-dark btn-sm fw-bold" onclick="irAMisPreguntasAdmin()"><i class="fa-solid fa-arrow-right me-1"></i> Ir a Responder Mis Preguntas</button>
+  </div>
+
+  <!-- AVANCE POR SUBDIRECCIÓN Y COMPONENTES -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-bold text-primary"><i class="fa-solid fa-building me-2"></i> % Avance por Subdirección Responsable</div>
+        <div class="card-body p-0" id="container-progreso-subdirecciones">
+          <div class="p-3 text-center text-muted">Cargando indicadores...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-bold text-primary"><i class="fa-solid fa-cubes me-2"></i> Distribución de Respuestas por Componente COSO</div>
+        <div class="card-body p-0" id="container-distribucion-componentes">
+          <div class="p-3 text-center text-muted">Cargando indicadores...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLA / LISTA DE DETALLE DE PREGUNTAS FILTRABLES -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="m-0 text-primary fw-bold"><i class="fa-solid fa-magnifying-glass me-2"></i> Consulta y Detalle de Preguntas</h5>
+      <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" id="filtro-dash-subdireccion" onchange="cargarDetallePreguntasDashboard()">
+          <option value="TODAS">-- Todas las Subdirecciones --</option>
+          <option value="SIN_ASIGNAR">Sin Asignar (Admin)</option>
+        </select>
+        <select class="form-select form-select-sm" id="filtro-dash-componente" onchange="cargarDetallePreguntasDashboard()">
+          <option value="TODOS">-- Todos los Componentes --</option>
+          <option value="1. Ambiente de Control">1. Ambiente de Control</option>
+          <option value="2. Evaluación de Riesgos">2. Evaluación de Riesgos</option>
+          <option value="3. Actividades de Control">3. Actividades de Control</option>
+          <option value="4. Información y Comunicación">4. Información y Comunicación</option>
+          <option value="5. Supervisión y Mejora Continua">5. Supervisión y Mejora Continua</option>
+        </select>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive" style="max-height: 450px;">
+        <table class="table table-hover align-middle m-0 small">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th style="width: 50px;">No.</th>
+              <th>Componente</th>
+              <th>Pregunta</th>
+              <th>Subdirección Asignada</th>
+              <th>Respuesta</th>
+              <th>Riesgo Residual</th>
+              <th>Evidencias Documentales</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-dash-detalle">
+            <tr><td colspan="7" class="text-center text-muted py-3">Cargando tabla de detalle...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE CONTENEDOR PARA LAS OTRAS SECCIONES ADMIN -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (USER_ROLE === 'ADMIN') {
+      cargarDashboardIndicatorsAdmin();
+      cargarSubdireccionesCatalog();
+    }
+  });
+
+  function cargarDashboardIndicatorsAdmin() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        document.getElementById('kpi-total-preguntas').innerText = res.kpis.totalPreguntas;
+        document.getElementById('kpi-total-respondidas').innerText = res.kpis.totalRespondidas;
+        document.getElementById('kpi-avance-pct').innerText = res.kpis.avanceGlobalPct + '%';
+        document.getElementById('kpi-unassigned-pending').innerText = res.kpis.unassignedPendientes;
+
+        document.getElementById('alert-unassigned-text').innerText =
+          `Existen ${res.kpis.unassignedTotal} preguntas marcadas como Sin Asignar. De ellas, ${res.kpis.unassignedRespondidas} han sido respondidas y ${res.kpis.unassignedPendientes} están PENDIENTES de respuesta.`;
+
+        renderizarProgresoSubdirecciones(res.subdireccionesProgreso);
+        renderizarDistribucionComponentes(res.componentesProgreso);
+        cargarDetallePreguntasDashboard();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al obtener indicadores del dashboard: ' + err.message);
+      })
+      .getDashboardIndicatorsAdmin();
+  }
+
+  function renderizarProgresoSubdirecciones(subMap) {
+    const container = document.getElementById('container-progreso-subdirecciones');
+    if (!subMap || Object.keys(subMap).length === 0) {
+      container.innerHTML = '<div class="p-3 text-center text-muted">No hay subdirecciones registradas.</div>';
+      return;
+    }
+
+    let html = '<ul class="list-group list-group-flush">';
+    for (const subName in subMap) {
+      const info = subMap[subName];
+      const pct = info.total > 0 ? Math.round((info.respondidas / info.total) * 100) : 0;
+      const isZeroPct = pct === 0;
+
+      html += `
+        <li class="list-group-item p-3 ${isZeroPct ? 'bg-light-danger' : ''}">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold ${isZeroPct ? 'text-danger' : 'text-dark'}">${subName}</span>
+            <span class="badge ${isZeroPct ? 'bg-danger' : 'bg-primary'} fs-6">${info.respondidas} / ${info.total} (${pct}%)</span>
+          </div>
+          <div class="progress" style="height: 8px;">
+            <div class="progress-bar ${isZeroPct ? 'bg-danger' : 'bg-success'}" style="width: ${pct}%"></div>
+          </div>
+          <div class="mt-2 d-flex gap-2 small">
+            <span class="badge badge-risk-Alto">Alto: ${info.riesgo['Alto'] || 0}</span>
+            <span class="badge badge-risk-Medio">Medio: ${info.riesgo['Medio'] || 0}</span>
+            <span class="badge badge-risk-Bajo">Bajo: ${info.riesgo['Bajo'] || 0}</span>
+            <span class="badge badge-risk-NoAplica">N/A: ${info.riesgo['No Aplica'] || 0}</span>
+          </div>
+        </li>
+      `;
+    }
+    html += '</ul>';
+    container.innerHTML = html;
+  }
+
+  function renderizarDistribucionComponentes(compMap) {
+    const container = document.getElementById('container-distribucion-componentes');
+    if (!compMap || Object.keys(compMap).length === 0) {
+      container.innerHTML = '<div class="p-3 text-center text-muted">Sin datos de componentes.</div>';
+      return;
+    }
+
+    let html = '<ul class="list-group list-group-flush">';
+    for (const compName in compMap) {
+      const info = compMap[compName];
+      const pct = info.total > 0 ? Math.round((info.respondidas / info.total) * 100) : 0;
+      const dist = info.distribucion;
+
+      html += `
+        <li class="list-group-item p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold text-dark">${compName}</span>
+            <span class="badge bg-secondary fs-6">${info.respondidas} / ${info.total} (${pct}%)</span>
+          </div>
+          <div class="progress mb-2" style="height: 8px;">
+            <div class="progress-bar bg-info" style="width: ${pct}%"></div>
+          </div>
+          <div class="d-flex gap-2 small">
+            <span class="badge bg-success">Sí: ${dist['Sí'] || 0}</span>
+            <span class="badge bg-warning text-dark">Parcial: ${dist['Parcial'] || 0}</span>
+            <span class="badge bg-danger">No: ${dist['No'] || 0}</span>
+            <span class="badge bg-secondary">No Aplica: ${dist['No Aplica'] || 0}</span>
+          </div>
+        </li>
+      `;
+    }
+    html += '</ul>';
+    container.innerHTML = html;
+  }
+
+  function cargarDetallePreguntasDashboard() {
+    const subSel = document.getElementById('filtro-dash-subdireccion').value;
+    const compSel = document.getElementById('filtro-dash-componente').value;
+    const tbody = document.getElementById('tbody-dash-detalle');
+
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Filtrando registros...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function(list) {
+        if (!list || list.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No se encontraron preguntas con los filtros seleccionados.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = list.map(q => {
+          let docsHtml = '<span class="text-muted small">Sin adjuntos</span>';
+          if (q.evidenciaDocumental && Array.isArray(q.evidenciaDocumental) && q.evidenciaDocumental.length > 0) {
+            docsHtml = q.evidenciaDocumental.map(f => `<a href="${f.url}" target="_blank" class="badge bg-light text-primary border text-decoration-none me-1"><i class="fa-solid fa-paperclip"></i> ${f.name}</a>`).join('');
+          }
+
+          return `
+            <tr>
+              <td class="fw-bold">${q.id}</td>
+              <td><small>${q.componente}</small></td>
+              <td><span class="fw-semibold">${q.pregunta}</span></td>
+              <td><span class="badge bg-secondary">${q.subdireccionAsignada}</span></td>
+              <td><span class="badge ${q.respuesta === 'Sí' ? 'bg-success' : q.respuesta === 'No' ? 'bg-danger' : q.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${q.respuesta}</span></td>
+              <td><span class="badge badge-risk-${q.nivelRiesgo.replace(/\s+/g, '')}">${q.nivelRiesgo || 'N/A'}</span></td>
+              <td>${docsHtml}</td>
+            </tr>
+          `;
+        }).join('');
+      })
+      .withFailureHandler(function(err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center py-3">Error: ${err.message}</td></tr>`;
+      })
+      .getDetallePreguntasAdmin(subSel, compSel);
+  }
+
+  function cargarSubdireccionesCatalog() {
+    google.script.run
+      .withSuccessHandler(function(subs) {
+        const selectDash = document.getElementById('filtro-dash-subdireccion');
+        subs.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          selectDash.appendChild(opt);
+        });
+      })
+      .getSubdireccionesList();
+  }
+
+  function irAMisPreguntasAdmin() {
+    const tabBtn = document.getElementById('tab-mispreguntas-btn');
+    if (tabBtn) {
+      const bsTab = new bootstrap.Tab(tabBtn);
+      bsTab.show();
+      cargarPreguntasUserAdmin();
+    }
+  }
+
+  function exportarMatrizRespuestas() {
+    if (!confirm('¿Desea generar y exportar la Matriz Completa de Respuestas a una nueva Hoja de Google Sheets?')) return;
+
+    showToast('Generando reporte Excel...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast('Exportación exitosa.', 'bg-success');
+        window.open(res.url, '_blank');
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al exportar matriz: ' + err.message);
+      })
+      .exportarMatrizRespuestasSheet();
+  }
+
+  // ==============================================================================
+  // VISTA 2: GESTOR DE ASIGNACIONES (CORE FEATURE)
+  // ==============================================================================
+  function cargarAsignacionesAdmin() {
+    const container = document.getElementById('asignaciones-container');
+    container.innerHTML = `
+      <div class="card shadow-sm p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="text-primary m-0"><i class="fa-solid fa-tasks me-2"></i> Gestor de Asignaciones de Preguntas (61 COSO)</h4>
+          <span class="badge bg-dark fs-6" id="asig-counter-badge">Cargando contadores...</span>
+        </div>
+
+        <!-- FILTROS Y ACCIONES MASIVAS -->
+        <div class="row g-3 bg-light p-3 rounded border mb-3">
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Filtrar por Componente</label>
+            <select class="form-select form-select-sm" id="asig-filtro-comp" onchange="aplicarFiltrosTablaAsignaciones()">
+              <option value="TODOS">-- Todos los Componentes --</option>
+              <option value="1. Ambiente de Control">1. Ambiente de Control</option>
+              <option value="2. Evaluación de Riesgos">2. Evaluación de Riesgos</option>
+              <option value="3. Actividades de Control">3. Actividades de Control</option>
+              <option value="4. Información y Comunicación">4. Información y Comunicación</option>
+              <option value="5. Supervisión y Mejora Continua">5. Supervisión y Mejora Continua</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Filtrar por Asignación</label>
+            <select class="form-select form-select-sm" id="asig-filtro-estado" onchange="aplicarFiltrosTablaAsignaciones()">
+              <option value="TODAS">-- Todas las Asignaciones --</option>
+              <option value="ASIGNADAS">Asignadas a Subdirecciones</option>
+              <option value="SIN_ASIGNAR">Sin Asignar (Responde Admin)</option>
+            </select>
+          </div>
+          <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
+            <select class="form-select form-select-sm border-primary" id="asig-bulk-subdireccion" style="max-width: 280px;">
+              <option value="SIN_ASIGNAR">Sin Asignar (Responde Administrador)</option>
+            </select>
+            <button class="btn btn-primary btn-sm fw-bold" onclick="ejecutarAsignacionMasiva()">
+              <i class="fa-solid fa-check-double me-1"></i> Asignar Seleccionadas
+            </button>
+          </div>
+        </div>
+
+        <!-- TABLA DE ASIGNACIÓN -->
+        <div class="table-responsive">
+          <table class="table table-hover align-middle small">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 40px;"><input type="checkbox" id="chk-asig-all" onchange="toggleSelectAllAsignaciones(this)"></th>
+                <th style="width: 50px;">No.</th>
+                <th>Componente</th>
+                <th>Principio (Resumido)</th>
+                <th>Pregunta</th>
+                <th>Subdirección Sugerida</th>
+                <th>Subdirección Asignada Actual</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-asignaciones">
+              <tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando catálogo de 61 preguntas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    google.script.run
+      .withSuccessHandler(function(preguntas) {
+        window.preguntasAsigMaster = preguntas;
+        poblarOpcionesSubdireccionesAsig();
+        renderizarTablaAsignaciones(preguntas);
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al obtener preguntas para asignación: ' + err.message);
+      })
+      .getPreguntasConAsignacionAdmin();
+  }
+
+  function poblarOpcionesSubdireccionesAsig() {
+    google.script.run
+      .withSuccessHandler(function(subs) {
+        window.catalogSubdirecciones = subs;
+        const bulkSelect = document.getElementById('asig-bulk-subdireccion');
+        if (bulkSelect) {
+          subs.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            bulkSelect.appendChild(opt);
+          });
+        }
+      })
+      .getSubdireccionesList();
+  }
+
+  function renderizarTablaAsignaciones(preguntas) {
+    const tbody = document.getElementById('tbody-asignaciones');
+    const badge = document.getElementById('asig-counter-badge');
+
+    let countAssigned = 0;
+    let countUnassigned = 0;
+
+    preguntas.forEach(q => {
+      if (q.subdireccionAsignada === 'SIN_ASIGNAR' || !q.subdireccionAsignada) {
+        countUnassigned++;
+      } else {
+        countAssigned++;
+      }
+    });
+
+    if (badge) {
+      badge.innerText = `${countAssigned} Asignadas a Subdirecciones | ${countUnassigned} Sin Asignar (Admin)`;
+    }
+
+    if (!preguntas || preguntas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No hay preguntas registradas.</td></tr>';
+      return;
+    }
+
+    const optionsSub = window.catalogSubdirecciones || [];
+
+    tbody.innerHTML = preguntas.map(q => {
+      const isUnassigned = q.subdireccionAsignada === 'SIN_ASIGNAR' || !q.subdireccionAsignada;
+
+      let selectOptions = `<option value="SIN_ASIGNAR" ${isUnassigned ? 'selected' : ''}>Sin Asignar (Responde Administrador)</option>`;
+      optionsSub.forEach(s => {
+        const isSel = String(q.subdireccionAsignada).trim().toLowerCase() === String(s).trim().toLowerCase();
+        selectOptions += `<option value="${s}" ${isSel ? 'selected' : ''}>${s}</option>`;
+      });
+
+      return `
+        <tr>
+          <td><input type="checkbox" class="chk-asig-item" value="${q.id}"></td>
+          <td class="fw-bold">${q.id}</td>
+          <td><small>${q.componente}</small></td>
+          <td><small class="text-muted" title="${q.principio}">${truncateString(q.principio, 35)}</small></td>
+          <td><span class="fw-semibold" title="${q.pregunta}">${truncateString(q.pregunta, 60)}</span></td>
+          <td><small class="text-secondary">${q.subdireccionSugerida || '<em>Sin sugerencia</em>'}</small></td>
+          <td>
+            <select class="form-select form-select-sm ${isUnassigned ? 'border-warning bg-light-warning' : 'border-success'}" onchange="guardarAsignacionIndividual(${q.id}, this.value)">
+              ${selectOptions}
+            </select>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function aplicarFiltrosTablaAsignaciones() {
+    const compSel = document.getElementById('asig-filtro-comp').value;
+    const estSel = document.getElementById('asig-filtro-estado').value;
+
+    let filtradas = window.preguntasAsigMaster || [];
+
+    if (compSel !== 'TODOS') {
+      filtradas = filtradas.filter(q => q.componente === compSel);
+    }
+
+    if (estSel === 'ASIGNADAS') {
+      filtradas = filtradas.filter(q => q.subdireccionAsignada && q.subdireccionAsignada !== 'SIN_ASIGNAR');
+    } else if (estSel === 'SIN_ASIGNAR') {
+      filtradas = filtradas.filter(q => !q.subdireccionAsignada || q.subdireccionAsignada === 'SIN_ASIGNAR');
+    }
+
+    renderizarTablaAsignaciones(filtradas);
+  }
+
+  function toggleSelectAllAsignaciones(masterChk) {
+    const chks = document.querySelectorAll('.chk-asig-item');
+    chks.forEach(c => c.checked = masterChk.checked);
+  }
+
+  function guardarAsignacionIndividual(qId, nuevaSub) {
+    showToast('Actualizando asignación...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast('Asignación actualizada.', 'bg-success');
+        cargarAsignacionesAdmin();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al guardar asignación: ' + err.message);
+      })
+      .guardarAsignacionesPreguntas([qId], nuevaSub);
+  }
+
+  function ejecutarAsignacionMasiva() {
+    const selectedChks = document.querySelectorAll('.chk-asig-item:checked');
+    if (selectedChks.length === 0) {
+      alert('Por favor seleccione al menos una pregunta para la asignación masiva.');
+      return;
+    }
+
+    const targetSub = document.getElementById('asig-bulk-subdireccion').value;
+    const ids = Array.from(selectedChks).map(c => Number(c.value));
+
+    if (!confirm(`¿Está seguro de reasignar ${ids.length} preguntas a "${targetSub}"?`)) return;
+
+    showToast('Procesando asignación masiva...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        cargarAsignacionesAdmin();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error en asignación masiva: ' + err.message);
+      })
+      .guardarAsignacionesPreguntas(ids, targetSub);
+  }
+
+  function truncateString(str, num) {
+    if (!str) return '';
+    return str.length > num ? str.slice(0, num) + '...' : str;
+  }
+
+  // ==============================================================================
+  // VISTA 3: MIS PREGUNTAS (ADMIN)
+  // ==============================================================================
+  function cargarPreguntasUserAdmin() {
+    const container = document.getElementById('admin-mis-preguntas-container');
+    container.innerHTML = `
+      <div class="card shadow-sm p-3 mb-3">
+        <h5 class="text-primary m-0"><i class="fa-solid fa-pen-to-square me-2"></i> Mis Preguntas Pendientes como Administrador</h5>
+        <small class="text-muted">Preguntas marcadas como "Sin Asignar" en las cuales el Administrador funge como responsable directo de responder.</small>
+      </div>
+      <div id="admin-user-questions-root">
+        <div id="user-questions-accordion"></div>
+      </div>
+    `;
+    cargarCuestionarioUsuario(true);
+  }
+
+  // ==============================================================================
+  // VISTA 4: USUARIOS Y SUBDIRECCIONES (ADMIN)
+  // ==============================================================================
+  function cargarUsuariosAdmin() {
+    const container = document.getElementById('usuarios-container');
+    container.innerHTML = `
+      <div class="row g-4">
+        <!-- CRUD USUARIOS -->
+        <div class="col-md-8">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <h5 class="m-0 text-primary fw-bold"><i class="fa-solid fa-users me-2"></i> Padrón de Usuarios</h5>
+              <button class="btn btn-primary btn-sm fw-bold" onclick="abrirModalUsuario()"><i class="fa-solid fa-user-plus me-1"></i> Nuevo Usuario</button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle m-0 small">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Email</th>
+                      <th>Nombre</th>
+                      <th>Subdirección</th>
+                      <th>Rol</th>
+                      <th>Estado</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-usuarios-list">
+                    <tr><td colspan="6" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando usuarios...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CRUD SUBDIRECCIONES -->
+        <div class="col-md-4">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white">
+              <h5 class="m-0 text-primary fw-bold"><i class="fa-solid fa-sitemap me-2"></i> Subdirecciones</h5>
+            </div>
+            <div class="card-body">
+              <form onsubmit="guardarNuevaSubdireccion(event)" class="mb-3">
+                <div class="input-group">
+                  <input type="text" class="form-control form-control-sm" id="input-sub-nombre" placeholder="Nombre de Subdirección..." required>
+                  <button class="btn btn-outline-primary btn-sm fw-bold" type="submit"><i class="fa-solid fa-plus"></i> Agregar</button>
+                </div>
+              </form>
+              <ul class="list-group list-group-flush border rounded" id="ul-subdirecciones-list">
+                <li class="list-group-item text-center text-muted py-2">Cargando subdirecciones...</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL USUARIO -->
+      <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title" id="modalUsuarioTitle"><i class="fa-solid fa-user-gear me-2"></i> Guardar Usuario</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form onsubmit="guardarUsuarioForm(event)">
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Correo Electrónico <span class="text-danger">*</span></label>
+                  <input type="email" class="form-control" id="u-email" required placeholder="usuario@merida.gob.mx">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Nombre Completo <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="u-name" required placeholder="Nombre Apellido">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Subdirección Asignada</label>
+                  <select class="form-select" id="u-subdireccion">
+                    <option value="">-- Ninguna / Administrador --</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Rol en el Sistema</label>
+                  <select class="form-select" id="u-role">
+                    <option value="USER">USER (Operativo de Subdirección)</option>
+                    <option value="ADMIN">ADMIN (Administrador Global)</option>
+                  </select>
+                </div>
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" id="u-active" checked>
+                  <label class="form-check-label fw-bold" for="u-active">Usuario Activo</label>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> Guardar Usuario</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    renderizarTablaUsuarios();
+    renderizarListaSubdireccionesCrud();
+  }
+
+  function renderizarTablaUsuarios() {
+    google.script.run
+      .withSuccessHandler(function(users) {
+        window.usersListMaster = users;
+        const tbody = document.getElementById('tbody-usuarios-list');
+        if (!tbody) return;
+
+        if (!users || users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No hay usuarios registrados.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td class="fw-semibold">${u.email}</td>
+            <td>${u.name}</td>
+            <td><small class="text-muted">${u.subdireccion || 'N/A'}</small></td>
+            <td><span class="badge ${u.role === 'ADMIN' ? 'bg-danger' : 'bg-primary'}">${u.role}</span></td>
+            <td><span class="badge ${u.active ? 'bg-success' : 'bg-secondary'}">${u.active ? 'Activo' : 'Inactivo'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="editarUsuarioObj('${u.email}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-sm ${u.active ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleEstadoUsuario('${u.email}', ${!u.active})">
+                <i class="fa-solid ${u.active ? 'fa-user-xmark' : 'fa-user-check'}"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      })
+      .getUsuariosAdmin();
+  }
+
+  function renderizarListaSubdireccionesCrud() {
+    google.script.run
+      .withSuccessHandler(function(subs) {
+        const ul = document.getElementById('ul-subdirecciones-list');
+        const modalSelect = document.getElementById('u-subdireccion');
+
+        if (modalSelect) {
+          modalSelect.innerHTML = '<option value="">-- Ninguna / Administrador --</option>';
+          subs.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            modalSelect.appendChild(opt);
+          });
+        }
+
+        if (ul) {
+          ul.innerHTML = subs.map(s => `
+            <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3 small fw-semibold">
+              <i class="fa-solid fa-folder-tree text-secondary me-2"></i> ${s}
+              <span class="badge bg-success rounded-pill">Activa</span>
+            </li>
+          `).join('');
+        }
+      })
+      .getSubdireccionesList();
+  }
+
+  function abrirModalUsuario() {
+    document.getElementById('u-email').value = '';
+    document.getElementById('u-email').readOnly = false;
+    document.getElementById('u-name').value = '';
+    document.getElementById('u-subdireccion').value = '';
+    document.getElementById('u-role').value = 'USER';
+    document.getElementById('u-active').checked = true;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function editarUsuarioObj(email) {
+    const user = (window.usersListMaster || []).find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) return;
+
+    document.getElementById('u-email').value = user.email;
+    document.getElementById('u-email').readOnly = true;
+    document.getElementById('u-name').value = user.name;
+    document.getElementById('u-subdireccion').value = user.subdireccion || '';
+    document.getElementById('u-role').value = user.role;
+    document.getElementById('u-active').checked = user.active;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function guardarUsuarioForm(e) {
+    e.preventDefault();
+    const userData = {
+      email: document.getElementById('u-email').value,
+      name: document.getElementById('u-name').value,
+      subdireccion: document.getElementById('u-subdireccion').value,
+      role: document.getElementById('u-role').value,
+      active: document.getElementById('u-active').checked
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        const modalEl = document.getElementById('modalUsuario');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        renderizarTablaUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al guardar usuario: ' + err.message);
+      })
+      .saveUsuarioAdmin(userData);
+  }
+
+  function toggleEstadoUsuario(email, active) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        renderizarTablaUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al cambiar estado de usuario: ' + err.message);
+      })
+      .toggleUsuarioEstado(email, active);
+  }
+
+  function guardarNuevaSubdireccion(e) {
+    e.preventDefault();
+    const input = document.getElementById('input-sub-nombre');
+    const nombre = input.value;
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        input.value = '';
+        renderizarListaSubdireccionesCrud();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error al agregar subdirección: ' + err.message);
+      })
+      .saveSubdireccionAdmin(nombre);
+  }
+</script>

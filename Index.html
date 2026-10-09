@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Control Machete - Autoevaluación de Control Interno</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap 5 CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+  <style>
+    :root {
+      --primary-color: #4A148C;
+      --secondary-color: #7B1FA2;
+      --accent-color: #D81B60;
+      --light-bg: #F8F9FA;
+      --dark-header: #311B92;
+    }
+
+    body {
+      background-color: #f4f6f9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .header-banner {
+      background: linear-gradient(135deg, var(--dark-header) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 1.5rem 1rem;
+      border-bottom: 4px solid var(--accent-color);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .navbar-custom {
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+
+    .nav-pills .nav-link.active {
+      background-color: var(--primary-color);
+    }
+
+    .card {
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .badge-admin {
+      background-color: var(--accent-color);
+    }
+
+    .badge-user {
+      background-color: var(--secondary-color);
+    }
+
+    .badge-risk-Alto {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .badge-risk-Medio {
+      background-color: #fd7e14;
+      color: white;
+    }
+
+    .badge-risk-Bajo {
+      background-color: #ffc107;
+      color: #212529;
+    }
+
+    .badge-risk-NoAplica {
+      background-color: #6c757d;
+      color: white;
+    }
+
+    .autosave-toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Encabezado Institucional -->
+  <header class="header-banner">
+    <div class="container-fluid d-flex flex-wrap align-items-center justify-content-between">
+      <div class="d-flex align-items-center">
+        <i class="fa-solid fa-shield-halved fa-2x me-3 text-warning"></i>
+        <div>
+          <h4 class="m-0 brand-title">CONTROL MACHETE</h4>
+          <small class="opacity-75">Sistema de Autoevaluación de Control Interno | H. Ayuntamiento de Mérida</small>
+        </div>
+      </div>
+      <div class="mt-2 mt-md-0 text-end">
+        <div class="fw-bold">
+          <i class="fa-solid fa-user-circle me-1"></i>
+          <?= userEmail ?>
+        </div>
+        <div>
+          <? if (userRole === 'ADMIN') { ?>
+            <span class="badge badge-admin"><i class="fa-solid fa-crown me-1"></i> ADMINISTRADOR</span>
+          <? } else if (userRole === 'USER') { ?>
+            <span class="badge badge-user"><i class="fa-solid fa-user me-1"></i> OPERATIVO</span>
+            <span class="badge bg-secondary ms-1"><?= userSubdireccion ?></span>
+          <? } else { ?>
+            <span class="badge bg-danger">NO REGISTRADO</span>
+          <? } ?>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container-fluid my-4">
+    <? if (!isRegistered) { ?>
+      <!-- Pantalla de Bloqueo / No Registrado -->
+      <div class="row justify-content-center my-5">
+        <div class="col-md-8 col-lg-6">
+          <div class="card text-center p-4">
+            <div class="card-body">
+              <i class="fa-solid fa-user-lock fa-4x text-danger mb-3"></i>
+              <h3 class="card-title text-danger">Acceso Restringido</h3>
+              <p class="card-text mt-3 fs-5">
+                El correo electrónico <strong><?= userEmail ?></strong> no se encuentra registrado o está inactivo en el Padrón de Usuarios del Sistema de Control Machete.
+              </p>
+              <div class="alert alert-warning text-start mt-4">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                Si considera que esto es un error o requiere acceso, contacte a la Unidad de Control Interno o al Administrador del Sistema.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <? } else { ?>
+
+      <!-- Navegación según Rol -->
+      <? if (userRole === 'ADMIN') { ?>
+        <ul class="nav nav-pills mb-4 navbar-custom p-2 rounded" id="adminTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-dashboard-btn" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" role="tab">
+              <i class="fa-solid fa-chart-line me-2"></i> Dashboard Global
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-asignaciones-btn" data-bs-toggle="tab" data-bs-target="#tab-asignaciones" type="button" role="tab" onclick="cargarAsignacionesAdmin()">
+              <i class="fa-solid fa-tasks me-2"></i> Gestor de Asignaciones (61 Preguntas)
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-mispreguntas-btn" data-bs-toggle="tab" data-bs-target="#tab-mispreguntas" type="button" role="tab" onclick="cargarPreguntasUserAdmin()">
+              <i class="fa-solid fa-pen-to-square me-2"></i> Mis Preguntas (Sin Asignar)
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-usuarios-btn" data-bs-toggle="tab" data-bs-target="#tab-usuarios" type="button" role="tab" onclick="cargarUsuariosAdmin()">
+              <i class="fa-solid fa-users-gear me-2"></i> Usuarios y Subdirecciones
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="adminTabsContent">
+          <!-- Pestaña 1: Dashboard -->
+          <div class="tab-pane fade show active" id="tab-dashboard" role="tabpanel">
+            <?!= include('AdminView'); ?>
+          </div>
+
+          <!-- Pestaña 2: Gestor de Asignaciones -->
+          <div class="tab-pane fade" id="tab-asignaciones" role="tabpanel">
+            <div id="asignaciones-container"></div>
+          </div>
+
+          <!-- Pestaña 3: Mis Preguntas (Admin) -->
+          <div class="tab-pane fade" id="tab-mispreguntas" role="tabpanel">
+            <div id="admin-mis-preguntas-container"></div>
+          </div>
+
+          <!-- Pestaña 4: Usuarios y Subdirecciones -->
+          <div class="tab-pane fade" id="tab-usuarios" role="tabpanel">
+            <div id="usuarios-container"></div>
+          </div>
+        </div>
+
+      <? } else if (userRole === 'USER') { ?>
+
+        <div class="card mb-3">
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="card-title text-primary m-0"><i class="fa-solid fa-building me-2"></i> Cuestionario para: <?= userSubdireccion ?></h5>
+              <small class="text-muted">Responda cada pregunta, adjunte evidencias textuales y documentales.</small>
+            </div>
+            <div>
+              <span class="badge bg-primary fs-6" id="user-progress-badge">0 / 0 Respondidas (0%)</span>
+            </div>
+          </div>
+        </div>
+
+        <?!= include('UserView'); ?>
+
+      <? } ?>
+
+    <? } ?>
+  </main>
+
+  <!-- Indicator de Autosave -->
+  <div id="autosaveToast" class="toast align-items-center text-white bg-success border-0 autosave-toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="fa-solid fa-check-circle me-2"></i> <span id="autosaveToastMsg">Guardado ✓</span>
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Configuración global JS
+    const USER_ROLE = '<?= userRole ?>';
+    const USER_SUBDIRECCION = '<?= userSubdireccion ?>';
+    let debounceTimer = null;
+
+    function showToast(msg, bgClass) {
+      const toastEl = document.getElementById('autosaveToast');
+      const toastMsg = document.getElementById('autosaveToastMsg');
+      toastMsg.innerText = msg || 'Guardado ✓';
+      toastEl.className = 'toast align-items-center text-white border-0 autosave-toast ' + (bgClass || 'bg-success');
+      const bsToast = new bootstrap.Toast(toastEl, { delay: 2500 });
+      bsToast.show();
+    }
+  </script>
+</body>
+</html>
