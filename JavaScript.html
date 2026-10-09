@@ -1,6 +1,7 @@
 <script>
   // Global State
   const OSORIO_ICON_SRC = "<?!= include('OsorioIcon'); ?>";
+  const OSORIO_FALLBACK_URL = "https://drive.google.com/uc?export=view&id=1wKDyff6cej4mqG6ByV7ZRySCWd_zPVv0";
   let adminPassword = "";
   let isAuthenticated = false;
   let participantesActivos = [];
@@ -63,7 +64,7 @@
     if (!numIcons || numIcons <= 0) return '';
     let html = '<span class="osorio-icons-container" title="Cada vez más Osorio">';
     for (let i = 0; i < numIcons; i++) {
-      html += `<img src="${OSORIO_ICON_SRC}" alt="Osorio" class="osorio-icon-img">`;
+      html += `<img src="${OSORIO_ICON_SRC}" alt="Osorio" width="28" height="28" class="osorio-icon-img" onerror="if (this.src !== '${OSORIO_FALLBACK_URL}') this.src='${OSORIO_FALLBACK_URL}';">`;
     }
     html += '</span>';
     return html;
@@ -95,10 +96,6 @@
     }
 
     const N = leaderboard.length;
-    // Asignar mapa de íconos Osorio según la posición final
-    // N-1 (Último) = 3 íconos
-    // N-2 (Penúltimo) = 2 íconos
-    // N-3 (Antepenúltimo) = 1 ícono
     const osorioMap = {};
     if (N >= 1) osorioMap[N - 1] = 3;
     if (N >= 2) osorioMap[N - 2] = 2;
@@ -138,15 +135,13 @@
       tbody.appendChild(tr);
     });
 
-    // Renderizar Panel Lateral "Cada vez más Osorio" (Salón de la Infamia)
-    // Mostramos del antepenúltimo al último o en orden de infamia (último primero)
+    // Renderizar Panel Lateral "Cada vez más Osorio"
     if (osorioListUl) {
       const osorioIndices = [];
-      if (N >= 3) osorioIndices.push(N - 3); // Antepenúltimo (1 icono)
-      if (N >= 2) osorioIndices.push(N - 2); // Penúltimo (2 iconos)
-      if (N >= 1) osorioIndices.push(N - 1); // Último (3 iconos)
+      if (N >= 3) osorioIndices.push(N - 3);
+      if (N >= 2) osorioIndices.push(N - 2);
+      if (N >= 1) osorioIndices.push(N - 1);
 
-      // Ordenar para mostrar el último lugar arriba (3 iconos)
       osorioIndices.reverse();
 
       osorioIndices.forEach(idx => {
@@ -551,7 +546,7 @@
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  // Vincular funciones a la ventana global para invocación desde HTML onclick
+  // Vincular funciones a la ventana global
   window.cambiarTab = cambiarTab;
   window.cambiarSubTabAdmin = cambiarSubTabAdmin;
   window.autenticarAdmin = autenticarAdmin;
