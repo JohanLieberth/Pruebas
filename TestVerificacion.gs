@@ -3,12 +3,6 @@
  * SUITE DE VERIFICACIÓN AUTOMATIZADA
  * Ayuntamiento de Mérida, Yucatán - Matriz de Administración de Riesgos y PTAR
  * ==============================================================================
- * Este script ejecuta las 5 verificaciones obligatorias exigidas por el requerimiento:
- * (a) Que los cuadrantes se calculan correctamente para las 4 combinaciones de impacto/probabilidad.
- * (b) Que las listas dependientes funcionen (Grado -> Rango de Valores).
- * (c) Que las validaciones de rangos y valoración final <= inicial se cumplan.
- * (d) Que un riesgo con múltiples factores se guarde y resuma correctamente.
- * (e) Que el filtrado por rol/dependencia funcione.
  */
 
 function correrSuitePruebasVerificacion() {
@@ -36,9 +30,9 @@ function correrSuitePruebasVerificacion() {
 
   // (b) Verificación de listas dependientes y rangos
   Logger.log("\n--- PRUEBA (b): Listas dependientes y rangos de valores ---");
-  const vGraveValido = validarRangoValor('Grave (7-8)', 8);
-  const vGraveInvalido = validarRangoValor('Grave (7-8)', 5);
-  const vProbValido = validarRangoValor('Muy probable (7-8)', 7);
+  const vGraveValido = validarRangoValor('GRAVE', 8);
+  const vGraveInvalido = validarRangoValor('GRAVE', 5);
+  const vProbValido = validarRangoValor('MUY PROBABLE', 7);
 
   if (vGraveValido === true && vGraveInvalido === false && vProbValido === true) {
     Logger.log("✔ PASÓ: La validación de rangos numéricos dependientes del grado funciona.");
@@ -55,17 +49,17 @@ function correrSuitePruebasVerificacion() {
       dependencia: 'ADM',
       noRiesgo: 'R1-ADM',
       descripcionRiesgo: 'Trámites no procesados por falla del servidor',
-      impactoInicialGrado: 'Bajo (3-4)',
+      impactoInicialGrado: 'BAJO',
       impactoInicialValor: 4,
-      probabilidadInicialGrado: 'Inusual (3-4)',
+      probabilidadInicialGrado: 'INUSUAL',
       probabilidadInicialValor: 3,
       tieneControles: 'SI',
-      impactoFinalGrado: 'Catastrófico (9-10)',
+      impactoFinalGrado: 'CATASTRÓFICO',
       impactoFinalValor: 9, // Inválido
-      probabilidadFinalGrado: 'Inusual (3-4)',
+      probabilidadFinalGrado: 'INUSUAL',
       probabilidadFinalValor: 3
     },
-    factores: [{ factorCausa: 'Tecnologías de la información', tipoFactor: 'Interno', efectosConsecuencias: 'Interrupción parcial o total del servicio público' }]
+    factores: [{ factorCausa: 'TECNOLOGÍAS DE LA INFORMACIÓN', tipoFactor: 'INTERNO', efectosConsecuencias: 'COSTOS' }]
   };
 
   const erroresFinalMayor = validarRiesgoServidor(datosInvalidos);
@@ -88,29 +82,29 @@ function correrSuitePruebasVerificacion() {
       procedimiento: 'Licitación de Obra Pública',
       objetivoEstrategico: 'Infraestructura Municipal de Calidad',
       descripcionRiesgo: 'Obras públicas retrasadas por inspección deficiente',
-      nivelExposicion: 'Directivo',
-      tipoRiesgo: 'De Obra Pública',
+      nivelExposicion: 'DIRECTIVO',
+      tipoRiesgo: 'DE OBRA PÚBLICA',
       tieneControles: 'SI',
-      impactoInicialGrado: 'Grave (7-8)',
+      impactoInicialGrado: 'GRAVE',
       impactoInicialValor: 8,
-      probabilidadInicialGrado: 'Probable (5-6)',
+      probabilidadInicialGrado: 'PROBABLE',
       probabilidadInicialValor: 6,
-      impactoFinalGrado: 'Moderado (5-6)',
+      impactoFinalGrado: 'MODERADO',
       impactoFinalValor: 5,
-      probabilidadFinalGrado: 'Inusual (3-4)',
+      probabilidadFinalGrado: 'INUSUAL',
       probabilidadFinalValor: 4,
-      estrategiaRespuesta: 'Reducir'
+      estrategiaRespuesta: 'REDUCIR'
     },
     factores: [
-      { factorCausa: 'Procesos-operativo', tipoFactor: 'Interno', efectosConsecuencias: 'Ineficiencia y sobrecosto en procesos operativos' },
-      { factorCausa: 'Recursos humanos', tipoFactor: 'Interno', efectosConsecuencias: 'Incumplimiento de metas y objetivos institucionales' }
+      { factorCausa: 'PROCESOS-OPERATIVO', tipoFactor: 'INTERNO', efectosConsecuencias: 'COSTOS' },
+      { factorCausa: 'RECURSOS HUMANOS', tipoFactor: 'INTERNO', efectosConsecuencias: 'MEJORA DE PROCESOS' }
     ],
     control: {
       descripcionControl: 'Verificación semanal en sitio por supervisor externo',
       quienEjecuta: 'Supervisor de Obra',
       cuandoSeEjecuta: 'Semanal',
       evidencia: 'Bitácora de obra firmada',
-      tipoControl: 'Preventivo',
+      tipoControl: 'PREVENTIVO',
       atribDocumentado: true,
       atribFormalizado: true,
       atribAplicado: true,
@@ -132,7 +126,6 @@ function correrSuitePruebasVerificacion() {
       Logger.log("✖ FALLÓ: El riesgo se guardó pero no recuperó los factores o acciones de forma íntegra.");
       falladas++;
     }
-    // Limpiar prueba
     eliminarRiesgo(resSave.idRiesgo);
   } else {
     Logger.log("✖ FALLÓ: Ocurrió un error al guardar el riesgo multifactor: " + resSave.errores.join(', '));
@@ -149,6 +142,17 @@ function correrSuitePruebasVerificacion() {
     pasadas++;
   } else {
     Logger.log("✖ FALLÓ: Error en filtrado de dependencias.");
+    falladas++;
+  }
+
+  // (f) Verificación de las 30 dependencias oficiales
+  Logger.log("\n--- PRUEBA (f): Verificación de 30 dependencias de Mérida ---");
+  const cats = obtenerCatalogos();
+  if (cats.dependencias && cats.dependencias.length === 30) {
+    Logger.log("✔ PASÓ: Se inicializaron y cargaron exactamente las 30 dependencias municipales.");
+    pasadas++;
+  } else {
+    Logger.log("✖ FALLÓ: Cantidad de dependencias incorrecta: " + (cats.dependencias ? cats.dependencias.length : 0));
     falladas++;
   }
 

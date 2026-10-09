@@ -11,7 +11,7 @@ const HOJAS = {
   RIESGOS: 'RIESGOS',
   FACTORES: 'FACTORES',
   CONTROLES: 'CONTROLES',
-  ACCIONES: 'ACCIONES',
+  ACCIONES: 'ACCIONES_PTAR',
   CATALOGOS: 'CATALOGOS',
   DEPENDENCIAS: 'DEPENDENCIAS',
   USUARIOS: 'USUARIOS'
@@ -119,115 +119,115 @@ function seedDefaultData(ss) {
   if (catSheet && catSheet.getLastRow() <= 1) {
     const catalogosData = [
       // Niveles de Exposición
-      ['EXPOSICION', 'ESTRATEGICO', 'Estratégico', 'Nivel institucional u objetivos generales', 1],
-      ['EXPOSICION', 'DIRECTIVO', 'Directivo', 'Nivel de jefatura o dirección de área', 2],
-      ['EXPOSICION', 'OPERACION', 'Operación', 'Nivel operativo de trámites y servicios', 3],
+      ['EXPOSICION', 'ESTRATEGICO', 'ESTRATEGICO', 'Nivel institucional u objetivos generales', 1],
+      ['EXPOSICION', 'DIRECTIVO', 'DIRECTIVO', 'Nivel de jefatura o dirección de área', 2],
+      ['EXPOSICION', 'OPERACION', 'OPERACIÓN', 'Nivel operativo de trámites y servicios', 3],
 
       // Clasificación del Tipo de Riesgo
-      ['TIPO_RIESGO', 'CLAVE', 'Clave', 'Riesgo sobre procesos clave del Ayuntamiento', 1],
-      ['TIPO_RIESGO', 'APOYO', 'De Apoyo', 'Riesgo sobre procesos de soporte administrativo', 2],
-      ['TIPO_RIESGO', 'LEGAL', 'Legal', 'Sanciones o demandas por incumplimiento normativo', 3],
-      ['TIPO_RIESGO', 'FINANCIERO', 'Financiero', 'Pérdida de recursos económicos o patrimonio', 4],
-      ['TIPO_RIESGO', 'PRESUPUESTAL', 'Presupuestal', 'Desviación en ejercicio presupuestal', 5],
-      ['TIPO_RIESGO', 'SERVICIOS', 'De Servicios', 'Falla en la prestación de servicios a la ciudadanía', 6],
-      ['TIPO_RIESGO', 'SEGURIDAD', 'De Seguridad', 'Riesgo a la integridad física o bienes', 7],
-      ['TIPO_RIESGO', 'OBRA_PUBLICA', 'De Obra Pública', 'Retraso o deficiencia en obras públicas', 8],
-      ['TIPO_RIESGO', 'RRHH', 'De RR. HH.', 'Insuficiencia o rotación de personal clave', 9],
-      ['TIPO_RIESGO', 'IMAGEN', 'De Imagen', 'Afectación a la reputación o confianza ciudadana', 10],
-      ['TIPO_RIESGO', 'TICS', "De TIC's", 'Falla de sistemas, hackeo o pérdida de datos', 11],
-      ['TIPO_RIESGO', 'SALUD', 'De Salud', 'Riesgo sanitario o de salud ocupacional', 12],
-      ['TIPO_RIESGO', 'CORRUPCION', 'De Corrupción', 'Riesgo de faltas administrativas graves o soborno', 13],
+      ['TIPO_RIESGO', 'CLAVE', 'CLAVE', 'Riesgo sobre procesos clave del Ayuntamiento', 1],
+      ['TIPO_RIESGO', 'APOYO', 'DE APOYO', 'Riesgo sobre procesos de soporte administrativo', 2],
+      ['TIPO_RIESGO', 'LEGAL', 'LEGAL', 'Sanciones o demandas por incumplimiento normativo', 3],
+      ['TIPO_RIESGO', 'FINANCIERO', 'FINANCIERO', 'Pérdida de recursos económicos o patrimonio', 4],
+      ['TIPO_RIESGO', 'PRESUPUESTAL', 'PRESUPUESTAL', 'Desviación en ejercicio presupuestal', 5],
+      ['TIPO_RIESGO', 'SERVICIOS', 'DE SERVICIOS', 'Falla en la prestación de servicios a la ciudadanía', 6],
+      ['TIPO_RIESGO', 'SEGURIDAD', 'DE SEGURIDAD', 'Riesgo a la integridad física o bienes', 7],
+      ['TIPO_RIESGO', 'OBRA_PUBLICA', 'DE OBRA PÚBLICA', 'Retraso o deficiencia en obras públicas', 8],
+      ['TIPO_RIESGO', 'RRHH', 'DE RECURSOS HUMANOS', 'Insuficiencia o rotación de personal clave', 9],
+      ['TIPO_RIESGO', 'IMAGEN', 'DE IMAGEN', 'Afectación a la reputación o confianza ciudadana', 10],
+      ['TIPO_RIESGO', 'TICS', 'DE TIC´S', 'Falla de sistemas, hackeo o pérdida de datos', 11],
+      ['TIPO_RIESGO', 'SALUD', 'DE SALUD', 'Riesgo sanitario o de salud ocupacional', 12],
+      ['TIPO_RIESGO', 'CORRUPCION', 'DE CORRUPCIÓN', 'Riesgo de faltas administrativas graves o soborno', 13],
 
-      // Factor / Causa
-      ['FACTOR_CAUSA', 'ADM', 'Administrativo-gestión', 'Deficiencia en planeación o supervisión', 1],
-      ['FACTOR_CAUSA', 'ENTORNO', 'Entorno', 'Cambios normativos, sociales o climáticos', 2],
-      ['FACTOR_CAUSA', 'FIN', 'Financiero-presupuestal', 'Falta de techo presupuestal o liquidez', 3],
-      ['FACTOR_CAUSA', 'MAT', 'Material-infraestructura', 'Deterioro de vehículos o instalaciones', 4],
-      ['FACTOR_CAUSA', 'NOR', 'Normativo', 'Ambigüedad en manuales o reglamentos', 5],
-      ['FACTOR_CAUSA', 'OPE', 'Procesos-operativo', 'Errores en pasos de procedimiento', 6],
-      ['FACTOR_CAUSA', 'RRHH', 'Recursos humanos', 'Falta de capacitación o personal', 7],
-      ['FACTOR_CAUSA', 'TIC', 'Tecnologías de la información', 'Sistemas obsoletos o sin respaldo', 8],
-      ['FACTOR_CAUSA', 'CORR', 'Corrupción', 'Oportunidad de conflicto de interés o soborno', 9],
+      // Factor / Causa (9 Exactos)
+      ['FACTOR_CAUSA', 'ADM', 'ADMINISTRATIVO-GESTIÓN', 'Deficiencia en planeación o supervisión', 1],
+      ['FACTOR_CAUSA', 'ENTORNO', 'ENTORNO', 'Cambios normativos, sociales o climáticos', 2],
+      ['FACTOR_CAUSA', 'FIN', 'FINANCIERO-PRESUPUESTAL', 'Falta de techo presupuestal o liquidez', 3],
+      ['FACTOR_CAUSA', 'MAT', 'MATERIAL-INFRAESTRUCTURA', 'Deterioro de vehículos o instalaciones', 4],
+      ['FACTOR_CAUSA', 'NOR', 'NORMATIVO', 'Ambigüedad en manuales o reglamentos', 5],
+      ['FACTOR_CAUSA', 'OPE', 'PROCESOS-OPERATIVO', 'Errores en pasos de procedimiento', 6],
+      ['FACTOR_CAUSA', 'RRHH', 'RECURSOS HUMANOS', 'Falta de capacitación o personal', 7],
+      ['FACTOR_CAUSA', 'TIC', 'TECNOLOGÍAS DE LA INFORMACIÓN', 'Sistemas obsoletos o sin respaldo', 8],
+      ['FACTOR_CAUSA', 'CORR', 'CORRUPCIÓN', 'Oportunidad de conflicto de interés o soborno', 9],
 
       // Tipo de Factor
-      ['TIPO_FACTOR', 'INTERNO', 'Interno', 'Factor bajo control de la dependencia', 1],
-      ['TIPO_FACTOR', 'EXTERNO', 'Externo', 'Factor fuera del control de la dependencia', 2],
+      ['TIPO_FACTOR', 'INTERNO', 'INTERNO', 'Factor bajo control de la dependencia', 1],
+      ['TIPO_FACTOR', 'EXTERNO', 'EXTERNO', 'Factor fuera del control de la dependencia', 2],
 
-      // Efectos o Consecuencias (9 catálogo)
-      ['EFECTO', '1', 'Daño patrimonial o pérdida de recursos', '', 1],
-      ['EFECTO', '2', 'Sanciones administrativas o legales', '', 2],
-      ['EFECTO', '3', 'Incumplimiento de metas y objetivos institucionales', '', 3],
-      ['EFECTO', '4', 'Interrupción parcial o total del servicio público', '', 4],
-      ['EFECTO', '5', 'Pérdida de imagen y confianza ciudadana', '', 5],
-      ['EFECTO', '6', 'Afectación a la salud o seguridad de la población', '', 6],
-      ['EFECTO', '7', 'Pérdida, alteración o fuga de información confidencial', '', 7],
-      ['EFECTO', '8', 'Responsabilidad penal o juicios en contra', '', 8],
-      ['EFECTO', '9', 'Ineficiencia y sobrecosto en procesos operativos', '', 9],
+      // Efectos o Consecuencias (9 exactos del Excel DATOS)
+      ['EFECTO', '1', 'CALIDAD DE BIENES Y SERVICIOS', '', 1],
+      ['EFECTO', '2', 'COSTOS', '', 2],
+      ['EFECTO', '3', 'IMAGEN PÚBLICA', '', 3],
+      ['EFECTO', '4', 'INGRESOS', '', 4],
+      ['EFECTO', '5', 'MEJORA DE PROCESOS', '', 5],
+      ['EFECTO', '6', 'METAS FINANCIERAS', '', 6],
+      ['EFECTO', '7', 'METAS FÍSICAS', '', 7],
+      ['EFECTO', '8', 'OBJETIVOS, METAS Y FUNCIONES', '', 8],
+      ['EFECTO', '9', 'SATISFACCIÓN DE LOS USUARIOS/BENEFICIARIOS', '', 9],
 
       // Escalas de Impacto
-      ['ESCALA_IMPACTO', '1-2', 'Menor (1-2)', 'Consecuencias insignificantes sin afectación mayor', 1],
-      ['ESCALA_IMPACTO', '3-4', 'Bajo (3-4)', 'Afectación menor corregible internamente', 2],
-      ['ESCALA_IMPACTO', '3-6', 'Moderado (5-6)', 'Afectación moderada que requiere intervención', 3],
-      ['ESCALA_IMPACTO', '7-8', 'Grave (7-8)', 'Afectación severa a metas o presupuesto', 4],
-      ['ESCALA_IMPACTO', '9-10', 'Catastrófico (9-10)', 'Incapacidad total de operar o juicio legal grave', 5],
+      ['ESCALA_IMPACTO', '1-2', 'MENOR', 'Consecuencias insignificantes sin afectación mayor (1-2)', 1],
+      ['ESCALA_IMPACTO', '3-4', 'BAJO', 'Afectación menor corregible internamente (3-4)', 2],
+      ['ESCALA_IMPACTO', '5-6', 'MODERADO', 'Afectación moderada que requiere intervención (5-6)', 3],
+      ['ESCALA_IMPACTO', '7-8', 'GRAVE', 'Afectación severa a metas o presupuesto (7-8)', 4],
+      ['ESCALA_IMPACTO', '9-10', 'CATASTRÓFICO', 'Incapacidad total de operar o juicio legal grave (9-10)', 5],
 
       // Escalas de Probabilidad
-      ['ESCALA_PROBABILIDAD', '1-2', 'Remota (1-2)', 'Poco factible que ocurra (raro)', 1],
-      ['ESCALA_PROBABILIDAD', '3-4', 'Inusual (3-4)', 'Podría ocurrir eventualmente', 2],
-      ['ESCALA_PROBABILIDAD', '5-6', 'Probable (5-6)', 'Factible que ocurra en el ciclo anual', 3],
-      ['ESCALA_PROBABILIDAD', '7-8', 'Muy probable (7-8)', 'Ocurrirá en la mayoría de las circunstancias', 4],
-      ['ESCALA_PROBABILIDAD', '9-10', 'Recurrente (9-10)', 'Se presenta constantemente durante el año', 5],
+      ['ESCALA_PROBABILIDAD', '1-2', 'REMOTA', 'Poco factible que ocurra (1-2)', 1],
+      ['ESCALA_PROBABILIDAD', '3-4', 'INUSUAL', 'Podría ocurrir eventualmente (3-4)', 2],
+      ['ESCALA_PROBABILIDAD', '5-6', 'PROBABLE', 'Factible que ocurra en el ciclo anual (5-6)', 3],
+      ['ESCALA_PROBABILIDAD', '7-8', 'MUY PROBABLE', 'Ocurrirá en la mayoría de las circunstancias (7-8)', 4],
+      ['ESCALA_PROBABILIDAD', '9-10', 'RECURRENTE', 'Se presenta constantemente durante el año (9-10)', 5],
 
       // Tipo de Control
-      ['TIPO_CONTROL', 'PREVENTIVO', 'Preventivo', 'Diseñado para evitar que ocurra el evento', 1],
-      ['TIPO_CONTROL', 'DETECTIVO', 'Detectivo', 'Diseñado para identificar el evento una vez ocurrido', 2],
-      ['TIPO_CONTROL', 'CORRECTIVO', 'Correctivo', 'Diseñado para subsanar los efectos tras el evento', 3],
+      ['TIPO_CONTROL', 'PREVENTIVO', 'PREVENTIVO', 'Diseñado para evitar que ocurra el evento', 1],
+      ['TIPO_CONTROL', 'DETECTIVO', 'DETECTIVO', 'Diseñado para identificar el evento una vez ocurrido', 2],
+      ['TIPO_CONTROL', 'CORRECTIVO', 'CORRECTIVO', 'Diseñado para subsanar los efectos tras el evento', 3],
 
       // Estrategias de Respuesta
-      ['ESTRATEGIA', 'EVITAR', 'Evitar', 'Eliminar la actividad que genera el riesgo', 1],
-      ['ESTRATEGIA', 'REDUCIR', 'Reducir', 'Implementar acciones para disminuir impacto/probabilidad', 2],
-      ['ESTRATEGIA', 'ASUMIR', 'Asumir', 'Aceptar el riesgo residual sin acciones adicionales', 3],
-      ['ESTRATEGIA', 'TRANSFERIR', 'Transferir', 'Traspasar la responsabilidad o impacto (ej. seguros)', 4],
-      ['ESTRATEGIA', 'COMPARTIR', 'Compartir', 'Distribuir el riesgo con otra entidad u organismo', 5]
+      ['ESTRATEGIA', 'EVITAR', 'EVITAR', 'Eliminar la actividad que genera el riesgo', 1],
+      ['ESTRATEGIA', 'REDUCIR', 'REDUCIR', 'Implementar acciones para disminuir impacto/probabilidad', 2],
+      ['ESTRATEGIA', 'ASUMIR', 'ASUMIR', 'Aceptar el riesgo residual sin acciones adicionales', 3],
+      ['ESTRATEGIA', 'TRANSFERIR', 'TRANSFERIR', 'Traspasar la responsabilidad o impacto (ej. seguros)', 4],
+      ['ESTRATEGIA', 'COMPARTIR', 'COMPARTIR', 'Distribuir el riesgo con otra entidad u organismo', 5]
     ];
 
     catalogosData.forEach(row => catSheet.appendRow(row));
   }
 
-  // Sembrar 29 Dependencias
+  // Sembrar Exactamente las 30 Dependencias de Mérida
   const depSheet = ss.getSheetByName(HOJAS.DEPENDENCIAS);
   if (depSheet && depSheet.getLastRow() <= 1) {
     const dependenciasLista = [
-      ['CBG', 'Coord. General de Funcionamiento Urbano', 'Titular CGFU', 'Enlace CGFU', 'enlace.cgfu@merida.gob.mx'],
-      ['CDO', 'Coord. General de Desarrollo Ordenado y Urbano', 'Titular CGDOU', 'Enlace CGDOU', 'enlace.cgdou@merida.gob.mx'],
-      ['CJS', 'Coord. General de Salud y Bienestar Social', 'Titular CGSBS', 'Enlace CGSBS', 'enlace.cgsbs@merida.gob.mx'],
-      ['ADM', 'Dirección de Administración', 'Director de Administración', 'Enlace Admón', 'enlace.admon@merida.gob.mx'],
-      ['BIH', 'Dirección de Bienestar Social', 'Director de Bienestar', 'Enlace Bienestar', 'enlace.bienestar@merida.gob.mx'],
-      ['CAT', 'Dirección de Catastro Municipal', 'Director de Catastro', 'Enlace Catastro', 'enlace.catastro@merida.gob.mx'],
-      ['COM', 'Dirección de Comunicación Social', 'Director de Comunicación', 'Enlace Comunicación', 'enlace.comunicacion@merida.gob.mx'],
-      ['DIF', 'Sistema DIF Municipal de Mérida', 'Director DIF', 'Enlace DIF', 'enlace.dif@merida.gob.mx'],
-      ['DSC', 'Dirección de Desarrollo Social', 'Director Des. Social', 'Enlace Des. Social', 'enlace.dessocial@merida.gob.mx'],
-      ['DDU', 'Dirección de Desarrollo Urbano', 'Director Des. Urbano', 'Enlace Des. Urbano', 'enlace.desurbano@merida.gob.mx'],
-      ['FTM', 'Dirección de Finanzas y Tesorería Municipal', 'Tesorería Municipal', 'Enlace Finanzas', 'enlace.finanzas@merida.gob.mx'],
-      ['GOB', 'Dirección de Gobernación', 'Director Gobernación', 'Enlace Gobernación', 'enlace.gobernacion@merida.gob.mx'],
-      ['DIC', 'Dirección de Identidad y Cultura', 'Director Cultura', 'Enlace Cultura', 'enlace.cultura@merida.gob.mx'],
-      ['DIGI', 'Dirección de Innovación Digital', 'Director Innovación', 'Enlace Innovación', 'enlace.innovacion@merida.gob.mx'],
-      ['DOP', 'Dirección de Obras Públicas', 'Director Obras Públicas', 'Enlace Obras', 'enlace.obras@merida.gob.mx'],
-      ['DPM', 'Dirección de Policia Municipal', 'Director Policía Municipal', 'Enlace Policía', 'enlace.policia@merida.gob.mx'],
-      ['PBE', 'Dirección de Prosperidad y Bienestar Económico', 'Director Prosperidad', 'Enlace Prosperidad', 'enlace.prosperidad@merida.gob.mx'],
-      ['DSP', 'Dirección de Servicios Públicos Municipales', 'Director Servicios Púb.', 'Enlace Serv. Púb.', 'enlace.servpublicos@merida.gob.mx'],
-      ['MUJ', 'Instituto Municipal de la Mujer', 'Directora IMM', 'Enlace IMM', 'enlace.mujer@merida.gob.mx'],
-      ['IMPLAN', 'Instituto Municipal de Planeación', 'Director IMPLAN', 'Enlace IMPLAN', 'enlace.implan@merida.gob.mx'],
-      ['OPM', 'Oficialía Mayor', 'Oficial Mayor', 'Enlace Of. Mayor', 'enlace.ofmayor@merida.gob.mx'],
-      ['SPAC', 'Secretaría de Participación Ciudadana', 'Secretario Part. Ciudadana', 'Enlace Part. Ciu', 'enlace.partciudadana@merida.gob.mx'],
-      ['SEC', 'Secretaría Municipal', 'Secretario Municipal', 'Enlace Sec. Municipal', 'enlace.secmunicipal@merida.gob.mx'],
-      ['TCA', 'Tribunal de Contencioso Administrativo', 'Juez Presidente TCA', 'Enlace TCA', 'enlace.tca@merida.gob.mx'],
-      ['UCC', 'Unidad de Transparencia y Contraloría Social', 'Jefe Unidad UCC', 'Enlace UCC', 'enlace.ucc@merida.gob.mx'],
-      ['UMABA', 'Unidad de Manejo de la Reserva Cuxtal', 'Director UMABA', 'Enlace UMABA', 'enlace.umaba@merida.gob.mx'],
-      ['CPC', 'Comité de Participación Ciudadana', 'Presidente CPC', 'Enlace CPC', 'enlace.cpc@merida.gob.mx'],
-      ['REC', 'Dirección de Recursos Humanos', 'Director RRHH', 'Enlace RRHH', 'enlace.rrhh@merida.gob.mx'],
-      ['CAM', 'Central de Abasto de Mérida', 'Administrador CAM', 'Enlace CAM', 'enlace.cam@merida.gob.mx'],
-      ['ABM', 'Abastos de Mérida', 'Director Abastos', 'Enlace Abastos', 'enlace.abastos@merida.gob.mx']
+      ['CBG', 'COORDINACIÓN GENERAL DE BUEN GOBIERNO', 'Titular CBG', 'Enlace CBG', 'enlace.cbg@merida.gob.mx'],
+      ['CDO', 'COORDINACIÓN GENERAL DE DESARROLLO ORDENADO Y GESTIÓN DE LA CIUDAD', 'Titular CDO', 'Enlace CDO', 'enlace.cdo@merida.gob.mx'],
+      ['CJS', 'COORDINACIÓN GENERAL DE JUSTICIA SOCIAL Y DESARROLLO HUMANO', 'Titular CJS', 'Enlace CJS', 'enlace.cjs@merida.gob.mx'],
+      ['ADM', 'DIRECCIÓN DE ADMINISTRACIÓN', 'Director de Administración', 'Enlace Admón', 'enlace.admon@merida.gob.mx'],
+      ['BIH', 'DIRECCIÓN DE BIENESTAR HUMANO', 'Director de Bienestar Humano', 'Enlace Bienestar', 'enlace.bienestar@merida.gob.mx'],
+      ['CAT', 'DIRECCIÓN DE CATASTRO', 'Director de Catastro', 'Enlace Catastro', 'enlace.catastro@merida.gob.mx'],
+      ['COM', 'DIRECCIÓN DE CONTRALORÍA MUNICIPAL', 'Director de Contraloría', 'Enlace Contraloría', 'enlace.comtraloria@merida.gob.mx'],
+      ['DIF', 'DIRECCIÓN DE DESARROLLO INTEGRAL DE LA FAMILIA - DIF MUNICIPAL', 'Director DIF', 'Enlace DIF', 'enlace.dif@merida.gob.mx'],
+      ['DSC', 'DIRECCIÓN DE DESARROLLO SOCIAL Y COMBATE A LA POBREZA', 'Director Des. Social', 'Enlace Des. Social', 'enlace.dessocial@merida.gob.mx'],
+      ['DDU', 'DIRECCIÓN DE DESARROLLO URBANO', 'Director Des. Urbano', 'Enlace Des. Urbano', 'enlace.desurbano@merida.gob.mx'],
+      ['FTM', 'DIRECCIÓN DE FINANZAS Y TESORERÍA MUNICIPAL', 'Tesorería Municipal', 'Enlace Finanzas', 'enlace.finanzas@merida.gob.mx'],
+      ['GOB', 'DIRECCIÓN DE GOBERNACIÓN', 'Director Gobernación', 'Enlace Gobernación', 'enlace.gobernacion@merida.gob.mx'],
+      ['DIC', 'DIRECCIÓN DE IDENTIDAD Y CULTURA', 'Director Cultura', 'Enlace Cultura', 'enlace.cultura@merida.gob.mx'],
+      ['DIGI', 'DIRECCIÓN DE INNOVACIÓN Y GOBIERNO INTELIGENTE', 'Director Innovación', 'Enlace Innovación', 'enlace.innovacion@merida.gob.mx'],
+      ['DOP', 'DIRECCIÓN DE OBRAS PÚBLICAS', 'Director Obras Públicas', 'Enlace Obras', 'enlace.obras@merida.gob.mx'],
+      ['DPM', 'DIRECCIÓN DE POLICÍA MUNICIPAL', 'Director Policía Municipal', 'Enlace Policía', 'enlace.policia@merida.gob.mx'],
+      ['PBE', 'DIRECCIÓN DE PROSPERIDAD Y BIENESTAR ECONÓMICO', 'Director Prosperidad', 'Enlace Prosperidad', 'enlace.prosperidad@merida.gob.mx'],
+      ['DSP', 'DIRECCIÓN DE SERVICIOS PÚBLICOS', 'Director Servicios Púb.', 'Enlace Serv. Púb.', 'enlace.servpublicos@merida.gob.mx'],
+      ['MUJ', 'INSTITUTO DE LAS MUJERES', 'Directora IMM', 'Enlace IMM', 'enlace.mujer@merida.gob.mx'],
+      ['IMPLAN', 'INSTITUTO MUNICIPAL DE PLANEACIÓN', 'Director IMPLAN', 'Enlace IMPLAN', 'enlace.implan@merida.gob.mx'],
+      ['OPM', 'OFICINA DE PRESIDENCIA MUNICIPAL', 'Jefe de Presidencia', 'Enlace Presidencia', 'enlace.opm@merida.gob.mx'],
+      ['SPAC', 'SECRETARÍA DE PARTICIPACIÓN Y ATENCIÓN CIUDADANA', 'Secretario Part. Ciudadana', 'Enlace Part. Ciu', 'enlace.partciudadana@merida.gob.mx'],
+      ['SEC', 'SECRETARÍA MUNICIPAL', 'Secretario Municipal', 'Enlace Sec. Municipal', 'enlace.secmunicipal@merida.gob.mx'],
+      ['TCA', 'TRIBUNAL CONTENCIOSO ADMINISTRATIVO', 'Juez Presidente TCA', 'Enlace TCA', 'enlace.tca@merida.gob.mx'],
+      ['UCC', 'UNIDAD DE COMUNICACIÓN CIUDADANA', 'Jefe Unidad UCC', 'Enlace UCC', 'enlace.ucc@merida.gob.mx'],
+      ['UMABA', 'UNIDAD DE MEDIO AMBIENTE Y BIENESTAR ANIMAL', 'Director UMABA', 'Enlace UMABA', 'enlace.umaba@merida.gob.mx'],
+      ['CPC', 'SECRETARÍA EJECUTIVA DEL COMITÉ PERMANENTE DEL CARNAVAL', 'Presidente CPC', 'Enlace CPC', 'enlace.cpc@merida.gob.mx'],
+      ['REC', 'RESERVA ECOLÓGICA CUXTAL', 'Director Reserva Cuxtal', 'Enlace REC', 'enlace.rec@merida.gob.mx'],
+      ['CAM', 'CENTRAL DE ABASTO DE MÉRIDA', 'Administrador CAM', 'Enlace CAM', 'enlace.cam@merida.gob.mx'],
+      ['ABM', 'ABASTOS DE MÉRIDA', 'Director Abastos', 'Enlace Abastos', 'enlace.abastos@merida.gob.mx']
     ];
     dependenciasLista.forEach(row => depSheet.appendRow(row));
   }
@@ -248,10 +248,10 @@ function seedDefaultData(ss) {
 /**
  * LOGICA AUTOMATICA DE CÁLCULO DE CUADRANTES
  * Regla del Mapa de Riesgos COSO Mérida:
- * - Cuadrante I: Impacto > 5 Y Probabilidad > 5 -> "Atención Inmediata" (Riesgo Crítico / Grave)
- * - Cuadrante II: Impacto <= 5 Y Probabilidad > 5 -> "Atención Periódica" (Riesgo Alto)
- * - Cuadrante III: Impacto <= 5 Y Probabilidad <= 5 -> "Controlados" (Riesgo Bajo)
- * - Cuadrante IV: Impacto > 5 Y Probabilidad <= 5 -> "Seguimiento" (Riesgo Moderado)
+ * - Cuadrante I: Impacto > 5 Y Probabilidad > 5 -> "Atención Inmediata" (Prioridad GRAVE)
+ * - Cuadrante II: Impacto <= 5 Y Probabilidad > 5 -> "Atención Periódica" (Prioridad MODERADO/ALTO)
+ * - Cuadrante III: Impacto <= 5 Y Probabilidad <= 5 -> "Controlados" (Prioridad BAJO)
+ * - Cuadrante IV: Impacto > 5 Y Probabilidad <= 5 -> "Seguimiento" (Prioridad ALTO)
  */
 function calcularCuadrante(impacto, probabilidad) {
   const imp = Number(impacto) || 0;
@@ -261,28 +261,28 @@ function calcularCuadrante(impacto, probabilidad) {
     return {
       numero: 'I',
       nombre: 'Atención Inmediata',
-      prioridadSugerida: 'Grave',
+      prioridadSugerida: 'GRAVE',
       color: '#e74c3c' // Rojo
     };
   } else if (imp <= 5 && prob > 5) {
     return {
       numero: 'II',
       nombre: 'Atención Periódica',
-      prioridadSugerida: 'Alto',
+      prioridadSugerida: 'MODERADO',
       color: '#e67e22' // Naranja
     };
   } else if (imp <= 5 && prob <= 5) {
     return {
       numero: 'III',
       nombre: 'Controlados',
-      prioridadSugerida: 'Bajo',
+      prioridadSugerida: 'BAJO',
       color: '#2ecc71' // Verde
     };
   } else {
     return {
       numero: 'IV',
       nombre: 'Seguimiento',
-      prioridadSugerida: 'Moderado',
+      prioridadSugerida: 'ALTO',
       color: '#f1c40f' // Amarillo
     };
   }
@@ -295,21 +295,21 @@ function validarRangoValor(grado, valor) {
   const v = Number(valor);
   if (isNaN(v) || v < 1 || v > 10) return false;
 
-  switch (String(grado).trim()) {
-    case 'Menor (1-2)': return v >= 1 && v <= 2;
-    case 'Bajo (3-4)': return v >= 3 && v <= 4;
-    case 'Moderado (5-6)': return v >= 5 && v <= 6;
-    case 'Grave (7-8)': return v >= 7 && v <= 8;
-    case 'Catastrófico (9-10)': return v >= 9 && v <= 10;
+  const g = String(grado).trim().toUpperCase();
 
-    case 'Remota (1-2)': return v >= 1 && v <= 2;
-    case 'Inusual (3-4)': return v >= 3 && v <= 4;
-    case 'Probable (5-6)': return v >= 5 && v <= 6;
-    case 'Muy probable (7-8)': return v >= 7 && v <= 8;
-    case 'Recurrente (9-10)': return v >= 9 && v <= 10;
-    default:
-      return true;
-  }
+  if (g.includes('MENOR')) return v >= 1 && v <= 2;
+  if (g.includes('BAJO')) return v >= 3 && v <= 4;
+  if (g.includes('MODERADO')) return v >= 5 && v <= 6;
+  if (g.includes('GRAVE')) return v >= 7 && v <= 8;
+  if (g.includes('CATASTRÓFICO') || g.includes('CATASTROFICO')) return v >= 9 && v <= 10;
+
+  if (g.includes('REMOTA')) return v >= 1 && v <= 2;
+  if (g.includes('INUSUAL')) return v >= 3 && v <= 4;
+  if (g.includes('PROBABLE') && !g.includes('MUY')) return v >= 5 && v <= 6;
+  if (g.includes('MUY PROBABLE')) return v >= 7 && v <= 8;
+  if (g.includes('RECURRENTE')) return v >= 9 && v <= 10;
+
+  return true;
 }
 
 /**
@@ -382,7 +382,6 @@ function obtenerUsuarioActual() {
     }
   }
 
-  // Si no se encuentra en la lista, por defecto se trata como Contraloría para permitir pruebas
   return {
     email: email,
     nombre: 'Usuario Operador',
@@ -481,7 +480,7 @@ function guardarRiesgoCompleto(payload) {
     rSheet.appendRow(filaRiesgo);
   }
 
-  // 2. Guardar FACTORES (limpiar anteriores e insertar nuevos para mantener coherencia N:1)
+  // 2. Guardar FACTORES (limpiar anteriores e insertar nuevos)
   limpiarRegistrosDependientes(ss, HOJAS.FACTORES, idRiesgo);
   const fSheet = ss.getSheetByName(HOJAS.FACTORES);
   (payload.factores || []).forEach(f => {
@@ -547,6 +546,7 @@ function guardarRiesgoCompleto(payload) {
  */
 function limpiarRegistrosDependientes(ss, hojaNombre, idRiesgo) {
   const sheet = ss.getSheetByName(hojaNombre);
+  if (!sheet) return;
   const data = sheet.getDataRange().getValues();
   for (let i = data.length - 1; i >= 1; i--) {
     if (data[i][1] === idRiesgo) {
@@ -597,19 +597,19 @@ function obtenerRiesgos(dependenciaFiltro) {
   const rData = rSheet.getDataRange().getValues();
 
   const fSheet = ss.getSheetByName(HOJAS.FACTORES);
-  const fData = fSheet.getDataRange().getValues();
+  const fData = fSheet ? fSheet.getDataRange().getValues() : [];
 
   const cSheet = ss.getSheetByName(HOJAS.CONTROLES);
-  const cData = cSheet.getDataRange().getValues();
+  const cData = cSheet ? cSheet.getDataRange().getValues() : [];
 
   const aSheet = ss.getSheetByName(HOJAS.ACCIONES);
-  const aData = aSheet.getDataRange().getValues();
+  const aData = aSheet ? aSheet.getDataRange().getValues() : [];
 
   const lista = [];
 
   for (let i = 1; i < rData.length; i++) {
     const row = rData[i];
-    if (!row[0]) continue; // Saltar vacíos
+    if (!row[0]) continue;
 
     const dep = row[1];
     if (depPermitida && depPermitida !== 'TODAS' && dep !== depPermitida) {
@@ -705,7 +705,7 @@ function obtenerDashboard(dependenciaFiltro) {
   const totalRiesgos = riesgos.length;
   const porCuadranteInicial = { 'I': 0, 'II': 0, 'III': 0, 'IV': 0 };
   const porCuadranteFinal = { 'I': 0, 'II': 0, 'III': 0, 'IV': 0 };
-  const porPrioridad = { 'Bajo': 0, 'Moderado': 0, 'Alto': 0, 'Grave': 0 };
+  const porPrioridad = { 'BAJO': 0, 'MODERADO': 0, 'ALTO': 0, 'GRAVE': 0 };
   const porTipoRiesgo = {};
   const porEstrategia = {};
   const porDependencia = {};
@@ -729,7 +729,7 @@ function obtenerDashboard(dependenciaFiltro) {
     else if (r.cuadranteFinal.includes('Cuadrante IV')) porCuadranteFinal['IV']++;
 
     // Prioridad Final
-    const prio = r.prioridadFinal || 'Bajo';
+    const prio = String(r.prioridadFinal || 'BAJO').toUpperCase();
     porPrioridad[prio] = (porPrioridad[prio] || 0) + 1;
 
     // Tipo de Riesgo
@@ -742,7 +742,7 @@ function obtenerDashboard(dependenciaFiltro) {
     if (r.cuadranteFinal.includes('Cuadrante I')) {
       riesgosCuadranteI.push(r);
     }
-    if (r.tipoRiesgo === 'De Corrupción') {
+    if (String(r.tipoRiesgo).toUpperCase().includes('CORRUPCIÓN') || String(r.tipoRiesgo).toUpperCase().includes('CORRUPCION')) {
       riesgosCorrupcion.push(r);
     }
   });
@@ -750,7 +750,7 @@ function obtenerDashboard(dependenciaFiltro) {
   // Métricas de PTAR (Acciones)
   const ss = getActiveSpreadsheetSafe();
   const aSheet = ss.getSheetByName(HOJAS.ACCIONES);
-  const aData = aSheet.getDataRange().getValues();
+  const aData = aSheet ? aSheet.getDataRange().getValues() : [];
 
   let totalAcciones = 0;
   let accionesConcluidas = 0;
@@ -798,7 +798,6 @@ function obtenerDashboard(dependenciaFiltro) {
 function obtenerMapaRiesgosData(dependenciaFiltro) {
   const riesgos = obtenerRiesgos(dependenciaFiltro);
 
-  // Matriz 10x10 para Mapa Inicial y Final
   const matrizInicial = Array(10).fill(0).map(() => Array(10).fill(0));
   const matrizFinal = Array(10).fill(0).map(() => Array(10).fill(0));
 
@@ -873,7 +872,6 @@ function actualizarEstatusAccion(idAccion, nuevoEstatus, porcentajeAvance, obser
 function obtenerCatalogos() {
   const ss = getActiveSpreadsheetSafe();
 
-  // Catálogos
   const catSheet = ss.getSheetByName(HOJAS.CATALOGOS);
   const catData = catSheet.getDataRange().getValues();
   const catalogos = {};
@@ -889,7 +887,6 @@ function obtenerCatalogos() {
     });
   }
 
-  // Dependencias
   const depSheet = ss.getSheetByName(HOJAS.DEPENDENCIAS);
   const depData = depSheet.getDataRange().getValues();
   const dependencias = [];
@@ -926,7 +923,7 @@ function obtenerReporteAutoevaluacion(dependenciaFiltro) {
     cuadranteII: riesgos.filter(r => r.cuadranteFinal.includes('Cuadrante II')).length,
     cuadranteIII: riesgos.filter(r => r.cuadranteFinal.includes('Cuadrante III')).length,
     cuadranteIV: riesgos.filter(r => r.cuadranteFinal.includes('Cuadrante IV')).length,
-    corrupcion: riesgos.filter(r => r.tipoRiesgo === 'De Corrupción').length
+    corrupcion: riesgos.filter(r => String(r.tipoRiesgo).toUpperCase().includes('CORRUPCI')).length
   };
 
   return {
@@ -939,15 +936,11 @@ function obtenerReporteAutoevaluacion(dependenciaFiltro) {
 }
 
 /**
- * ==============================================================================
- * VERIFICACIÓN Y PRUEBAS AUTOMATIZADAS (Servidor)
- * Para cumplir con los requerimientos obligatorios de verificación (a, b, c, d, e)
- * ==============================================================================
+ * VERIFICACIÓN Y PRUEBAS AUTOMATIZADAS
  */
 function ejecutarPruebasAutomatizadas() {
   const resultados = [];
 
-  // Prueba (a): Verificación de Cuadrantes para las 4 combinaciones
   const t1 = calcularCuadrante(8, 8); // I
   const t2 = calcularCuadrante(3, 8); // II
   const t3 = calcularCuadrante(3, 3); // III
@@ -956,34 +949,31 @@ function ejecutarPruebasAutomatizadas() {
   const pA = (t1.numero === 'I' && t2.numero === 'II' && t3.numero === 'III' && t4.numero === 'IV');
   resultados.push({ prueba: 'a) Cálculo de Cuadrantes (I, II, III, IV)', exito: pA, detalle: `I:${t1.numero}, II:${t2.numero}, III:${t3.numero}, IV:${t4.numero}` });
 
-  // Prueba (b): Validaciones de rangos
-  const v1 = validarRangoValor('Grave (7-8)', 8); // true
-  const v2 = validarRangoValor('Grave (7-8)', 3); // false
+  const v1 = validarRangoValor('GRAVE', 8);
+  const v2 = validarRangoValor('GRAVE', 3);
   const pB = (v1 === true && v2 === false);
   resultados.push({ prueba: 'b) Validación de rangos de Impacto/Probabilidad', exito: pB });
 
-  // Prueba (c): Valoración Final <= Inicial
   const errValidacion = validarRiesgoServidor({
     riesgo: {
       dependencia: 'ADM',
       noRiesgo: 'R1-ADM',
       descripcionRiesgo: 'Sustantivo probado adjetivo',
-      impactoInicialGrado: 'Bajo (3-4)',
+      impactoInicialGrado: 'BAJO',
       impactoInicialValor: 4,
-      probabilidadInicialGrado: 'Inusual (3-4)',
+      probabilidadInicialGrado: 'INUSUAL',
       probabilidadInicialValor: 4,
       tieneControles: 'SI',
-      impactoFinalGrado: 'Grave (7-8)',
-      impactoFinalValor: 8, // Mayor que inicial (inválido)
-      probabilidadFinalGrado: 'Inusual (3-4)',
+      impactoFinalGrado: 'GRAVE',
+      impactoFinalValor: 8,
+      probabilidadFinalGrado: 'INUSUAL',
       probabilidadFinalValor: 4
     },
-    factores: [{ factorCausa: 'Administrativo-gestión', tipoFactor: 'Interno', efectosConsecuencias: 'Efecto' }]
+    factores: [{ factorCausa: 'ADMINISTRATIVO-GESTIÓN', tipoFactor: 'INTERNO', efectosConsecuencias: 'COSTOS' }]
   });
   const pC = errValidacion.some(e => e.includes('no puede ser mayor'));
   resultados.push({ prueba: 'c) Validación Valoración Final <= Inicial', exito: pC });
 
-  // Prueba (d): Guardado de Riesgo con Múltiples Factores
   const demoPayload = {
     riesgo: {
       dependencia: 'ADM',
@@ -991,29 +981,29 @@ function ejecutarPruebasAutomatizadas() {
       procedimiento: 'Prueba de Sistema',
       objetivoEstrategico: 'Asegurar la calidad del software',
       descripcionRiesgo: 'Error no detectado oportunamente',
-      nivelExposicion: 'Operación',
-      tipoRiesgo: 'De TIC\'s',
+      nivelExposicion: 'OPERACIÓN',
+      tipoRiesgo: 'DE TIC´S',
       tieneControles: 'SI',
-      impactoInicialGrado: 'Moderado (5-6)',
+      impactoInicialGrado: 'MODERADO',
       impactoInicialValor: 6,
-      probabilidadInicialGrado: 'Probable (5-6)',
+      probabilidadInicialGrado: 'PROBABLE',
       probabilidadInicialValor: 6,
-      impactoFinalGrado: 'Bajo (3-4)',
+      impactoFinalGrado: 'BAJO',
       impactoFinalValor: 4,
-      probabilidadFinalGrado: 'Inusual (3-4)',
+      probabilidadFinalGrado: 'INUSUAL',
       probabilidadFinalValor: 4,
-      estrategiaRespuesta: 'Reducir'
+      estrategiaRespuesta: 'REDUCIR'
     },
     factores: [
-      { factorCausa: 'Tecnologías de la información', tipoFactor: 'Interno', efectosConsecuencias: 'Sanciones administrativas' },
-      { factorCausa: 'Recursos humanos', tipoFactor: 'Interno', efectosConsecuencias: 'Ineficiencia en procesos' }
+      { factorCausa: 'TECNOLOGÍAS DE LA INFORMACIÓN', tipoFactor: 'INTERNO', efectosConsecuencias: 'COSTOS' },
+      { factorCausa: 'RECURSOS HUMANOS', tipoFactor: 'INTERNO', efectosConsecuencias: 'MEJORA DE PROCESOS' }
     ],
     control: {
       descripcionControl: 'Revisión periódica de código',
       quienEjecuta: 'Auditor de Software',
       cuandoSeEjecuta: 'Semanal',
       evidencia: 'Reporte de pruebas',
-      tipoControl: 'Preventivo',
+      tipoControl: 'PREVENTIVO',
       atribDocumentado: true,
       atribFormalizado: true,
       atribAplicado: true,
@@ -1029,15 +1019,18 @@ function ejecutarPruebasAutomatizadas() {
   const pD = resSave.exito === true && resSave.idRiesgo !== undefined;
   resultados.push({ prueba: 'd) Guardado de Riesgo con múltiples factores y PTAR', exito: pD, idGenerado: resSave.idRiesgo });
 
-  // Limpiar el registro de prueba generado
   if (resSave.idRiesgo) {
     eliminarRiesgo(resSave.idRiesgo);
   }
 
-  // Prueba (e): Filtrado por rol/dependencia
   const riesgosADM = obtenerRiesgos('ADM');
   const pE = Array.isArray(riesgosADM);
   resultados.push({ prueba: 'e) Filtrado por dependencia/rol', exito: pE });
+
+  // Prueba f: Catálogos cargados con las 30 dependencias
+  const cats = obtenerCatalogos();
+  const pF = cats.dependencias && cats.dependencias.length === 30;
+  resultados.push({ prueba: 'f) Verificación de las 30 dependencias oficiales', exito: pF, totalDependencias: cats.dependencias ? cats.dependencias.length : 0 });
 
   return resultados;
 }

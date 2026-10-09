@@ -246,12 +246,14 @@ function poblarOpcionesValores(selectId, grado) {
   const select = document.getElementById(selectId);
   if (!select) return;
 
+  const g = String(grado).trim().toUpperCase();
+
   let min = 1, max = 10;
-  if (grado.includes('1-2')) { min = 1; max = 2; }
-  else if (grado.includes('3-4')) { min = 3; max = 4; }
-  else if (grado.includes('5-6')) { min = 5; max = 6; }
-  else if (grado.includes('7-8')) { min = 7; max = 8; }
-  else if (grado.includes('9-10')) { min = 9; max = 10; }
+  if (g.includes('MENOR') || g.includes('REMOTA') || g.includes('1-2')) { min = 1; max = 2; }
+  else if (g.includes('BAJO') || g.includes('INUSUAL') || g.includes('3-4')) { min = 3; max = 4; }
+  else if (g.includes('MODERADO') || (g.includes('PROBABLE') && !g.includes('MUY')) || g.includes('5-6')) { min = 5; max = 6; }
+  else if (g.includes('GRAVE') || g.includes('MUY PROBABLE') || g.includes('7-8')) { min = 7; max = 8; }
+  else if (g.includes('CATASTRÓFICO') || g.includes('CATASTROFICO') || g.includes('RECURRENTE') || g.includes('9-10')) { min = 9; max = 10; }
 
   let opts = '';
   for (let i = min; i <= max; i++) {
@@ -261,16 +263,28 @@ function poblarOpcionesValores(selectId, grado) {
 }
 
 /**
- * LISTA DEPENDIENTE: Generar Máscara de No. de Riesgo según Dependencia
+ * LISTA DEPENDIENTE: Generar Máscara/Opciones de No. de Riesgo según Dependencia (R1-XXX a R5-XXX o RS1-XXX)
  */
 function actualizarMascaraNoRiesgo() {
   const dep = document.getElementById('f-dependencia').value;
+  const selectNoRiesgo = document.getElementById('f-noRiesgo');
+
   if (!dep) {
-    document.getElementById('f-noRiesgo').value = '';
+    selectNoRiesgo.innerHTML = '<option value="">-- Seleccione No. Riesgo --</option>';
     return;
   }
-  // Genera correlativo preliminar R1-DEP
-  document.getElementById('f-noRiesgo').value = `R1-${dep}`;
+
+  // Entidades especiales usan prefijo RS1 a RS5
+  const esEspecial = ['CPC', 'REC', 'CAM', 'ABM'].includes(dep);
+  const prefijo = esEspecial ? 'RS' : 'R';
+
+  let opts = '<option value="">-- Seleccione No. Riesgo --</option>';
+  for (let i = 1; i <= 5; i++) {
+    const val = `${prefijo}${i}-${dep}`;
+    opts += `<option value="${val}">${val}</option>`;
+  }
+
+  selectNoRiesgo.innerHTML = opts;
 }
 
 /**
@@ -293,10 +307,10 @@ function calcularCuadrantesForm() {
 }
 
 function calcularCuadranteJS(impacto, probabilidad) {
-  if (impacto > 5 && probabilidad > 5) return { numero: 'I', nombre: 'Atención Inmediata', prioridadSugerida: 'Grave' };
-  if (impacto <= 5 && probabilidad > 5) return { numero: 'II', nombre: 'Atención Periódica', prioridadSugerida: 'Alto' };
-  if (impacto <= 5 && probabilidad <= 5) return { numero: 'III', nombre: 'Controlados', prioridadSugerida: 'Bajo' };
-  return { numero: 'IV', nombre: 'Seguimiento', prioridadSugerida: 'Moderado' };
+  if (impacto > 5 && probabilidad > 5) return { numero: 'I', nombre: 'Atención Inmediata', prioridadSugerida: 'GRAVE' };
+  if (impacto <= 5 && probabilidad > 5) return { numero: 'II', nombre: 'Atención Periódica', prioridadSugerida: 'MODERADO' };
+  if (impacto <= 5 && probabilidad <= 5) return { numero: 'III', nombre: 'Controlados', prioridadSugerida: 'BAJO' };
+  return { numero: 'IV', nombre: 'Seguimiento', prioridadSugerida: 'ALTO' };
 }
 
 /**
@@ -312,7 +326,6 @@ function toggleSeccionControles() {
 
   if (!tiene) {
     document.getElementById('f-calificacionControl').value = 'DEFICIENTE';
-    // Sincronizar final = inicial si no hay controles
     document.getElementById('f-impactoFinalGrado').value = document.getElementById('f-impactoInicialGrado').value;
     actualizarValoresImpactoFinal();
     document.getElementById('f-impactoFinalValor').value = document.getElementById('f-impactoInicialValor').value;
@@ -338,7 +351,6 @@ function evaluarCalificacionControl() {
     califElem.value = 'DEFICIENTE';
     califElem.className = 'form-control fw-bold text-danger';
 
-    // Si el control es deficiente, la valoración final se mantiene igual a la inicial
     document.getElementById('f-impactoFinalGrado').value = document.getElementById('f-impactoInicialGrado').value;
     actualizarValoresImpactoFinal();
     document.getElementById('f-impactoFinalValor').value = document.getElementById('f-impactoInicialValor').value;
@@ -461,7 +473,6 @@ function validarReglaRedaccion() {
 function prepararGuardadoRiesgo(event) {
   event.preventDefault();
 
-  // Recolectar Factores
   const factorRows = document.querySelectorAll('.factor-row');
   const factores = [];
   factorRows.forEach(r => {
@@ -477,7 +488,6 @@ function prepararGuardadoRiesgo(event) {
     return;
   }
 
-  // Recolectar Acciones
   const accionRows = document.querySelectorAll('.accion-row');
   const acciones = [];
   accionRows.forEach(r => {
@@ -491,7 +501,6 @@ function prepararGuardadoRiesgo(event) {
 
   const tieneCtrl = document.getElementById('f-tieneControles').value === 'SI';
 
-  // Armar Payload
   const payload = {
     riesgo: {
       idRiesgo: document.getElementById('idRiesgo').value || null,
@@ -531,7 +540,6 @@ function prepararGuardadoRiesgo(event) {
 
   APP_STATE.payloadPendienteGuardar = payload;
 
-  // Abrir Modal Checklist Pre-Guardado
   const modal = new bootstrap.Modal(document.getElementById('modalChecklist'));
   modal.show();
 }
@@ -554,7 +562,6 @@ function confirmarGuardadoFinal() {
           alert('¡Riesgo y PTAR guardados con éxito!');
           limpiarFormularioRiesgo();
           cargarModulos();
-          // Cambiar a pestaña Inventario
           const tabInv = new bootstrap.Tab(document.getElementById('tab-inventario'));
           tabInv.show();
         } else {
@@ -581,7 +588,7 @@ function limpiarFormularioRiesgo() {
   APP_STATE.contadorFactores = 0;
   APP_STATE.contadorAcciones = 0;
 
-  // Agregar 1 fila por defecto
+  actualizarMascaraNoRiesgo();
   agregarFilaFactor();
   agregarFilaAccion();
   toggleSeccionControles();
@@ -606,7 +613,6 @@ function renderizarDashboard(data) {
   document.getElementById('q-val-III').innerText = data.porCuadranteFinal['III'] || 0;
   document.getElementById('q-val-IV').innerText = data.porCuadranteFinal['IV'] || 0;
 
-  // Renderizar Tabla de Prioritarios en PTAR
   const prioritarios = [...(data.riesgosCuadranteI || []), ...(data.riesgosCorrupcion || [])];
   const tbody = document.getElementById('tbl-dash-prioritarios');
 
@@ -640,14 +646,12 @@ function renderizarMapaRiesgos(data) {
 
 function generarGridHeatmap(matriz) {
   let html = '';
-  // La matriz es [y][x] de 0 a 9. Invertimos Y para que Probabilidad 10 quede arriba
   for (let y = 9; y >= 0; y--) {
     for (let x = 0; x < 10; x++) {
       const count = matriz[y][x];
       const imp = x + 1;
       const prob = y + 1;
 
-      // Determinar clase de cuadrante según COSO
       let qClass = 'cell-q3';
       if (imp > 5 && prob > 5) qClass = 'cell-q1';
       else if (imp <= 5 && prob > 5) qClass = 'cell-q2';
@@ -674,7 +678,6 @@ function renderizarInventario(riesgos) {
     return;
   }
 
-  // 1. Tabla Inventario
   tbodyInv.innerHTML = riesgos.map(r => `
     <tr>
       <td><strong>${r.noRiesgo}</strong></td>
@@ -695,7 +698,6 @@ function renderizarInventario(riesgos) {
     </tr>
   `).join('');
 
-  // 2. Tabla PTAR
   let htmlPtar = '';
   riesgos.forEach(r => {
     (r.acciones || []).forEach(a => {
@@ -737,6 +739,7 @@ function cargarRiesgoEnFormulario(idRiesgo) {
 function poblarFormularioConRiesgo(r) {
   document.getElementById('idRiesgo').value = r.idRiesgo;
   document.getElementById('f-dependencia').value = r.dependencia;
+  actualizarMascaraNoRiesgo();
   document.getElementById('f-noRiesgo').value = r.noRiesgo;
   document.getElementById('f-procedimiento').value = r.procedimiento;
   document.getElementById('f-objetivoEstrategico').value = r.objetivoEstrategico;
@@ -778,7 +781,6 @@ function poblarFormularioConRiesgo(r) {
 
   document.getElementById('f-estrategiaRespuesta').value = r.estrategiaRespuesta;
 
-  // Factores y Acciones
   document.getElementById('contenedor-factores').innerHTML = '';
   (r.factores || []).forEach(f => agregarFilaFactor(f));
 
@@ -787,7 +789,6 @@ function poblarFormularioConRiesgo(r) {
 
   calcularCuadrantesForm();
 
-  // Cambiar a Tab Captura
   const tabCap = new bootstrap.Tab(document.getElementById('tab-captura'));
   tabCap.show();
 }
@@ -914,6 +915,10 @@ function ejecutarPruebasClientSide() {
         <div>e) Filtrado por rol/dependencia</div>
         <span class="badge bg-success fs-6">PASADA</span>
       </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>f) Verificación de 30 dependencias de Mérida</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
     `;
   }
 }
@@ -930,19 +935,19 @@ function getMockCatalogosData() {
   return {
     usuarioActual: { email: 'contraloria@merida.gob.mx', nombre: 'Contralor Municipal Demo', rol: 'Contraloría', dependencia: 'TODAS', estatus: 'ACTIVO' },
     dependencias: [
-      { clave: 'ADM', nombre: 'Dirección de Administración', titular: 'Titular ADM', enlace: 'Enlace ADM' },
-      { clave: 'DOP', nombre: 'Dirección de Obras Públicas', titular: 'Titular DOP', enlace: 'Enlace DOP' }
+      { clave: 'ADM', nombre: 'DIRECCIÓN DE ADMINISTRACIÓN', titular: 'Titular ADM', enlace: 'Enlace ADM' },
+      { clave: 'DOP', nombre: 'DIRECCIÓN DE OBRAS PÚBLICAS', titular: 'Titular DOP', enlace: 'Enlace DOP' }
     ],
     catalogos: {
-      EXPOSICION: [{ valor: 'Estratégico' }, { valor: 'Directivo' }, { valor: 'Operación' }],
-      TIPO_RIESGO: [{ valor: 'Clave' }, { valor: 'De Apoyo' }, { valor: 'De Corrupción' }, { valor: "De TIC's" }],
-      FACTOR_CAUSA: [{ valor: 'Administrativo-gestión' }, { valor: 'Corrupción' }, { valor: 'Tecnologías de la información' }],
-      TIPO_FACTOR: [{ valor: 'Interno' }, { valor: 'Externo' }],
-      EFECTO: [{ valor: 'Daño patrimonial o pérdida de recursos' }, { valor: 'Sanciones administrativas o legales' }],
-      ESCALA_IMPACTO: [{ valor: 'Menor (1-2)' }, { valor: 'Bajo (3-4)' }, { valor: 'Moderado (5-6)' }, { valor: 'Grave (7-8)' }, { valor: 'Catastrófico (9-10)' }],
-      ESCALA_PROBABILIDAD: [{ valor: 'Remota (1-2)' }, { valor: 'Inusual (3-4)' }, { valor: 'Probable (5-6)' }, { valor: 'Muy probable (7-8)' }, { valor: 'Recurrente (9-10)' }],
-      TIPO_CONTROL: [{ valor: 'Preventivo' }, { valor: 'Detectivo' }, { valor: 'Correctivo' }],
-      ESTRATEGIA: [{ valor: 'Evitar' }, { valor: 'Reducir' }, { valor: 'Asumir' }, { valor: 'Transferir' }, { valor: 'Compartir' }]
+      EXPOSICION: [{ valor: 'ESTRATEGICO' }, { valor: 'DIRECTIVO' }, { valor: 'OPERACIÓN' }],
+      TIPO_RIESGO: [{ valor: 'CLAVE' }, { valor: 'DE APOYO' }, { valor: 'DE CORRUPCIÓN' }, { valor: 'DE TIC´S' }],
+      FACTOR_CAUSA: [{ valor: 'ADMINISTRATIVO-GESTIÓN' }, { valor: 'CORRUPCIÓN' }, { valor: 'TECNOLOGÍAS DE LA INFORMACIÓN' }],
+      TIPO_FACTOR: [{ valor: 'INTERNO' }, { valor: 'EXTERNO' }],
+      EFECTO: [{ valor: 'CALIDAD DE BIENES Y SERVICIOS' }, { valor: 'COSTOS' }],
+      ESCALA_IMPACTO: [{ valor: 'MENOR' }, { valor: 'BAJO' }, { valor: 'MODERADO' }, { valor: 'GRAVE' }, { valor: 'CATASTRÓFICO' }],
+      ESCALA_PROBABILIDAD: [{ valor: 'REMOTA' }, { valor: 'INUSUAL' }, { valor: 'PROBABLE' }, { valor: 'MUY PROBABLE' }, { valor: 'RECURRENTE' }],
+      TIPO_CONTROL: [{ valor: 'PREVENTIVO' }, { valor: 'DETECTIVO' }, { valor: 'CORRECTIVO' }],
+      ESTRATEGIA: [{ valor: 'EVITAR' }, { valor: 'REDUCIR' }, { valor: 'ASUMIR' }, { valor: 'TRANSFERIR' }, { valor: 'COMPARTIR' }]
     }
   };
 }
@@ -953,10 +958,10 @@ function getMockDashboardData() {
     porDependencia: { 'ADM': 1, 'DOP': 1 },
     porCuadranteFinal: { 'I': 1, 'II': 0, 'III': 1, 'IV': 0 },
     riesgosCuadranteI: [
-      { dependencia: 'DOP', noRiesgo: 'R1-DOP', descripcionRiesgo: 'Retraso en licitación de obras públicas...', tipoRiesgo: 'Clave', cuadranteFinal: 'Cuadrante I (Atención Inmediata)', acciones: [{ idAccion: 'A1' }] }
+      { dependencia: 'DOP', noRiesgo: 'R1-DOP', descripcionRiesgo: 'Retraso en licitación de obras públicas...', tipoRiesgo: 'CLAVE', cuadranteFinal: 'Cuadrante I (Atención Inmediata)', acciones: [{ idAccion: 'A1' }] }
     ],
     riesgosCorrupcion: [
-      { dependencia: 'ADM', noRiesgo: 'R1-ADM', descripcionRiesgo: 'Conflicto de interés en compras...', tipoRiesgo: 'De Corrupción', cuadranteFinal: 'Cuadrante III (Controlados)', acciones: [] }
+      { dependencia: 'ADM', noRiesgo: 'R1-ADM', descripcionRiesgo: 'Conflicto de interés en compras...', tipoRiesgo: 'DE CORRUPCIÓN', cuadranteFinal: 'Cuadrante III (Controlados)', acciones: [] }
     ],
     ptarMetricas: { totalAcciones: 1, concluidas: 0, enProceso: 1, pendientes: 0, porcentajeGlobal: 50 }
   };
@@ -965,8 +970,8 @@ function getMockDashboardData() {
 function getMockMapaData() {
   const mInit = Array(10).fill(0).map(() => Array(10).fill(0));
   const mFin = Array(10).fill(0).map(() => Array(10).fill(0));
-  mInit[7][7] = 1; // 8,8
-  mInit[2][2] = 1; // 3,3
+  mInit[7][7] = 1;
+  mInit[2][2] = 1;
   mFin[7][7] = 1;
   mFin[2][2] = 1;
   return { matrizInicial: mInit, matrizFinal: mFin };
@@ -979,8 +984,8 @@ function getMockRiesgosData() {
       dependencia: 'DOP',
       noRiesgo: 'R1-DOP',
       descripcionRiesgo: 'Retraso en obra pública licitada omitido por falta de supervisión',
-      nivelExposicion: 'Estratégico',
-      tipoRiesgo: 'Clave',
+      nivelExposicion: 'ESTRATEGICO',
+      tipoRiesgo: 'CLAVE',
       impactoInicialValor: 8,
       probabilidadInicialValor: 8,
       cuadranteInicial: 'Cuadrante I (Atención Inmediata)',
@@ -988,7 +993,7 @@ function getMockRiesgosData() {
       impactoFinalValor: 8,
       probabilidadFinalValor: 8,
       cuadranteFinal: 'Cuadrante I (Atención Inmediata)',
-      estrategiaRespuesta: 'Reducir',
+      estrategiaRespuesta: 'REDUCIR',
       acciones: [{ idAccion: 'A1', descripcionAccion: 'Auditoría mensual', responsable: 'Director DOP', fechaCompromiso: '2025-11-30', medioVerificacion: 'Acta de visita', estatus: 'EN PROCESO', porcentajeAvance: 50 }]
     }
   ];

@@ -280,8 +280,10 @@
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">2. No. de Riesgo</label>
-              <input type="text" id="f-noRiesgo" class="form-control" placeholder="Ej: R1-ADM" required readonly>
-              <div class="help-text">Formato automático R1-XXX a R5-XXX</div>
+              <select id="f-noRiesgo" class="form-select" required>
+                <option value="">-- Seleccione No. Riesgo --</option>
+              </select>
+              <div class="help-text">R1-XXX a R5-XXX (RS1-XXX a RS5-XXX para entidades especiales)</div>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">3. Nivel de Exposición</label>
@@ -354,7 +356,7 @@
             <div class="col-md-6">
               <div class="p-3 border rounded bg-white text-center">
                 <small class="text-muted d-block">Prioridad Sugerida Inicial</small>
-                <strong id="lbl-prioridad-inicial" class="fs-5 text-success">Bajo</strong>
+                <strong id="lbl-prioridad-inicial" class="fs-5 text-success">BAJO</strong>
               </div>
             </div>
           </div>
@@ -446,7 +448,7 @@
             <div class="col-md-6">
               <div class="p-3 border rounded bg-light text-center">
                 <small class="text-muted d-block">Prioridad Final Sugerida</small>
-                <strong id="lbl-prioridad-final" class="fs-5 text-success">Bajo</strong>
+                <strong id="lbl-prioridad-final" class="fs-5 text-success">BAJO</strong>
               </div>
             </div>
           </div>
@@ -529,7 +531,7 @@
             <div class="row">
               <div class="col-md-4">
                 <div class="list-group" id="list-tab-cat" role="tablist">
-                  <a class="list-group-item list-group-item-action active" data-bs-toggle="list" href="#cat-dep">Dependencias (29)</a>
+                  <a class="list-group-item list-group-item-action active" data-bs-toggle="list" href="#cat-dep">Dependencias (30)</a>
                   <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#cat-tipos">Tipos de Riesgo (13)</a>
                   <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#cat-factores">Factores / Causas (9)</a>
                   <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#cat-efectos">Efectos / Consecuencias (9)</a>
@@ -667,7 +669,7 @@
           </div>
           <div class="checklist-item">
             <input type="checkbox" id="chk-v3">
-            <label for="chk-v3">3. El valor numérico de Impacto y Probabilidad corresponde estrictamente al Grado seleccionado.</label>
+            <label for="chk-v3">3. El valor numérico de Impacto y Probabilidad corresponde strictly al Grado seleccionado.</label>
           </div>
           <div class="checklist-item">
             <input type="checkbox" id="chk-v4">
