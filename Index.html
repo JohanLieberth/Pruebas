@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Matriz de Administración de Riesgos - Ayuntamiento de Mérida</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <!-- Navbar Mérida -->
+  <nav class="navbar navbar-expand-lg navbar-merida">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">
+        <i class="bi bi-shield-check"></i>
+        <div>
+          <div>Ayuntamiento de Mérida, Yucatán</div>
+          <div class="navbar-subtext">Sistema de Control Interno (SCI) - Matriz de Administración de Riesgos & PTAR</div>
+        </div>
+      </a>
+      <div class="d-flex text-white align-items-center">
+        <div class="me-3 text-end d-none d-md-block">
+          <small class="d-block text-white-50">Usuario Activo</small>
+          <strong id="lbl-usuario-actual">Cargando...</strong>
+        </div>
+        <button class="btn btn-sm btn-outline-light" onclick="ejecutarPruebasClientSide()">
+          <i class="bi bi-patch-check"></i> Ejecutar Verificación
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Role & Dependencia Simulator Toolbar (Para pruebas y filtrado) -->
+  <div class="role-toolbar no-print">
+    <div class="d-flex align-items-center gap-2">
+      <span class="fw-bold"><i class="bi bi-person-badge"></i> Rol de Acceso:</span>
+      <span id="badge-rol" class="role-badge role-contraloria">Contraloría</span>
+      <select id="select-simular-rol" class="form-select form-select-sm w-auto" onchange="cambiarSimulacionRol()">
+        <option value="Contraloría">Contraloría Municipal (Acceso Total)</option>
+        <option value="Enlace">Enlace de Control Interno (Captura/Edición)</option>
+        <option value="Titular">Titular de Dependencia (Consulta)</option>
+      </select>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <span class="fw-bold"><i class="bi bi-building"></i> Dependencia Visible:</span>
+      <select id="select-filtro-dependencia" class="form-select form-select-sm w-auto" onchange="filtrarTodoPorDependencia()">
+        <option value="TODAS">Consolidado General (Todas las Dependencias)</option>
+        <!-- Se llena dinámicamente -->
+      </select>
+    </div>
+  </div>
+
+  <div class="container-fluid px-4">
+    <!-- Navegación de Módulos (Tabs) -->
+    <ul class="nav nav-tabs nav-tabs-merida no-print" id="mainTabs" role="tablist">
+      <li class="nav-item">
+        <button class="nav-link active" id="tab-dashboard" data-bs-toggle="tab" data-bs-target="#sec-dashboard" type="button">
+          <i class="bi bi-speedometer2"></i> Dashboard General
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="tab-mapa" data-bs-toggle="tab" data-bs-target="#sec-mapa" type="button">
+          <i class="bi bi-grid-3x3-gap"></i> Mapa de Riesgos (COSO)
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="tab-inventario" data-bs-toggle="tab" data-bs-target="#sec-inventario" type="button">
+          <i class="bi bi-table"></i> Inventario de Riesgos
+        </button>
+      </li>
+      <li class="nav-item" id="nav-item-captura">
+        <button class="nav-link" id="tab-captura" data-bs-toggle="tab" data-bs-target="#sec-captura" type="button" onclick="nuevoRiesgoForm()">
+          <i class="bi bi-plus-circle"></i> Captura / Edición de Riesgo
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="tab-ptar" data-bs-toggle="tab" data-bs-target="#sec-ptar" type="button">
+          <i class="bi bi-journal-check"></i> Gestión PTAR
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="tab-catalogos" data-bs-toggle="tab" data-bs-target="#sec-catalogos" type="button">
+          <i class="bi bi-bookmarks"></i> Catálogos
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="tab-reportes" data-bs-toggle="tab" data-bs-target="#sec-reportes" type="button">
+          <i class="bi bi-file-earmark-pdf"></i> Reportes
+        </button>
+      </li>
+    </ul>
+
+    <!-- Contenido de Módulos -->
+    <div class="tab-content py-3" id="mainTabsContent">
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 1: DASHBOARD GENERAL (Contraloría & Visión Consolidada) -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade show active" id="sec-dashboard">
+        <div class="row g-3 mb-4">
+          <div class="col-md-3">
+            <div class="stat-card stat-card-total">
+              <div class="stat-val" id="dash-total-riesgos">0</div>
+              <div class="stat-lbl">Total Riesgos Registrados</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card stat-card-cuad1">
+              <div class="stat-val" id="dash-cuad1-count">0</div>
+              <div class="stat-lbl">Atención Inmediata (Cuadrante I)</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card stat-card-corrupcion">
+              <div class="stat-val" id="dash-corrupcion-count">0</div>
+              <div class="stat-lbl">Riesgos De Corrupción</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card stat-card-ptar">
+              <div class="stat-val" id="dash-ptar-avance">0%</div>
+              <div class="stat-lbl">Avance Global PTAR</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <!-- Riesgos Destacados Obligatorios PTAR (Cuadrante I y Corrupción) -->
+          <div class="col-md-8">
+            <div class="card card-merida">
+              <div class="card-merida-header">
+                <span><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> Riesgos Críticos Obligatorios en PTAR (Cuadrante I & Corrupción)</span>
+              </div>
+              <div class="card-body p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Dep.</th>
+                      <th>No. Riesgo</th>
+                      <th>Descripción / Evento</th>
+                      <th>Tipo</th>
+                      <th>Cuadrante Final</th>
+                      <th>Acción PTAR</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbl-dash-prioritarios">
+                    <tr><td colspan="6" class="text-center py-3 text-muted">Cargando datos...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cuadrantes Finales Consolidados -->
+          <div class="col-md-4">
+            <div class="card card-merida">
+              <div class="card-merida-header">
+                <span><i class="bi bi-pie-chart-fill me-2"></i> Distribución por Cuadrantes</span>
+              </div>
+              <div class="card-body">
+                <div class="quad-summary-grid">
+                  <div class="quad-box quad-box-I text-center">
+                    <small>Cuadrante I</small>
+                    <div class="fs-3 fw-bold" id="q-val-I">0</div>
+                    <small>Atención Inmediata</small>
+                  </div>
+                  <div class="quad-box quad-box-II text-center">
+                    <small>Cuadrante II</small>
+                    <div class="fs-3 fw-bold" id="q-val-II">0</div>
+                    <small>Atención Periódica</small>
+                  </div>
+                  <div class="quad-box quad-box-III text-center">
+                    <small>Cuadrante III</small>
+                    <div class="fs-3 fw-bold" id="q-val-III">0</div>
+                    <small>Controlados</small>
+                  </div>
+                  <div class="quad-box quad-box-IV text-center">
+                    <small>Cuadrante IV</small>
+                    <div class="fs-3 fw-bold" id="q-val-IV">0</div>
+                    <small>Seguimiento</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 2: MAPA DE RIESGOS INTERACTIVO (MATRIZ DISPERSIÓN & HEATMAP 10x10) -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade" id="sec-mapa">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card card-merida">
+              <div class="card-merida-header">
+                <span><i class="bi bi-grid-3x3 me-2"></i> Mapa de Calor Inicial (Antes de Controles)</span>
+              </div>
+              <div class="card-body text-center">
+                <div class="d-flex justify-content-between text-muted fs-7 mb-2 px-4">
+                  <span>← Probabilidad (Eje Y 10-1)</span>
+                  <span>Impacto (Eje X 1-10) →</span>
+                </div>
+                <div id="heatmap-inicial" class="heatmap-grid"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card card-merida">
+              <div class="card-merida-header">
+                <span><i class="bi bi-grid-3x3-gap-fill me-2"></i> Mapa de Calor Final (Con Controles)</span>
+              </div>
+              <div class="card-body text-center">
+                <div class="d-flex justify-content-between text-muted fs-7 mb-2 px-4">
+                  <span>← Probabilidad (Eje Y 10-1)</span>
+                  <span>Impacto (Eje X 1-10) →</span>
+                </div>
+                <div id="heatmap-final" class="heatmap-grid"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 3: INVENTARIO DE RIESGOS (Vista por Dependencia / Hoja Resumen) -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade" id="sec-inventario">
+        <div class="card card-merida">
+          <div class="card-merida-header">
+            <span><i class="bi bi-card-checklist me-2"></i> Inventario Consolidado de Riesgos</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="exportarTablaExcel('tbl-inventario-completo', 'Inventario_Riesgos_Merida')">
+              <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+            </button>
+          </div>
+          <div class="card-body p-0 table-responsive">
+            <table id="tbl-inventario-completo" class="table table-bordered table-striped align-middle mb-0" style="font-size:0.85rem;">
+              <thead class="table-dark">
+                <tr>
+                  <th>No. Riesgo</th>
+                  <th>Dependencia</th>
+                  <th>Descripción del Riesgo</th>
+                  <th>Exposición</th>
+                  <th>Tipo</th>
+                  <th>Val. Inicial</th>
+                  <th>Cuadrante Inicial</th>
+                  <th>Controles</th>
+                  <th>Val. Final</th>
+                  <th>Cuadrante Final</th>
+                  <th>Estrategia</th>
+                  <th class="no-print">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-inventario">
+                <tr><td colspan="12" class="text-center py-3">Cargando riesgos...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 4: CAPTURA / EDICIÓN GUIADA DE RIESGOS (SECCIONES I A VI) -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade" id="sec-captura">
+        <form id="form-riesgo" onsubmit="prepararGuardadoRiesgo(event)">
+          <input type="hidden" id="idRiesgo" name="idRiesgo">
+
+          <!-- SECCIÓN I Y II: CONTEXTUALIZACIÓN -->
+          <div class="form-section-title">
+            <i class="bi bi-1-circle-fill me-2"></i> Secciones I y II: Contextualización del Riesgo
+          </div>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-bold">1. Dependencia</label>
+              <select id="f-dependencia" class="form-select" required onchange="actualizarMascaraNoRiesgo()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">2. No. de Riesgo</label>
+              <input type="text" id="f-noRiesgo" class="form-control" placeholder="Ej: R1-ADM" required readonly>
+              <div class="help-text">Formato automático R1-XXX a R5-XXX</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">3. Nivel de Exposición</label>
+              <select id="f-nivelExposicion" class="form-select" required></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">4. Clasificación Tipo de Riesgo</label>
+              <select id="f-tipoRiesgo" class="form-select" required></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">5. Procedimiento del Sistema / Área</label>
+              <input type="text" id="f-procedimiento" class="form-control" placeholder="Nombre del procedimiento oficial" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">6. Objetivo Estratégico Asociado</label>
+              <input type="text" id="f-objetivoEstrategico" class="form-control" placeholder="Objetivo al que impacta el riesgo" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-bold">7. Descripción del Riesgo (Redacción COSO)</label>
+              <div class="redaction-guide">
+                <strong>Regla de Redacción Obligatoria:</strong> Sustantivo (situación) + Verbo en Participio (impedido, omitido, retrasado) + Adjetivo / Complemento explicativo.
+              </div>
+              <textarea id="f-descripcionRiesgo" class="form-control" rows="2" placeholder="Ejemplo: Trámites de licencias retrasados por falta de personal..." required onkeyup="validarReglaRedaccion()"></textarea>
+              <div id="msg-redaction-status" class="help-text text-muted">Asegúrese de seguir la estructura recomendada.</div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN III: EVALUACIÓN DEL RIESGO (FACTORES, IMPACTO, PROBABILIDAD) -->
+          <div class="form-section-title">
+            <i class="bi bi-2-circle-fill me-2"></i> Sección III: Evaluación del Riesgo (Factores, Causa e Impacto Inicial)
+          </div>
+
+          <!-- Contenedor dinámico de Factores (N:1) -->
+          <div class="card p-3 mb-3 bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="fw-bold mb-0"><i class="bi bi-diagram-3"></i> Factores de Riesgo / Causas (Permite Múltiples)</h6>
+              <button type="button" class="btn btn-sm btn-outline-success" onclick="agregarFilaFactor()">
+                <i class="bi bi-plus-lg"></i> Agregar Factor
+              </button>
+            </div>
+            <div id="contenedor-factores">
+              <!-- Se agregan dinámicamente -->
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Grado de Impacto Inicial</label>
+              <select id="f-impactoInicialGrado" class="form-select" required onchange="actualizarValoresImpactoInicial()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Valor de Impacto (1-10)</label>
+              <select id="f-impactoInicialValor" class="form-select" required onchange="calcularCuadrantesForm()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Probabilidad de Ocurrencia Inicial</label>
+              <select id="f-probabilidadInicialGrado" class="form-select" required onchange="actualizarValoresProbabilidadInicial()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Valor Probabilidad (1-10)</label>
+              <select id="f-probabilidadInicialValor" class="form-select" required onchange="calcularCuadrantesForm()"></select>
+            </div>
+
+            <div class="col-md-6">
+              <div class="p-3 border rounded bg-white text-center">
+                <small class="text-muted d-block">Cuadrante Inicial Calculado</small>
+                <strong id="lbl-cuadrante-inicial" class="fs-5 text-primary">Cuadrante III (Controlados)</strong>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="p-3 border rounded bg-white text-center">
+                <small class="text-muted d-block">Prioridad Sugerida Inicial</small>
+                <strong id="lbl-prioridad-inicial" class="fs-5 text-success">Bajo</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN IV Y V: VALORACIÓN DE CONTROLES Y VALORACIÓN FINAL -->
+          <div class="form-section-title">
+            <i class="bi bi-3-circle-fill me-2"></i> Secciones IV y V: Valoración de Controles y Valoración Final
+          </div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-bold">¿Existen Controles?</label>
+              <select id="f-tieneControles" class="form-select" onchange="toggleSeccionControles()">
+                <option value="SI">SI</option>
+                <option value="NO" selected>NO</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Tipo de Control</label>
+              <select id="f-tipoControl" class="form-select ctrl-field" disabled></select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Calificación del Control</label>
+              <input type="text" id="f-calificacionControl" class="form-control fw-bold" readonly value="DEFICIENTE">
+            </div>
+
+            <div class="col-12 ctrl-field-container">
+              <label class="form-label fw-bold">Descripción del Control (Qué se hace, Quién, Cuándo y Evidencia)</label>
+              <textarea id="f-descripcionControl" class="form-control ctrl-field" rows="2" disabled placeholder="Detalle la actividad de control existente..."></textarea>
+            </div>
+
+            <div class="col-md-3 ctrl-field-container">
+              <label class="form-label">¿Quién ejecuta el control?</label>
+              <input type="text" id="f-quienEjecuta" class="form-control ctrl-field" disabled>
+            </div>
+            <div class="col-md-3 ctrl-field-container">
+              <label class="form-label">¿Cuándo se ejecuta?</label>
+              <input type="text" id="f-cuandoSeEjecuta" class="form-control ctrl-field" disabled>
+            </div>
+            <div class="col-md-6 ctrl-field-container">
+              <label class="form-label">Evidencia Comprobable</label>
+              <input type="text" id="f-evidencia" class="form-control ctrl-field" disabled>
+            </div>
+
+            <!-- Atributos del Control (4 atributos obligatorio para SUFICIENTE) -->
+            <div class="col-12 ctrl-field-container">
+              <label class="form-label fw-bold d-block">Evaluación de 4 Atributos de Control (Requiere los 4 para ser SUFICIENTE):</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input ctrl-field chk-atrib" type="checkbox" id="chk-doc" onchange="evaluarCalificacionControl()" disabled>
+                <label class="form-check-label" for="chk-doc">1. Documentado</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input ctrl-field chk-atrib" type="checkbox" id="chk-form" onchange="evaluarCalificacionControl()" disabled>
+                <label class="form-check-label" for="chk-form">2. Formalizado</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input ctrl-field chk-atrib" type="checkbox" id="chk-apli" onchange="evaluarCalificacionControl()" disabled>
+                <label class="form-check-label" for="chk-apli">3. Aplicado</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input ctrl-field chk-atrib" type="checkbox" id="chk-efec" onchange="evaluarCalificacionControl()" disabled>
+                <label class="form-check-label" for="chk-efec">4. Efectivo</label>
+              </div>
+            </div>
+
+            <!-- VALORACIÓN FINAL -->
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Grado de Impacto Final</label>
+              <select id="f-impactoFinalGrado" class="form-select ctrl-field" disabled onchange="actualizarValoresImpactoFinal()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Valor Impacto Final (≤ Inicial)</label>
+              <select id="f-impactoFinalValor" class="form-select ctrl-field" disabled onchange="calcularCuadrantesForm()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Probabilidad Final</label>
+              <select id="f-probabilidadFinalGrado" class="form-select ctrl-field" disabled onchange="actualizarValoresProbabilidadFinal()"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Valor Probabilidad Final (≤ Inicial)</label>
+              <select id="f-probabilidadFinalValor" class="form-select ctrl-field" disabled onchange="calcularCuadrantesForm()"></select>
+            </div>
+
+            <div class="col-md-6">
+              <div class="p-3 border rounded bg-light text-center">
+                <small class="text-muted d-block">Cuadrante Final Calculado</small>
+                <strong id="lbl-cuadrante-final" class="fs-5 text-primary">Cuadrante III (Controlados)</strong>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="p-3 border rounded bg-light text-center">
+                <small class="text-muted d-block">Prioridad Final Sugerida</small>
+                <strong id="lbl-prioridad-final" class="fs-5 text-success">Bajo</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN VI: RESPUESTA AL RIESGO Y BASE DEL PTAR -->
+          <div class="form-section-title">
+            <i class="bi bi-4-circle-fill me-2"></i> Sección VI: Estrategia de Respuesta y Plan de Trabajo (PTAR)
+          </div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Estrategia de Respuesta</label>
+              <select id="f-estrategiaRespuesta" class="form-select" required></select>
+            </div>
+          </div>
+
+          <!-- Contenedor dinámico de Acciones PTAR -->
+          <div class="card p-3 my-3 bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="fw-bold mb-0"><i class="bi bi-tasks"></i> Acciones del Programa de Trabajo (PTAR)</h6>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarFilaAccion()">
+                <i class="bi bi-plus-lg"></i> Agregar Acción PTAR
+              </button>
+            </div>
+            <div id="contenedor-acciones">
+              <!-- Se agregan dinámicamente -->
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-4 mb-5">
+            <button type="button" class="btn btn-secondary" onclick="limpiarFormularioRiesgo()">Limpiar Formulario</button>
+            <button type="submit" class="btn btn-primary px-4 fw-bold"><i class="bi bi-save"></i> Guardar Riesgo</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 5: GESTIÓN Y SEGUIMIENTO DEL PTAR -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade" id="sec-ptar">
+        <div class="card card-merida">
+          <div class="card-merida-header">
+            <span><i class="bi bi-list-check me-2"></i> Seguimiento de Acciones Compromiso PTAR</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="exportarTablaExcel('tbl-ptar-seguimiento', 'Seguimiento_PTAR_Merida')">
+              <i class="bi bi-file-earmark-excel"></i> Exportar PTAR
+            </button>
+          </div>
+          <div class="card-body p-0 table-responsive">
+            <table id="tbl-ptar-seguimiento" class="table table-hover align-middle mb-0" style="font-size:0.85rem;">
+              <thead class="table-primary">
+                <tr>
+                  <th>Dependencia</th>
+                  <th>No. Riesgo</th>
+                  <th>Acción Compromiso</th>
+                  <th>Responsable</th>
+                  <th>Fecha Compromiso</th>
+                  <th>Medio Verificación</th>
+                  <th>Estatus</th>
+                  <th>% Avance</th>
+                  <th class="no-print">Actualizar</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-ptar">
+                <tr><td colspan="9" class="text-center py-3">Cargando acciones PTAR...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 6: CATÁLOGOS ADMINISTRABLES (Solo Contraloría) -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade" id="sec-catalogos">
+        <div class="card card-merida">
+          <div class="card-merida-header">
+            <span><i class="bi bi-gear-fill me-2"></i> Administrador de Catálogos del Sistema</span>
+            <span class="badge bg-danger">Exclusivo Contraloría</span>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <div class="list-group" id="list-tab-cat" role="tablist">
+                  <a class="list-group-item list-group-item-action active" data-bs-toggle="list" href="#cat-dep">Dependencias (29)</a>
+                  <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#cat-tipos">Tipos de Riesgo (13)</a>
+                  <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#cat-factores">Factores / Causas (9)</a>
+                  <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#cat-efectos">Efectos / Consecuencias (9)</a>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <div class="tab-content" id="nav-tabContentCat">
+                  <div class="tab-pane fade show active" id="cat-dep">
+                    <h6>Catálogo Oficial de Dependencias Ayuntamiento de Mérida</h6>
+                    <ul class="list-group list-group-flush fs-7" id="ul-cat-dependencias"></ul>
+                  </div>
+                  <div class="tab-pane fade" id="cat-tipos">
+                    <h6>Tipos de Riesgo</h6>
+                    <ul class="list-group list-group-flush fs-7" id="ul-cat-tipos"></ul>
+                  </div>
+                  <div class="tab-pane fade" id="cat-factores">
+                    <h6>Factores de Riesgo / Causas</h6>
+                    <ul class="list-group list-group-flush fs-7" id="ul-cat-factores"></ul>
+                  </div>
+                  <div class="tab-pane fade" id="cat-efectos">
+                    <h6>Efectos o Consecuencias</h6>
+                    <ul class="list-group list-group-flush fs-7" id="ul-cat-efectos"></ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================================== -->
+      <!-- MÓDULO 7: REPORTES E INFORME ANUAL DE AUTOEVALUACIÓN -->
+      <!-- ============================================================================== -->
+      <div class="tab-pane fade" id="sec-reportes">
+        <div class="card card-merida">
+          <div class="card-merida-header">
+            <span><i class="bi bi-file-earmark-pdf-fill me-2"></i> Informe Anual de Autoevaluación del SCI</span>
+            <button class="btn btn-sm btn-success" onclick="window.print()">
+              <i class="bi bi-printer"></i> Imprimir / Generar PDF
+            </button>
+          </div>
+          <div class="card-body" id="area-reporte-impresion">
+            <div class="text-center mb-4 border-bottom pb-3">
+              <h4 class="fw-bold mb-1">AYUNTAMIENTO DE MÉRIDA, YUCATÁN</h4>
+              <h5 class="text-muted mb-1">SISTEMA DE CONTROL INTERNO MUNICIPAL (SCI)</h5>
+              <h6 class="text-primary">INFORME DE AUTOEVALUACIÓN DE ADMINISTRACIÓN DE RIESGOS (MAR-PTAR)</h6>
+              <div class="fs-7 text-muted" id="rep-meta-info">Fecha: -- | Dependencia: --</div>
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-3">
+                <div class="border rounded p-3 text-center">
+                  <small class="text-muted d-block">Total Riesgos</small>
+                  <strong class="fs-3" id="rep-val-total">0</strong>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="border rounded p-3 text-center bg-light">
+                  <small class="text-muted d-block">Cuadrante I (Críticos)</small>
+                  <strong class="fs-3 text-danger" id="rep-val-q1">0</strong>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="border rounded p-3 text-center bg-light">
+                  <small class="text-muted d-block">Riesgos De Corrupción</small>
+                  <strong class="fs-3 text-purple" id="rep-val-corr">0</strong>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="border rounded p-3 text-center bg-light">
+                  <small class="text-muted d-block">Avance PTAR</small>
+                  <strong class="fs-3 text-success" id="rep-val-avance">0%</strong>
+                </div>
+              </div>
+            </div>
+
+            <h6>Resumen de Inventario de Riesgos</h6>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>No.</th>
+                    <th>Procedimiento</th>
+                    <th>Descripción del Riesgo</th>
+                    <th>Tipo</th>
+                    <th>Cuadrante Inicial</th>
+                    <th>Cuadrante Final</th>
+                    <th>Estrategia</th>
+                  </tr>
+                </thead>
+                <tbody id="tbl-reporte-body">
+                  <tr><td colspan="7" class="text-center">Sin datos de reporte</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="row mt-5 pt-4 text-center">
+              <div class="col-6">
+                <div class="border-top border-dark mx-auto w-75 pt-2">
+                  <strong id="rep-firma-enlace">Enlace de Control Interno</strong><br>
+                  <small class="text-muted">Elaboró / Modificó</small>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="border-top border-dark mx-auto w-75 pt-2">
+                  <strong id="rep-firma-titular">Titular de la Dependencia</strong><br>
+                  <small class="text-muted">Aprobó / Supervisó</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL DE LISTA DE VERIFICACIÓN / PRE-GUARDADO -->
+  <div class="modal fade" id="modalChecklist" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-card-checklist me-2"></i> Lista de Verificación de Calidad del Riesgo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted fs-7">Verifique cada punto antes de autorizar el guardado definitivo en el sistema:</p>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk-v1">
+            <label for="chk-v1">1. La descripción cumple la regla COSO: Sustantivo + Verbo en Participio + Adjetivo/Complemento.</label>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk-v2">
+            <label for="chk-v2">2. El factor de riesgo/causa identifica correctamente la causa raíz (Administrativo, Corrupción, IT, etc.).</label>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk-v3">
+            <label for="chk-v3">3. El valor numérico de Impacto y Probabilidad corresponde estrictamente al Grado seleccionado.</label>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk-v4">
+            <label for="chk-v4">4. La valoración final es menor o igual a la inicial.</label>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk-v5">
+            <label for="chk-v5">5. Si se registraron controles SUFICIENTES, cumplen los 4 atributos: Documentado, Formalizado, Aplicado y Efectivo.</label>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk-v6">
+            <label for="chk-v6">6. Las acciones del PTAR cuentan con responsable, fecha compromiso y medio de verificación válido.</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success fw-bold" onclick="confirmarGuardadoFinal()"><i class="bi bi-check-lg"></i> Confirmar y Guardar Riesgo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE PRUEBAS / RESULTADOS DE VERIFICACIÓN -->
+  <div class="modal fade" id="modalPruebas" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title"><i class="bi bi-patch-check-fill me-2"></i> Resultado de Verificación de Requerimientos</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+          <ul class="list-group list-group-flush" id="ul-resultados-pruebas">
+            <li class="list-group-item">Ejecutando pruebas...</li>
+          </ul>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
