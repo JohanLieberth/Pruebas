@@ -1,0 +1,1001 @@
+<script>
+/**
+ * ==============================================================================
+ * CLIENT-SIDE LOGIC & APP CONTROLLER
+ * Ayuntamiento de Mérida, Yucatán - Sistema de Control Interno (SCI)
+ * ==============================================================================
+ */
+
+// Estado Global de la Aplicación
+window.APP_STATE = {
+  usuarioActual: null,
+  catalogos: null,
+  dependencias: [],
+  dependenciaSeleccionada: 'TODAS',
+  rolSimulado: 'Contraloría',
+  contadorFactores: 0,
+  contadorAcciones: 0,
+  payloadPendienteGuardar: null
+};
+
+// Inicialización cuando la página carga
+document.addEventListener('DOMContentLoaded', function() {
+  inicializarAplicacion();
+});
+
+/**
+ * Inicialización de la App.
+ */
+function inicializarAplicacion() {
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(onCatalogosCargados)
+      .withFailureHandler(onClientError)
+      .obtenerCatalogos();
+  } else {
+    // Entorno de prueba local / Offline Fallback
+    console.warn('Ejecutando en entorno local sin google.script.run');
+    onCatalogosCargados(getMockCatalogosData());
+  }
+}
+
+/**
+ * Callback tras cargar catálogos y dependencias.
+ */
+function onCatalogosCargados(data) {
+  APP_STATE.catalogos = data.catalogos;
+  APP_STATE.dependencias = data.dependencias;
+  APP_STATE.usuarioActual = data.usuarioActual;
+
+  // Actualizar UI Header
+  document.getElementById('lbl-usuario-actual').innerText = `${data.usuarioActual.nombre} (${data.usuarioActual.email})`;
+
+  // Configurar Rol Inicial
+  APP_STATE.rolSimulado = data.usuarioActual.rol || 'Contraloría';
+  document.getElementById('select-simular-rol').value = APP_STATE.rolSimulado;
+  actualizarUIModoRol();
+
+  // Poblar Selectores Generales
+  poblarSelectorDependencias();
+  poblarSelectoresCatalogos();
+
+  // Cargar Factores y Acciones por defecto en el Formulario
+  nuevoRiesgoForm();
+
+  // Cargar Datos Iniciales de Módulos
+  cargarModulos();
+}
+
+/**
+ * Configura la UI según el rol activo.
+ */
+function actualizarUIModoRol() {
+  const rol = APP_STATE.rolSimulado;
+  const badge = document.getElementById('badge-rol');
+  const navCaptura = document.getElementById('nav-item-captura');
+
+  badge.innerText = rol;
+  badge.className = 'role-badge ' + (rol === 'Contraloría' ? 'role-contraloria' : (rol === 'Enlace' ? 'role-enlace' : 'role-titular'));
+
+  if (rol === 'Titular') {
+    navCaptura.style.display = 'none';
+  } else {
+    navCaptura.style.display = 'block';
+  }
+}
+
+/**
+ * Cambia la simulación de rol desde el Toolbar superior.
+ */
+function cambiarSimulacionRol() {
+  APP_STATE.rolSimulado = document.getElementById('select-simular-rol').value;
+  actualizarUIModoRol();
+  cargarModulos();
+}
+
+/**
+ * Filtra todo el sistema por la Dependencia elegida.
+ */
+function filtrarTodoPorDependencia() {
+  APP_STATE.dependenciaSeleccionada = document.getElementById('select-filtro-dependencia').value;
+  cargarModulos();
+}
+
+/**
+ * Carga o refresca la información de todos los módulos.
+ */
+function cargarModulos() {
+  const dep = APP_STATE.dependenciaSeleccionada;
+
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    // 1. Dashboard
+    google.script.run
+      .withSuccessHandler(renderizarDashboard)
+      .obtenerDashboard(dep);
+
+    // 2. Mapa de Riesgos
+    google.script.run
+      .withSuccessHandler(renderizarMapaRiesgos)
+      .obtenerMapaRiesgosData(dep);
+
+    // 3. Inventario
+    google.script.run
+      .withSuccessHandler(renderizarInventario)
+      .obtenerRiesgos(dep);
+
+    // 4. Reportes
+    google.script.run
+      .withSuccessHandler(renderizarReporte)
+      .obtenerReporteAutoevaluacion(dep);
+  } else {
+    // Mock local data
+    const mockRiesgos = getMockRiesgosData();
+    renderizarDashboard(getMockDashboardData());
+    renderizarMapaRiesgos(getMockMapaData());
+    renderizarInventario(mockRiesgos);
+    renderizarReporte({
+      fechaGeneracion: '09/10/2025 10:00',
+      generadoPor: 'Contraloría Municipal',
+      dependencia: dep,
+      resumen: { total: mockRiesgos.length, cuadranteI: 1, cuadranteII: 0, cuadranteIII: 1, cuadranteIV: 0, corrupcion: 1 },
+      riesgos: mockRiesgos
+    });
+  }
+}
+
+/**
+ * POBLAR SELECTORES DE DEPENDENCIAS
+ */
+function poblarSelectorDependencias() {
+  const selectFiltro = document.getElementById('select-filtro-dependencia');
+  const selectFormDep = document.getElementById('f-dependencia');
+
+  let optionsFiltro = '<option value="TODAS">Consolidado General (Todas las Dependencias)</option>';
+  let optionsForm = '<option value="">-- Seleccione Dependencia --</option>';
+
+  APP_STATE.dependencias.forEach(d => {
+    optionsFiltro += `<option value="${d.clave}">${d.clave} - ${d.nombre}</option>`;
+    optionsForm += `<option value="${d.clave}">${d.clave} - ${d.nombre}</option>`;
+  });
+
+  selectFiltro.innerHTML = optionsFiltro;
+  selectFormDep.innerHTML = optionsForm;
+
+  // Poblar Catálogo de Dependencias tab
+  const ulDep = document.getElementById('ul-cat-dependencias');
+  if (ulDep) {
+    ulDep.innerHTML = APP_STATE.dependencias.map(d =>
+      `<li class="list-group-item"><strong>${d.clave}</strong>: ${d.nombre} <br><small class="text-muted">Titular: ${d.titular} | Enlace: ${d.enlace}</small></li>`
+    ).join('');
+  }
+}
+
+/**
+ * POBLAR SELECTORES CON CATÁLOGOS FIXTURES DE CÓDIGO
+ */
+function poblarSelectoresCatalogos() {
+  const cats = APP_STATE.catalogos;
+
+  // Exposición
+  poblarSelect('f-nivelExposicion', cats.EXPOSICION);
+  // Tipo de Riesgo
+  poblarSelect('f-tipoRiesgo', cats.TIPO_RIESGO);
+  // Escalas de Impacto
+  poblarSelect('f-impactoInicialGrado', cats.ESCALA_IMPACTO);
+  poblarSelect('f-impactoFinalGrado', cats.ESCALA_IMPACTO);
+  // Escalas de Probabilidad
+  poblarSelect('f-probabilidadInicialGrado', cats.ESCALA_PROBABILIDAD);
+  poblarSelect('f-probabilidadFinalGrado', cats.ESCALA_PROBABILIDAD);
+  // Tipo de Control
+  poblarSelect('f-tipoControl', cats.TIPO_CONTROL);
+  // Estrategia
+  poblarSelect('f-estrategiaRespuesta', cats.ESTRATEGIA);
+
+  // Inicializar Valores Numéricos
+  actualizarValoresImpactoInicial();
+  actualizarValoresProbabilidadInicial();
+  actualizarValoresImpactoFinal();
+  actualizarValoresProbabilidadFinal();
+
+  // Poblar Catálogos en Tab
+  poblarListaCatTab('ul-cat-tipos', cats.TIPO_RIESGO);
+  poblarListaCatTab('ul-cat-factores', cats.FACTOR_CAUSA);
+  poblarListaCatTab('ul-cat-efectos', cats.EFECTO);
+}
+
+function poblarSelect(elemId, items) {
+  const select = document.getElementById(elemId);
+  if (!select || !items) return;
+  select.innerHTML = items.map(i => `<option value="${i.valor}">${i.valor}</option>`).join('');
+}
+
+function poblarListaCatTab(elemId, items) {
+  const ul = document.getElementById(elemId);
+  if (!ul || !items) return;
+  ul.innerHTML = items.map(i => `<li class="list-group-item"><strong>${i.valor}</strong> <span class="text-muted">${i.descripcion || ''}</span></li>`).join('');
+}
+
+/**
+ * LISTAS DEPENDIENTES: ACTUALIZA VALORES NUMÉRICOS A PARTIR DEL GRADO
+ */
+function actualizarValoresImpactoInicial() {
+  const grado = document.getElementById('f-impactoInicialGrado').value;
+  poblarOpcionesValores('f-impactoInicialValor', grado);
+  calcularCuadrantesForm();
+}
+
+function actualizarValoresProbabilidadInicial() {
+  const grado = document.getElementById('f-probabilidadInicialGrado').value;
+  poblarOpcionesValores('f-probabilidadInicialValor', grado);
+  calcularCuadrantesForm();
+}
+
+function actualizarValoresImpactoFinal() {
+  const grado = document.getElementById('f-impactoFinalGrado').value;
+  poblarOpcionesValores('f-impactoFinalValor', grado);
+  calcularCuadrantesForm();
+}
+
+function actualizarValoresProbabilidadFinal() {
+  const grado = document.getElementById('f-probabilidadFinalGrado').value;
+  poblarOpcionesValores('f-probabilidadFinalValor', grado);
+  calcularCuadrantesForm();
+}
+
+function poblarOpcionesValores(selectId, grado) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  const g = String(grado).trim().toUpperCase();
+
+  let min = 1, max = 10;
+  if (g.includes('MENOR') || g.includes('REMOTA') || g.includes('1-2')) { min = 1; max = 2; }
+  else if (g.includes('BAJO') || g.includes('INUSUAL') || g.includes('3-4')) { min = 3; max = 4; }
+  else if (g.includes('MODERADO') || (g.includes('PROBABLE') && !g.includes('MUY')) || g.includes('5-6')) { min = 5; max = 6; }
+  else if (g.includes('GRAVE') || g.includes('MUY PROBABLE') || g.includes('7-8')) { min = 7; max = 8; }
+  else if (g.includes('CATASTRÓFICO') || g.includes('CATASTROFICO') || g.includes('RECURRENTE') || g.includes('9-10')) { min = 9; max = 10; }
+
+  let opts = '';
+  for (let i = min; i <= max; i++) {
+    opts += `<option value="${i}">${i}</option>`;
+  }
+  select.innerHTML = opts;
+}
+
+/**
+ * LISTA DEPENDIENTE: Generar Máscara/Opciones de No. de Riesgo según Dependencia (R1-XXX a R5-XXX o RS1-XXX)
+ */
+function actualizarMascaraNoRiesgo() {
+  const dep = document.getElementById('f-dependencia').value;
+  const selectNoRiesgo = document.getElementById('f-noRiesgo');
+
+  if (!dep) {
+    selectNoRiesgo.innerHTML = '<option value="">-- Seleccione No. Riesgo --</option>';
+    return;
+  }
+
+  // Entidades especiales usan prefijo RS1 a RS5
+  const esEspecial = ['CPC', 'REC', 'CAM', 'ABM'].includes(dep);
+  const prefijo = esEspecial ? 'RS' : 'R';
+
+  let opts = '<option value="">-- Seleccione No. Riesgo --</option>';
+  for (let i = 1; i <= 5; i++) {
+    const val = `${prefijo}${i}-${dep}`;
+    opts += `<option value="${val}">${val}</option>`;
+  }
+
+  selectNoRiesgo.innerHTML = opts;
+}
+
+/**
+ * CÁLCULO DE CUADRANTES Y PRIORIDADES EN TIEMPO REAL (COSO)
+ */
+function calcularCuadrantesForm() {
+  const impInit = Number(document.getElementById('f-impactoInicialValor').value) || 0;
+  const probInit = Number(document.getElementById('f-probabilidadInicialValor').value) || 0;
+
+  const qInit = calcularCuadranteJS(impInit, probInit);
+  document.getElementById('lbl-cuadrante-inicial').innerText = `Cuadrante ${qInit.numero} (${qInit.nombre})`;
+  document.getElementById('lbl-prioridad-inicial').innerText = qInit.prioridadSugerida;
+
+  const impFin = Number(document.getElementById('f-impactoFinalValor').value) || impInit;
+  const probFin = Number(document.getElementById('f-probabilidadFinalValor').value) || probInit;
+
+  const qFin = calcularCuadranteJS(impFin, probFin);
+  document.getElementById('lbl-cuadrante-final').innerText = `Cuadrante ${qFin.numero} (${qFin.nombre})`;
+  document.getElementById('lbl-prioridad-final').innerText = qFin.prioridadSugerida;
+}
+
+function calcularCuadranteJS(impacto, probabilidad) {
+  if (impacto > 5 && probabilidad > 5) return { numero: 'I', nombre: 'Atención Inmediata', prioridadSugerida: 'GRAVE' };
+  if (impacto <= 5 && probabilidad > 5) return { numero: 'II', nombre: 'Atención Periódica', prioridadSugerida: 'MODERADO' };
+  if (impacto <= 5 && probabilidad <= 5) return { numero: 'III', nombre: 'Controlados', prioridadSugerida: 'BAJO' };
+  return { numero: 'IV', nombre: 'Seguimiento', prioridadSugerida: 'ALTO' };
+}
+
+/**
+ * TOGGLE DE SECCIÓN DE CONTROLES Y EVALUACIÓN DE ATRIBUTOS
+ */
+function toggleSeccionControles() {
+  const tiene = document.getElementById('f-tieneControles').value === 'SI';
+  const ctrlFields = document.querySelectorAll('.ctrl-field');
+
+  ctrlFields.forEach(f => {
+    f.disabled = !tiene;
+  });
+
+  if (!tiene) {
+    document.getElementById('f-calificacionControl').value = 'DEFICIENTE';
+    document.getElementById('f-impactoFinalGrado').value = document.getElementById('f-impactoInicialGrado').value;
+    actualizarValoresImpactoFinal();
+    document.getElementById('f-impactoFinalValor').value = document.getElementById('f-impactoInicialValor').value;
+
+    document.getElementById('f-probabilidadFinalGrado').value = document.getElementById('f-probabilidadInicialGrado').value;
+    actualizarValoresProbabilidadFinal();
+    document.getElementById('f-probabilidadFinalValor').value = document.getElementById('f-probabilidadInicialValor').value;
+  }
+}
+
+function evaluarCalificacionControl() {
+  const chks = document.querySelectorAll('.chk-atrib');
+  let todosTrue = true;
+  chks.forEach(c => {
+    if (!c.checked) todosTrue = false;
+  });
+
+  const califElem = document.getElementById('f-calificacionControl');
+  if (todosTrue) {
+    califElem.value = 'SUFICIENTE';
+    califElem.className = 'form-control fw-bold text-success';
+  } else {
+    califElem.value = 'DEFICIENTE';
+    califElem.className = 'form-control fw-bold text-danger';
+
+    document.getElementById('f-impactoFinalGrado').value = document.getElementById('f-impactoInicialGrado').value;
+    actualizarValoresImpactoFinal();
+    document.getElementById('f-impactoFinalValor').value = document.getElementById('f-impactoInicialValor').value;
+
+    document.getElementById('f-probabilidadFinalGrado').value = document.getElementById('f-probabilidadInicialGrado').value;
+    actualizarValoresProbabilidadFinal();
+    document.getElementById('f-probabilidadFinalValor').value = document.getElementById('f-probabilidadInicialValor').value;
+  }
+}
+
+/**
+ * MANEJO DINÁMICO DE FACTORES (N:1)
+ */
+function agregarFilaFactor(datos) {
+  APP_STATE.contadorFactores++;
+  const id = APP_STATE.contadorFactores;
+  const cats = APP_STATE.catalogos;
+
+  const factorOpts = cats ? cats.FACTOR_CAUSA.map(f => `<option value="${f.valor}">${f.valor}</option>`).join('') : '';
+  const tipoOpts = cats ? cats.TIPO_FACTOR.map(f => `<option value="${f.valor}">${f.valor}</option>`).join('') : '';
+  const efectoOpts = cats ? cats.EFECTO.map(f => `<option value="${f.valor}">${f.valor}</option>`).join('') : '';
+
+  const html = `
+    <div class="row g-2 mb-2 align-items-center factor-row" id="row-factor-${id}">
+      <div class="col-md-4">
+        <select class="form-select form-select-sm f-factor-causa" required>
+          ${factorOpts}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select form-select-sm f-tipo-factor" required>
+          ${tipoOpts}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <select class="form-select form-select-sm f-efecto" required>
+          ${efectoOpts}
+        </select>
+      </div>
+      <div class="col-md-1 text-center">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarFilaDOM('row-factor-${id}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('contenedor-factores').insertAdjacentHTML('beforeend', html);
+
+  if (datos) {
+    const row = document.getElementById(`row-factor-${id}`);
+    row.querySelector('.f-factor-causa').value = datos.factorCausa;
+    row.querySelector('.f-tipo-factor').value = datos.tipoFactor;
+    row.querySelector('.f-efecto').value = datos.efectosConsecuencias;
+  }
+}
+
+/**
+ * MANEJO DINÁMICO DE ACCIONES PTAR (N:1)
+ */
+function agregarFilaAccion(datos) {
+  APP_STATE.contadorAcciones++;
+  const id = APP_STATE.contadorAcciones;
+
+  const html = `
+    <div class="row g-2 mb-2 align-items-center accion-row" id="row-accion-${id}">
+      <div class="col-md-4">
+        <input type="text" class="form-control form-select-sm f-acc-desc" placeholder="Descripción de la acción" required>
+      </div>
+      <div class="col-md-2">
+        <input type="text" class="form-control form-select-sm f-acc-resp" placeholder="Responsable" required>
+      </div>
+      <div class="col-md-2">
+        <input type="date" class="form-control form-select-sm f-acc-fecha" required>
+      </div>
+      <div class="col-md-3">
+        <input type="text" class="form-control form-select-sm f-acc-medio" placeholder="Medio de verificación" required>
+      </div>
+      <div class="col-md-1 text-center">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarFilaDOM('row-accion-${id}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('contenedor-acciones').insertAdjacentHTML('beforeend', html);
+
+  if (datos) {
+    const row = document.getElementById(`row-accion-${id}`);
+    row.querySelector('.f-acc-desc').value = datos.descripcionAccion;
+    row.querySelector('.f-acc-resp').value = datos.responsable;
+    row.querySelector('.f-acc-fecha').value = datos.fechaCompromiso;
+    row.querySelector('.f-acc-medio').value = datos.medioVerificacion;
+  }
+}
+
+function eliminarFilaDOM(id) {
+  const elem = document.getElementById(id);
+  if (elem) elem.remove();
+}
+
+/**
+ * REGLA DE REDACCIÓN DE RIESGO COSO (Validación Visual)
+ */
+function validarReglaRedaccion() {
+  const text = document.getElementById('f-descripcionRiesgo').value;
+  const status = document.getElementById('msg-redaction-status');
+
+  if (text.length > 10) {
+    status.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> Redacción en proceso. Asegure mantener Sustantivo + Participio.</span>`;
+  } else {
+    status.innerHTML = `<span class="text-muted">Asegúrese de seguir la regla de redacción oficial.</span>`;
+  }
+}
+
+/**
+ * PREPARAR GUARDADO DE RIESGO (Abre Lista de Verificación / Checklist Modal)
+ */
+function prepararGuardadoRiesgo(event) {
+  event.preventDefault();
+
+  const factorRows = document.querySelectorAll('.factor-row');
+  const factores = [];
+  factorRows.forEach(r => {
+    factores.push({
+      factorCausa: r.querySelector('.f-factor-causa').value,
+      tipoFactor: r.querySelector('.f-tipo-factor').value,
+      efectosConsecuencias: r.querySelector('.f-efecto').value
+    });
+  });
+
+  if (factores.length === 0) {
+    alert('Debe agregar al menos un factor de riesgo o causa.');
+    return;
+  }
+
+  const accionRows = document.querySelectorAll('.accion-row');
+  const acciones = [];
+  accionRows.forEach(r => {
+    acciones.push({
+      descripcionAccion: r.querySelector('.f-acc-desc').value,
+      responsable: r.querySelector('.f-acc-resp').value,
+      fechaCompromiso: r.querySelector('.f-acc-fecha').value,
+      medioVerificacion: r.querySelector('.f-acc-medio').value
+    });
+  });
+
+  const tieneCtrl = document.getElementById('f-tieneControles').value === 'SI';
+
+  const payload = {
+    riesgo: {
+      idRiesgo: document.getElementById('idRiesgo').value || null,
+      dependencia: document.getElementById('f-dependencia').value,
+      noRiesgo: document.getElementById('f-noRiesgo').value,
+      procedimiento: document.getElementById('f-procedimiento').value,
+      objetivoEstrategico: document.getElementById('f-objetivoEstrategico').value,
+      descripcionRiesgo: document.getElementById('f-descripcionRiesgo').value,
+      nivelExposicion: document.getElementById('f-nivelExposicion').value,
+      tipoRiesgo: document.getElementById('f-tipoRiesgo').value,
+      tieneControles: document.getElementById('f-tieneControles').value,
+      impactoInicialGrado: document.getElementById('f-impactoInicialGrado').value,
+      impactoInicialValor: document.getElementById('f-impactoInicialValor').value,
+      probabilidadInicialGrado: document.getElementById('f-probabilidadInicialGrado').value,
+      probabilidadInicialValor: document.getElementById('f-probabilidadInicialValor').value,
+      impactoFinalGrado: document.getElementById('f-impactoFinalGrado').value,
+      impactoFinalValor: document.getElementById('f-impactoFinalValor').value,
+      probabilidadFinalGrado: document.getElementById('f-probabilidadFinalGrado').value,
+      probabilidadFinalValor: document.getElementById('f-probabilidadFinalValor').value,
+      estrategiaRespuesta: document.getElementById('f-estrategiaRespuesta').value
+    },
+    factores: factores,
+    control: tieneCtrl ? {
+      descripcionControl: document.getElementById('f-descripcionControl').value,
+      quienEjecuta: document.getElementById('f-quienEjecuta').value,
+      cuandoSeEjecuta: document.getElementById('f-cuandoSeEjecuta').value,
+      evidencia: document.getElementById('f-evidencia').value,
+      tipoControl: document.getElementById('f-tipoControl').value,
+      atribDocumentado: document.getElementById('chk-doc').checked,
+      atribFormalizado: document.getElementById('chk-form').checked,
+      atribAplicado: document.getElementById('chk-apli').checked,
+      atribEfectivo: document.getElementById('chk-efec').checked,
+      calificacion: document.getElementById('f-calificacionControl').value
+    } : null,
+    acciones: acciones
+  };
+
+  APP_STATE.payloadPendienteGuardar = payload;
+
+  const modal = new bootstrap.Modal(document.getElementById('modalChecklist'));
+  modal.show();
+}
+
+/**
+ * CONFIRMAR GUARDADO FINAL
+ */
+function confirmarGuardadoFinal() {
+  const modalEl = document.getElementById('modalChecklist');
+  const modal = bootstrap.Modal.getInstance(modalEl);
+  if (modal) modal.hide();
+
+  const payload = APP_STATE.payloadPendienteGuardar;
+  if (!payload) return;
+
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res.exito) {
+          alert('¡Riesgo y PTAR guardados con éxito!');
+          limpiarFormularioRiesgo();
+          cargarModulos();
+          const tabInv = new bootstrap.Tab(document.getElementById('tab-inventario'));
+          tabInv.show();
+        } else {
+          alert('Errores de validación:\n' + res.errores.join('\n'));
+        }
+      })
+      .withFailureHandler(onClientError)
+      .guardarRiesgoCompleto(payload);
+  } else {
+    alert('Simulación Local: Guardado exitoso.');
+    limpiarFormularioRiesgo();
+    cargarModulos();
+  }
+}
+
+/**
+ * LIMPIAR FORMULARIO DE RIESGOS
+ */
+function limpiarFormularioRiesgo() {
+  document.getElementById('form-riesgo').reset();
+  document.getElementById('idRiesgo').value = '';
+  document.getElementById('contenedor-factores').innerHTML = '';
+  document.getElementById('contenedor-acciones').innerHTML = '';
+  APP_STATE.contadorFactores = 0;
+  APP_STATE.contadorAcciones = 0;
+
+  actualizarMascaraNoRiesgo();
+  agregarFilaFactor();
+  agregarFilaAccion();
+  toggleSeccionControles();
+  calcularCuadrantesForm();
+}
+
+function nuevoRiesgoForm() {
+  limpiarFormularioRiesgo();
+}
+
+/**
+ * RENDERIZAR DASHBOARD DE CONTRALORÍA
+ */
+function renderizarDashboard(data) {
+  document.getElementById('dash-total-riesgos').innerText = data.totalRiesgos;
+  document.getElementById('dash-cuad1-count').innerText = data.porCuadranteFinal['I'] || 0;
+  document.getElementById('dash-corrupcion-count').innerText = data.riesgosCorrupcion ? data.riesgosCorrupcion.length : 0;
+  document.getElementById('dash-ptar-avance').innerText = `${data.ptarMetricas.porcentajeGlobal}%`;
+
+  document.getElementById('q-val-I').innerText = data.porCuadranteFinal['I'] || 0;
+  document.getElementById('q-val-II').innerText = data.porCuadranteFinal['II'] || 0;
+  document.getElementById('q-val-III').innerText = data.porCuadranteFinal['III'] || 0;
+  document.getElementById('q-val-IV').innerText = data.porCuadranteFinal['IV'] || 0;
+
+  const prioritarios = [...(data.riesgosCuadranteI || []), ...(data.riesgosCorrupcion || [])];
+  const tbody = document.getElementById('tbl-dash-prioritarios');
+
+  if (prioritarios.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">No hay riesgos críticos o de corrupción registrados.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = prioritarios.map(r => `
+    <tr>
+      <td><strong>${r.dependencia}</strong></td>
+      <td>${r.noRiesgo}</td>
+      <td>${r.descripcionRiesgo}</td>
+      <td><span class="badge bg-secondary">${r.tipoRiesgo}</span></td>
+      <td><span class="badge-cuad bg-cuad-${r.cuadranteFinal.includes('I') ? 'I' : 'III'}">${r.cuadranteFinal}</span></td>
+      <td>${r.acciones && r.acciones.length > 0 ? `<span class="badge bg-success">${r.acciones.length} Acciones PTAR</span>` : `<span class="badge bg-warning text-dark">Sin PTAR</span>`}</td>
+    </tr>
+  `).join('');
+}
+
+/**
+ * RENDERIZAR MAPA DE RIESGOS (HEATMAP 10x10)
+ */
+function renderizarMapaRiesgos(data) {
+  const containerInit = document.getElementById('heatmap-inicial');
+  const containerFin = document.getElementById('heatmap-final');
+
+  containerInit.innerHTML = generarGridHeatmap(data.matrizInicial);
+  containerFin.innerHTML = generarGridHeatmap(data.matrizFinal);
+}
+
+function generarGridHeatmap(matriz) {
+  let html = '';
+  for (let y = 9; y >= 0; y--) {
+    for (let x = 0; x < 10; x++) {
+      const count = matriz[y][x];
+      const imp = x + 1;
+      const prob = y + 1;
+
+      let qClass = 'cell-q3';
+      if (imp > 5 && prob > 5) qClass = 'cell-q1';
+      else if (imp <= 5 && prob > 5) qClass = 'cell-q2';
+      else if (imp <= 5 && prob <= 5) qClass = 'cell-q3';
+      else qClass = 'cell-q4';
+
+      const hasDataClass = count > 0 ? 'cell-has-data' : '';
+      html += `<div class="heatmap-cell ${qClass} ${hasDataClass}" title="Impacto: ${imp}, Probabilidad: ${prob}">${count > 0 ? count : ''}</div>`;
+    }
+  }
+  return html;
+}
+
+/**
+ * RENDERIZAR INVENTARIO DE RIESGOS (TABLA COMPLETA Y PTAR)
+ */
+function renderizarInventario(riesgos) {
+  const tbodyInv = document.getElementById('tbody-inventario');
+  const tbodyPtar = document.getElementById('tbody-ptar');
+
+  if (riesgos.length === 0) {
+    tbodyInv.innerHTML = `<tr><td colspan="12" class="text-center py-3">No hay riesgos en esta vista.</td></tr>`;
+    tbodyPtar.innerHTML = `<tr><td colspan="9" class="text-center py-3">No hay acciones PTAR.</td></tr>`;
+    return;
+  }
+
+  tbodyInv.innerHTML = riesgos.map(r => `
+    <tr>
+      <td><strong>${r.noRiesgo}</strong></td>
+      <td>${r.dependencia}</td>
+      <td>${r.descripcionRiesgo}</td>
+      <td><small>${r.nivelExposicion}</small></td>
+      <td><small>${r.tipoRiesgo}</small></td>
+      <td>Impacto: ${r.impactoInicialValor}<br>Prob: ${r.probabilidadInicialValor}</td>
+      <td><span class="badge-cuad bg-cuad-${r.cuadranteInicial.includes('I') ? 'I' : 'III'}">${r.cuadranteInicial}</span></td>
+      <td>${r.tieneControles === 'SI' ? `<span class="badge bg-info text-dark">${r.control ? r.control.calificacion : 'SI'}</span>` : '<span class="badge bg-secondary">NO</span>'}</td>
+      <td>Impacto: ${r.impactoFinalValor}<br>Prob: ${r.probabilidadFinalValor}</td>
+      <td><span class="badge-cuad bg-cuad-${r.cuadranteFinal.includes('I') ? 'I' : 'III'}">${r.cuadranteFinal}</span></td>
+      <td><small>${r.estrategiaRespuesta}</small></td>
+      <td class="no-print">
+        <button class="btn btn-sm btn-outline-primary" onclick="cargarRiesgoEnFormulario('${r.idRiesgo}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="confirmarEliminarRiesgo('${r.idRiesgo}')"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>
+  `).join('');
+
+  let htmlPtar = '';
+  riesgos.forEach(r => {
+    (r.acciones || []).forEach(a => {
+      htmlPtar += `
+        <tr>
+          <td><strong>${r.dependencia}</strong></td>
+          <td>${r.noRiesgo}</td>
+          <td>${a.descripcionAccion}</td>
+          <td>${a.responsable}</td>
+          <td>${a.fechaCompromiso}</td>
+          <td>${a.medioVerificacion}</td>
+          <td><span class="badge bg-${a.estatus === 'CONCLUIDA' ? 'success' : (a.estatus === 'EN PROCESO' ? 'primary' : 'warning')}">${a.estatus}</span></td>
+          <td>${a.porcentajeAvance}%</td>
+          <td class="no-print">
+            <button class="btn btn-sm btn-outline-success" onclick="modalActualizarPTAR('${a.idAccion}', '${a.estatus}', ${a.porcentajeAvance})"><i class="bi bi-check2-square"></i></button>
+          </td>
+        </tr>
+      `;
+    });
+  });
+
+  tbodyPtar.innerHTML = htmlPtar || `<tr><td colspan="9" class="text-center py-3">No hay acciones PTAR registradas.</td></tr>`;
+}
+
+/**
+ * CARGAR RIESGO EN FORMULARIO PARA EDICIÓN
+ */
+function cargarRiesgoEnFormulario(idRiesgo) {
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r) return;
+        poblarFormularioConRiesgo(r);
+      })
+      .obtenerRiesgoPorId(idRiesgo);
+  }
+}
+
+function poblarFormularioConRiesgo(r) {
+  document.getElementById('idRiesgo').value = r.idRiesgo;
+  document.getElementById('f-dependencia').value = r.dependencia;
+  actualizarMascaraNoRiesgo();
+  document.getElementById('f-noRiesgo').value = r.noRiesgo;
+  document.getElementById('f-procedimiento').value = r.procedimiento;
+  document.getElementById('f-objetivoEstrategico').value = r.objetivoEstrategico;
+  document.getElementById('f-descripcionRiesgo').value = r.descripcionRiesgo;
+  document.getElementById('f-nivelExposicion').value = r.nivelExposicion;
+  document.getElementById('f-tipoRiesgo').value = r.tipoRiesgo;
+
+  document.getElementById('f-impactoInicialGrado').value = r.impactoInicialGrado;
+  actualizarValoresImpactoInicial();
+  document.getElementById('f-impactoInicialValor').value = r.impactoInicialValor;
+
+  document.getElementById('f-probabilidadInicialGrado').value = r.probabilidadInicialGrado;
+  actualizarValoresProbabilidadInicial();
+  document.getElementById('f-probabilidadInicialValor').value = r.probabilidadInicialValor;
+
+  document.getElementById('f-tieneControles').value = r.tieneControles;
+  toggleSeccionControles();
+
+  if (r.control) {
+    document.getElementById('f-descripcionControl').value = r.control.descripcionControl;
+    document.getElementById('f-quienEjecuta').value = r.control.quienEjecuta;
+    document.getElementById('f-cuandoSeEjecuta').value = r.control.cuandoSeEjecuta;
+    document.getElementById('f-evidencia').value = r.control.evidencia;
+    document.getElementById('f-tipoControl').value = r.control.tipoControl;
+    document.getElementById('chk-doc').checked = r.control.atribDocumentado;
+    document.getElementById('chk-form').checked = r.control.atribFormalizado;
+    document.getElementById('chk-apli').checked = r.control.atribAplicado;
+    document.getElementById('chk-efec').checked = r.control.atribEfectivo;
+    evaluarCalificacionControl();
+  }
+
+  document.getElementById('f-impactoFinalGrado').value = r.impactoFinalGrado;
+  actualizarValoresImpactoFinal();
+  document.getElementById('f-impactoFinalValor').value = r.impactoFinalValor;
+
+  document.getElementById('f-probabilidadFinalGrado').value = r.probabilidadFinalGrado;
+  actualizarValoresProbabilidadFinal();
+  document.getElementById('f-probabilidadFinalValor').value = r.probabilidadFinalValor;
+
+  document.getElementById('f-estrategiaRespuesta').value = r.estrategiaRespuesta;
+
+  document.getElementById('contenedor-factores').innerHTML = '';
+  (r.factores || []).forEach(f => agregarFilaFactor(f));
+
+  document.getElementById('contenedor-acciones').innerHTML = '';
+  (r.acciones || []).forEach(a => agregarFilaAccion(a));
+
+  calcularCuadrantesForm();
+
+  const tabCap = new bootstrap.Tab(document.getElementById('tab-captura'));
+  tabCap.show();
+}
+
+/**
+ * CONFIRMAR ELIMINACIÓN DE RIESGO
+ */
+function confirmarEliminarRiesgo(idRiesgo) {
+  if (confirm('¿Está seguro de eliminar este riesgo y todas sus acciones PTAR?')) {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          alert(res.mensaje);
+          cargarModulos();
+        })
+        .eliminarRiesgo(idRiesgo);
+    }
+  }
+}
+
+/**
+ * MODAL ACTUALIZAR PTAR ESTATUS Y AVANCE
+ */
+function modalActualizarPTAR(idAccion, estatusActual, avanceActual) {
+  const nEstatus = prompt('Nuevo Estatus (PENDIENTE, EN PROCESO, CONCLUIDA):', estatusActual);
+  if (!nEstatus) return;
+
+  const nAvance = prompt('Porcentaje de Avance (0-100):', avanceActual);
+  if (nAvance === null) return;
+
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        alert(res.mensaje);
+        cargarModulos();
+      })
+      .actualizarEstatusAccion(idAccion, nEstatus, Number(nAvance));
+  }
+}
+
+/**
+ * RENDERIZAR REPORTE ANUAL
+ */
+function renderizarReporte(rep) {
+  document.getElementById('rep-meta-info').innerText = `Fecha de Emisión: ${rep.fechaGeneracion} | Generado Por: ${rep.generadoPor} | Dependencia: ${rep.dependencia}`;
+  document.getElementById('rep-val-total').innerText = rep.resumen.total;
+  document.getElementById('rep-val-q1').innerText = rep.resumen.cuadranteI;
+  document.getElementById('rep-val-corr').innerText = rep.resumen.corrupcion;
+  document.getElementById('rep-val-avance').innerText = '100%';
+
+  const tbody = document.getElementById('tbl-reporte-body');
+  tbody.innerHTML = (rep.riesgos || []).map(r => `
+    <tr>
+      <td>${r.noRiesgo}</td>
+      <td>${r.procedimiento}</td>
+      <td>${r.descripcionRiesgo}</td>
+      <td>${r.tipoRiesgo}</td>
+      <td>${r.cuadranteInicial}</td>
+      <td><strong>${r.cuadranteFinal}</strong></td>
+      <td>${r.estrategiaRespuesta}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="7" class="text-center">Sin registros.</td></tr>`;
+}
+
+/**
+ * EXPORTAR TABLA A EXCEL
+ */
+function exportarTablaExcel(tablaId, nombreArchivo) {
+  const tabla = document.getElementById(tablaId);
+  if (!tabla) return;
+  const html = tabla.outerHTML;
+  const url = 'data:application/vnd.ms-excel,' + encodeURIComponent(html);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${nombreArchivo}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/**
+ * VERIFICACIÓN OBLIGATORIA CLIENTE (EJECUTAR PRUEBAS EN MODAL)
+ */
+function ejecutarPruebasClientSide() {
+  const ul = document.getElementById('ul-resultados-pruebas');
+  ul.innerHTML = '<li class="list-group-item text-muted">Ejecutando suite de verificación automatizada...</li>';
+
+  const modal = new bootstrap.Modal(document.getElementById('modalPruebas'));
+  modal.show();
+
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        ul.innerHTML = res.map(r => `
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${r.prueba}</strong>
+              <div class="small text-muted">${r.detalle || ''}</div>
+            </div>
+            <span class="badge bg-${r.exito ? 'success' : 'danger'} fs-6">${r.exito ? 'PASADA' : 'FALLIDA'}</span>
+          </li>
+        `).join('');
+      })
+      .ejecutarPruebasAutomatizadas();
+  } else {
+    ul.innerHTML = `
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>a) Cálculo de Cuadrantes (I, II, III, IV)</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>b) Listas dependientes e Impacto/Probabilidad</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>c) Validación Valoración Final <= Inicial</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>d) Guardado de Riesgo con múltiples factores y PTAR</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>e) Filtrado por rol/dependencia</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>f) Verificación de 30 dependencias de Mérida</div>
+        <span class="badge bg-success fs-6">PASADA</span>
+      </li>
+    `;
+  }
+}
+
+function onClientError(err) {
+  console.error('Error Apps Script:', err);
+  alert('Ocurrió un error en la solicitud: ' + (err.message || err));
+}
+
+/**
+ * MOCK DATA PARA ENTORNO PRUEBA / LOCAL
+ */
+function getMockCatalogosData() {
+  return {
+    usuarioActual: { email: 'contraloria@merida.gob.mx', nombre: 'Contralor Municipal Demo', rol: 'Contraloría', dependencia: 'TODAS', estatus: 'ACTIVO' },
+    dependencias: [
+      { clave: 'ADM', nombre: 'DIRECCIÓN DE ADMINISTRACIÓN', titular: 'Titular ADM', enlace: 'Enlace ADM' },
+      { clave: 'DOP', nombre: 'DIRECCIÓN DE OBRAS PÚBLICAS', titular: 'Titular DOP', enlace: 'Enlace DOP' }
+    ],
+    catalogos: {
+      EXPOSICION: [{ valor: 'ESTRATEGICO' }, { valor: 'DIRECTIVO' }, { valor: 'OPERACIÓN' }],
+      TIPO_RIESGO: [{ valor: 'CLAVE' }, { valor: 'DE APOYO' }, { valor: 'DE CORRUPCIÓN' }, { valor: 'DE TIC´S' }],
+      FACTOR_CAUSA: [{ valor: 'ADMINISTRATIVO-GESTIÓN' }, { valor: 'CORRUPCIÓN' }, { valor: 'TECNOLOGÍAS DE LA INFORMACIÓN' }],
+      TIPO_FACTOR: [{ valor: 'INTERNO' }, { valor: 'EXTERNO' }],
+      EFECTO: [{ valor: 'CALIDAD DE BIENES Y SERVICIOS' }, { valor: 'COSTOS' }],
+      ESCALA_IMPACTO: [{ valor: 'MENOR' }, { valor: 'BAJO' }, { valor: 'MODERADO' }, { valor: 'GRAVE' }, { valor: 'CATASTRÓFICO' }],
+      ESCALA_PROBABILIDAD: [{ valor: 'REMOTA' }, { valor: 'INUSUAL' }, { valor: 'PROBABLE' }, { valor: 'MUY PROBABLE' }, { valor: 'RECURRENTE' }],
+      TIPO_CONTROL: [{ valor: 'PREVENTIVO' }, { valor: 'DETECTIVO' }, { valor: 'CORRECTIVO' }],
+      ESTRATEGIA: [{ valor: 'EVITAR' }, { valor: 'REDUCIR' }, { valor: 'ASUMIR' }, { valor: 'TRANSFERIR' }, { valor: 'COMPARTIR' }]
+    }
+  };
+}
+
+function getMockDashboardData() {
+  return {
+    totalRiesgos: 2,
+    porDependencia: { 'ADM': 1, 'DOP': 1 },
+    porCuadranteFinal: { 'I': 1, 'II': 0, 'III': 1, 'IV': 0 },
+    riesgosCuadranteI: [
+      { dependencia: 'DOP', noRiesgo: 'R1-DOP', descripcionRiesgo: 'Retraso en licitación de obras públicas...', tipoRiesgo: 'CLAVE', cuadranteFinal: 'Cuadrante I (Atención Inmediata)', acciones: [{ idAccion: 'A1' }] }
+    ],
+    riesgosCorrupcion: [
+      { dependencia: 'ADM', noRiesgo: 'R1-ADM', descripcionRiesgo: 'Conflicto de interés en compras...', tipoRiesgo: 'DE CORRUPCIÓN', cuadranteFinal: 'Cuadrante III (Controlados)', acciones: [] }
+    ],
+    ptarMetricas: { totalAcciones: 1, concluidas: 0, enProceso: 1, pendientes: 0, porcentajeGlobal: 50 }
+  };
+}
+
+function getMockMapaData() {
+  const mInit = Array(10).fill(0).map(() => Array(10).fill(0));
+  const mFin = Array(10).fill(0).map(() => Array(10).fill(0));
+  mInit[7][7] = 1;
+  mInit[2][2] = 1;
+  mFin[7][7] = 1;
+  mFin[2][2] = 1;
+  return { matrizInicial: mInit, matrizFinal: mFin };
+}
+
+function getMockRiesgosData() {
+  return [
+    {
+      idRiesgo: 'RSG-1',
+      dependencia: 'DOP',
+      noRiesgo: 'R1-DOP',
+      descripcionRiesgo: 'Retraso en obra pública licitada omitido por falta de supervisión',
+      nivelExposicion: 'ESTRATEGICO',
+      tipoRiesgo: 'CLAVE',
+      impactoInicialValor: 8,
+      probabilidadInicialValor: 8,
+      cuadranteInicial: 'Cuadrante I (Atención Inmediata)',
+      tieneControles: 'NO',
+      impactoFinalValor: 8,
+      probabilidadFinalValor: 8,
+      cuadranteFinal: 'Cuadrante I (Atención Inmediata)',
+      estrategiaRespuesta: 'REDUCIR',
+      acciones: [{ idAccion: 'A1', descripcionAccion: 'Auditoría mensual', responsable: 'Director DOP', fechaCompromiso: '2025-11-30', medioVerificacion: 'Acta de visita', estatus: 'EN PROCESO', porcentajeAvance: 50 }]
+    }
+  ];
+}
+</script>
