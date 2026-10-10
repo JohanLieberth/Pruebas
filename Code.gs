@@ -827,13 +827,36 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
 }
 
 // ==============================================================================
-// MÓDULO DE RESPUESTAS - ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA
+// CAMBIO 1: INTERFAZ DEL USUARIO — FUENTE DE VERDAD: ASIGNACIONES (NUNCA OMITIR FILAS)
 // ==============================================================================
 
+/**
+ * Obtiene las preguntas asignadas para el usuario autenticado.
+ * FUENTE DE VERDAD: Se leen EXCLUSIVAMENTE todas las preguntas asociadas en 'Asignaciones'.
+ * NUNCA se omite ninguna pregunta asignada por tener o no respuesta.
+ */
 function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const user = assertAuthenticatedUser(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
+
+  // Indexar datos de Preguntas por QuestionID
+  const preguntasMap = {};
+  for (let i = 1; i < pData.length; i++) {
+    const qId = String(pData[i][0]).trim();
+    if (qId) {
+      preguntasMap[qId] = {
+        id: qId,
+        componente: pData[i][1],
+        principio: pData[i][2],
+        pregunta: pData[i][3],
+        fundamentoLegal: pData[i][4],
+        subdireccionSugerida: pData[i][5] || '',
+        loteId: String(pData[i][6] || 'LOTE_INICIAL').trim()
+      };
+    }
+  }
+
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
   const lotesActivosMap = getLotesActivosMap();
@@ -850,20 +873,24 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     targetSubdireccion = 'ALL';
   }
 
-  const preguntasFiltradas = [];
+  const result = [];
 
-  for (let i = 1; i < pData.length; i++) {
-    const qId = String(pData[i][0]).trim();
-    if (!qId) continue;
+  // Iterar sobre las claves de Asignaciones (o sobre todas las preguntas si es ADMIN vista ALL)
+  const qIdsList = Object.keys(preguntasMap);
 
-    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+  for (let i = 0; i < qIdsList.length; i++) {
+    const qId = qIdsList[i];
+    const qInfo = preguntasMap[qId];
+    if (!qInfo) continue;
 
-    if (lotesActivosMap[loteId] === false) {
+    // Verificar si el lote está activo
+    if (lotesActivosMap[qInfo.loteId] === false) {
       continue;
     }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
+    // SERVER-SIDE SECURITY FILTERING
     let esVisible = false;
     if (targetSubdireccion === 'ALL' && user.role === 'ADMIN') {
       esVisible = true;
@@ -886,16 +913,17 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
       };
 
       const estRev = respObj.estadoRevision || 'Borrador';
+      // Regla de editabilidad
       const esEditable = (estRev === 'Borrador' || estRev === 'Observada');
 
-      preguntasFiltradas.push({
+      result.push({
         id: qId,
-        componente: pData[i][1],
-        principio: pData[i][2],
-        pregunta: pData[i][3],
-        fundamentoLegal: pData[i][4],
-        subdireccionSugerida: pData[i][5] || '',
-        loteId: loteId,
+        componente: qInfo.componente,
+        principio: qInfo.principio,
+        pregunta: qInfo.pregunta,
+        fundamentoLegal: qInfo.fundamentoLegal,
+        subdireccionSugerida: qInfo.subdireccionSugerida,
+        loteId: qInfo.loteId,
         subdireccionAsignada: subAsignada,
         respuestaData: respObj,
         esEditable: esEditable
@@ -903,7 +931,7 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     }
   }
 
-  return preguntasFiltradas;
+  return result;
 }
 
 function getRespuestasMap() {
@@ -945,8 +973,7 @@ function getRespuestasMap() {
 }
 
 /**
- * CAMBIO 1: ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA.
- * Procesa en una sola operación atómica: subida de archivos (rollback en caso de falla) y persistencia con estado "Enviada".
+ * ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA.
  */
 function enviarRespuestaIndividual(token, payload) {
   const user = assertAuthenticatedUser(token);
@@ -966,14 +993,12 @@ function enviarRespuestaIndividual(token, payload) {
   const respuesta = payload.respuesta || '';
   const evidenciaTextual = payload.evidenciaTextual || '';
   const observaciones = payload.observaciones || '';
-  const archivosNuevos = payload.archivosNuevos || []; // Lista de Base64 { fileName, mimeType, base64Data }
+  const archivosNuevos = payload.archivosNuevos || [];
 
-  // 1. Validar requerimientos del backend antes de guardar
   if (!respuesta || respuesta.trim() === '') {
     throw new Error('Debe seleccionar una Respuesta (Sí, Parcial, No, No Aplica).');
   }
 
-  // 2. Cargar adjuntos existentes en la BD
   const sheet = getSheetSafe(SHEETS.RESPUESTAS);
   const data = sheet.getDataRange().getValues();
   let foundIndex = -1;
@@ -992,7 +1017,6 @@ function enviarRespuestaIndividual(token, payload) {
     }
   }
 
-  // Validar que exista al menos una evidencia (Textual O Documental existente O Documental nueva)
   const tieneTextual = (evidenciaTextual && evidenciaTextual.trim() !== '');
   const tieneDocumental = (existingDocs.length > 0 || (Array.isArray(archivosNuevos) && archivosNuevos.length > 0));
 
@@ -1000,7 +1024,6 @@ function enviarRespuestaIndividual(token, payload) {
     throw new Error('Debe proporcionar al menos una Evidencia Textual o adjuntar un archivo Documental.');
   }
 
-  // 3. Procesar subida de nuevos archivos a Google Drive de forma ATÓMICA
   const createdDriveFiles = [];
   if (Array.isArray(archivosNuevos) && archivosNuevos.length > 0) {
     const folderSubName = (subAsignada === 'SIN_ASIGNAR' || subAsignada === '') ? 'ADMIN' : cleanFolderName(subAsignada);
@@ -1035,7 +1058,6 @@ function enviarRespuestaIndividual(token, payload) {
         createdDriveFiles.push(fInfo);
       });
     } catch (err) {
-      // ROLLBACK: si falla la subida de algún archivo, eliminar los archivos creados en Drive y abortar
       createdDriveFiles.forEach(f => {
         try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) {}
       });
@@ -1047,7 +1069,6 @@ function enviarRespuestaIndividual(token, payload) {
   const nivelRiesgo = RIESGO_MAP[respuesta] || '';
   const now = new Date();
 
-  // 4. Persistir en la hoja RESPUESTAS con estado "Enviada"
   if (foundIndex > 0) {
     sheet.getRange(foundIndex, 3, 1, 10).setValues([[
       respuesta,
@@ -1059,7 +1080,7 @@ function enviarRespuestaIndividual(token, payload) {
       data[foundIndex - 1][8] || now,
       now,
       'Enviada',
-      '' // Limpiar observación admin previa al re-enviar
+      ''
     ]]);
     logAudit('RESPUESTA_ENVIAR_INDIVIDUAL', qId, data[foundIndex - 1][10], 'Enviada', user.email);
   } else {
@@ -1089,9 +1110,6 @@ function enviarRespuestaIndividual(token, payload) {
   };
 }
 
-/**
- * Elimina un archivo de evidencia previamente subido
- */
 function deleteEvidenceFile(token, qIdRaw, fileId) {
   const user = assertAuthenticatedUser(token);
   const qId = String(qIdRaw).trim();
@@ -1141,20 +1159,37 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
 }
 
 // ==============================================================================
-// CAMBIO 2: MÓDULO SEGUIMIENTO Y REVISIÓN — CARGA COMPLETA (PREGUNTAS × RESPUESTAS)
+// CAMBIO 2: MÓDULO SEGUIMIENTO Y REVISIÓN — LECTURA DIRECTA DE LA PESTAÑA "RESPUESTAS"
 // ==============================================================================
 
 /**
- * Obtiene la lista completa de TODAS las preguntas existentes en la hoja Preguntas
- * cruzadas con la hoja Respuestas, retornando estado de revisión real o "Sin responder".
+ * Obtiene la lista de seguimiento LEYENDO DIRECTAMENTE DE LA PESTAÑA "RESPUESTAS".
+ * Mapea las filas registradas en 'Respuestas' y las cruza con 'Preguntas' para enriquecer con componente, lote, etc.
  */
 function getRespuestasSeguimientoAdmin(token, filtros) {
   assertAdmin(token);
 
+  const rSheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const rData = rSheet.getDataRange().getValues();
+
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
-  const asignacionesMap = getAsignacionesMap();
-  const respuestasMap = getRespuestasMap();
+
+  // Indexar catálogo de preguntas por QuestionID
+  const pMap = {};
+  for (let i = 1; i < pData.length; i++) {
+    const qId = String(pData[i][0]).trim();
+    if (qId) {
+      pMap[qId] = {
+        componente: pData[i][1],
+        principio: pData[i][2],
+        pregunta: pData[i][3],
+        fundamentoLegal: pData[i][4],
+        subdireccionSugerida: pData[i][5] || '',
+        loteId: String(pData[i][6] || 'LOTE_INICIAL').trim()
+      };
+    }
+  }
 
   const fLote = filtros ? filtros.loteId : 'TODOS';
   const fSub = filtros ? filtros.subdireccion : 'TODAS';
@@ -1163,50 +1198,58 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
 
   const list = [];
 
-  for (let i = 1; i < pData.length; i++) {
-    const qId = String(pData[i][0]).trim();
+  for (let i = 1; i < rData.length; i++) {
+    const qId = String(rData[i][0]).trim();
     if (!qId) continue;
 
-    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
-    if (fLote && fLote !== 'TODOS' && loteId !== fLote) continue;
+    const subAsignada = String(rData[i][1] || 'SIN_ASIGNAR').trim();
+    const respVal = String(rData[i][2] || '').trim();
+    const estRev = String(rData[i][10] || 'Borrador').trim();
 
-    const comp = pData[i][1];
-    if (fComp && fComp !== 'TODOS' && comp !== fComp) continue;
+    // Enriquecer con información de la hoja Preguntas
+    const qInfo = pMap[qId] || {
+      componente: 'Sin Componente',
+      principio: 'Sin Principio',
+      pregunta: 'Pregunta ID ' + qId,
+      fundamentoLegal: '',
+      loteId: 'LOTE_INICIAL'
+    };
 
-    const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    if (fLote && fLote !== 'TODOS' && qInfo.loteId !== fLote) continue;
+    if (fComp && fComp !== 'TODOS' && qInfo.componente !== fComp) continue;
+
     if (fSub && fSub !== 'TODAS') {
       if (fSub === 'SIN_ASIGNAR' && (subAsignada !== 'SIN_ASIGNAR' && subAsignada !== '')) continue;
       if (fSub !== 'SIN_ASIGNAR' && subAsignada.toLowerCase().trim() !== fSub.toLowerCase().trim()) continue;
     }
 
-    const respKey = qId + '_' + subAsignada;
-    const respObj = respuestasMap[respKey];
-
-    let estRev = 'Sin responder';
-    if (respObj && respObj.respuesta && respObj.respuesta.trim() !== '') {
-      estRev = respObj.estadoRevision || 'Enviada';
-    }
-
     if (fEstado && fEstado !== 'TODOS' && estRev !== fEstado) continue;
+
+    let docs = [];
+    try {
+      if (rData[i][4]) {
+        docs = JSON.parse(rData[i][4]);
+        if (!Array.isArray(docs)) docs = [];
+      }
+    } catch (e) { docs = []; }
 
     list.push({
       id: qId,
-      componente: comp,
-      principio: pData[i][2],
-      pregunta: pData[i][3],
-      fundamentoLegal: pData[i][4],
-      subdireccionSugerida: pData[i][5] || '',
-      loteId: loteId,
+      componente: qInfo.componente,
+      principio: qInfo.principio,
+      pregunta: qInfo.pregunta,
+      fundamentoLegal: qInfo.fundamentoLegal,
+      loteId: qInfo.loteId,
       subdireccionAsignada: subAsignada,
-      respuesta: respObj ? respObj.respuesta : '',
-      evidenciaTextual: respObj ? respObj.evidenciaTextual : '',
-      evidenciaDocumental: respObj ? respObj.evidenciaDocumental : [],
-      observaciones: respObj ? respObj.observaciones : '',
-      nivelRiesgo: respObj ? respObj.nivelRiesgo : '',
-      usuarioQueRespondio: respObj ? respObj.usuarioQueRespondio : '',
-      fechaUltimaModificacion: respObj ? respObj.fechaUltimaModificacion : '',
+      respuesta: respVal,
+      evidenciaTextual: rData[i][3] || '',
+      evidenciaDocumental: docs,
+      observaciones: rData[i][5] || '',
+      nivelRiesgo: rData[i][6] || '',
+      usuarioQueRespondio: rData[i][7] || '',
+      fechaUltimaModificacion: rData[i][9] || '',
       estadoRevision: estRev,
-      observacionAdmin: respObj ? respObj.observacionAdmin : ''
+      observacionAdmin: rData[i][11] || ''
     });
   }
 

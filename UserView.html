@@ -428,9 +428,6 @@
     }
   }
 
-  // ==============================================================================
-  // CAMBIO 1: ENVÍO INDIVIDUAL Y VALIDACIÓN LOCAL
-  // ==============================================================================
   function prepararEnvioIndividualModal(qId) {
     syncQuestionMemoryState(qId);
     const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
