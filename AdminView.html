@@ -422,19 +422,23 @@
           <table class="table table-hover align-middle small">
             <thead class="table-light">
               <tr>
-                <th style="width: 50px;">No.</th>
-                <th>Lote</th>
-                <th>Subdirección</th>
-                <th>Pregunta</th>
+                <th>QuestionID</th>
+                <th>Subdireccion</th>
                 <th>Respuesta</th>
-                <th>Riesgo</th>
-                <th>Estatus</th>
-                <th>Fecha Modificación</th>
-                <th style="width: 140px;">Acciones</th>
+                <th>EvidenciaTextual</th>
+                <th>EvidenciaDocumental</th>
+                <th>Observaciones</th>
+                <th>NivelRiesgo</th>
+                <th>UsuarioQueRespondio</th>
+                <th>FechaCreacion</th>
+                <th>FechaUltimaModificacion</th>
+                <th>EstadoRevision</th>
+                <th>ObservacionAdmin</th>
+                <th style="width: 120px;">Acciones</th>
               </tr>
             </thead>
             <tbody id="tbody-seguimiento-list">
-              <tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de revisión...</td></tr>
+              <tr><td colspan="13" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de revisión...</td></tr>
             </tbody>
           </table>
         </div>
@@ -534,7 +538,7 @@
     };
 
     const tbody = document.getElementById('tbody-seguimiento-list');
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de respuestas...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de respuestas...</td></tr>';
 
     google.script.run
       .withSuccessHandler(function(list) {
@@ -542,7 +546,7 @@
         document.getElementById('seg-counter-badge').innerText = `${list.length} preguntas encontradas`;
 
         if (!list || list.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">No hay preguntas registradas con los filtros seleccionados.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-3">No hay preguntas registradas con los filtros seleccionados.</td></tr>';
           return;
         }
 
@@ -555,16 +559,29 @@
 
           const tieneRespuesta = !!(r.respuesta && r.respuesta.trim() !== '');
 
+          let docsHtml = '<span class="text-muted small">Sin adjuntos</span>';
+          if (r.evidenciaDocumental && Array.isArray(r.evidenciaDocumental) && r.evidenciaDocumental.length > 0) {
+            docsHtml = r.evidenciaDocumental.map(f => `<a href="${f.url}" target="_blank" class="badge bg-light text-primary border text-decoration-none me-1"><i class="fa-solid fa-paperclip"></i> ${f.name}</a>`).join('');
+          }
+
+          const txtEvid = r.evidenciaTextual || '';
+          const txtObs = r.observaciones || '';
+          const txtObsAdmin = r.observacionAdmin || '';
+
           return `
             <tr>
-              <td class="fw-bold">${r.id}</td>
-              <td><small class="badge bg-secondary">${r.loteId}</small></td>
-              <td><span class="badge bg-info text-dark">${r.subdireccionAsignada}</span></td>
-              <td><span class="fw-semibold">${truncateString(r.pregunta, 45)}</span></td>
+              <td class="fw-bold">${r.questionId || r.id}</td>
+              <td><span class="badge bg-info text-dark">${r.subdireccion || r.subdireccionAsignada || ''}</span></td>
               <td><span class="badge ${r.respuesta === 'Sí' ? 'bg-success' : r.respuesta === 'No' ? 'bg-danger' : r.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${r.respuesta || 'Sin responder'}</span></td>
-              <td><span class="badge badge-risk-${r.nivelRiesgo.replace(/\s+/g, '')}">${r.nivelRiesgo || 'N/A'}</span></td>
+              <td><small class="text-truncate d-inline-block" style="max-width: 140px;" title="${txtEvid.replace(/"/g, '&quot;')}">${txtEvid || 'N/A'}</small></td>
+              <td>${docsHtml}</td>
+              <td><small class="text-truncate d-inline-block" style="max-width: 140px;" title="${txtObs.replace(/"/g, '&quot;')}">${txtObs || 'N/A'}</small></td>
+              <td><span class="badge badge-risk-${(r.nivelRiesgo || '').replace(/\s+/g, '')}">${r.nivelRiesgo || 'N/A'}</span></td>
+              <td><small>${r.usuarioQueRespondio || 'N/A'}</small></td>
+              <td><small>${r.fechaCreacion || 'N/A'}</small></td>
+              <td><small>${r.fechaUltimaModificacion || 'N/A'}</small></td>
               <td><span class="badge ${badgeClass}">${r.estadoRevision || 'Sin responder'}</span></td>
-              <td><small>${r.fechaUltimaModificacion ? new Date(r.fechaUltimaModificacion).toLocaleString() : 'N/A'}</small></td>
+              <td><small class="text-truncate d-inline-block text-danger" style="max-width: 140px;" title="${txtObsAdmin.replace(/"/g, '&quot;')}">${txtObsAdmin || 'N/A'}</small></td>
               <td>
                 <button class="btn btn-sm ${tieneRespuesta ? 'btn-primary' : 'btn-outline-secondary'} fw-bold" onclick="abrirModalVerRespuestaSeguimiento('${r.id}')">
                   <i class="fa-solid ${tieneRespuesta ? 'fa-eye' : 'fa-info-circle'} me-1"></i> Detalle

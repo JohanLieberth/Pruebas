@@ -1263,6 +1263,7 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
   const idxObs = headerMap['observaciones'] !== undefined ? headerMap['observaciones'] : 5;
   const idxRiesgo = headerMap['nivelriesgo'] !== undefined ? headerMap['nivelriesgo'] : 6;
   const idxUser = headerMap['usuarioquerespondio'] !== undefined ? headerMap['usuarioquerespondio'] : 7;
+  const idxCreac = headerMap['fechacreacion'] !== undefined ? headerMap['fechacreacion'] : 8;
   const idxModif = headerMap['fechaultimamodificacion'] !== undefined ? headerMap['fechaultimamodificacion'] : 9;
   const idxEstRev = headerMap['estadorevision'] !== undefined ? headerMap['estadorevision'] : 10;
   const idxObsAdmin = headerMap['observacionadmin'] !== undefined ? headerMap['observacionadmin'] : 11;
@@ -1326,13 +1327,30 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
       }
     } catch (e) { docs = []; }
 
+    let rawCreac = rData[i][idxCreac];
+    let fechaCreacionStr = '';
+    if (rawCreac) {
+      if (rawCreac instanceof Date) {
+        fechaCreacionStr = Utilities.formatDate(rawCreac, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+      } else {
+        fechaCreacionStr = String(rawCreac);
+      }
+    }
+
+    let rawModif = rData[i][idxModif];
+    let fechaModifStr = '';
+    if (rawModif) {
+      if (rawModif instanceof Date) {
+        fechaModifStr = Utilities.formatDate(rawModif, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+      } else {
+        fechaModifStr = String(rawModif);
+      }
+    }
+
     list.push({
       id: qId,
-      componente: qInfo.componente,
-      principio: qInfo.principio,
-      pregunta: qInfo.pregunta,
-      fundamentoLegal: qInfo.fundamentoLegal,
-      loteId: qInfo.loteId,
+      questionId: qId,
+      subdireccion: subAsignada,
       subdireccionAsignada: subAsignada,
       respuesta: respVal,
       evidenciaTextual: rData[i][idxEvidText] || '',
@@ -1340,9 +1358,15 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
       observaciones: rData[i][idxObs] || '',
       nivelRiesgo: rData[i][idxRiesgo] || '',
       usuarioQueRespondio: rData[i][idxUser] || '',
-      fechaUltimaModificacion: rData[i][idxModif] || '',
+      fechaCreacion: fechaCreacionStr,
+      fechaUltimaModificacion: fechaModifStr,
       estadoRevision: estRev,
-      observacionAdmin: rData[i][idxObsAdmin] || ''
+      observacionAdmin: rData[i][idxObsAdmin] || '',
+      componente: qInfo.componente,
+      principio: qInfo.principio,
+      pregunta: qInfo.pregunta,
+      fundamentoLegal: qInfo.fundamentoLegal,
+      loteId: qInfo.loteId
     });
   }
 
