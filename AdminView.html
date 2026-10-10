@@ -319,8 +319,8 @@
               <td><small>${q.componente}</small></td>
               <td><span class="fw-semibold">${q.pregunta}</span></td>
               <td><span class="badge bg-info text-dark">${q.subdireccionAsignada}</span></td>
-              <td><span class="badge ${q.respuesta === 'Sí' ? 'bg-success' : q.respuesta === 'No' ? 'bg-danger' : q.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${q.respuesta}</span></td>
-              <td><span class="badge ${estBadge}">${q.estadoRevision || 'Borrador'}</span></td>
+              <td><span class="badge ${q.respuesta === 'Sí' ? 'bg-success' : q.respuesta === 'No' ? 'bg-danger' : q.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${q.respuesta || 'Sin responder'}</span></td>
+              <td><span class="badge ${estBadge}">${q.estadoRevision || 'Sin responder'}</span></td>
               <td><span class="badge badge-risk-${q.nivelRiesgo.replace(/\s+/g, '')}">${q.nivelRiesgo || 'N/A'}</span></td>
               <td>${docsHtml}</td>
             </tr>
@@ -368,7 +368,7 @@
   }
 
   // ==============================================================================
-  // CAMBIO 2: VISTA 2: SEGUIMIENTO Y REVISIÓN (EXCLUSIVO ADMIN)
+  // CAMBIO 2: VISTA 2: SEGUIMIENTO Y REVISIÓN (CARGA COMPLETA DE PREGUNTAS)
   // ==============================================================================
   function cargarSeguimientoRevisionAdmin() {
     const container = document.getElementById('seguimiento-container');
@@ -407,11 +407,12 @@
           <div class="col-md-3">
             <label class="form-label fw-bold">Estado de Revisión</label>
             <select class="form-select form-select-sm border-primary fw-bold" id="seg-filtro-estado" onchange="cargarListaSeguimientoAdmin()">
-              <option value="Enviada" selected>Enviada (Pendiente de revisión)</option>
+              <option value="TODOS" selected>-- Todos los Estados --</option>
+              <option value="Enviada">Enviadas (Por revisar)</option>
               <option value="Observada">Observadas</option>
               <option value="Aceptada">Aceptadas</option>
+              <option value="Sin responder">Sin responder</option>
               <option value="Borrador">Borrador</option>
-              <option value="TODOS">-- Todos los Estados --</option>
             </select>
           </div>
         </div>
@@ -422,17 +423,18 @@
             <thead class="table-light">
               <tr>
                 <th style="width: 50px;">No.</th>
+                <th>Lote</th>
                 <th>Subdirección</th>
                 <th>Pregunta</th>
                 <th>Respuesta</th>
                 <th>Riesgo</th>
-                <th>Estado</th>
+                <th>Estatus</th>
                 <th>Fecha Modificación</th>
                 <th style="width: 140px;">Acciones</th>
               </tr>
             </thead>
             <tbody id="tbody-seguimiento-list">
-              <tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de revisión...</td></tr>
+              <tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de revisión...</td></tr>
             </tbody>
           </table>
         </div>
@@ -451,7 +453,7 @@
             </div>
             <div class="modal-footer d-flex justify-content-between">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-              <div class="d-flex gap-2">
+              <div class="d-flex gap-2" id="modal-review-actions-group">
                 <button type="button" class="btn btn-danger fw-bold" onclick="abrirSubModalObservar()">
                   <i class="fa-solid fa-circle-exclamation me-1"></i> Observar Respuesta
                 </button>
@@ -532,15 +534,15 @@
     };
 
     const tbody = document.getElementById('tbody-seguimiento-list');
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando respuestas...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de respuestas...</td></tr>';
 
     google.script.run
       .withSuccessHandler(function(list) {
         window.respuestasSeguimientoList = list;
-        document.getElementById('seg-counter-badge').innerText = `${list.length} registros encontrados`;
+        document.getElementById('seg-counter-badge').innerText = `${list.length} preguntas encontradas`;
 
         if (!list || list.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No hay respuestas en el estado seleccionado.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">No hay preguntas registradas con los filtros seleccionados.</td></tr>';
           return;
         }
 
@@ -549,19 +551,23 @@
           if (r.estadoRevision === 'Enviada') badgeClass = 'bg-info text-dark';
           else if (r.estadoRevision === 'Observada') badgeClass = 'bg-danger text-white';
           else if (r.estadoRevision === 'Aceptada') badgeClass = 'bg-success text-white';
+          else if (r.estadoRevision === 'Sin responder') badgeClass = 'bg-light text-dark border';
+
+          const tieneRespuesta = !!(r.respuesta && r.respuesta.trim() !== '');
 
           return `
             <tr>
               <td class="fw-bold">${r.id}</td>
-              <td><span class="badge bg-secondary">${r.subdireccionAsignada}</span></td>
-              <td><span class="fw-semibold">${truncateString(r.pregunta, 50)}</span></td>
-              <td><span class="badge ${r.respuesta === 'Sí' ? 'bg-success' : r.respuesta === 'No' ? 'bg-danger' : 'bg-warning text-dark'}">${r.respuesta || 'Sin responder'}</span></td>
+              <td><small class="badge bg-secondary">${r.loteId}</small></td>
+              <td><span class="badge bg-info text-dark">${r.subdireccionAsignada}</span></td>
+              <td><span class="fw-semibold">${truncateString(r.pregunta, 45)}</span></td>
+              <td><span class="badge ${r.respuesta === 'Sí' ? 'bg-success' : r.respuesta === 'No' ? 'bg-danger' : r.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${r.respuesta || 'Sin responder'}</span></td>
               <td><span class="badge badge-risk-${r.nivelRiesgo.replace(/\s+/g, '')}">${r.nivelRiesgo || 'N/A'}</span></td>
-              <td><span class="badge ${badgeClass}">${r.estadoRevision || 'Borrador'}</span></td>
+              <td><span class="badge ${badgeClass}">${r.estadoRevision || 'Sin responder'}</span></td>
               <td><small>${r.fechaUltimaModificacion ? new Date(r.fechaUltimaModificacion).toLocaleString() : 'N/A'}</small></td>
               <td>
-                <button class="btn btn-sm btn-primary fw-bold" onclick="abrirModalVerRespuestaSeguimiento('${r.id}')">
-                  <i class="fa-solid fa-eye me-1"></i> Revisar
+                <button class="btn btn-sm ${tieneRespuesta ? 'btn-primary' : 'btn-outline-secondary'} fw-bold" onclick="abrirModalVerRespuestaSeguimiento('${r.id}')">
+                  <i class="fa-solid ${tieneRespuesta ? 'fa-eye' : 'fa-info-circle'} me-1"></i> Detalle
                 </button>
               </td>
             </tr>
@@ -591,9 +597,15 @@
       `).join('') + '</ul>';
     }
 
+    const tieneRespuesta = !!(item.respuesta && item.respuesta.trim() !== '');
+    const actionsGroup = document.getElementById('modal-review-actions-group');
+    if (actionsGroup) {
+      actionsGroup.style.display = tieneRespuesta ? 'flex' : 'none';
+    }
+
     const body = document.getElementById('modalRevisarBody');
     body.innerHTML = `
-      <div class="card mb-3 border-start border-4 border-primary">
+      <div class="card mb-3 border-start border-4 ${tieneRespuesta ? 'border-primary' : 'border-secondary'}">
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
             <span class="fw-bold text-primary">Pregunta No. ${item.id} (${item.loteId})</span>
@@ -603,31 +615,40 @@
           <p class="fw-bold text-dark mb-2">${item.pregunta}</p>
           <small class="text-muted bg-light p-2 rounded d-block mb-3"><strong>Fundamento:</strong> ${item.fundamentoLegal || 'N/A'}</small>
 
-          <div class="row g-3 bg-light p-3 rounded border">
-            <div class="col-md-6">
-              <label class="fw-bold text-dark small">Respuesta Capturada:</label>
-              <div><span class="badge fs-6 ${item.respuesta === 'Sí' ? 'bg-success' : 'bg-danger'}">${item.respuesta || 'Sin respuesta'}</span></div>
+          ${!tieneRespuesta ? `
+            <div class="alert alert-warning py-2 mb-2 small"><i class="fa-solid fa-clock me-1"></i> Esta pregunta aún no ha sido respondida por el usuario responsable.</div>
+          ` : `
+            <div class="row g-3 bg-light p-3 rounded border">
+              <div class="col-md-6">
+                <label class="fw-bold text-dark small">Respuesta Capturada:</label>
+                <div><span class="badge fs-6 ${item.respuesta === 'Sí' ? 'bg-success' : 'bg-danger'}">${item.respuesta}</span></div>
+              </div>
+              <div class="col-md-6">
+                <label class="fw-bold text-dark small">Nivel de Riesgo Residual:</label>
+                <div><span class="badge badge-risk-${item.nivelRiesgo.replace(/\s+/g, '')} fs-6">${item.nivelRiesgo || 'N/A'}</span></div>
+              </div>
+              <div class="col-md-12">
+                <label class="fw-bold text-dark small"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual:</label>
+                <div class="p-2 bg-white rounded border small text-dark">${item.evidenciaTextual || '<em>Sin descripción textual</em>'}</div>
+              </div>
+              <div class="col-md-12">
+                <label class="fw-bold text-dark small"><i class="fa-solid fa-paperclip me-1"></i> Evidencias Documentales:</label>
+                ${docsHtml}
+              </div>
+              <div class="col-md-12">
+                <label class="fw-bold text-dark small"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones del Usuario:</label>
+                <div class="p-2 bg-white rounded border small text-dark">${item.observaciones || '<em>Sin observaciones</em>'}</div>
+              </div>
+              ${item.observacionAdmin ? `
+                <div class="col-md-12 alert alert-danger p-2 mb-0 small">
+                  <strong>Observación del Admin previa:</strong> ${item.observacionAdmin}
+                </div>
+              ` : ''}
+              <div class="col-md-12 border-top pt-2 mt-2 small text-muted">
+                <i class="fa-solid fa-user me-1"></i> Capturado por: <strong>${item.usuarioQueRespondio || 'N/A'}</strong> | Fecha: <strong>${item.fechaUltimaModificacion ? new Date(item.fechaUltimaModificacion).toLocaleString() : 'N/A'}</strong>
+              </div>
             </div>
-            <div class="col-md-6">
-              <label class="fw-bold text-dark small">Nivel de Riesgo Residual:</label>
-              <div><span class="badge badge-risk-${item.nivelRiesgo.replace(/\s+/g, '')} fs-6">${item.nivelRiesgo || 'N/A'}</span></div>
-            </div>
-            <div class="col-md-12">
-              <label class="fw-bold text-dark small"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual:</label>
-              <div class="p-2 bg-white rounded border small text-dark">${item.evidenciaTextual || '<em>Sin descripción textual</em>'}</div>
-            </div>
-            <div class="col-md-12">
-              <label class="fw-bold text-dark small"><i class="fa-solid fa-paperclip me-1"></i> Evidencias Documentales:</label>
-              ${docsHtml}
-            </div>
-            <div class="col-md-12">
-              <label class="fw-bold text-dark small"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones del Usuario:</label>
-              <div class="p-2 bg-white rounded border small text-dark">${item.observaciones || '<em>Sin observaciones</em>'}</div>
-            </div>
-            <div class="col-md-12 border-top pt-2 mt-2 small text-muted">
-              <i class="fa-solid fa-user me-1"></i> Capturado por: <strong>${item.usuarioQueRespondio || 'N/A'}</strong> | Fecha: <strong>${item.fechaUltimaModificacion ? new Date(item.fechaUltimaModificacion).toLocaleString() : 'N/A'}</strong>
-            </div>
-          </div>
+          `}
         </div>
       </div>
     `;
@@ -1249,7 +1270,7 @@
   }
 
   // ==============================================================================
-  // CAMBIO 4: VISTA 6: USUARIOS Y SUBDIRECCIONES (ADMIN) - CONTROL EXCLUSIVO DE CONTRASEÑA
+  // VISTA 6: USUARIOS Y SUBDIRECCIONES (ADMIN) - CONTROL EXCLUSIVO DE CONTRASEÑA
   // ==============================================================================
   function cargarUsuariosAdmin() {
     const container = document.getElementById('usuarios-container');

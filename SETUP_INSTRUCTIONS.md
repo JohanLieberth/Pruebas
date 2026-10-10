@@ -1,6 +1,6 @@
 # Instrucciones de Configuración y Despliegue - Control Machete
 
-**Sistema de Autoevaluación de Control Interno (Marco COSO - Múltiples Lotes y Módulo de Revisión)**
+**Sistema de Autoevaluación de Control Interno (Marco COSO - Múltiples Lotes, Envío Individual Atómico y Módulo de Revisión)**
 *H. Ayuntamiento de Mérida, Yucatán*
 
 ---
@@ -34,51 +34,46 @@ El sistema utiliza una única Hoja de Cálculo de Google Sheets. Al ejecutar la 
 
 ---
 
-## 3. Flujo de Estados de Respuesta y Módulo "Seguimiento y Revisión"
+## 3. Envío Individual Atómico por Pregunta
 
-Flujo del ciclo de vida de las respuestas:
-
-```
-[Borrador] (Autosave del Usuario)
-    │
-    ▼ (Usuario valida completeness y hace clic en "Enviar respuestas")
-[Enviada] (Queda en modo SOLO LECTURA para el Usuario y pasa a revisión del Admin)
-    │
-    ├───► [Aceptada] (Aceptada por el Admin -> Estado Final)
-    │
-    └───► [Observada] (Observada por el Admin con comentario obligatorio)
-            │
-            ▼ (Reaparece editable en el Usuario con alerta destacada y botón "Reenviar")
-          [Enviada]
-```
-
-- **Inmutabilidad y Visibilidad**: Las preguntas asignadas al usuario NUNCA desaparecen de su acordeón. Permanecen editables solo mientras estén en estado `Borrador` u `Observada`. Una vez `Enviadas` o `Aceptadas`, permanecen en modo de solo lectura.
+- **Suspensión de Autosave en Hoja**: Los cambios realizados en pantalla (respuesta seleccionada, evidencia textual, observaciones, selección de archivos) se mantienen en la memoria del formulario cliente.
+- **Botón "Enviar" por Pregunta**: Cada tarjeta de pregunta tiene su propio botón "Enviar" (editable solo en estados `Borrador` u `Observada`).
+- **Validación de Integridad**:
+  - Requiere selección de **Respuesta** (Sí, Parcial, No, No Aplica).
+  - Requiere al menos **una Evidencia** (Textual O Documental).
+- **Operación Atómica en Backend (`enviarRespuestaIndividual`)**:
+  - Procesa la subida de archivos a Google Drive (`/ControlMachete/{Subdirección}/{QuestionID}/`).
+  - Si falla la subida de algún archivo, realiza **rollback** eliminando los archivos creados en Drive y cancela la escritura en la Hoja de Cálculo.
+  - Al ser exitoso, guarda el registro en `Respuestas` con estado `Enviada` y bloquea la edición del formulario en el cliente (pasando a solo lectura con etiqueta "Enviada — en revisión").
 
 ---
 
-## 4. Gestión de Lotes LEYENDO DIRECTAMENTE DE LA HOJA "LOTES"
+## 4. Módulo "Seguimiento y Revisión" (ADMIN)
 
-- **Diagnóstico y Corrección de Lotes**:
-  La función `getLotesListAdmin()` lee directamente la pestaña `Lotes` del Spreadsheet utilizando `getDataRange()`. Se eliminó cualquier dependencia de memoria o caché para garantizar que los lotes agregados manualmente o mediante carga masiva se reflejen de inmediato en la interfaz.
+- **Carga Completa Preguntas × Respuestas**: Cruza directamente todas las preguntas existentes en la hoja `Preguntas` con las respuestas capturadas en `Respuestas`.
+- **Estatus Incluidos**:
+  - `Enviada`: Respuesta enviada por el usuario, pendiente de revisión por el Admin.
+  - `Observada`: Devuelta por el Admin con observación obligatoria (reaparece editable en el cliente con banner de alerta).
+  - `Aceptada`: Evaluada y aceptada por el Admin (estado final inmutable).
+  - `Sin responder`: Preguntas asignadas que aún no han sido enviadas por los usuarios.
+- **Acciones de Evaluación**: Botones "Aceptar" y "Observar" (modal obligatorio para detalle de correcciones). Refresco automático releendo directamente las hojas de cálculo.
 
 ---
 
 ## 5. Resumen de Archivos Modificados
 
 1. **`Code.gs`**:
-   - Agregados endpoints de revisión de respuestas (`enviarRespuestasUsuario`, `reenviarRespuestaObservada`, `getRespuestasSeguimientoAdmin`, `revisarRespuestaAdmin`).
-   - Corregido `getLotesListAdmin` para lectura directa de la hoja `Lotes`.
-   - Modificado `getUsuariosAdmin` para no enviar hashes de contraseña.
-   - Ajustada migración idempotente para las columnas `EstadoRevision` y `ObservacionAdmin`.
+   - Implementada función atómica `enviarRespuestaIndividual` con rollback en Drive.
+   - Refactorizada `getRespuestasSeguimientoAdmin` para cruzar la totalidad de preguntas de `Preguntas` con `Respuestas` (incluyendo estado "Sin responder").
+   - Eliminados métodos obsoletos de envío masivo global.
 2. **`UserView.html`**:
-   - Mantenimiento de preguntas visibles en el acordeón en todo momento.
-   - Agregada barrera de envío global con botón "Enviar respuestas" e inspección de integridad (Respuesta + al menos 1 evidencia).
-   - Renderizado de alertas para preguntas marcadas como `Observada` con botón individual de re-envío.
+   - Eliminado botón y modal de envío global masivo.
+   - Suspendido autosave contra la hoja de cálculo.
+   - Agregados botones individuales "Enviar" por pregunta con modal de confirmación y advertencia `beforeunload`.
+   - Indicador de avance recalculado para contar solo preguntas enviadas.
 3. **`AdminView.html`**:
-   - Nuevo módulo de **Seguimiento y Revisión** con tabla filtrable y modal de evaluación/observación obligatoria.
-   - Actualizados indicadores KPI en Dashboard Global (Pendientes de revisión, Observadas, Aceptadas).
-   - Exigencia de contraseña al crear nuevos usuarios.
+   - Actualizada tabla de Seguimiento y Revisión para desplegar el universo completo de preguntas con estatus real (incluyendo "Sin responder").
 4. **`Index.html`**:
-   - Pestaña de navegación agregada para "Seguimiento y Revisión".
+   - Ajuste de encabezados e indicativos de estado de usuario.
 5. **`SETUP_INSTRUCTIONS.md`**:
-   - Documentación actualizada de flujos y estructura.
+   - Documentación completa actualizada.

@@ -75,9 +75,6 @@ function hashPassword(plainText) {
 // SERVICIO DE TOKENS (TokenService) Y AUTENTICACIÓN
 // ==============================================================================
 
-/**
- * Autentica usuario con correo y contraseña, generando un Token de sesión
- */
 function loginUsuario(email, password) {
   if (!email || !password) {
     throw new Error('Debe proporcionar correo electrónico y contraseña.');
@@ -123,9 +120,6 @@ function loginUsuario(email, password) {
   };
 }
 
-/**
- * Invalida el token en CacheService (Cierre de sesión)
- */
 function logoutUsuario(token) {
   if (token) {
     const cache = CacheService.getScriptCache();
@@ -134,9 +128,6 @@ function logoutUsuario(token) {
   return { success: true, message: 'Sesión cerrada correctamente.' };
 }
 
-/**
- * Extrae y valida la sesión activa a partir de un Token.
- */
 function getSessionByToken(token) {
   if (!token) {
     throw new Error('Sesión expirada, inicie sesión nuevamente.');
@@ -263,14 +254,11 @@ function initDatabaseStructure(ss) {
   });
 }
 
-/**
- * Migración idempotente para agregar nuevas columnas (Contraseña, LoteID, EstadoRevision, ObservacionAdmin)
- */
 function migrateDatabaseStructure() {
   const ss = getSpreadsheet();
   initDatabaseStructure(ss);
 
-  // 1. Migración de Usuarios -> Columna 'Contrasena' (Columna F / Indice 6)
+  // 1. Usuarios -> Contrasena
   const uSheet = getSheetSafe(SHEETS.USUARIOS);
   const uData = uSheet.getDataRange().getValues();
   if (uData.length > 0 && uData[0].length < 6) {
@@ -290,7 +278,7 @@ function migrateDatabaseStructure() {
     }
   }
 
-  // 2. Migración de Lotes -> Crear 'LOTE_INICIAL' si no existe
+  // 2. Lotes -> LOTE_INICIAL
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
   const lotesData = lotesSheet.getDataRange().getValues();
   let loteInicialExiste = false;
@@ -306,7 +294,7 @@ function migrateDatabaseStructure() {
     lotesSheet.appendRow(['LOTE_INICIAL', 'Lote Inicial', 'Evaluación COSO 61 preguntas inicial', new Date(), 'SISTEMA', true]);
   }
 
-  // 3. Migración de Preguntas -> Columna 'LoteID' (Columna G / Indice 7)
+  // 3. Preguntas -> LoteID
   const pSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = pSheet.getDataRange().getValues();
   if (pData.length > 0 && pData[0].length < 7) {
@@ -322,7 +310,7 @@ function migrateDatabaseStructure() {
     }
   }
 
-  // 4. Migración de Respuestas -> Columnas 'EstadoRevision' (Col 11) y 'ObservacionAdmin' (Col 12)
+  // 4. Respuestas -> EstadoRevision y ObservacionAdmin
   const rSheet = getSheetSafe(SHEETS.RESPUESTAS);
   const rData = rSheet.getDataRange().getValues();
   if (rData.length > 0) {
@@ -343,7 +331,7 @@ function migrateDatabaseStructure() {
 }
 
 // ==============================================================================
-// GESTIÓN DE AUDITORÍA
+// AUDITORÍA
 // ==============================================================================
 
 function logAudit(entity, questionId, oldValue, newValue, userEmail) {
@@ -364,7 +352,7 @@ function logAudit(entity, questionId, oldValue, newValue, userEmail) {
 }
 
 // ==============================================================================
-// MÓDULO ADMINISTRADOR: GESTIÓN DE USUARIOS
+// USUARIOS
 // ==============================================================================
 
 function getUserByEmail(email) {
@@ -389,10 +377,6 @@ function getUserByEmail(email) {
   return null;
 }
 
-/**
- * Obtiene lista de usuarios para el Admin.
- * SEGURIDAD: NUNCA expone el hash de contraseña al cliente.
- */
 function getUsuariosAdmin(token) {
   assertAdmin(token);
   const sheet = getSheetSafe(SHEETS.USUARIOS);
@@ -415,10 +399,6 @@ function getUsuariosAdmin(token) {
   return usuarios;
 }
 
-/**
- * Guarda o actualiza un usuario.
- * Exclusivo Admin: Contraseña obligatoria al crear, opcional al editar.
- */
 function saveUsuarioAdmin(token, userData) {
   const adminSession = assertAdmin(token);
   if (!userData.email || !userData.name) {
@@ -449,7 +429,6 @@ function saveUsuarioAdmin(token, userData) {
   if (userData.password && userData.password.trim() !== '') {
     finalHash = hashPassword(userData.password.trim());
   } else if (foundIndex <= 0) {
-    // Al crear un nuevo usuario la contraseña es OBLIGATORIA
     throw new Error('La contraseña es obligatoria para nuevos usuarios.');
   }
 
@@ -494,7 +473,7 @@ function toggleUsuarioEstado(token, email, active) {
 }
 
 // ==============================================================================
-// MÓDULO ADMINISTRADOR: GESTIÓN DE SUBDIRECCIONES
+// SUBDIRECCIONES
 // ==============================================================================
 
 function getSubdireccionesList(token) {
@@ -532,7 +511,7 @@ function saveSubdireccionAdmin(token, nombre) {
 }
 
 // ==============================================================================
-// CAMBIO 1: GESTIÓN DE LOTES — LECTURA DIRECTA DESDE LA HOJA "LOTES"
+// GESTIÓN DE LOTES — LECTURA DIRECTA
 // ==============================================================================
 
 function getLotesActivosMap() {
@@ -550,9 +529,6 @@ function getLotesActivosMap() {
   return map;
 }
 
-/**
- * Obtiene la lista completa de Lotes LEYENDO DIRECTAMENTE DE LA PESTAÑA "LOTES"
- */
 function getLotesListAdmin(token) {
   assertAdmin(token);
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
@@ -567,7 +543,6 @@ function getLotesListAdmin(token) {
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
 
-  // Contar preguntas y respuestas por lote
   const loteStats = {};
 
   for (let i = 1; i < pData.length; i++) {
@@ -584,7 +559,7 @@ function getLotesListAdmin(token) {
     const respKey = qId + '_' + subAsignada;
     const resp = respuestasMap[respKey];
 
-    if (resp && resp.respuesta && resp.respuesta.trim() !== '') {
+    if (resp && resp.respuesta && resp.respuesta.trim() !== '' && (resp.estadoRevision === 'Enviada' || resp.estadoRevision === 'Aceptada')) {
       loteStats[loteId].respondidas++;
     }
   }
@@ -761,7 +736,7 @@ function cargarMasivaPreguntas(token, payload) {
 }
 
 // ==============================================================================
-// ASIGNACIÓN DE PREGUNTAS (CORE FEATURE)
+// ASIGNACIÓN DE PREGUNTAS
 // ==============================================================================
 
 function getAsignacionesMap() {
@@ -852,13 +827,9 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
 }
 
 // ==============================================================================
-// MÓDULO DE RESPUESTAS (USER & ADMIN "MIS PREGUNTAS") CON FLUJO DE ESTADOS
+// MÓDULO DE RESPUESTAS - ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA
 // ==============================================================================
 
-/**
- * Obtiene las preguntas asignadas para el usuario actual.
- * LAS PREGUNTAS ASIGNADAS NUNCA DESAPARECEN DE LA VISTA DEL USUARIO.
- */
 function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const user = assertAuthenticatedUser(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
@@ -915,7 +886,6 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
       };
 
       const estRev = respObj.estadoRevision || 'Borrador';
-      // Regla de editabilidad: Solo editable si está en Borrador u Observada
       const esEditable = (estRev === 'Borrador' || estRev === 'Observada');
 
       preguntasFiltradas.push({
@@ -975,9 +945,10 @@ function getRespuestasMap() {
 }
 
 /**
- * Guarda o actualiza borrador de respuesta
+ * CAMBIO 1: ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA.
+ * Procesa en una sola operación atómica: subida de archivos (rollback en caso de falla) y persistencia con estado "Enviada".
  */
-function guardarRespuesta(token, payload) {
+function enviarRespuestaIndividual(token, payload) {
   const user = assertAuthenticatedUser(token);
   const qId = String(payload.questionId).trim();
   if (!qId) throw new Error('ID de pregunta inválido.');
@@ -992,422 +963,135 @@ function guardarRespuesta(token, payload) {
     }
   }
 
-  const subdireccionFinal = subAsignada;
   const respuesta = payload.respuesta || '';
   const evidenciaTextual = payload.evidenciaTextual || '';
   const observaciones = payload.observaciones || '';
+  const archivosNuevos = payload.archivosNuevos || []; // Lista de Base64 { fileName, mimeType, base64Data }
 
-  const nivelRiesgo = RIESGO_MAP[respuesta] || '';
+  // 1. Validar requerimientos del backend antes de guardar
+  if (!respuesta || respuesta.trim() === '') {
+    throw new Error('Debe seleccionar una Respuesta (Sí, Parcial, No, No Aplica).');
+  }
 
+  // 2. Cargar adjuntos existentes en la BD
   const sheet = getSheetSafe(SHEETS.RESPUESTAS);
   const data = sheet.getDataRange().getValues();
   let foundIndex = -1;
-  let oldObj = null;
+  let existingDocs = [];
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subdireccionFinal.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
       foundIndex = i + 1;
-      let existingDocs = [];
-      try { existingDocs = JSON.parse(data[i][4]); } catch (e) {}
-
       const currentEstado = data[i][10] || 'Borrador';
       if (user.role === 'USER' && (currentEstado === 'Enviada' || currentEstado === 'Aceptada')) {
-        throw new Error('No se puede modificar una pregunta que está enviada o aceptada.');
+        throw new Error('La pregunta ya se encuentra enviada o aceptada y no puede modificarse.');
       }
-
-      oldObj = {
-        respuesta: data[i][2],
-        evidenciaTextual: data[i][3],
-        evidenciaDocumental: existingDocs,
-        observaciones: data[i][5],
-        nivelRiesgo: data[i][6],
-        estadoRevision: currentEstado,
-        observacionAdmin: data[i][11] || ''
-      };
+      try { existingDocs = JSON.parse(data[i][4]); } catch (e) { existingDocs = []; }
+      if (!Array.isArray(existingDocs)) existingDocs = [];
       break;
     }
   }
 
-  const now = new Date();
-  let docsJson = '[]';
-  if (foundIndex > 0 && oldObj && oldObj.evidenciaDocumental) {
-    docsJson = JSON.stringify(oldObj.evidenciaDocumental);
+  // Validar que exista al menos una evidencia (Textual O Documental existente O Documental nueva)
+  const tieneTextual = (evidenciaTextual && evidenciaTextual.trim() !== '');
+  const tieneDocumental = (existingDocs.length > 0 || (Array.isArray(archivosNuevos) && archivosNuevos.length > 0));
+
+  if (!tieneTextual && !tieneDocumental) {
+    throw new Error('Debe proporcionar al menos una Evidencia Textual o adjuntar un archivo Documental.');
   }
 
-  const estadoFinal = (oldObj && oldObj.estadoRevision) ? oldObj.estadoRevision : 'Borrador';
-  const obsAdmin = (oldObj && oldObj.observacionAdmin) ? oldObj.observacionAdmin : '';
+  // 3. Procesar subida de nuevos archivos a Google Drive de forma ATÓMICA
+  const createdDriveFiles = [];
+  if (Array.isArray(archivosNuevos) && archivosNuevos.length > 0) {
+    const folderSubName = (subAsignada === 'SIN_ASIGNAR' || subAsignada === '') ? 'ADMIN' : cleanFolderName(subAsignada);
+    const rootFolder = getOrCreateDriveFolder(ROOT_DRIVE_FOLDER_NAME);
+    const subFolder = getOrCreateSubFolder(rootFolder, folderSubName);
+    const qFolder = getOrCreateSubFolder(subFolder, 'Pregunta_' + qId);
 
+    try {
+      archivosNuevos.forEach(fileObj => {
+        if (!fileObj.base64Data) return;
+        const bytes = Utilities.base64Decode(fileObj.base64Data);
+        const fileName = fileObj.fileName || ('evidencia_' + qId);
+        const mimeType = fileObj.mimeType || 'application/octet-stream';
+        const blob = Utilities.newBlob(bytes, mimeType, fileName);
+
+        if (blob.getBytes().length > 10 * 1024 * 1024) {
+          throw new Error(`El archivo ${fileName} excede el límite máximo de 10 MB.`);
+        }
+
+        const driveFile = qFolder.createFile(blob);
+        driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+        const fInfo = {
+          id: driveFile.getId(),
+          name: driveFile.getName(),
+          url: driveFile.getUrl(),
+          size: blob.getBytes().length,
+          mimeType: driveFile.getMimeType(),
+          uploadedBy: user.email,
+          uploadedAt: new Date().toISOString()
+        };
+        createdDriveFiles.push(fInfo);
+      });
+    } catch (err) {
+      // ROLLBACK: si falla la subida de algún archivo, eliminar los archivos creados en Drive y abortar
+      createdDriveFiles.forEach(f => {
+        try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) {}
+      });
+      throw new Error('Error al procesar archivos de evidencia en Drive: ' + err.message);
+    }
+  }
+
+  const allDocs = existingDocs.concat(createdDriveFiles);
+  const nivelRiesgo = RIESGO_MAP[respuesta] || '';
+  const now = new Date();
+
+  // 4. Persistir en la hoja RESPUESTAS con estado "Enviada"
   if (foundIndex > 0) {
     sheet.getRange(foundIndex, 3, 1, 10).setValues([[
       respuesta,
       evidenciaTextual,
-      docsJson,
+      JSON.stringify(allDocs),
       observaciones,
       nivelRiesgo,
       user.email,
       data[foundIndex - 1][8] || now,
       now,
-      estadoFinal,
-      obsAdmin
+      'Enviada',
+      '' // Limpiar observación admin previa al re-enviar
     ]]);
-    logAudit('RESPUESTA_GUARDAR', qId, oldObj, { respuesta, evidenciaTextual, observaciones, nivelRiesgo }, user.email);
+    logAudit('RESPUESTA_ENVIAR_INDIVIDUAL', qId, data[foundIndex - 1][10], 'Enviada', user.email);
   } else {
     sheet.appendRow([
       qId,
-      subdireccionFinal,
+      subAsignada,
       respuesta,
       evidenciaTextual,
-      docsJson,
+      JSON.stringify(allDocs),
       observaciones,
       nivelRiesgo,
       user.email,
       now,
       now,
-      'Borrador',
+      'Enviada',
       ''
     ]);
-    logAudit('RESPUESTA_CREAR', qId, null, { respuesta, evidenciaTextual, observaciones, nivelRiesgo }, user.email);
+    logAudit('RESPUESTA_ENVIAR_INDIVIDUAL', qId, null, 'Enviada', user.email);
   }
 
   return {
     success: true,
     nivelRiesgo: nivelRiesgo,
-    message: 'Guardado ✓'
-  };
-}
-
-// ==============================================================================
-// CAMBIO 3: ENVÍO Y REENVÍO DE RESPUESTAS
-// ==============================================================================
-
-/**
- * Valida y envía GLOBALMENTE todas las preguntas asignadas a la Subdirección del Usuario
- */
-function enviarRespuestasUsuario(token) {
-  const user = assertAuthenticatedUser(token);
-  if (user.role !== 'USER') {
-    throw new Error('Solo los usuarios de Subdirección pueden enviar respuestas.');
-  }
-
-  const preguntasAsignadas = getPreguntasParaUsuario(token, false);
-  if (!preguntasAsignadas || preguntasAsignadas.length === 0) {
-    throw new Error('No tiene preguntas asignadas para enviar.');
-  }
-
-  // Validaciones obligatorias: Cada pregunta debe tener Respuesta y al menos una evidencia (Textual O Documental)
-  const incompletas = [];
-  preguntasAsignadas.forEach(q => {
-    const rData = q.respuestaData || {};
-    const tieneResp = !!(rData.respuesta && rData.respuesta.trim() !== '');
-    const tieneText = !!(rData.evidenciaTextual && rData.evidenciaTextual.trim() !== '');
-    const tieneDocs = Array.isArray(rData.evidenciaDocumental) && rData.evidenciaDocumental.length > 0;
-
-    if (!tieneResp || (!tieneText && !tieneDocs)) {
-      incompletas.push({
-        id: q.id,
-        pregunta: q.pregunta,
-        motivo: !tieneResp ? 'Falta respuesta' : 'Falta evidencia textual o documental'
-      });
-    }
-  });
-
-  if (incompletas.length > 0) {
-    return {
-      success: false,
-      incompletas: incompletas,
-      message: 'Existen preguntas incompletas que impiden el envío.'
-    };
-  }
-
-  // Actualizar estado a "Enviada" en la hoja RESPUESTAS
-  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
-  const data = sheet.getDataRange().getValues();
-  const indexMap = {};
-
-  for (let i = 1; i < data.length; i++) {
-    const qId = String(data[i][0]).trim();
-    const sub = String(data[i][1]).trim().toLowerCase();
-    if (qId && sub) {
-      indexMap[qId + '_' + sub] = i + 1;
-    }
-  }
-
-  const now = new Date();
-  const userSub = (user.subdireccion || '').trim().toLowerCase();
-
-  preguntasAsignadas.forEach(q => {
-    const key = q.id + '_' + userSub;
-    const rowIndex = indexMap[key];
-    if (rowIndex) {
-      sheet.getRange(rowIndex, 11).setValue('Enviada');
-      sheet.getRange(rowIndex, 10).setValue(now);
-      logAudit('RESPUESTA_ENVIAR', q.id, 'Borrador/Observada', 'Enviada', user.email);
-    }
-  });
-
-  return {
-    success: true,
-    message: 'Todas las respuestas fueron enviadas correctamente para revisión del Administrador.'
+    estadoRevision: 'Enviada',
+    allFiles: allDocs,
+    message: 'Pregunta enviada correctamente para revisión.'
   };
 }
 
 /**
- * Reenvía individualmente una pregunta que fue Observada por el Administrador
+ * Elimina un archivo de evidencia previamente subido
  */
-function reenviarRespuestaObservada(token, questionId) {
-  const user = assertAuthenticatedUser(token);
-  const qId = String(questionId).trim();
-  if (!qId) throw new Error('ID de pregunta inválido.');
-
-  const userSub = (user.subdireccion || '').trim().toLowerCase();
-  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === userSub) {
-      const respVal = String(data[i][2] || '').trim();
-      const tieneText = String(data[i][3] || '').trim().length > 0;
-      let docs = [];
-      try { docs = JSON.parse(data[i][4]); } catch (e) {}
-      const tieneDocs = Array.isArray(docs) && docs.length > 0;
-
-      if (!respVal || (!tieneText && !tieneDocs)) {
-        throw new Error('La pregunta requiere una respuesta y al menos una evidencia antes de reenviar.');
-      }
-
-      sheet.getRange(i + 1, 11).setValue('Enviada');
-      sheet.getRange(i + 1, 10).setValue(new Date());
-      logAudit('RESPUESTA_REENVIAR_OBSERVADA', qId, 'Observada', 'Enviada', user.email);
-
-      return {
-        success: true,
-        message: 'Pregunta reenviada exitosamente.'
-      };
-    }
-  }
-  throw new Error('No se encontró la respuesta especificada.');
-}
-
-// ==============================================================================
-// CAMBIO 2: NUEVO MÓDULO DE SEGUIMIENTO Y REVISIÓN (EXCLUSIVO ADMIN)
-// ==============================================================================
-
-/**
- * Obtiene lista de respuestas para revisión del Admin
- */
-function getRespuestasSeguimientoAdmin(token, filtros) {
-  assertAdmin(token);
-
-  const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
-  const pData = preguntasSheet.getDataRange().getValues();
-  const asignacionesMap = getAsignacionesMap();
-  const respuestasMap = getRespuestasMap();
-
-  const fLote = filtros ? filtros.loteId : 'TODOS';
-  const fSub = filtros ? filtros.subdireccion : 'TODAS';
-  const fComp = filtros ? filtros.componente : 'TODOS';
-  const fEstado = filtros ? filtros.estadoRevision : 'TODOS';
-
-  const list = [];
-
-  for (let i = 1; i < pData.length; i++) {
-    const qId = String(pData[i][0]).trim();
-    if (!qId) continue;
-
-    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
-    if (fLote && fLote !== 'TODOS' && loteId !== fLote) continue;
-
-    const comp = pData[i][1];
-    if (fComp && fComp !== 'TODOS' && comp !== fComp) continue;
-
-    const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
-    if (fSub && fSub !== 'TODAS') {
-      if (fSub === 'SIN_ASIGNAR' && (subAsignada !== 'SIN_ASIGNAR' && subAsignada !== '')) continue;
-      if (fSub !== 'SIN_ASIGNAR' && subAsignada.toLowerCase().trim() !== fSub.toLowerCase().trim()) continue;
-    }
-
-    const respKey = qId + '_' + subAsignada;
-    const respObj = respuestasMap[respKey] || {
-      respuesta: '',
-      evidenciaTextual: '',
-      evidenciaDocumental: [],
-      observaciones: '',
-      nivelRiesgo: '',
-      estadoRevision: 'Borrador',
-      observacionAdmin: ''
-    };
-
-    const estRev = respObj.estadoRevision || 'Borrador';
-    if (fEstado && fEstado !== 'TODOS' && estRev !== fEstado) continue;
-
-    list.push({
-      id: qId,
-      componente: comp,
-      principio: pData[i][2],
-      pregunta: pData[i][3],
-      fundamentoLegal: pData[i][4],
-      subdireccionSugerida: pData[i][5] || '',
-      loteId: loteId,
-      subdireccionAsignada: subAsignada,
-      respuesta: respObj.respuesta,
-      evidenciaTextual: respObj.evidenciaTextual,
-      evidenciaDocumental: respObj.evidenciaDocumental,
-      observaciones: respObj.observaciones,
-      nivelRiesgo: respObj.nivelRiesgo,
-      usuarioQueRespondio: respObj.usuarioQueRespondio,
-      fechaUltimaModificacion: respObj.fechaUltimaModificacion,
-      estadoRevision: estRev,
-      observacionAdmin: respObj.observacionAdmin
-    });
-  }
-
-  return list;
-}
-
-/**
- * Permite al Administrador ACEPTAR u OBSERVAR una respuesta enviada
- */
-function revisarRespuestaAdmin(token, payload) {
-  const admin = assertAdmin(token);
-  const qId = String(payload.questionId).trim();
-  const subAsignada = String(payload.subdireccion).trim();
-  const nuevoEstado = payload.accion; // 'Aceptada' u 'Observada'
-  const obsAdminText = payload.observacionAdmin ? payload.observacionAdmin.trim() : '';
-
-  if (!qId || !subAsignada) throw new Error('Parámetros de pregunta inválidos.');
-  if (nuevoEstado !== 'Aceptada' && nuevoEstado !== 'Observada') {
-    throw new Error('Acción de revisión no válida.');
-  }
-
-  if (nuevoEstado === 'Observada' && !obsAdminText) {
-    throw new Error('La observación del administrador es obligatoria al marcar como Observada.');
-  }
-
-  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
-      sheet.getRange(i + 1, 11).setValue(nuevoEstado);
-      sheet.getRange(i + 1, 12).setValue(obsAdminText);
-      sheet.getRange(i + 1, 10).setValue(new Date());
-
-      logAudit('RESPUESTA_REVISAR_' + nuevoEstado.toUpperCase(), qId, data[i][10], { estado: nuevoEstado, obs: obsAdminText }, admin.email);
-
-      return {
-        success: true,
-        message: `La respuesta fue marcada como "${nuevoEstado}" correctamente.`
-      };
-    }
-  }
-  throw new Error('No se encontró el registro de respuesta.');
-}
-
-// ==============================================================================
-// SUBIDA Y GESTIÓN DE ARCHIVOS DE EVIDENCIA EN GOOGLE DRIVE
-// ==============================================================================
-
-function uploadEvidenceFile(token, payload) {
-  const user = assertAuthenticatedUser(token);
-  const qId = String(payload.questionId).trim();
-  if (!qId) throw new Error('ID de pregunta inválido.');
-
-  const userSub = (user.subdireccion || '').toLowerCase().trim();
-  const asignacionesMap = getAsignacionesMap();
-  const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
-
-  if (user.role === 'USER') {
-    if (subAsignada.toLowerCase().trim() !== userSub) {
-      throw new Error('ACCESO DENEGADO (403): No tiene permiso para adjuntar archivos en esta pregunta.');
-    }
-  }
-
-  const folderSubName = (subAsignada === 'SIN_ASIGNAR' || subAsignada === '') ? 'ADMIN' : cleanFolderName(subAsignada);
-
-  const rootFolder = getOrCreateDriveFolder(ROOT_DRIVE_FOLDER_NAME);
-  const subFolder = getOrCreateSubFolder(rootFolder, folderSubName);
-  const qFolder = getOrCreateSubFolder(subFolder, 'Pregunta_' + qId);
-
-  if (!payload.base64Data) {
-    throw new Error('Archivo no recibido o contenido vacío.');
-  }
-
-  const bytes = Utilities.base64Decode(payload.base64Data);
-  const fileName = payload.fileName || 'evidencia_' + qId;
-  const mimeType = payload.mimeType || 'application/octet-stream';
-  const fileBlob = Utilities.newBlob(bytes, mimeType, fileName);
-
-  if (fileBlob.getBytes().length > 10 * 1024 * 1024) {
-    throw new Error('El archivo excede el tamaño máximo permitido de 10 MB.');
-  }
-
-  const driveFile = qFolder.createFile(fileBlob);
-  driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-  const fileInfo = {
-    id: driveFile.getId(),
-    name: driveFile.getName(),
-    url: driveFile.getUrl(),
-    size: fileBlob.getBytes().length,
-    mimeType: driveFile.getMimeType(),
-    uploadedBy: user.email,
-    uploadedAt: new Date().toISOString()
-  };
-
-  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
-  const data = sheet.getDataRange().getValues();
-  let foundIndex = -1;
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
-      foundIndex = i + 1;
-      break;
-    }
-  }
-
-  let existingDocs = [];
-  const now = new Date();
-
-  if (foundIndex > 0) {
-    try {
-      if (data[foundIndex - 1][4]) {
-        existingDocs = JSON.parse(data[foundIndex - 1][4]);
-        if (!Array.isArray(existingDocs)) existingDocs = [];
-      }
-    } catch (e) {
-      existingDocs = [];
-    }
-    existingDocs.push(fileInfo);
-    sheet.getRange(foundIndex, 5).setValue(JSON.stringify(existingDocs));
-    sheet.getRange(foundIndex, 10).setValue(now);
-  } else {
-    existingDocs.push(fileInfo);
-    sheet.appendRow([
-      qId,
-      subAsignada,
-      '',
-      '',
-      JSON.stringify(existingDocs),
-      '',
-      '',
-      user.email,
-      now,
-      now,
-      'Borrador',
-      ''
-    ]);
-  }
-
-  logAudit('ARCHIVO_SUBIR', qId, null, fileInfo, user.email);
-
-  return {
-    success: true,
-    file: fileInfo,
-    allFiles: existingDocs,
-    message: 'Archivo subido correctamente.'
-  };
-}
-
 function deleteEvidenceFile(token, qIdRaw, fileId) {
   const user = assertAuthenticatedUser(token);
   const qId = String(qIdRaw).trim();
@@ -1455,6 +1139,119 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
     message: 'Archivo eliminado.'
   };
 }
+
+// ==============================================================================
+// CAMBIO 2: MÓDULO SEGUIMIENTO Y REVISIÓN — CARGA COMPLETA (PREGUNTAS × RESPUESTAS)
+// ==============================================================================
+
+/**
+ * Obtiene la lista completa de TODAS las preguntas existentes en la hoja Preguntas
+ * cruzadas con la hoja Respuestas, retornando estado de revisión real o "Sin responder".
+ */
+function getRespuestasSeguimientoAdmin(token, filtros) {
+  assertAdmin(token);
+
+  const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
+  const pData = preguntasSheet.getDataRange().getValues();
+  const asignacionesMap = getAsignacionesMap();
+  const respuestasMap = getRespuestasMap();
+
+  const fLote = filtros ? filtros.loteId : 'TODOS';
+  const fSub = filtros ? filtros.subdireccion : 'TODAS';
+  const fComp = filtros ? filtros.componente : 'TODOS';
+  const fEstado = filtros ? filtros.estadoRevision : 'TODOS';
+
+  const list = [];
+
+  for (let i = 1; i < pData.length; i++) {
+    const qId = String(pData[i][0]).trim();
+    if (!qId) continue;
+
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+    if (fLote && fLote !== 'TODOS' && loteId !== fLote) continue;
+
+    const comp = pData[i][1];
+    if (fComp && fComp !== 'TODOS' && comp !== fComp) continue;
+
+    const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    if (fSub && fSub !== 'TODAS') {
+      if (fSub === 'SIN_ASIGNAR' && (subAsignada !== 'SIN_ASIGNAR' && subAsignada !== '')) continue;
+      if (fSub !== 'SIN_ASIGNAR' && subAsignada.toLowerCase().trim() !== fSub.toLowerCase().trim()) continue;
+    }
+
+    const respKey = qId + '_' + subAsignada;
+    const respObj = respuestasMap[respKey];
+
+    let estRev = 'Sin responder';
+    if (respObj && respObj.respuesta && respObj.respuesta.trim() !== '') {
+      estRev = respObj.estadoRevision || 'Enviada';
+    }
+
+    if (fEstado && fEstado !== 'TODOS' && estRev !== fEstado) continue;
+
+    list.push({
+      id: qId,
+      componente: comp,
+      principio: pData[i][2],
+      pregunta: pData[i][3],
+      fundamentoLegal: pData[i][4],
+      subdireccionSugerida: pData[i][5] || '',
+      loteId: loteId,
+      subdireccionAsignada: subAsignada,
+      respuesta: respObj ? respObj.respuesta : '',
+      evidenciaTextual: respObj ? respObj.evidenciaTextual : '',
+      evidenciaDocumental: respObj ? respObj.evidenciaDocumental : [],
+      observaciones: respObj ? respObj.observaciones : '',
+      nivelRiesgo: respObj ? respObj.nivelRiesgo : '',
+      usuarioQueRespondio: respObj ? respObj.usuarioQueRespondio : '',
+      fechaUltimaModificacion: respObj ? respObj.fechaUltimaModificacion : '',
+      estadoRevision: estRev,
+      observacionAdmin: respObj ? respObj.observacionAdmin : ''
+    });
+  }
+
+  return list;
+}
+
+function revisarRespuestaAdmin(token, payload) {
+  const admin = assertAdmin(token);
+  const qId = String(payload.questionId).trim();
+  const subAsignada = String(payload.subdireccion).trim();
+  const nuevoEstado = payload.accion; // 'Aceptada' u 'Observada'
+  const obsAdminText = payload.observacionAdmin ? payload.observacionAdmin.trim() : '';
+
+  if (!qId || !subAsignada) throw new Error('Parámetros de pregunta inválidos.');
+  if (nuevoEstado !== 'Aceptada' && nuevoEstado !== 'Observada') {
+    throw new Error('Acción de revisión no válida.');
+  }
+
+  if (nuevoEstado === 'Observada' && !obsAdminText) {
+    throw new Error('La observación del administrador es obligatoria al marcar como Observada.');
+  }
+
+  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+      sheet.getRange(i + 1, 11).setValue(nuevoEstado);
+      sheet.getRange(i + 1, 12).setValue(obsAdminText);
+      sheet.getRange(i + 1, 10).setValue(new Date());
+
+      logAudit('RESPUESTA_REVISAR_' + nuevoEstado.toUpperCase(), qId, data[i][10], { estado: nuevoEstado, obs: obsAdminText }, admin.email);
+
+      return {
+        success: true,
+        message: `La respuesta fue marcada como "${nuevoEstado}" correctamente.`
+      };
+    }
+  }
+  throw new Error('No se encontró el registro de respuesta.');
+}
+
+// ==============================================================================
+// GESTIÓN DE ARCHIVOS DRIVE DE SOPORTE
+// ==============================================================================
 
 function cleanFolderName(name) {
   return String(name).replace(/[\\/:*?"<>|]/g, '_').trim();
@@ -1539,7 +1336,7 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
         componenteMap[componente].distribucion[resp.respuesta]++;
       }
 
-      const estRev = resp.estadoRevision || 'Borrador';
+      const estRev = resp.estadoRevision || 'Enviada';
       if (estRev === 'Enviada') countPendientesRevision++;
       else if (estRev === 'Observada') countObservadas++;
       else if (estRev === 'Aceptada') countAceptadas++;
@@ -1630,7 +1427,7 @@ function getDetallePreguntasAdmin(token, filtroSubdireccion, filtroComponente, f
       nivelRiesgo: respObj ? respObj.nivelRiesgo : '',
       usuarioQueRespondio: respObj ? respObj.usuarioQueRespondio : '',
       fechaUltimaModificacion: respObj ? respObj.fechaUltimaModificacion : '',
-      estadoRevision: respObj ? respObj.estadoRevision : 'Borrador',
+      estadoRevision: respObj ? respObj.estadoRevision : 'Sin responder',
       observacionAdmin: respObj ? respObj.observacionAdmin : ''
     });
   }
@@ -1699,7 +1496,7 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
       subAsignada,
       resp.respuesta || 'SIN RESPONDER',
       resp.nivelRiesgo || '',
-      resp.estadoRevision || 'Borrador',
+      resp.estadoRevision || 'Sin responder',
       resp.observacionAdmin || '',
       resp.evidenciaTextual || '',
       driveUrls,
@@ -1724,7 +1521,7 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
 }
 
 // ==============================================================================
-// FUNCIÓN DE INICIALIZACIÓN / POBLADO DE LA BASE DE DATOS (SEEDING)
+// SEEDING
 // ==============================================================================
 
 function seedDatabase() {

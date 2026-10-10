@@ -17,21 +17,27 @@
   </div>
 </div>
 
-<!-- MODAL DE VALIDACIÓN Y CONFIRMACIÓN DE ENVÍO GLOBAL -->
-<div class="modal fade" id="modalConfirmarEnvioGlobal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-  <div class="modal-dialog modal-lg">
+<!-- MODAL CONFIRMACIÓN ENVÍO INDIVIDUAL -->
+<div class="modal fade" id="modalConfirmarEnvioIndividual" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header bg-primary text-white" id="modalEnvioHeader">
-        <h5 class="modal-title" id="modalEnvioTitle"><i class="fa-solid fa-paper-plane me-2"></i> Enviar Respuestas</h5>
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fa-solid fa-paper-plane me-2"></i> Confirmar Envío de Pregunta No. <span id="modal-q-id-title"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body" id="modalEnvioBody">
-        <!-- Contenido dinámico según validación -->
+      <div class="modal-body">
+        <div class="alert alert-warning border-start border-4 border-warning mb-3">
+          <h6 class="alert-heading fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-2"></i> Advertencia de Envío</h6>
+          <p class="m-0 small">Al enviar la respuesta, ésta quedará bajo revisión del administrador y <strong>no podrás modificarla</strong> hasta que sea observada.</p>
+        </div>
+        <p class="fs-6 fw-semibold text-dark text-center my-2">
+          ¿Desea enviar formalmente la respuesta a la Pregunta No. <span id="modal-q-id-body"></span>?
+        </p>
       </div>
-      <div class="modal-footer" id="modalEnvioFooter">
+      <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-success fw-bold" id="btn-ejecutar-envio-final" onclick="ejecutarEnvioGlobalConfirmado()">
-          <i class="fa-solid fa-check me-1"></i> Sí, Enviar Respuestas
+        <button type="button" class="btn btn-success fw-bold" id="btn-confirmar-envio-individual-final" onclick="ejecutarEnvioIndividualConfirmado()">
+          <i class="fa-solid fa-paper-plane me-1"></i> Sí, Enviar Respuesta
         </button>
       </div>
     </div>
@@ -40,6 +46,17 @@
 
 <script>
   let userQuestionsData = [];
+  let pendingLocalFilesMap = {}; // qId -> Array de { fileName, mimeType, base64Data }
+  let targetQIdToSubmit = null;
+  let hasUnsavedLocalChanges = false;
+
+  window.addEventListener('beforeunload', function (e) {
+    if (hasUnsavedLocalChanges) {
+      e.preventDefault();
+      e.returnValue = 'Tienes cambios sin enviar que se perderán si sales de la página.';
+      return e.returnValue;
+    }
+  });
 
   function cargarCuestionarioUsuario(modoAdminMisPreguntas) {
     const spinner = document.getElementById('user-loading-spinner');
@@ -49,6 +66,9 @@
     if (spinner) spinner.style.display = 'block';
     if (accordion) accordion.style.display = 'none';
     if (noQMsg) noQMsg.style.display = 'none';
+
+    pendingLocalFilesMap = {};
+    hasUnsavedLocalChanges = false;
 
     google.script.run
       .withSuccessHandler(function(data) {
@@ -84,8 +104,11 @@
     for (const compName in grupos) {
       compIdx++;
       const preguntasComp = grupos[compName];
-      const respCompCount = preguntasComp.filter(p => p.respuestaData && p.respuestaData.respuesta).length;
-      const pctComp = Math.round((respCompCount / preguntasComp.length) * 100);
+      const enviadasCompCount = preguntasComp.filter(p => {
+        const rData = p.respuestaData || {};
+        return rData.estadoRevision === 'Enviada' || rData.estadoRevision === 'Aceptada';
+      }).length;
+      const pctComp = Math.round((enviadasCompCount / preguntasComp.length) * 100);
 
       const collapseId = 'collapseComp_' + compIdx;
       const headerId = 'headingComp_' + compIdx;
@@ -96,7 +119,7 @@
             <button class="accordion-button ${compIdx > 1 ? 'collapsed' : ''} bg-light text-primary fw-bold fs-5" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
               <div class="d-flex justify-content-between align-items-center w-100 me-3">
                 <span><i class="fa-solid fa-folder-open me-2"></i> ${compName}</span>
-                <span class="badge bg-secondary fs-6" id="badge-comp-pct-${compIdx}">${respCompCount}/${preguntasComp.length} (${pctComp}%)</span>
+                <span class="badge bg-secondary fs-6" id="badge-comp-pct-${compIdx}">${enviadasCompCount}/${preguntasComp.length} Enviadas (${pctComp}%)</span>
               </div>
             </button>
           </h2>
@@ -138,11 +161,7 @@
           <div class="alert alert-danger border-start border-4 border-danger my-3">
             <h6 class="alert-heading fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-2"></i> PREGUNTA OBSERVADA POR EL ADMINISTRADOR</h6>
             <p class="m-0 text-dark fw-semibold small"><strong>Observación:</strong> ${obsAdmin}</p>
-            <div class="mt-2 text-end">
-              <button class="btn btn-danger btn-sm fw-bold shadow-sm" type="button" onclick="reenviarPreguntaObservadaUsuario('${q.id}')">
-                <i class="fa-solid fa-paper-plane me-1"></i> Reenviar solo esta pregunta
-              </button>
-            </div>
+            <p class="small text-muted mb-0 mt-1">Realice los ajustes necesarios abajo y presione "Enviar" para corregirla.</p>
           </div>
         `;
       }
@@ -155,7 +174,7 @@
               <small class="text-muted ms-2">(${q.loteId})</small>
             </div>
             <div>
-              <span class="badge ${revBadgeClass} me-2">${revBadgeTxt}</span>
+              <span class="badge ${revBadgeClass} me-2" id="badge-status-rev-${q.id}">${revBadgeTxt}</span>
               <span class="badge bg-info text-dark me-2">${q.subdireccionAsignada}</span>
               <span class="badge badge-risk-${nivelRiesgo.replace(/\s+/g, '')}" id="badge-risk-${q.id}">
                 ${nivelRiesgo ? 'Riesgo: ' + nivelRiesgo : 'Sin Responder'}
@@ -189,20 +208,24 @@
                   <input type="text" class="form-control bg-light fw-bold" id="input-risk-${q.id}" value="${nivelRiesgo}" readonly placeholder="Auto-calculado">
                 </div>
 
-                <div class="col-md-4 d-flex align-items-end">
-                  <span class="small text-muted" id="status-save-${q.id}">
-                    ${respVal ? '<i class="fa-solid fa-check text-success me-1"></i> Registrado' : '<i class="fa-solid fa-clock text-warning me-1"></i> Pendiente'}
-                  </span>
+                <div class="col-md-4 d-flex align-items-end justify-content-end">
+                  ${isEditable ? `
+                    <button class="btn btn-success fw-bold shadow-sm px-4" id="btn-send-q-${q.id}" type="button" onclick="prepararEnvioIndividualModal('${q.id}')">
+                      <i class="fa-solid fa-paper-plane me-1"></i> Enviar
+                    </button>
+                  ` : `
+                    <span class="badge bg-light text-muted border p-2"><i class="fa-solid fa-lock me-1"></i> Bloqueada para edición</span>
+                  `}
                 </div>
 
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual</label>
-                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="triggerAutosave('${q.id}')">${evidenciaTextual}</textarea>
+                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="onInputFormChange('${q.id}')">${evidenciaTextual}</textarea>
                 </div>
 
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones</label>
-                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Comentarios adicionales o aclaraciones..." oninput="triggerAutosave('${q.id}')">${observaciones}</textarea>
+                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Comentarios adicionales o aclaraciones..." oninput="onInputFormChange('${q.id}')">${observaciones}</textarea>
                 </div>
 
                 <div class="col-md-12">
@@ -210,8 +233,8 @@
                   ${isEditable ? `
                     <div class="d-flex gap-2 mb-2">
                       <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
-                      <button class="btn btn-outline-primary px-3" type="button" onclick="subirArchivoEvidencia('${q.id}')">
-                        <i class="fa-solid fa-upload me-1"></i> Adjuntar
+                      <button class="btn btn-outline-primary px-3" type="button" onclick="agregarArchivoLocalMemoria('${q.id}')">
+                        <i class="fa-solid fa-plus me-1"></i> Seleccionar
                       </button>
                     </div>
                   ` : ''}
@@ -229,31 +252,57 @@
   }
 
   function renderizarListaDocsHtml(qId, docs, isEditable) {
-    if (!docs || docs.length === 0) {
+    const pendingFiles = pendingLocalFilesMap[qId] || [];
+    if ((!docs || docs.length === 0) && pendingFiles.length === 0) {
       return '<small class="text-muted italic"><i class="fa-solid fa-file-circle-xmark me-1"></i> Sin archivos adjuntos.</small>';
     }
 
-    return '<ul class="list-group list-group-flush border rounded">' + docs.map(f => `
-      <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small">
-        <a href="${f.url}" target="_blank" class="text-decoration-none text-primary fw-semibold">
-          <i class="fa-solid fa-file-lines me-1"></i> ${f.name}
-        </a>
-        ${isEditable !== false ? `
-          <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidencia('${qId}', '${f.id}')">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        ` : ''}
-      </li>
-    `).join('') + '</ul>';
+    let html = '<ul class="list-group list-group-flush border rounded">';
+
+    if (docs && docs.length > 0) {
+      docs.forEach(f => {
+        html += `
+          <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small">
+            <a href="${f.url}" target="_blank" class="text-decoration-none text-primary fw-semibold">
+              <i class="fa-solid fa-file-lines me-1"></i> ${f.name}
+            </a>
+            ${isEditable !== false ? `
+              <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidenciaBD('${qId}', '${f.id}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            ` : ''}
+          </li>
+        `;
+      });
+    }
+
+    if (pendingFiles.length > 0) {
+      pendingFiles.forEach((pf, idx) => {
+        html += `
+          <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small bg-light-warning">
+            <span class="fw-semibold text-dark"><i class="fa-solid fa-clock me-1 text-warning"></i> ${pf.fileName} <small class="text-muted">(Pendiente de envío)</small></span>
+            <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Quitar archivo pendiente" onclick="quitarArchivoPendienteMemoria('${qId}', ${idx})">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </li>
+        `;
+      });
+    }
+
+    html += '</ul>';
+    return html;
+  }
+
+  function onInputFormChange(qId) {
+    hasUnsavedLocalChanges = true;
+    syncQuestionMemoryState(qId);
   }
 
   function syncQuestionMemoryState(qId) {
     const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
     if (!qItem) return;
 
-    if (!qItem.respuestaData) {
-      qItem.respuestaData = {};
-    }
+    if (!qItem.respuestaData) qItem.respuestaData = {};
 
     const respSelect = document.getElementById('select-resp-' + qId);
     const textEvidencia = document.getElementById('text-evidencia-' + qId);
@@ -265,6 +314,7 @@
   }
 
   function onRespuestaChange(qId, compIdx) {
+    hasUnsavedLocalChanges = true;
     const select = document.getElementById('select-resp-' + qId);
     const val = select.value;
 
@@ -286,54 +336,13 @@
     }
 
     syncQuestionMemoryState(qId);
-    guardarRespuestaServidor(qId);
   }
 
-  function triggerAutosave(qId) {
-    syncQuestionMemoryState(qId);
-    const statusSave = document.getElementById('status-save-' + qId);
-    if (statusSave) statusSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary me-1"></i> Guardando...';
-
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(function() {
-      guardarRespuestaServidor(qId);
-    }, 600);
-  }
-
-  function guardarRespuestaServidor(qId) {
-    const respVal = document.getElementById('select-resp-' + qId).value;
-    const evidenciaTextual = document.getElementById('text-evidencia-' + qId).value;
-    const observaciones = document.getElementById('text-obs-' + qId).value;
-    const statusSave = document.getElementById('status-save-' + qId);
-
-    const payload = {
-      questionId: qId,
-      respuesta: respVal,
-      evidenciaTextual: evidenciaTextual,
-      observaciones: observaciones
-    };
-
-    google.script.run
-      .withSuccessHandler(function(res) {
-        if (statusSave) {
-          statusSave.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i> Guardado ✓';
-        }
-        showToast('Respuesta de pregunta ' + qId + ' guardada.', 'bg-success');
-      })
-      .withFailureHandler(function(err) {
-        if (statusSave) {
-          statusSave.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Error al guardar';
-        }
-        manejarErrorSesion(err);
-      })
-      .guardarRespuesta(currentSessionToken, payload);
-  }
-
-  function subirArchivoEvidencia(qId) {
+  function agregarArchivoLocalMemoria(qId) {
     const fileInput = document.getElementById('file-input-' + qId);
     const file = fileInput.files[0];
     if (!file) {
-      alert('Por favor seleccione un archivo antes de adjuntar.');
+      alert('Por favor seleccione un archivo antes de agregar.');
       return;
     }
 
@@ -342,54 +351,43 @@
       return;
     }
 
-    const docsContainer = document.getElementById('docs-list-' + qId);
-    if (docsContainer) {
-      docsContainer.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div> Procesando y subiendo archivo a Google Drive...';
-    }
-
     const reader = new FileReader();
     reader.onload = function(e) {
       const base64Data = e.target.result.split(',')[1];
-      const payload = {
-        questionId: qId,
+      if (!pendingLocalFilesMap[qId]) pendingLocalFilesMap[qId] = [];
+
+      pendingLocalFilesMap[qId].push({
         fileName: file.name,
         mimeType: file.type,
         base64Data: base64Data
-      };
+      });
 
-      google.script.run
-        .withSuccessHandler(function(res) {
-          fileInput.value = '';
-          if (docsContainer) {
-            docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles, true);
-          }
-          const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
-          if (qItem) {
-            if (!qItem.respuestaData) qItem.respuestaData = {};
-            qItem.respuestaData.evidenciaDocumental = res.allFiles;
-          }
-          showToast('Archivo adjuntado con éxito.', 'bg-success');
-        })
-        .withFailureHandler(function(err) {
-          manejarErrorSesion(err);
-          if (docsContainer) {
-            docsContainer.innerHTML = '<span class="text-danger">Error al subir archivo.</span>';
-          }
-        })
-        .uploadEvidenceFile(currentSessionToken, payload);
-    };
+      hasUnsavedLocalChanges = true;
+      fileInput.value = '';
 
-    reader.onerror = function() {
-      alert('Error al leer el archivo en el navegador.');
-      if (docsContainer) {
-        docsContainer.innerHTML = '<span class="text-danger">Error al leer archivo local.</span>';
+      const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+      const docsContainer = document.getElementById('docs-list-' + qId);
+      if (docsContainer && qItem) {
+        docsContainer.innerHTML = renderizarListaDocsHtml(qId, (qItem.respuestaData || {}).evidenciaDocumental || [], true);
       }
+      showToast('Archivo listo para enviar.', 'bg-info');
     };
 
     reader.readAsDataURL(file);
   }
 
-  function eliminarArchivoEvidencia(qId, fileId) {
+  function quitarArchivoPendienteMemoria(qId, index) {
+    if (pendingLocalFilesMap[qId]) {
+      pendingLocalFilesMap[qId].splice(index, 1);
+    }
+    const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+    const docsContainer = document.getElementById('docs-list-' + qId);
+    if (docsContainer && qItem) {
+      docsContainer.innerHTML = renderizarListaDocsHtml(qId, (qItem.respuestaData || {}).evidenciaDocumental || [], true);
+    }
+  }
+
+  function eliminarArchivoEvidenciaBD(qId, fileId) {
     if (!confirm('¿Está seguro de que desea eliminar este archivo de evidencia?')) return;
 
     const docsContainer = document.getElementById('docs-list-' + qId);
@@ -399,13 +397,13 @@
 
     google.script.run
       .withSuccessHandler(function(res) {
-        if (docsContainer) {
-          docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles, true);
-        }
         const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
         if (qItem) {
           if (!qItem.respuestaData) qItem.respuestaData = {};
           qItem.respuestaData.evidenciaDocumental = res.allFiles;
+        }
+        if (docsContainer) {
+          docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles, true);
         }
         showToast('Archivo eliminado.', 'bg-info');
       })
@@ -418,120 +416,89 @@
   function actualizarIndicadorAvanceUsuario(data) {
     if (!data || data.length === 0) return;
     const total = data.length;
-    const respondidas = data.filter(q => q.respuestaData && q.respuestaData.respuesta).length;
-    const pct = Math.round((respondidas / total) * 100);
+    const enviadas = data.filter(q => {
+      const rData = q.respuestaData || {};
+      return rData.estadoRevision === 'Enviada' || rData.estadoRevision === 'Aceptada';
+    }).length;
+    const pct = Math.round((enviadas / total) * 100);
 
     const badge = document.getElementById('user-progress-badge');
     if (badge) {
-      badge.innerText = `${respondidas} / ${total} Respondidas (${pct}%)`;
+      badge.innerText = `${enviadas} de ${total} Enviadas (${pct}%)`;
     }
   }
 
   // ==============================================================================
-  // CAMBIO 3: BARRERA Y MODAL DE ENVÍO GLOBAL DE RESPUESTAS
+  // CAMBIO 1: ENVÍO INDIVIDUAL Y VALIDACIÓN LOCAL
   // ==============================================================================
-  function abrirModalEnvioGlobal() {
-    const data = userQuestionsData || [];
-    if (data.length === 0) {
-      alert('No hay preguntas asignadas para enviar.');
+  function prepararEnvioIndividualModal(qId) {
+    syncQuestionMemoryState(qId);
+    const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+    if (!qItem) return;
+
+    const rData = qItem.respuestaData || {};
+    const respVal = (rData.respuesta || '').trim();
+    const tieneTextual = (rData.evidenciaTextual || '').trim().length > 0;
+    const existingDocsCount = (Array.isArray(rData.evidenciaDocumental)) ? rData.evidenciaDocumental.length : 0;
+    const pendingDocsCount = (pendingLocalFilesMap[qId] || []).length;
+    const tieneDocumental = (existingDocsCount + pendingDocsCount) > 0;
+
+    if (!respVal) {
+      alert(`[Pregunta No. ${qId}] Debe seleccionar una Respuesta (Sí, Parcial, No, No Aplica) antes de enviar.`);
       return;
     }
 
-    // Validar que TODAS las preguntas asignadas tengan Respuesta y al menos una Evidencia
-    const incompletas = [];
-    data.forEach(q => {
-      const rData = q.respuestaData || {};
-      const tieneResp = !!(rData.respuesta && rData.respuesta.trim() !== '');
-      const tieneText = !!(rData.evidenciaTextual && rData.evidenciaTextual.trim() !== '');
-      const tieneDocs = Array.isArray(rData.evidenciaDocumental) && rData.evidenciaDocumental.length > 0;
-
-      if (!tieneResp || (!tieneText && !tieneDocs)) {
-        incompletas.push({
-          id: q.id,
-          pregunta: q.pregunta,
-          motivo: !tieneResp ? 'Falta seleccionar Respuesta' : 'Falta Evidencia Textual o Documental'
-        });
-      }
-    });
-
-    const body = document.getElementById('modalEnvioBody');
-    const footer = document.getElementById('modalEnvioFooter');
-    const btnSubmit = document.getElementById('btn-ejecutar-envio-final');
-
-    if (incompletas.length > 0) {
-      btnSubmit.style.display = 'none';
-      body.innerHTML = `
-        <div class="alert alert-danger mb-3">
-          <h6 class="alert-heading fw-bold"><i class="fa-solid fa-circle-xmark me-2"></i> No se puede enviar: Existen preguntas incompletas</h6>
-          <p class="small m-0">Para enviar sus respuestas, debe responder todas las preguntas y adjuntar al menos una evidencia (Textual O Documental) en cada una de ellas.</p>
-        </div>
-        <h6 class="fw-bold text-dark mb-2">Listado de Preguntas Incompletas (${incompletas.length}):</h6>
-        <div class="table-responsive" style="max-height: 250px;">
-          <table class="table table-bordered table-sm small">
-            <thead class="table-light">
-              <tr>
-                <th style="width:60px;">No.</th>
-                <th>Pregunta</th>
-                <th>Requisito Faltante</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${incompletas.map(i => `
-                <tr>
-                  <td class="fw-bold">${i.id}</td>
-                  <td>${i.pregunta}</td>
-                  <td><span class="badge bg-danger">${i.motivo}</span></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    } else {
-      btnSubmit.style.display = 'inline-block';
-      body.innerHTML = `
-        <div class="alert alert-warning border-start border-4 border-warning mb-3">
-          <h6 class="alert-heading fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-2"></i> Confirmación de Envío Global</h6>
-          <p class="m-0 small">Una vez enviadas, las respuestas quedarán bajo revisión del Administrador y <strong>no podrás modificarlas</strong> hasta que sean observadas.</p>
-        </div>
-        <p class="fs-6 fw-semibold text-dark text-center my-3">
-          ¿Desea enviar formalmente las ${data.length} respuestas de su Subdirección?
-        </p>
-      `;
+    if (!tieneTextual && !tieneDocumental) {
+      alert(`[Pregunta No. ${qId}] Debe proporcionar al menos una Evidencia Textual o adjuntar un archivo Documental antes de enviar.`);
+      return;
     }
 
-    const modal = new bootstrap.Modal(document.getElementById('modalConfirmarEnvioGlobal'));
+    targetQIdToSubmit = qId;
+    document.getElementById('modal-q-id-title').innerText = qId;
+    document.getElementById('modal-q-id-body').innerText = qId;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmarEnvioIndividual'));
     modal.show();
   }
 
-  function ejecutarEnvioGlobalConfirmado() {
-    showToast('Enviando respuestas...', 'bg-info');
+  function ejecutarEnvioIndividualConfirmado() {
+    if (!targetQIdToSubmit) return;
+    const qId = targetQIdToSubmit;
+    const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+    if (!qItem) return;
+
+    const btnSubmit = document.getElementById('btn-confirmar-envio-individual-final');
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Enviando...';
+
+    const rData = qItem.respuestaData || {};
+    const payload = {
+      questionId: qId,
+      respuesta: rData.respuesta || '',
+      evidenciaTextual: rData.evidenciaTextual || '',
+      observaciones: rData.observaciones || '',
+      archivosNuevos: pendingLocalFilesMap[qId] || []
+    };
+
     google.script.run
       .withSuccessHandler(function(res) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Sí, Enviar Respuesta';
+
         showToast(res.message, 'bg-success');
-        const modalEl = document.getElementById('modalConfirmarEnvioGlobal');
+        delete pendingLocalFilesMap[qId];
+
+        const modalEl = document.getElementById('modalConfirmarEnvioIndividual');
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
+
         cargarCuestionarioUsuario(false);
       })
       .withFailureHandler(function(err) {
-        manejarErrorSesion(err);
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Sí, Enviar Respuesta';
+        alert('Error al enviar pregunta: ' + err.message);
       })
-      .enviarRespuestasUsuario(currentSessionToken);
-  }
-
-  function reenviarPreguntaObservadaUsuario(qId) {
-    if (!confirm(`¿Desea reenviar la corrección de la Pregunta No. ${qId}?`)) return;
-
-    showToast('Reenviando pregunta...', 'bg-info');
-    google.script.run
-      .withSuccessHandler(function(res) {
-        showToast(res.message, 'bg-success');
-        cargarCuestionarioUsuario(false);
-      })
-      .withFailureHandler(function(err) {
-        manejarErrorSesion(err);
-      })
-      .reenviarRespuestaObservada(currentSessionToken, qId);
+      .enviarRespuestaIndividual(currentSessionToken, payload);
   }
 </script>
