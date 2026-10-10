@@ -232,7 +232,7 @@ function initSheetHeader(sheet, sheetName) {
       headers = ['Nombre', 'Activa'];
       break;
     case SHEETS.ASIGNACIONES:
-      headers = ['QuestionID', 'SubdireccionAsignada', 'AsignadoPor', 'FechaAsignacion'];
+      headers = ['QuestionID', 'SubdireccionAsignada', 'AsignadoPor', 'FechaAsignacion', 'Estatus'];
       break;
     case SHEETS.RESPUESTAS:
       headers = ['QuestionID', 'Subdireccion', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin'];
@@ -317,7 +317,35 @@ function migrateDatabaseStructure() {
     }
   }
 
-  // 4. Respuestas -> EstadoRevision y ObservacionAdmin
+  // 4. Asignaciones -> Estatus (Columna E / Índice 5)
+  const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
+  const asigData = asigSheet.getDataRange().getValues();
+  if (asigData.length > 0 && asigData[0].length < 5) {
+    asigSheet.getRange(1, 5).setValue('Estatus').setFontWeight('bold');
+  }
+
+  const respuestasMap = getRespuestasMap();
+
+  if (asigData.length > 1) {
+    for (let i = 1; i < asigData.length; i++) {
+      const qId = String(asigData[i][0]).trim();
+      const sub = String(asigData[i][1] || '').trim();
+      let estatus = String(asigData[i][4] || '').trim();
+
+      if (!estatus) {
+        const respKey = qId + '_' + sub;
+        const resp = respuestasMap[respKey];
+        if (resp && resp.respuesta && resp.respuesta.trim() !== '' && resp.estadoRevision !== 'Borrador') {
+          estatus = 'Contestada';
+        } else {
+          estatus = 'Pendiente';
+        }
+        asigSheet.getRange(i + 1, 5).setValue(estatus);
+      }
+    }
+  }
+
+  // 5. Respuestas -> EstadoRevision y ObservacionAdmin
   const rSheet = getSheetSafe(SHEETS.RESPUESTAS);
   const rData = rSheet.getDataRange().getValues();
   if (rData.length > 0) {
@@ -539,6 +567,26 @@ function getLotesActivosMap() {
   return map;
 }
 
+/**
+ * Obtiene mapa de Asignaciones con Estatus (Columna E)
+ */
+function getAsignacionesConEstatusMap() {
+  const sheet = getSheetSafe(SHEETS.ASIGNACIONES);
+  const data = sheet.getDataRange().getValues();
+  const map = {}; // questionId -> { subdireccion, estatus }
+
+  for (let i = 1; i < data.length; i++) {
+    const qId = String(data[i][0]).trim();
+    if (qId) {
+      map[qId] = {
+        subdireccion: String(data[i][1] || '').trim(),
+        estatus: String(data[i][4] || 'Pendiente').trim()
+      };
+    }
+  }
+  return map;
+}
+
 function getLotesListAdmin(token) {
   assertAdmin(token);
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
@@ -723,7 +771,8 @@ function cargarMasivaPreguntas(token, payload) {
       qId,
       subSugerida,
       admin.email,
-      now
+      now,
+      'Pendiente'
     ]);
   });
 
@@ -735,7 +784,7 @@ function cargarMasivaPreguntas(token, payload) {
   if (asigRowsToInsert.length > 0) {
     const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
     const startRowAsig = asigSheet.getLastRow() + 1;
-    asigSheet.getRange(startRowAsig, 1, asigRowsToInsert.length, 4).setValues(asigRowsToInsert);
+    asigSheet.getRange(startRowAsig, 1, asigRowsToInsert.length, 5).setValues(asigRowsToInsert);
   }
 
   logAudit('PREGUNTAS_CARGA_MASIVA', loteId, null, pRowsToInsert.length + ' preguntas', admin.email);
@@ -826,10 +875,10 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
     const rowIndex = indexMap[qId];
     if (rowIndex) {
       const oldSub = data[rowIndex - 1][1];
-      sheet.getRange(rowIndex, 2, 1, 3).setValues([[subLimpia, admin.email, now]]);
+      sheet.getRange(rowIndex, 2, 1, 4).setValues([[subLimpia, admin.email, now, 'Pendiente']]);
       logAudit('ASIGNACION_CAMBIO', qId, oldSub, subLimpia, admin.email);
     } else {
-      sheet.appendRow([qId, subLimpia, admin.email, now]);
+      sheet.appendRow([qId, subLimpia, admin.email, now, 'Pendiente']);
       logAudit('ASIGNACION_CREAR', qId, null, subLimpia, admin.email);
     }
   });
@@ -841,9 +890,13 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
 }
 
 // ==============================================================================
-// CAMBIO 1: INTERFAZ DEL USUARIO — FUENTE DE VERDAD: ASIGNACIONES (NUNCA OMITIR FILAS)
+// CAMBIO 3: INTERFAZ DEL USUARIO Y FILTRADO POR ESTATUS DE ASIGNACIÓN
 // ==============================================================================
 
+/**
+ * Obtiene las preguntas asignadas para el usuario autenticado.
+ * Consulta la pestaña Asignaciones y filtra por Estatus Pendiente.
+ */
 function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const user = assertAuthenticatedUser(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
@@ -865,7 +918,7 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     }
   }
 
-  const asignacionesMap = getAsignacionesMap();
+  const asigEstatusMap = getAsignacionesConEstatusMap();
   const respuestasMap = getRespuestasMap();
   const lotesActivosMap = getLotesActivosMap();
 
@@ -893,8 +946,15 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
       continue;
     }
 
-    const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    const asigInfo = asigEstatusMap[qId] || { subdireccion: 'SIN_ASIGNAR', estatus: 'Pendiente' };
+    const subAsignada = asigInfo.subdireccion || 'SIN_ASIGNAR';
     const subClean = cleanStr(subAsignada);
+    const estatusAsig = asigInfo.estatus || 'Pendiente';
+
+    // ERROR 3 FIX: Para rol USER, filtrar y mostrar únicamente preguntas con estatus 'Pendiente' (o no 'Contestada')
+    if (user.role === 'USER' && cleanStr(estatusAsig) === 'contestada') {
+      continue;
+    }
 
     let esVisible = false;
     if (targetSubdireccion === 'all' && user.role === 'ADMIN') {
@@ -976,6 +1036,9 @@ function getRespuestasMap() {
   return map;
 }
 
+/**
+ * ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA Y ACTUALIZACIÓN DE ESTATUS EN ASIGNACIONES.
+ */
 function enviarRespuestaIndividual(token, payload) {
   const user = assertAuthenticatedUser(token);
   const qId = String(payload.questionId).trim();
@@ -1070,6 +1133,7 @@ function enviarRespuestaIndividual(token, payload) {
   const nivelRiesgo = RIESGO_MAP[respuesta] || '';
   const now = new Date();
 
+  // 1. Guardar o actualizar en hoja RESPUESTAS
   if (foundIndex > 0) {
     sheet.getRange(foundIndex, 3, 1, 10).setValues([[
       respuesta,
@@ -1100,6 +1164,16 @@ function enviarRespuestaIndividual(token, payload) {
       ''
     ]);
     logAudit('RESPUESTA_ENVIAR_INDIVIDUAL', qId, null, 'Enviada', user.email);
+  }
+
+  // 2. ERROR 3 FIX: Actualizar estatus en hoja ASIGNACIONES a 'Contestada'
+  const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
+  const asigData = asigSheet.getDataRange().getValues();
+  for (let i = 1; i < asigData.length; i++) {
+    if (String(asigData[i][0]).trim() === qId && cleanStr(asigData[i][1]) === cleanStr(subAsignada)) {
+      asigSheet.getRange(i + 1, 5).setValue('Contestada');
+      break;
+    }
   }
 
   return {
@@ -1160,7 +1234,7 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
 }
 
 // ==============================================================================
-// CAMBIO 2: MÓDULO SEGUIMIENTO Y REVISIÓN — LECTURA DIRECTA DE LA PESTAÑA "RESPUESTAS"
+// CAMBIO 2 / ERROR 2 FIX: MÓDULO SEGUIMIENTO Y REVISIÓN — LECTURA DIRECTA DE LA PESTAÑA "RESPUESTAS"
 // ==============================================================================
 
 function getRespuestasSeguimientoAdmin(token, filtros) {
@@ -1275,6 +1349,18 @@ function revisarRespuestaAdmin(token, payload) {
       sheet.getRange(i + 1, 11).setValue(nuevoEstado);
       sheet.getRange(i + 1, 12).setValue(obsAdminText);
       sheet.getRange(i + 1, 10).setValue(new Date());
+
+      // Si la respuesta fue observada, permitir que el estatus en Asignaciones vuelva a Pendiente si aplica
+      if (nuevoEstado === 'Observada') {
+        const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
+        const asigData = asigSheet.getDataRange().getValues();
+        for (let j = 1; j < asigData.length; j++) {
+          if (String(asigData[j][0]).trim() === qId && cleanStr(asigData[j][1]) === cleanStr(subAsignada)) {
+            asigSheet.getRange(j + 1, 5).setValue('Pendiente');
+            break;
+          }
+        }
+      }
 
       logAudit('RESPUESTA_REVISAR_' + nuevoEstado.toUpperCase(), qId, data[i][10], { estado: nuevoEstado, obs: obsAdminText }, admin.email);
 
@@ -1621,9 +1707,10 @@ function seedDatabase() {
     q.id,
     (q.subdireccionSugerida && q.subdireccionSugerida.trim()) ? q.subdireccionSugerida.trim() : 'SIN_ASIGNAR',
     adminEmail,
-    now
+    now,
+    'Pendiente'
   ]);
-  asigSheet.getRange(2, 1, asigRows.length, 4).setValues(asigRows);
+  asigSheet.getRange(2, 1, asigRows.length, 5).setValues(asigRows);
 
   const userSheet = getSheetSafe(SHEETS.USUARIOS);
   userSheet.clear();

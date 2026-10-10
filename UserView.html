@@ -48,6 +48,7 @@
   let userQuestionsData = [];
   let pendingLocalFilesMap = {}; // qId -> Array de { fileName, mimeType, base64Data }
   let targetQIdToSubmit = null;
+  let isCurrentModoAdmin = false;
   let hasUnsavedLocalChanges = false;
 
   window.addEventListener('beforeunload', function (e) {
@@ -67,6 +68,7 @@
     if (accordion) accordion.style.display = 'none';
     if (noQMsg) noQMsg.style.display = 'none';
 
+    isCurrentModoAdmin = !!modoAdminMisPreguntas;
     pendingLocalFilesMap = {};
     hasUnsavedLocalChanges = false;
 
@@ -489,12 +491,15 @@
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
 
-        cargarCuestionarioUsuario(false);
+        cargarCuestionarioUsuario(isCurrentModoAdmin);
       })
       .withFailureHandler(function(err) {
         btnSubmit.disabled = false;
         btnSubmit.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Sí, Enviar Respuesta';
         alert('Error al enviar pregunta: ' + err.message);
+        const modalEl = document.getElementById('modalConfirmarEnvioIndividual');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
       })
       .enviarRespuestaIndividual(currentSessionToken, payload);
   }
