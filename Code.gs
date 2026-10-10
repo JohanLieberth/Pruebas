@@ -1243,6 +1243,30 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
   const rSheet = getSheetSafe(SHEETS.RESPUESTAS);
   const rData = rSheet.getDataRange().getValues();
 
+  if (!rData || rData.length <= 1) {
+    return [];
+  }
+
+  // MAPA DINÁMICO DE ENCABEZADOS DE LA HOJA RESPUESTAS (cleanStr(header) -> colIndex)
+  const headerMap = {};
+  const headerRow = rData[0];
+  for (let col = 0; col < headerRow.length; col++) {
+    const key = cleanStr(headerRow[col]);
+    if (key) headerMap[key] = col;
+  }
+
+  const idxQId = headerMap['questionid'] !== undefined ? headerMap['questionid'] : 0;
+  const idxSub = headerMap['subdireccion'] !== undefined ? headerMap['subdireccion'] : 1;
+  const idxResp = headerMap['respuesta'] !== undefined ? headerMap['respuesta'] : 2;
+  const idxEvidText = headerMap['evidenciatextual'] !== undefined ? headerMap['evidenciatextual'] : 3;
+  const idxEvidDoc = headerMap['evidenciadocumental'] !== undefined ? headerMap['evidenciadocumental'] : 4;
+  const idxObs = headerMap['observaciones'] !== undefined ? headerMap['observaciones'] : 5;
+  const idxRiesgo = headerMap['nivelriesgo'] !== undefined ? headerMap['nivelriesgo'] : 6;
+  const idxUser = headerMap['usuarioquerespondio'] !== undefined ? headerMap['usuarioquerespondio'] : 7;
+  const idxModif = headerMap['fechaultimamodificacion'] !== undefined ? headerMap['fechaultimamodificacion'] : 9;
+  const idxEstRev = headerMap['estadorevision'] !== undefined ? headerMap['estadorevision'] : 10;
+  const idxObsAdmin = headerMap['observacionadmin'] !== undefined ? headerMap['observacionadmin'] : 11;
+
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
 
@@ -1269,12 +1293,12 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
   const list = [];
 
   for (let i = 1; i < rData.length; i++) {
-    const qId = String(rData[i][0]).trim();
+    const qId = String(rData[i][idxQId]).trim();
     if (!qId) continue;
 
-    const subAsignada = String(rData[i][1] || 'SIN_ASIGNAR').trim();
-    const respVal = String(rData[i][2] || '').trim();
-    const estRev = String(rData[i][10] || 'Borrador').trim();
+    const subAsignada = String(rData[i][idxSub] || 'SIN_ASIGNAR').trim();
+    const respVal = String(rData[i][idxResp] || '').trim();
+    const estRev = String(rData[i][idxEstRev] || 'Borrador').trim();
 
     const qInfo = pMap[qId] || {
       componente: 'Sin Componente',
@@ -1296,8 +1320,8 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
 
     let docs = [];
     try {
-      if (rData[i][4]) {
-        docs = JSON.parse(rData[i][4]);
+      if (rData[i][idxEvidDoc]) {
+        docs = JSON.parse(rData[i][idxEvidDoc]);
         if (!Array.isArray(docs)) docs = [];
       }
     } catch (e) { docs = []; }
@@ -1311,14 +1335,14 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
       loteId: qInfo.loteId,
       subdireccionAsignada: subAsignada,
       respuesta: respVal,
-      evidenciaTextual: rData[i][3] || '',
+      evidenciaTextual: rData[i][idxEvidText] || '',
       evidenciaDocumental: docs,
-      observaciones: rData[i][5] || '',
-      nivelRiesgo: rData[i][6] || '',
-      usuarioQueRespondio: rData[i][7] || '',
-      fechaUltimaModificacion: rData[i][9] || '',
+      observaciones: rData[i][idxObs] || '',
+      nivelRiesgo: rData[i][idxRiesgo] || '',
+      usuarioQueRespondio: rData[i][idxUser] || '',
+      fechaUltimaModificacion: rData[i][idxModif] || '',
       estadoRevision: estRev,
-      observacionAdmin: rData[i][11] || ''
+      observacionAdmin: rData[i][idxObsAdmin] || ''
     });
   }
 
