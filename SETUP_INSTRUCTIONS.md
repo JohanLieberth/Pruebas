@@ -1,6 +1,6 @@
 # Instrucciones de Configuración y Despliegue - Control Machete
 
-**Sistema de Autoevaluación de Control Interno (Marco COSO - Múltiples Lotes / Proyectos)**
+**Sistema de Autoevaluación de Control Interno (Marco COSO - Múltiples Lotes y Módulo de Revisión)**
 *H. Ayuntamiento de Mérida, Yucatán*
 
 ---
@@ -15,74 +15,70 @@ El sistema utiliza una única Hoja de Cálculo de Google Sheets. Al ejecutar la 
 | **Usuarios** | `Email`, `Nombre`, `Subdireccion`, `Rol`, `Estado`, `Contrasena` |
 | **Subdirecciones** | `Nombre`, `Activa` |
 | **Asignaciones** | `QuestionID`, `SubdireccionAsignada`, `AsignadoPor`, `FechaAsignacion` |
-| **Respuestas** | `QuestionID`, `Subdireccion`, `Respuesta`, `EvidenciaTextual`, `EvidenciaDocumental`, `Observaciones`, `NivelRiesgo`, `UsuarioQueRespondio`, `FechaCreacion`, `FechaUltimaModificacion` |
+| **Respuestas** | `QuestionID`, `Subdireccion`, `Respuesta`, `EvidenciaTextual`, `EvidenciaDocumental`, `Observaciones`, `NivelRiesgo`, `UsuarioQueRespondio`, `FechaCreacion`, `FechaUltimaModificacion`, `EstadoRevision`, `ObservacionAdmin` |
 | **Lotes** | `LoteID`, `NombreLote`, `Descripcion`, `FechaCreacion`, `CreadoPor`, `Activo` |
 | **Audit** | `Timestamp`, `Usuario`, `Entidad`, `QuestionID`, `ValorAnterior`, `ValorNuevo` |
 | **Config** | `Clave`, `Valor` |
 
 ---
 
-## 2. Autenticación y TokenService
+## 2. Autenticación y Control de Contraseñas (SHA-256)
 
-- **Login con Correo y Contraseña**: Formulario dedicado en `Index.html` que valida credenciales contra la hoja `Usuarios`.
-- **Hasheado de Contraseñas (SHA-256)**: Las contraseñas nunca se almacenan en texto plano; se utiliza `Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, ...)` para generar el hash.
-- **Gestión de Sesiones (8 Horas)**: Al iniciar sesión exitosamente, se genera un token UUID aleatorio almacenado en `CacheService.getScriptCache()` con expiración automática de 8 horas (`TOKEN_TTL_SECONDS = 28800`).
-- **Validación Backend**: Todas las funciones críticas del backend (`Code.gs`) solicitan `token` como primer parámetro y ejecutan `assertAuthenticatedUser(token)` o `assertAdmin(token)`.
-
----
-
-## 3. Inicialización y Sembrado de Datos (`seedDatabase`)
-
-1. Abra el editor de **Google Apps Script** asociado al proyecto.
-2. Seleccione la función `seedDatabase` en la barra de herramientas superior.
-3. Haga clic en **Ejecutar**.
-4. La función realizará las siguientes acciones automáticamente:
-   - Inicializará la hoja `Lotes` con el lote por defecto `LOTE_INICIAL` ("Lote Inicial").
-   - Inicializará las 61 preguntas del cuestionario COSO vinculadas al `LOTE_INICIAL`.
-   - Inicializará la hoja de `Subdirecciones` activas.
-   - Pre-poblará `Asignaciones` con las sugerencias por defecto.
-   - Registrará al usuario Administrador por defecto (`admin@merida.gob.mx` / Contraseña: `admin123`).
-
-*Nota: Para bases de datos existentes, la función `migrateDatabaseStructure()` se ejecuta de forma transparente e idempotente al iniciar sesión, agregando las columnas `Contrasena` en Usuarios y `LoteID` en Preguntas, e iniciando el `LOTE_INICIAL` sin sobrescribir datos.*
+- **Login Seguro**: Formulario interactivo en `Index.html` que valida correo y contraseña.
+- **Seguridad Hash**: Las contraseñas se almacenan con algoritmo SHA-256. NUNCA se almacenan ni transmiten en texto plano.
+- **Control Exclusivo Admin**:
+  - Al crear un usuario, la contraseña es obligatoria.
+  - Al editar, el Admin puede reemplazarla o dejar el campo vacío para conservar la existente.
+  - El servidor NUNCA retorna el hash de contraseña al cliente; en las listas de usuarios se envía únicamente un indicador genérico ("Definida" / "Sin definir").
+- **Tokens de Sesión (CacheService - 6 Horas)**: Al iniciar sesión exitosamente, se genera un token UUID guardado en `CacheService.getScriptCache()` con el límite máximo de 6 horas soportado por Apps Script (`TOKEN_TTL_SECONDS = 21600`).
 
 ---
 
-## 4. Módulo de Lotes y Carga Masiva de Preguntas
+## 3. Flujo de Estados de Respuesta y Módulo "Seguimiento y Revisión"
 
-- **Creación de Lotes**: Permite agregar nuevos conjuntos de preguntas (proyectos o evaluaciones periódicas).
-- **Carga Masiva (ADMIN)**: Interfaz para pegar texto copiando celdas desde Excel/CSV con el formato exacto:
-  `No.` | `Componente` | `Principio` | `Pregunta` | `Fundamento legal` | `Subdirección sugerida`
-- **Vista Previa y Validaciones**: Resalta filas con errores (p. ej. campo de pregunta vacío) antes de confirmar. Evita colisiones de IDs numéricos con preguntas existentes anteponiendo el prefijo del Lote.
-- **Mapeo Transparente**: Las preguntas de nuevos lotes funcionan de inmediato en la asignación por subdirección, autoevaluaciones, subida de evidencias en Google Drive y dashboard global.
+Flujo del ciclo de vida de las respuestas:
 
----
-
-## 5. Permisos OAuth Requeridos (`appsscript.json`)
-
-```json
-{
-  "timeZone": "America/Merida",
-  "dependencies": {},
-  "webapp": {
-    "access": "ANYONE",
-    "executeAs": "USER_DEPLOYING"
-  },
-  "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/script.container.ui"
-  ]
-}
+```
+[Borrador] (Autosave del Usuario)
+    │
+    ▼ (Usuario valida completeness y hace clic en "Enviar respuestas")
+[Enviada] (Queda en modo SOLO LECTURA para el Usuario y pasa a revisión del Admin)
+    │
+    ├───► [Aceptada] (Aceptada por el Admin -> Estado Final)
+    │
+    └───► [Observada] (Observada por el Admin con comentario obligatorio)
+            │
+            ▼ (Reaparece editable en el Usuario con alerta destacada y botón "Reenviar")
+          [Enviada]
 ```
 
+- **Inmutabilidad y Visibilidad**: Las preguntas asignadas al usuario NUNCA desaparecen de su acordeón. Permanecen editables solo mientras estén en estado `Borrador` u `Observada`. Una vez `Enviadas` o `Aceptadas`, permanecen en modo de solo lectura.
+
 ---
 
-## 6. Resumen de Archivos Modificados
+## 4. Gestión de Lotes LEYENDO DIRECTAMENTE DE LA HOJA "LOTES"
 
-1. **`Code.gs`**: Servicio de tokens (`loginUsuario`, `logoutUsuario`, `assertAuthenticatedUser`), hashing SHA-256, migración idempotente de columnas, endpoints para gestión de Lotes (`cargarMasivaPreguntas`, `getLotesListAdmin`, `toggleLoteEstado`, `eliminarLoteAdmin`) y filtrado por lotes activos.
-2. **`Index.html`**: Formulario de login interactivo con correo y contraseña, gestión del Token de sesión en `sessionStorage`, barra de usuario con botón de cerrar sesión.
-3. **`UserView.html`**: Adaptado para enviar `currentSessionToken` en cada llamada backend y visualizar el `LoteID` de cada pregunta.
-4. **`AdminView.html`**: Agregada pestaña de **Gestión de Lotes y Carga Masiva**, selector de Lotes en Dashboard Global, filtro por Lote en el Gestor de Asignaciones y campo de contraseña en el CRUD de Usuarios.
-5. **`SETUP_INSTRUCTIONS.md`**: Actualizado con los detalles del nuevo esquema de seguridad, estructura de tablas y procedimientos de migración.
+- **Diagnóstico y Corrección de Lotes**:
+  La función `getLotesListAdmin()` lee directamente la pestaña `Lotes` del Spreadsheet utilizando `getDataRange()`. Se eliminó cualquier dependencia de memoria o caché para garantizar que los lotes agregados manualmente o mediante carga masiva se reflejen de inmediato en la interfaz.
+
+---
+
+## 5. Resumen de Archivos Modificados
+
+1. **`Code.gs`**:
+   - Agregados endpoints de revisión de respuestas (`enviarRespuestasUsuario`, `reenviarRespuestaObservada`, `getRespuestasSeguimientoAdmin`, `revisarRespuestaAdmin`).
+   - Corregido `getLotesListAdmin` para lectura directa de la hoja `Lotes`.
+   - Modificado `getUsuariosAdmin` para no enviar hashes de contraseña.
+   - Ajustada migración idempotente para las columnas `EstadoRevision` y `ObservacionAdmin`.
+2. **`UserView.html`**:
+   - Mantenimiento de preguntas visibles en el acordeón en todo momento.
+   - Agregada barrera de envío global con botón "Enviar respuestas" e inspección de integridad (Respuesta + al menos 1 evidencia).
+   - Renderizado de alertas para preguntas marcadas como `Observada` con botón individual de re-envío.
+3. **`AdminView.html`**:
+   - Nuevo módulo de **Seguimiento y Revisión** con tabla filtrable y modal de evaluación/observación obligatoria.
+   - Actualizados indicadores KPI en Dashboard Global (Pendientes de revisión, Observadas, Aceptadas).
+   - Exigencia de contraseña al crear nuevos usuarios.
+4. **`Index.html`**:
+   - Pestaña de navegación agregada para "Seguimiento y Revisión".
+5. **`SETUP_INSTRUCTIONS.md`**:
+   - Documentación actualizada de flujos y estructura.

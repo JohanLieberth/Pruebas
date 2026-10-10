@@ -17,6 +17,27 @@
   </div>
 </div>
 
+<!-- MODAL DE VALIDACIÓN Y CONFIRMACIÓN DE ENVÍO GLOBAL -->
+<div class="modal fade" id="modalConfirmarEnvioGlobal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white" id="modalEnvioHeader">
+        <h5 class="modal-title" id="modalEnvioTitle"><i class="fa-solid fa-paper-plane me-2"></i> Enviar Respuestas</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="modalEnvioBody">
+        <!-- Contenido dinámico según validación -->
+      </div>
+      <div class="modal-footer" id="modalEnvioFooter">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success fw-bold" id="btn-ejecutar-envio-final" onclick="ejecutarEnvioGlobalConfirmado()">
+          <i class="fa-solid fa-check me-1"></i> Sí, Enviar Respuestas
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   let userQuestionsData = [];
 
@@ -52,7 +73,6 @@
     if (container) container.style.display = 'block';
     container.innerHTML = '';
 
-    // Agrupar por Componente
     const grupos = {};
     data.forEach(q => {
       const comp = q.componente || 'Sin Componente';
@@ -102,12 +122,40 @@
       const observaciones = rData.observaciones || '';
       const nivelRiesgo = rData.nivelRiesgo || '';
       const docs = rData.evidenciaDocumental || [];
+      const estRev = rData.estadoRevision || 'Borrador';
+      const obsAdmin = rData.observacionAdmin || '';
+      const isEditable = q.esEditable !== false;
+
+      let revBadgeClass = 'bg-warning text-dark';
+      let revBadgeTxt = 'Borrador';
+      if (estRev === 'Enviada') { revBadgeClass = 'bg-info text-dark'; revBadgeTxt = 'Enviada — en revisión'; }
+      else if (estRev === 'Observada') { revBadgeClass = 'bg-danger text-white'; revBadgeTxt = 'OBSERVADA'; }
+      else if (estRev === 'Aceptada') { revBadgeClass = 'bg-success text-white'; revBadgeTxt = 'Aceptada ✓'; }
+
+      let observadaAlertHtml = '';
+      if (estRev === 'Observada') {
+        observadaAlertHtml = `
+          <div class="alert alert-danger border-start border-4 border-danger my-3">
+            <h6 class="alert-heading fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-2"></i> PREGUNTA OBSERVADA POR EL ADMINISTRADOR</h6>
+            <p class="m-0 text-dark fw-semibold small"><strong>Observación:</strong> ${obsAdmin}</p>
+            <div class="mt-2 text-end">
+              <button class="btn btn-danger btn-sm fw-bold shadow-sm" type="button" onclick="reenviarPreguntaObservadaUsuario('${q.id}')">
+                <i class="fa-solid fa-paper-plane me-1"></i> Reenviar solo esta pregunta
+              </button>
+            </div>
+          </div>
+        `;
+      }
 
       return `
-        <div class="card mb-4 border-start border-4 border-primary shadow-sm" id="qcard-${q.id}">
+        <div class="card mb-4 border-start border-4 ${estRev === 'Observada' ? 'border-danger' : isEditable ? 'border-primary' : 'border-secondary'} shadow-sm" id="qcard-${q.id}">
           <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-            <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id} <small class="text-muted">(${q.loteId})</small></span>
             <div>
+              <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id}</span>
+              <small class="text-muted ms-2">(${q.loteId})</small>
+            </div>
+            <div>
+              <span class="badge ${revBadgeClass} me-2">${revBadgeTxt}</span>
               <span class="badge bg-info text-dark me-2">${q.subdireccionAsignada}</span>
               <span class="badge badge-risk-${nivelRiesgo.replace(/\s+/g, '')}" id="badge-risk-${q.id}">
                 ${nivelRiesgo ? 'Riesgo: ' + nivelRiesgo : 'Sin Responder'}
@@ -117,16 +165,17 @@
           <div class="card-body">
             <h6 class="text-secondary small fw-bold mb-1"><i class="fa-solid fa-bookmark me-1"></i> ${q.principio}</h6>
             <p class="card-text fs-6 fw-semibold text-dark mb-2">${q.pregunta}</p>
-            <p class="small text-muted bg-light p-2 rounded mb-3"><i class="fa-solid fa-scale-balanced me-1"></i> <strong>Fundamento:</strong> ${q.fundamentoLegal || 'N/A'}</p>
+            <p class="small text-muted bg-light p-2 rounded mb-2"><i class="fa-solid fa-scale-balanced me-1"></i> <strong>Fundamento:</strong> ${q.fundamentoLegal || 'N/A'}</p>
+
+            ${observadaAlertHtml}
 
             <form id="form-q-${q.id}" onsubmit="return false;">
               <input type="hidden" name="questionId" value="${q.id}">
 
               <div class="row g-3">
-                <!-- Dropdown Respuesta -->
                 <div class="col-md-4">
                   <label class="form-label fw-bold text-dark">Respuesta <span class="text-danger">*</span></label>
-                  <select class="form-select border-primary" id="select-resp-${q.id}" onchange="onRespuestaChange('${q.id}', ${compIdx})">
+                  <select class="form-select border-primary" id="select-resp-${q.id}" ${!isEditable ? 'disabled' : ''} onchange="onRespuestaChange('${q.id}', ${compIdx})">
                     <option value="" ${!respVal ? 'selected' : ''}>-- Seleccione --</option>
                     <option value="Sí" ${respVal === 'Sí' ? 'selected' : ''}>Sí</option>
                     <option value="Parcial" ${respVal === 'Parcial' ? 'selected' : ''}>Parcial</option>
@@ -135,44 +184,40 @@
                   </select>
                 </div>
 
-                <!-- Nivel Riesgo Residual Calculado -->
                 <div class="col-md-4">
                   <label class="form-label fw-bold text-dark">Nivel de Riesgo Residual</label>
                   <input type="text" class="form-control bg-light fw-bold" id="input-risk-${q.id}" value="${nivelRiesgo}" readonly placeholder="Auto-calculado">
                 </div>
 
-                <!-- Estado de guardado -->
                 <div class="col-md-4 d-flex align-items-end">
                   <span class="small text-muted" id="status-save-${q.id}">
                     ${respVal ? '<i class="fa-solid fa-check text-success me-1"></i> Registrado' : '<i class="fa-solid fa-clock text-warning me-1"></i> Pendiente'}
                   </span>
                 </div>
 
-                <!-- Evidencia Textual -->
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual</label>
-                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="triggerAutosave('${q.id}')">${evidenciaTextual}</textarea>
+                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="triggerAutosave('${q.id}')">${evidenciaTextual}</textarea>
                 </div>
 
-                <!-- Observaciones -->
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones</label>
-                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" placeholder="Comentarios adicionales o aclaraciones..." oninput="triggerAutosave('${q.id}')">${observaciones}</textarea>
+                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Comentarios adicionales o aclaraciones..." oninput="triggerAutosave('${q.id}')">${observaciones}</textarea>
                 </div>
 
-                <!-- Evidencia Documental (Subida de Archivos) -->
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-paperclip me-1"></i> Evidencia Documental (PDF, Imágenes, Word, Excel - Máx 10MB)</label>
-                  <div class="d-flex gap-2 mb-2">
-                    <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
-                    <button class="btn btn-outline-primary px-3" type="button" onclick="subirArchivoEvidencia('${q.id}')">
-                      <i class="fa-solid fa-upload me-1"></i> Adjuntar
-                    </button>
-                  </div>
+                  ${isEditable ? `
+                    <div class="d-flex gap-2 mb-2">
+                      <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                      <button class="btn btn-outline-primary px-3" type="button" onclick="subirArchivoEvidencia('${q.id}')">
+                        <i class="fa-solid fa-upload me-1"></i> Adjuntar
+                      </button>
+                    </div>
+                  ` : ''}
 
-                  <!-- Lista de archivos subidos -->
                   <div id="docs-list-${q.id}" class="mt-2">
-                    ${renderizarListaDocsHtml(q.id, docs)}
+                    ${renderizarListaDocsHtml(q.id, docs, isEditable)}
                   </div>
                 </div>
               </div>
@@ -183,7 +228,7 @@
     }).join('');
   }
 
-  function renderizarListaDocsHtml(qId, docs) {
+  function renderizarListaDocsHtml(qId, docs, isEditable) {
     if (!docs || docs.length === 0) {
       return '<small class="text-muted italic"><i class="fa-solid fa-file-circle-xmark me-1"></i> Sin archivos adjuntos.</small>';
     }
@@ -193,11 +238,30 @@
         <a href="${f.url}" target="_blank" class="text-decoration-none text-primary fw-semibold">
           <i class="fa-solid fa-file-lines me-1"></i> ${f.name}
         </a>
-        <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidencia('${qId}', '${f.id}')">
-          <i class="fa-solid fa-trash"></i>
-        </button>
+        ${isEditable !== false ? `
+          <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1" title="Eliminar archivo" onclick="eliminarArchivoEvidencia('${qId}', '${f.id}')">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        ` : ''}
       </li>
     `).join('') + '</ul>';
+  }
+
+  function syncQuestionMemoryState(qId) {
+    const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+    if (!qItem) return;
+
+    if (!qItem.respuestaData) {
+      qItem.respuestaData = {};
+    }
+
+    const respSelect = document.getElementById('select-resp-' + qId);
+    const textEvidencia = document.getElementById('text-evidencia-' + qId);
+    const textObs = document.getElementById('text-obs-' + qId);
+
+    if (respSelect) qItem.respuestaData.respuesta = respSelect.value;
+    if (textEvidencia) qItem.respuestaData.evidenciaTextual = textEvidencia.value;
+    if (textObs) qItem.respuestaData.observaciones = textObs.value;
   }
 
   function onRespuestaChange(qId, compIdx) {
@@ -221,10 +285,12 @@
       badge.innerText = newRisk ? 'Riesgo: ' + newRisk : 'Sin Responder';
     }
 
+    syncQuestionMemoryState(qId);
     guardarRespuestaServidor(qId);
   }
 
   function triggerAutosave(qId) {
+    syncQuestionMemoryState(qId);
     const statusSave = document.getElementById('status-save-' + qId);
     if (statusSave) statusSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary me-1"></i> Guardando...';
 
@@ -295,7 +361,12 @@
         .withSuccessHandler(function(res) {
           fileInput.value = '';
           if (docsContainer) {
-            docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles);
+            docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles, true);
+          }
+          const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+          if (qItem) {
+            if (!qItem.respuestaData) qItem.respuestaData = {};
+            qItem.respuestaData.evidenciaDocumental = res.allFiles;
           }
           showToast('Archivo adjuntado con éxito.', 'bg-success');
         })
@@ -329,7 +400,12 @@
     google.script.run
       .withSuccessHandler(function(res) {
         if (docsContainer) {
-          docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles);
+          docsContainer.innerHTML = renderizarListaDocsHtml(qId, res.allFiles, true);
+        }
+        const qItem = (userQuestionsData || []).find(q => String(q.id) === String(qId));
+        if (qItem) {
+          if (!qItem.respuestaData) qItem.respuestaData = {};
+          qItem.respuestaData.evidenciaDocumental = res.allFiles;
         }
         showToast('Archivo eliminado.', 'bg-info');
       })
@@ -349,5 +425,113 @@
     if (badge) {
       badge.innerText = `${respondidas} / ${total} Respondidas (${pct}%)`;
     }
+  }
+
+  // ==============================================================================
+  // CAMBIO 3: BARRERA Y MODAL DE ENVÍO GLOBAL DE RESPUESTAS
+  // ==============================================================================
+  function abrirModalEnvioGlobal() {
+    const data = userQuestionsData || [];
+    if (data.length === 0) {
+      alert('No hay preguntas asignadas para enviar.');
+      return;
+    }
+
+    // Validar que TODAS las preguntas asignadas tengan Respuesta y al menos una Evidencia
+    const incompletas = [];
+    data.forEach(q => {
+      const rData = q.respuestaData || {};
+      const tieneResp = !!(rData.respuesta && rData.respuesta.trim() !== '');
+      const tieneText = !!(rData.evidenciaTextual && rData.evidenciaTextual.trim() !== '');
+      const tieneDocs = Array.isArray(rData.evidenciaDocumental) && rData.evidenciaDocumental.length > 0;
+
+      if (!tieneResp || (!tieneText && !tieneDocs)) {
+        incompletas.push({
+          id: q.id,
+          pregunta: q.pregunta,
+          motivo: !tieneResp ? 'Falta seleccionar Respuesta' : 'Falta Evidencia Textual o Documental'
+        });
+      }
+    });
+
+    const body = document.getElementById('modalEnvioBody');
+    const footer = document.getElementById('modalEnvioFooter');
+    const btnSubmit = document.getElementById('btn-ejecutar-envio-final');
+
+    if (incompletas.length > 0) {
+      btnSubmit.style.display = 'none';
+      body.innerHTML = `
+        <div class="alert alert-danger mb-3">
+          <h6 class="alert-heading fw-bold"><i class="fa-solid fa-circle-xmark me-2"></i> No se puede enviar: Existen preguntas incompletas</h6>
+          <p class="small m-0">Para enviar sus respuestas, debe responder todas las preguntas y adjuntar al menos una evidencia (Textual O Documental) en cada una de ellas.</p>
+        </div>
+        <h6 class="fw-bold text-dark mb-2">Listado de Preguntas Incompletas (${incompletas.length}):</h6>
+        <div class="table-responsive" style="max-height: 250px;">
+          <table class="table table-bordered table-sm small">
+            <thead class="table-light">
+              <tr>
+                <th style="width:60px;">No.</th>
+                <th>Pregunta</th>
+                <th>Requisito Faltante</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${incompletas.map(i => `
+                <tr>
+                  <td class="fw-bold">${i.id}</td>
+                  <td>${i.pregunta}</td>
+                  <td><span class="badge bg-danger">${i.motivo}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      btnSubmit.style.display = 'inline-block';
+      body.innerHTML = `
+        <div class="alert alert-warning border-start border-4 border-warning mb-3">
+          <h6 class="alert-heading fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-2"></i> Confirmación de Envío Global</h6>
+          <p class="m-0 small">Una vez enviadas, las respuestas quedarán bajo revisión del Administrador y <strong>no podrás modificarlas</strong> hasta que sean observadas.</p>
+        </div>
+        <p class="fs-6 fw-semibold text-dark text-center my-3">
+          ¿Desea enviar formalmente las ${data.length} respuestas de su Subdirección?
+        </p>
+      `;
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmarEnvioGlobal'));
+    modal.show();
+  }
+
+  function ejecutarEnvioGlobalConfirmado() {
+    showToast('Enviando respuestas...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        const modalEl = document.getElementById('modalConfirmarEnvioGlobal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        cargarCuestionarioUsuario(false);
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .enviarRespuestasUsuario(currentSessionToken);
+  }
+
+  function reenviarPreguntaObservadaUsuario(qId) {
+    if (!confirm(`¿Desea reenviar la corrección de la Pregunta No. ${qId}?`)) return;
+
+    showToast('Reenviando pregunta...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        cargarCuestionarioUsuario(false);
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .reenviarRespuestaObservada(currentSessionToken, qId);
   }
 </script>

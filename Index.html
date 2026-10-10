@@ -169,6 +169,11 @@
             </button>
           </li>
           <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-seguimiento-btn" data-bs-toggle="tab" data-bs-target="#tab-seguimiento" type="button" role="tab" onclick="cargarSeguimientoRevisionAdmin()">
+              <i class="fa-solid fa-clipboard-check me-2"></i> Seguimiento y Revisión
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-asignaciones-btn" data-bs-toggle="tab" data-bs-target="#tab-asignaciones" type="button" role="tab" onclick="cargarAsignacionesAdmin()">
               <i class="fa-solid fa-tasks me-2"></i> Gestor de Asignaciones
             </button>
@@ -196,22 +201,27 @@
             <?!= include('AdminView'); ?>
           </div>
 
-          <!-- Pestaña 2: Gestor de Asignaciones -->
+          <!-- Pestaña 2: Seguimiento y Revisión -->
+          <div class="tab-pane fade" id="tab-seguimiento" role="tabpanel">
+            <div id="seguimiento-container"></div>
+          </div>
+
+          <!-- Pestaña 3: Gestor de Asignaciones -->
           <div class="tab-pane fade" id="tab-asignaciones" role="tabpanel">
             <div id="asignaciones-container"></div>
           </div>
 
-          <!-- Pestaña 3: Gestión de Lotes y Carga Masiva -->
+          <!-- Pestaña 4: Gestión de Lotes y Carga Masiva -->
           <div class="tab-pane fade" id="tab-lotes" role="tabpanel">
             <div id="lotes-container"></div>
           </div>
 
-          <!-- Pestaña 4: Mis Preguntas (Admin) -->
+          <!-- Pestaña 5: Mis Preguntas (Admin) -->
           <div class="tab-pane fade" id="tab-mispreguntas" role="tabpanel">
             <div id="admin-mis-preguntas-container"></div>
           </div>
 
-          <!-- Pestaña 5: Usuarios y Subdirecciones -->
+          <!-- Pestaña 6: Usuarios y Subdirecciones -->
           <div class="tab-pane fade" id="tab-usuarios" role="tabpanel">
             <div id="usuarios-container"></div>
           </div>
@@ -221,13 +231,16 @@
       <!-- VISTA PARA USUARIO OPERATIVO -->
       <div id="user-app-root" style="display: none;">
         <div class="card mb-3">
-          <div class="card-body d-flex justify-content-between align-items-center">
+          <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
               <h5 class="card-title text-primary m-0"><i class="fa-solid fa-building me-2"></i> Cuestionario para: <span id="user-subdireccion-lbl"></span></h5>
               <small class="text-muted">Responda cada pregunta, adjunte evidencias textuales y documentales.</small>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-3">
               <span class="badge bg-primary fs-6" id="user-progress-badge">0 / 0 Respondidas (0%)</span>
+              <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalEnvioGlobal()">
+                <i class="fa-solid fa-paper-plane me-2"></i> Enviar Respuestas
+              </button>
             </div>
           </div>
         </div>
@@ -252,14 +265,12 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // ESTADO DE SESIÓN CLIENTE
     let currentSessionToken = sessionStorage.getItem('CM_SESSION_TOKEN') || null;
     let currentUserObj = null;
     let debounceTimer = null;
 
     document.addEventListener('DOMContentLoaded', function() {
       if (currentSessionToken) {
-        // Validar sesión existente
         verificarSesionExistente();
       } else {
         mostrarPantallaLogin();

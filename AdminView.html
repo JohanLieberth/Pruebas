@@ -1,4 +1,4 @@
-<!-- AdminView.html - Dashboard, Gestor de Asignaciones, Lotes y Administración -->
+<!-- AdminView.html - Dashboard, Seguimiento y Revisión, Gestor de Asignaciones, Lotes y Usuarios -->
 
 <!-- VISTA 1: DASHBOARD GLOBAL CON INDICADORES -->
 <div id="admin-dashboard-root">
@@ -12,61 +12,96 @@
     </div>
   </div>
 
-  <!-- TARJETAS KPI -->
+  <!-- TARJETAS KPI DE REVISIÓN Y RESPUESTAS -->
   <div class="row g-3 mb-4" id="admin-kpi-cards">
-    <div class="col-md-3">
+    <div class="col-md-2">
       <div class="card bg-primary text-white shadow-sm p-3">
         <div class="d-flex justify-content-between align-items-center">
           <div>
-            <h6 class="text-uppercase mb-1">Total Preguntas</h6>
-            <h2 class="m-0 fw-bold" id="kpi-total-preguntas">0</h2>
+            <h6 class="text-uppercase mb-1 small">Total Preguntas</h6>
+            <h3 class="m-0 fw-bold" id="kpi-total-preguntas">0</h3>
           </div>
-          <i class="fa-solid fa-list-check fa-3x opacity-50"></i>
+          <i class="fa-solid fa-list-check fa-2x opacity-50"></i>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
+      <div class="card bg-info text-dark shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-uppercase mb-1 small">Por Revisar</h6>
+            <h3 class="m-0 fw-bold" id="kpi-pendientes-revision">0</h3>
+          </div>
+          <i class="fa-solid fa-clock-rotate-left fa-2x opacity-50"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card bg-danger text-white shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="text-uppercase mb-1 small">Observadas</h6>
+            <h3 class="m-0 fw-bold" id="kpi-observadas">0</h3>
+          </div>
+          <i class="fa-solid fa-circle-exclamation fa-2x opacity-50"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
       <div class="card bg-success text-white shadow-sm p-3">
         <div class="d-flex justify-content-between align-items-center">
           <div>
-            <h6 class="text-uppercase mb-1">Respondidas</h6>
-            <h2 class="m-0 fw-bold" id="kpi-total-respondidas">0</h2>
+            <h6 class="text-uppercase mb-1 small">Aceptadas</h6>
+            <h3 class="m-0 fw-bold" id="kpi-aceptadas">0</h3>
           </div>
-          <i class="fa-solid fa-circle-check fa-3x opacity-50"></i>
+          <i class="fa-solid fa-circle-check fa-2x opacity-50"></i>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
-      <div class="card bg-info text-white shadow-sm p-3">
+    <div class="col-md-2">
+      <div class="card bg-secondary text-white shadow-sm p-3">
         <div class="d-flex justify-content-between align-items-center">
           <div>
-            <h6 class="text-uppercase mb-1">% Avance Global</h6>
-            <h2 class="m-0 fw-bold" id="kpi-avance-pct">0%</h2>
+            <h6 class="text-uppercase mb-1 small">% Avance</h6>
+            <h3 class="m-0 fw-bold" id="kpi-avance-pct">0%</h3>
           </div>
-          <i class="fa-solid fa-chart-line fa-3x opacity-50"></i>
+          <i class="fa-solid fa-chart-line fa-2x opacity-50"></i>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <div class="card bg-warning text-dark shadow-sm p-3">
         <div class="d-flex justify-content-between align-items-center">
           <div>
-            <h6 class="text-uppercase mb-1">Pendientes Admin</h6>
-            <h2 class="m-0 fw-bold" id="kpi-unassigned-pending">0</h2>
+            <h6 class="text-uppercase mb-1 small">Pendientes Admin</h6>
+            <h3 class="m-0 fw-bold" id="kpi-unassigned-pending">0</h3>
           </div>
-          <i class="fa-solid fa-user-clock fa-3x opacity-50"></i>
+          <i class="fa-solid fa-user-clock fa-2x opacity-50"></i>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- TARJETA SEPARADA DE ALERTA DE PREGUNTAS SIN ASIGNAR -->
-  <div class="alert alert-warning border-start border-4 border-warning shadow-sm d-flex align-items-center justify-content-between mb-4">
-    <div>
-      <h5 class="alert-heading m-0"><i class="fa-solid fa-triangle-exclamation me-2"></i> Preguntas sin asignar pendientes de respuesta por el Administrador</h5>
-      <p class="m-0 mt-1 small text-dark" id="alert-unassigned-text">Cargando estado de preguntas sin asignar...</p>
+  <!-- ALERTAS DE REVISIÓN -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="alert alert-info border-start border-4 border-info shadow-sm d-flex align-items-center justify-content-between m-0">
+        <div>
+          <h6 class="alert-heading fw-bold m-0"><i class="fa-solid fa-clipboard-check me-2"></i> Preguntas Enviadas Pendientes de Revisión</h6>
+          <p class="m-0 mt-1 small text-dark" id="alert-pendientes-rev-text">Cargando datos...</p>
+        </div>
+        <button class="btn btn-outline-info btn-sm fw-bold text-dark" onclick="irATabSeguimiento()"><i class="fa-solid fa-arrow-right me-1"></i> Ir a Revisar</button>
+      </div>
     </div>
-    <button class="btn btn-outline-dark btn-sm fw-bold" onclick="irAMisPreguntasAdmin()"><i class="fa-solid fa-arrow-right me-1"></i> Ir a Responder Mis Preguntas</button>
+    <div class="col-md-6">
+      <div class="alert alert-warning border-start border-4 border-warning shadow-sm d-flex align-items-center justify-content-between m-0">
+        <div>
+          <h6 class="alert-heading fw-bold m-0"><i class="fa-solid fa-triangle-exclamation me-2"></i> Preguntas Sin Asignar Pendientes Admin</h6>
+          <p class="m-0 mt-1 small text-dark" id="alert-unassigned-text">Cargando datos...</p>
+        </div>
+        <button class="btn btn-outline-dark btn-sm fw-bold" onclick="irAMisPreguntasAdmin()"><i class="fa-solid fa-arrow-right me-1"></i> Responder</button>
+      </div>
+    </div>
   </div>
 
   <!-- AVANCE POR SUBDIRECCIÓN Y COMPONENTES -->
@@ -118,14 +153,15 @@
               <th>Lote</th>
               <th>Componente</th>
               <th>Pregunta</th>
-              <th>Subdirección Asignada</th>
+              <th>Subdirección</th>
               <th>Respuesta</th>
+              <th>Estado Revisión</th>
               <th>Riesgo Residual</th>
-              <th>Evidencias Documentales</th>
+              <th>Evidencias</th>
             </tr>
           </thead>
           <tbody id="tbody-dash-detalle">
-            <tr><td colspan="8" class="text-center text-muted py-3">Cargando tabla de detalle...</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-3">Cargando tabla de detalle...</td></tr>
           </tbody>
         </table>
       </div>
@@ -141,12 +177,17 @@
     google.script.run
       .withSuccessHandler(function(res) {
         document.getElementById('kpi-total-preguntas').innerText = res.kpis.totalPreguntas;
-        document.getElementById('kpi-total-respondidas').innerText = res.kpis.totalRespondidas;
         document.getElementById('kpi-avance-pct').innerText = res.kpis.avanceGlobalPct + '%';
         document.getElementById('kpi-unassigned-pending').innerText = res.kpis.unassignedPendientes;
+        document.getElementById('kpi-pendientes-revision').innerText = res.kpis.countPendientesRevision;
+        document.getElementById('kpi-observadas').innerText = res.kpis.countObservadas;
+        document.getElementById('kpi-aceptadas').innerText = res.kpis.countAceptadas;
+
+        document.getElementById('alert-pendientes-rev-text').innerText =
+          `Existen ${res.kpis.countPendientesRevision} respuestas enviadas por los usuarios que requieren revisión y evaluación.`;
 
         document.getElementById('alert-unassigned-text').innerText =
-          `Existen ${res.kpis.unassignedTotal} preguntas marcadas como Sin Asignar. De ellas, ${res.kpis.unassignedRespondidas} han sido respondidas y ${res.kpis.unassignedPendientes} están PENDIENTES de respuesta.`;
+          `Existen ${res.kpis.unassignedTotal} preguntas marcadas como Sin Asignar. De ellas, ${res.kpis.unassignedRespondidas} respondidas y ${res.kpis.unassignedPendientes} PENDIENTES.`;
 
         renderizarProgresoSubdirecciones(res.subdireccionesProgreso);
         renderizarDistribucionComponentes(res.componentesProgreso);
@@ -251,12 +292,12 @@
     const loteSel = document.getElementById('dash-filtro-lote').value;
     const tbody = document.getElementById('tbody-dash-detalle');
 
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Filtrando registros...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Filtrando registros...</td></tr>';
 
     google.script.run
       .withSuccessHandler(function(list) {
         if (!list || list.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No se encontraron preguntas con los filtros seleccionados.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">No se encontraron preguntas con los filtros seleccionados.</td></tr>';
           return;
         }
 
@@ -266,6 +307,11 @@
             docsHtml = q.evidenciaDocumental.map(f => `<a href="${f.url}" target="_blank" class="badge bg-light text-primary border text-decoration-none me-1"><i class="fa-solid fa-paperclip"></i> ${f.name}</a>`).join('');
           }
 
+          let estBadge = 'bg-secondary';
+          if (q.estadoRevision === 'Enviada') estBadge = 'bg-info text-dark';
+          else if (q.estadoRevision === 'Observada') estBadge = 'bg-danger';
+          else if (q.estadoRevision === 'Aceptada') estBadge = 'bg-success';
+
           return `
             <tr>
               <td class="fw-bold">${q.id}</td>
@@ -274,6 +320,7 @@
               <td><span class="fw-semibold">${q.pregunta}</span></td>
               <td><span class="badge bg-info text-dark">${q.subdireccionAsignada}</span></td>
               <td><span class="badge ${q.respuesta === 'Sí' ? 'bg-success' : q.respuesta === 'No' ? 'bg-danger' : q.respuesta === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary'}">${q.respuesta}</span></td>
+              <td><span class="badge ${estBadge}">${q.estadoRevision || 'Borrador'}</span></td>
               <td><span class="badge badge-risk-${q.nivelRiesgo.replace(/\s+/g, '')}">${q.nivelRiesgo || 'N/A'}</span></td>
               <td>${docsHtml}</td>
             </tr>
@@ -281,9 +328,18 @@
         }).join('');
       })
       .withFailureHandler(function(err) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-3">Error: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-danger text-center py-3">Error: ${err.message}</td></tr>`;
       })
       .getDetallePreguntasAdmin(currentSessionToken, subSel, compSel, loteSel);
+  }
+
+  function irATabSeguimiento() {
+    const tabBtn = document.getElementById('tab-seguimiento-btn');
+    if (tabBtn) {
+      const bsTab = new bootstrap.Tab(tabBtn);
+      bsTab.show();
+      cargarSeguimientoRevisionAdmin();
+    }
   }
 
   function irAMisPreguntasAdmin() {
@@ -312,7 +368,340 @@
   }
 
   // ==============================================================================
-  // VISTA 2: GESTOR DE ASIGNACIONES (CORE FEATURE)
+  // CAMBIO 2: VISTA 2: SEGUIMIENTO Y REVISIÓN (EXCLUSIVO ADMIN)
+  // ==============================================================================
+  function cargarSeguimientoRevisionAdmin() {
+    const container = document.getElementById('seguimiento-container');
+    container.innerHTML = `
+      <div class="card shadow-sm p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="text-primary m-0"><i class="fa-solid fa-clipboard-check me-2"></i> Módulo de Seguimiento y Revisión de Respuestas</h4>
+          <span class="badge bg-secondary fs-6" id="seg-counter-badge">Filtrando registros...</span>
+        </div>
+
+        <!-- FILTROS -->
+        <div class="row g-3 bg-light p-3 rounded border mb-3">
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Lote / Proyecto</label>
+            <select class="form-select form-select-sm" id="seg-filtro-lote" onchange="cargarListaSeguimientoAdmin()">
+              <option value="TODOS">-- Todos los Lotes --</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Subdirección</label>
+            <select class="form-select form-select-sm" id="seg-filtro-sub" onchange="cargarListaSeguimientoAdmin()">
+              <option value="TODAS">-- Todas las Subdirecciones --</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Componente COSO</label>
+            <select class="form-select form-select-sm" id="seg-filtro-comp" onchange="cargarListaSeguimientoAdmin()">
+              <option value="TODOS">-- Todos los Componentes --</option>
+              <option value="1. Ambiente de Control">1. Ambiente de Control</option>
+              <option value="2. Evaluación de Riesgos">2. Evaluación de Riesgos</option>
+              <option value="3. Actividades de Control">3. Actividades de Control</option>
+              <option value="4. Información y Comunicación">4. Información y Comunicación</option>
+              <option value="5. Supervisión y Mejora Continua">5. Supervisión y Mejora Continua</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Estado de Revisión</label>
+            <select class="form-select form-select-sm border-primary fw-bold" id="seg-filtro-estado" onchange="cargarListaSeguimientoAdmin()">
+              <option value="Enviada" selected>Enviada (Pendiente de revisión)</option>
+              <option value="Observada">Observadas</option>
+              <option value="Aceptada">Aceptadas</option>
+              <option value="Borrador">Borrador</option>
+              <option value="TODOS">-- Todos los Estados --</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- TABLA DE SEGUIMIENTO -->
+        <div class="table-responsive">
+          <table class="table table-hover align-middle small">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 50px;">No.</th>
+                <th>Subdirección</th>
+                <th>Pregunta</th>
+                <th>Respuesta</th>
+                <th>Riesgo</th>
+                <th>Estado</th>
+                <th>Fecha Modificación</th>
+                <th style="width: 140px;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-seguimiento-list">
+              <tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando lista de revisión...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MODAL VER DETALLE Y REVISAR -->
+      <div class="modal fade" id="modalRevisarRespuesta" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title"><i class="fa-solid fa-file-signature me-2"></i> Evaluación de Respuesta</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modalRevisarBody">
+              <!-- Contenido dinámico generado -->
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-danger fw-bold" onclick="abrirSubModalObservar()">
+                  <i class="fa-solid fa-circle-exclamation me-1"></i> Observar Respuesta
+                </button>
+                <button type="button" class="btn btn-success fw-bold" onclick="ejecutarAceptarRespuesta()">
+                  <i class="fa-solid fa-circle-check me-1"></i> Aceptar Respuesta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-MODAL OBSERVACIÓN OBLIGATORIA -->
+      <div class="modal fade" id="modalSubObservar" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title"><i class="fa-solid fa-comment-slash me-2"></i> Captura de Observación de Revisión</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-2">Especifique claramente los motivos de la observación. La pregunta reaparecerá editable en la interfaz del usuario con esta indicación:</p>
+              <textarea class="form-control" id="obs-admin-input-text" rows="4" placeholder="Describa la corrección solicitada..." required></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-danger fw-bold" onclick="ejecutarObservarRespuesta()">
+                <i class="fa-solid fa-paper-plane me-1"></i> Guardar y Devolver Observada
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    poblarFiltrosSeguimiento();
+    cargarListaSeguimientoAdmin();
+  }
+
+  function poblarFiltrosSeguimiento() {
+    google.script.run
+      .withSuccessHandler(function(lotes) {
+        const select = document.getElementById('seg-filtro-lote');
+        if (select) {
+          select.innerHTML = '<option value="TODOS">-- Todos los Lotes --</option>';
+          lotes.forEach(l => {
+            const opt = document.createElement('option');
+            opt.value = l.loteId;
+            opt.textContent = `${l.nombreLote} (${l.loteId})`;
+            select.appendChild(opt);
+          });
+        }
+      })
+      .getLotesListAdmin(currentSessionToken);
+
+    google.script.run
+      .withSuccessHandler(function(subs) {
+        const select = document.getElementById('seg-filtro-sub');
+        if (select) {
+          select.innerHTML = '<option value="TODAS">-- Todas las Subdirecciones --</option>';
+          subs.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            select.appendChild(opt);
+          });
+        }
+      })
+      .getSubdireccionesList(currentSessionToken);
+  }
+
+  function cargarListaSeguimientoAdmin() {
+    const filtros = {
+      loteId: document.getElementById('seg-filtro-lote').value,
+      subdireccion: document.getElementById('seg-filtro-sub').value,
+      componente: document.getElementById('seg-filtro-comp').value,
+      estadoRevision: document.getElementById('seg-filtro-estado').value
+    };
+
+    const tbody = document.getElementById('tbody-seguimiento-list');
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando respuestas...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function(list) {
+        window.respuestasSeguimientoList = list;
+        document.getElementById('seg-counter-badge').innerText = `${list.length} registros encontrados`;
+
+        if (!list || list.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No hay respuestas en el estado seleccionado.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = list.map(r => {
+          let badgeClass = 'bg-secondary';
+          if (r.estadoRevision === 'Enviada') badgeClass = 'bg-info text-dark';
+          else if (r.estadoRevision === 'Observada') badgeClass = 'bg-danger text-white';
+          else if (r.estadoRevision === 'Aceptada') badgeClass = 'bg-success text-white';
+
+          return `
+            <tr>
+              <td class="fw-bold">${r.id}</td>
+              <td><span class="badge bg-secondary">${r.subdireccionAsignada}</span></td>
+              <td><span class="fw-semibold">${truncateString(r.pregunta, 50)}</span></td>
+              <td><span class="badge ${r.respuesta === 'Sí' ? 'bg-success' : r.respuesta === 'No' ? 'bg-danger' : 'bg-warning text-dark'}">${r.respuesta || 'Sin responder'}</span></td>
+              <td><span class="badge badge-risk-${r.nivelRiesgo.replace(/\s+/g, '')}">${r.nivelRiesgo || 'N/A'}</span></td>
+              <td><span class="badge ${badgeClass}">${r.estadoRevision || 'Borrador'}</span></td>
+              <td><small>${r.fechaUltimaModificacion ? new Date(r.fechaUltimaModificacion).toLocaleString() : 'N/A'}</small></td>
+              <td>
+                <button class="btn btn-sm btn-primary fw-bold" onclick="abrirModalVerRespuestaSeguimiento('${r.id}')">
+                  <i class="fa-solid fa-eye me-1"></i> Revisar
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .getRespuestasSeguimientoAdmin(currentSessionToken, filtros);
+  }
+
+  function abrirModalVerRespuestaSeguimiento(qId) {
+    const item = (window.respuestasSeguimientoList || []).find(r => String(r.id) === String(qId));
+    if (!item) return;
+
+    window.currentReviewItem = item;
+
+    let docsHtml = '<small class="text-muted">Sin archivos adjuntos</small>';
+    if (item.evidenciaDocumental && Array.isArray(item.evidenciaDocumental) && item.evidenciaDocumental.length > 0) {
+      docsHtml = '<ul class="list-group list-group-flush border rounded">' + item.evidenciaDocumental.map(f => `
+        <li class="list-group-item py-1 px-2 small">
+          <a href="${f.url}" target="_blank" class="fw-bold text-primary text-decoration-none">
+            <i class="fa-solid fa-paperclip me-1"></i> ${f.name}
+          </a>
+        </li>
+      `).join('') + '</ul>';
+    }
+
+    const body = document.getElementById('modalRevisarBody');
+    body.innerHTML = `
+      <div class="card mb-3 border-start border-4 border-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="fw-bold text-primary">Pregunta No. ${item.id} (${item.loteId})</span>
+            <span class="badge bg-info text-dark">${item.subdireccionAsignada}</span>
+          </div>
+          <h6 class="text-secondary small fw-bold mb-1">${item.principio}</h6>
+          <p class="fw-bold text-dark mb-2">${item.pregunta}</p>
+          <small class="text-muted bg-light p-2 rounded d-block mb-3"><strong>Fundamento:</strong> ${item.fundamentoLegal || 'N/A'}</small>
+
+          <div class="row g-3 bg-light p-3 rounded border">
+            <div class="col-md-6">
+              <label class="fw-bold text-dark small">Respuesta Capturada:</label>
+              <div><span class="badge fs-6 ${item.respuesta === 'Sí' ? 'bg-success' : 'bg-danger'}">${item.respuesta || 'Sin respuesta'}</span></div>
+            </div>
+            <div class="col-md-6">
+              <label class="fw-bold text-dark small">Nivel de Riesgo Residual:</label>
+              <div><span class="badge badge-risk-${item.nivelRiesgo.replace(/\s+/g, '')} fs-6">${item.nivelRiesgo || 'N/A'}</span></div>
+            </div>
+            <div class="col-md-12">
+              <label class="fw-bold text-dark small"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual:</label>
+              <div class="p-2 bg-white rounded border small text-dark">${item.evidenciaTextual || '<em>Sin descripción textual</em>'}</div>
+            </div>
+            <div class="col-md-12">
+              <label class="fw-bold text-dark small"><i class="fa-solid fa-paperclip me-1"></i> Evidencias Documentales:</label>
+              ${docsHtml}
+            </div>
+            <div class="col-md-12">
+              <label class="fw-bold text-dark small"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones del Usuario:</label>
+              <div class="p-2 bg-white rounded border small text-dark">${item.observaciones || '<em>Sin observaciones</em>'}</div>
+            </div>
+            <div class="col-md-12 border-top pt-2 mt-2 small text-muted">
+              <i class="fa-solid fa-user me-1"></i> Capturado por: <strong>${item.usuarioQueRespondio || 'N/A'}</strong> | Fecha: <strong>${item.fechaUltimaModificacion ? new Date(item.fechaUltimaModificacion).toLocaleString() : 'N/A'}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalRevisarRespuesta'));
+    modal.show();
+  }
+
+  function ejecutarAceptarRespuesta() {
+    if (!window.currentReviewItem) return;
+    if (!confirm(`¿Está seguro de ACEPTAR la respuesta de la Pregunta No. ${window.currentReviewItem.id}? Quedará como Aceptada (estado final).`)) return;
+
+    const payload = {
+      questionId: window.currentReviewItem.id,
+      subdireccion: window.currentReviewItem.subdireccionAsignada,
+      accion: 'Aceptada',
+      observacionAdmin: ''
+    };
+
+    showToast('Aceptando respuesta...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        const modalEl = document.getElementById('modalRevisarRespuesta');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        cargarListaSeguimientoAdmin();
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .revisarRespuestaAdmin(currentSessionToken, payload);
+  }
+
+  function abrirSubModalObservar() {
+    document.getElementById('obs-admin-input-text').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('modalSubObservar'));
+    modal.show();
+  }
+
+  function ejecutarObservarRespuesta() {
+    if (!window.currentReviewItem) return;
+    const obsText = document.getElementById('obs-admin-input-text').value.trim();
+
+    if (!obsText) {
+      alert('La observación del administrador es obligatoria para marcar como Observada.');
+      return;
+    }
+
+    const payload = {
+      questionId: window.currentReviewItem.id,
+      subdireccion: window.currentReviewItem.subdireccionAsignada,
+      accion: 'Observada',
+      observacionAdmin: obsText
+    };
+
+    showToast('Guardando observación...', 'bg-info');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        showToast(res.message, 'bg-success');
+        const modalSub = bootstrap.Modal.getInstance(document.getElementById('modalSubObservar'));
+        if (modalSub) modalSub.hide();
+        const modalMain = bootstrap.Modal.getInstance(document.getElementById('modalRevisarRespuesta'));
+        if (modalMain) modalMain.hide();
+        cargarListaSeguimientoAdmin();
+      })
+      .withFailureHandler(function(err) {
+        manejarErrorSesion(err);
+      })
+      .revisarRespuestaAdmin(currentSessionToken, payload);
+  }
+
+  // ==============================================================================
+  // VISTA 3: GESTOR DE ASIGNACIONES (CORE FEATURE)
   // ==============================================================================
   function cargarAsignacionesAdmin() {
     const container = document.getElementById('asignaciones-container');
@@ -556,13 +945,12 @@
   }
 
   // ==============================================================================
-  // CAMBIO 2: VISTA 3: GESTIÓN DE LOTES Y CARGA MASIVA DE PREGUNTAS (ADMIN)
+  // VISTA 4: GESTIÓN DE LOTES Y CARGA MASIVA DE PREGUNTAS (ADMIN)
   // ==============================================================================
   function cargarLotesModuloAdmin() {
     const container = document.getElementById('lotes-container');
     container.innerHTML = `
       <div class="row g-4">
-        <!-- LISTADO DE LOTES -->
         <div class="col-md-12">
           <div class="card shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -594,7 +982,7 @@
         </div>
       </div>
 
-      <!-- MODAL CARGA MASIVA / NUEVO LOTE -->
+      <!-- MODAL CARGA MASIVA -->
       <div class="modal fade" id="modalCargaMasiva" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl">
           <div class="modal-content">
@@ -624,7 +1012,6 @@
                 </div>
               </div>
 
-              <!-- VISTA PREVIA Y TABLA EDITABLE -->
               <div id="bulk-preview-wrapper" style="display:none;">
                 <h6 class="fw-bold text-primary mb-2"><i class="fa-solid fa-table me-2"></i> Vista Previa de Filas a Importar</h6>
                 <div id="bulk-validation-msg" class="alert py-2 mb-2 small"></div>
@@ -751,7 +1138,6 @@
 
     lines.forEach((line, idx) => {
       if (!line.trim()) return;
-      // Detectar separador por tabulación \t o coma
       let parts = line.split('\t');
       if (parts.length < 3) parts = line.split(',');
 
@@ -846,7 +1232,7 @@
   }
 
   // ==============================================================================
-  // VISTA 4: MIS PREGUNTAS (ADMIN)
+  // VISTA 5: MIS PREGUNTAS (ADMIN)
   // ==============================================================================
   function cargarPreguntasUserAdmin() {
     const container = document.getElementById('admin-mis-preguntas-container');
@@ -863,7 +1249,7 @@
   }
 
   // ==============================================================================
-  // VISTA 5: USUARIOS Y SUBDIRECCIONES (ADMIN)
+  // CAMBIO 4: VISTA 6: USUARIOS Y SUBDIRECCIONES (ADMIN) - CONTROL EXCLUSIVO DE CONTRASEÑA
   // ==============================================================================
   function cargarUsuariosAdmin() {
     const container = document.getElementById('usuarios-container');
@@ -886,11 +1272,12 @@
                       <th>Subdirección</th>
                       <th>Rol</th>
                       <th>Estado</th>
+                      <th>Contraseña</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody id="tbody-usuarios-list">
-                    <tr><td colspan="6" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando usuarios...</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Cargando usuarios...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -919,7 +1306,7 @@
         </div>
       </div>
 
-      <!-- MODAL USUARIO CON CONTRASEÑA -->
+      <!-- MODAL USUARIO CON CONTRASEÑA OBLIGATORIA EN CREACIÓN -->
       <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -938,8 +1325,9 @@
                   <input type="text" class="form-control" id="u-name" required placeholder="Nombre Apellido">
                 </div>
                 <div class="mb-3">
-                  <label class="form-label fw-bold">Contraseña <small class="text-muted">(Dejar en blanco para no modificar)</small></label>
+                  <label class="form-label fw-bold">Contraseña <span id="u-pass-req-star" class="text-danger">*</span></label>
                   <input type="password" class="form-control" id="u-password" placeholder="••••••••">
+                  <small class="text-muted" id="u-pass-help">Obligatoria para usuarios nuevos. Al editar, dejar en blanco para mantener la actual.</small>
                 </div>
                 <div class="mb-3">
                   <label class="form-label fw-bold">Subdirección Asignada</label>
@@ -981,7 +1369,7 @@
         if (!tbody) return;
 
         if (!users || users.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No hay usuarios registrados.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No hay usuarios registrados.</td></tr>';
           return;
         }
 
@@ -992,6 +1380,7 @@
             <td><small class="text-muted">${u.subdireccion || 'N/A'}</small></td>
             <td><span class="badge ${u.role === 'ADMIN' ? 'bg-danger' : 'bg-primary'}">${u.role}</span></td>
             <td><span class="badge ${u.active ? 'bg-success' : 'bg-secondary'}">${u.active ? 'Activo' : 'Inactivo'}</span></td>
+            <td><small class="text-muted"><i class="fa-solid fa-lock me-1"></i> ${u.passwordEstado}</small></td>
             <td>
               <button class="btn btn-sm btn-outline-primary me-1" onclick="editarUsuarioObj('${u.email}')"><i class="fa-solid fa-pen"></i></button>
               <button class="btn btn-sm ${u.active ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleEstadoUsuario('${u.email}', ${!u.active})">
@@ -1040,6 +1429,8 @@
     document.getElementById('u-email').readOnly = false;
     document.getElementById('u-name').value = '';
     document.getElementById('u-password').value = '';
+    document.getElementById('u-password').required = true;
+    document.getElementById('u-pass-req-star').style.display = 'inline';
     document.getElementById('u-subdireccion').value = '';
     document.getElementById('u-role').value = 'USER';
     document.getElementById('u-active').checked = true;
@@ -1056,6 +1447,8 @@
     document.getElementById('u-email').readOnly = true;
     document.getElementById('u-name').value = user.name;
     document.getElementById('u-password').value = '';
+    document.getElementById('u-password').required = false;
+    document.getElementById('u-pass-req-star').style.display = 'none';
     document.getElementById('u-subdireccion').value = user.subdireccion || '';
     document.getElementById('u-role').value = user.role;
     document.getElementById('u-active').checked = user.active;
@@ -1075,6 +1468,7 @@
       active: document.getElementById('u-active').checked
     };
 
+    showToast('Guardando usuario...', 'bg-info');
     google.script.run
       .withSuccessHandler(function(res) {
         showToast(res.message, 'bg-success');

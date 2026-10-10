@@ -76,14 +76,13 @@ function hashPassword(plainText) {
 // ==============================================================================
 
 /**
- * Autentica usuario con correo y contraseña, generando un Token de sesión de 8 horas
+ * Autentica usuario con correo y contraseña, generando un Token de sesión
  */
 function loginUsuario(email, password) {
   if (!email || !password) {
     throw new Error('Debe proporcionar correo electrónico y contraseña.');
   }
 
-  // Asegurar migración/estructura inicial antes del login
   migrateDatabaseStructure();
 
   const cleanEmail = String(email).toLowerCase().trim();
@@ -102,7 +101,6 @@ function loginUsuario(email, password) {
     throw new Error('Correo o contraseña incorrectos.');
   }
 
-  // Generar token único aleatorio
   const token = Utilities.getUuid();
   const sessionData = {
     email: user.email,
@@ -116,7 +114,7 @@ function loginUsuario(email, password) {
   const cache = CacheService.getScriptCache();
   cache.put('SESSION_' + token, JSON.stringify(sessionData), TOKEN_TTL_SECONDS);
 
-  logAudit('LOGIN_SUCCESS', '', null, cleanEmail);
+  logAudit('LOGIN_SUCCESS', '', null, cleanEmail, cleanEmail);
 
   return {
     success: true,
@@ -153,7 +151,6 @@ function getSessionByToken(token) {
 
   try {
     const session = JSON.parse(cachedStr);
-    // Refrescar usuario desde BD para verificar si sigue activo
     const latestUser = getUserByEmail(session.email);
     if (!latestUser || !latestUser.active) {
       cache.remove('SESSION_' + token);
@@ -167,16 +164,10 @@ function getSessionByToken(token) {
   }
 }
 
-/**
- * Exige autenticación basada en Token
- */
 function assertAuthenticatedUser(token) {
   return getSessionByToken(token);
 }
 
-/**
- * Exige rol ADMIN basado en Token
- */
 function assertAdmin(token) {
   const session = getSessionByToken(token);
   if (session.role !== 'ADMIN') {
@@ -246,7 +237,7 @@ function initSheetHeader(sheet, sheetName) {
       headers = ['QuestionID', 'SubdireccionAsignada', 'AsignadoPor', 'FechaAsignacion'];
       break;
     case SHEETS.RESPUESTAS:
-      headers = ['QuestionID', 'Subdireccion', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion'];
+      headers = ['QuestionID', 'Subdireccion', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin'];
       break;
     case SHEETS.LOTES:
       headers = ['LoteID', 'NombreLote', 'Descripcion', 'FechaCreacion', 'CreadoPor', 'Activo'];
@@ -273,7 +264,7 @@ function initDatabaseStructure(ss) {
 }
 
 /**
- * Migración idempotente para agregar nuevas columnas (Contraseña, LoteID) y Lote Inicial
+ * Migración idempotente para agregar nuevas columnas (Contraseña, LoteID, EstadoRevision, ObservacionAdmin)
  */
 function migrateDatabaseStructure() {
   const ss = getSpreadsheet();
@@ -286,15 +277,13 @@ function migrateDatabaseStructure() {
     uSheet.getRange(1, 6).setValue('Contrasena').setFontWeight('bold');
   }
 
-  // Hashear contraseñas en texto plano o asignar contraseña por defecto 'admin123' si están vacías
   if (uData.length > 1) {
     for (let i = 1; i < uData.length; i++) {
       let passVal = String(uData[i][5] || '').trim();
       if (!passVal) {
-        passVal = hashPassword('admin123'); // Contraseña default si estaba vacía
+        passVal = hashPassword('admin123');
         uSheet.getRange(i + 1, 6).setValue(passVal);
       } else if (passVal.length < 64) {
-        // Texto plano detectado -> Hashear
         passVal = hashPassword(passVal);
         uSheet.getRange(i + 1, 6).setValue(passVal);
       }
@@ -329,6 +318,25 @@ function migrateDatabaseStructure() {
       const currentLote = String(pData[i][6] || '').trim();
       if (!currentLote) {
         pSheet.getRange(i + 1, 7).setValue('LOTE_INICIAL');
+      }
+    }
+  }
+
+  // 4. Migración de Respuestas -> Columnas 'EstadoRevision' (Col 11) y 'ObservacionAdmin' (Col 12)
+  const rSheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const rData = rSheet.getDataRange().getValues();
+  if (rData.length > 0) {
+    if (rData[0].length < 11) rSheet.getRange(1, 11).setValue('EstadoRevision').setFontWeight('bold');
+    if (rData[0].length < 12) rSheet.getRange(1, 12).setValue('ObservacionAdmin').setFontWeight('bold');
+  }
+
+  if (rData.length > 1) {
+    for (let i = 1; i < rData.length; i++) {
+      const respVal = String(rData[i][2] || '').trim();
+      let estRev = String(rData[i][10] || '').trim();
+      if (!estRev) {
+        estRev = respVal ? 'Enviada' : 'Borrador';
+        rSheet.getRange(i + 1, 11).setValue(estRev);
       }
     }
   }
@@ -381,6 +389,10 @@ function getUserByEmail(email) {
   return null;
 }
 
+/**
+ * Obtiene lista de usuarios para el Admin.
+ * SEGURIDAD: NUNCA expone el hash de contraseña al cliente.
+ */
 function getUsuariosAdmin(token) {
   assertAdmin(token);
   const sheet = getSheetSafe(SHEETS.USUARIOS);
@@ -389,18 +401,24 @@ function getUsuariosAdmin(token) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]) {
+      const hasPass = !!(data[i][5] && String(data[i][5]).trim() !== '');
       usuarios.push({
         email: data[i][0],
         name: data[i][1],
         subdireccion: data[i][2],
         role: data[i][3],
-        active: String(data[i][4]).toUpperCase() === 'ACTIVO' || data[i][4] === true
+        active: String(data[i][4]).toUpperCase() === 'ACTIVO' || data[i][4] === true,
+        passwordEstado: hasPass ? 'Definida' : 'Sin definir'
       });
     }
   }
   return usuarios;
 }
 
+/**
+ * Guarda o actualiza un usuario.
+ * Exclusivo Admin: Contraseña obligatoria al crear, opcional al editar.
+ */
 function saveUsuarioAdmin(token, userData) {
   const adminSession = assertAdmin(token);
   if (!userData.email || !userData.name) {
@@ -430,8 +448,9 @@ function saveUsuarioAdmin(token, userData) {
   let finalHash = existingHash;
   if (userData.password && userData.password.trim() !== '') {
     finalHash = hashPassword(userData.password.trim());
-  } else if (!finalHash) {
-    finalHash = hashPassword('admin123'); // default
+  } else if (foundIndex <= 0) {
+    // Al crear un nuevo usuario la contraseña es OBLIGATORIA
+    throw new Error('La contraseña es obligatoria para nuevos usuarios.');
   }
 
   if (foundIndex > 0) {
@@ -443,7 +462,7 @@ function saveUsuarioAdmin(token, userData) {
       estadoStr,
       finalHash
     ]]);
-    logAudit('USUARIO_EDITAR', '', oldVal, userData, adminSession.email);
+    logAudit('USUARIO_EDITAR', '', oldVal, { email: userData.email, role: roleStr, active: estadoStr }, adminSession.email);
   } else {
     sheet.appendRow([
       userData.email.trim(),
@@ -453,7 +472,7 @@ function saveUsuarioAdmin(token, userData) {
       estadoStr,
       finalHash
     ]);
-    logAudit('USUARIO_CREAR', '', null, userData, adminSession.email);
+    logAudit('USUARIO_CREAR', '', null, { email: userData.email, role: roleStr, active: estadoStr }, adminSession.email);
   }
 
   return { success: true, message: 'Usuario guardado exitosamente.' };
@@ -513,12 +532,9 @@ function saveSubdireccionAdmin(token, nombre) {
 }
 
 // ==============================================================================
-// CAMBIO 2: MÓDULO DE GESTIÓN Y CARGA MASIVA DE LOTES / PROYECTOS
+// CAMBIO 1: GESTIÓN DE LOTES — LECTURA DIRECTA DESDE LA HOJA "LOTES"
 // ==============================================================================
 
-/**
- * Obtiene mapa de lotes activos: loteId -> boolean
- */
 function getLotesActivosMap() {
   const sheet = getSheetSafe(SHEETS.LOTES);
   const data = sheet.getDataRange().getValues();
@@ -535,12 +551,16 @@ function getLotesActivosMap() {
 }
 
 /**
- * Obtiene la lista completa de Lotes con sus métricas para el Admin
+ * Obtiene la lista completa de Lotes LEYENDO DIRECTAMENTE DE LA PESTAÑA "LOTES"
  */
 function getLotesListAdmin(token) {
   assertAdmin(token);
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
   const lData = lotesSheet.getDataRange().getValues();
+
+  if (!lData || lData.length <= 1) {
+    return [];
+  }
 
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
@@ -551,7 +571,7 @@ function getLotesListAdmin(token) {
   const loteStats = {};
 
   for (let i = 1; i < pData.length; i++) {
-    const qId = String(pData[i][0]);
+    const qId = String(pData[i][0]).trim();
     if (!qId) continue;
     const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
 
@@ -579,10 +599,10 @@ function getLotesListAdmin(token) {
 
       result.push({
         loteId: loteId,
-        nombreLote: lData[i][1],
-        descripcion: lData[i][2],
-        fechaCreacion: lData[i][3],
-        creadoPor: lData[i][4],
+        nombreLote: lData[i][1] || loteId,
+        descripcion: lData[i][2] || '',
+        fechaCreacion: lData[i][3] ? new Date(lData[i][3]).toISOString() : '',
+        creadoPor: lData[i][4] || '',
         activo: activo,
         totalPreguntas: stats.totalPreguntas,
         respondidas: stats.respondidas,
@@ -594,9 +614,6 @@ function getLotesListAdmin(token) {
   return result;
 }
 
-/**
- * Cambia el estado Activo/Inactivo de un lote
- */
 function toggleLoteEstado(token, loteId, active) {
   const admin = assertAdmin(token);
   const sheet = getSheetSafe(SHEETS.LOTES);
@@ -612,9 +629,6 @@ function toggleLoteEstado(token, loteId, active) {
   throw new Error('Lote no encontrado.');
 }
 
-/**
- * Elimina un lote SOLO si no tiene respuestas registradas
- */
 function eliminarLoteAdmin(token, loteId) {
   const admin = assertAdmin(token);
   if (String(loteId).toUpperCase() === 'LOTE_INICIAL') {
@@ -635,7 +649,6 @@ function eliminarLoteAdmin(token, loteId) {
     }
   }
 
-  // Verificar respuestas
   for (let idx = 0; idx < qIdsLote.length; idx++) {
     const qId = qIdsLote[idx];
     const sub = asignacionesMap[qId] || 'SIN_ASIGNAR';
@@ -645,7 +658,6 @@ function eliminarLoteAdmin(token, loteId) {
     }
   }
 
-  // Borrar preguntas del lote de la hoja Preguntas
   for (let i = pData.length - 1; i >= 1; i--) {
     const qLote = String(pData[i][6] || 'LOTE_INICIAL').trim();
     if (qLote === String(loteId).trim()) {
@@ -653,7 +665,6 @@ function eliminarLoteAdmin(token, loteId) {
     }
   }
 
-  // Borrar lote de la hoja Lotes
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
   const lData = lotesSheet.getDataRange().getValues();
   for (let i = lData.length - 1; i >= 1; i--) {
@@ -667,9 +678,6 @@ function eliminarLoteAdmin(token, loteId) {
   return { success: true, message: 'Lote eliminado exitosamente.' };
 }
 
-/**
- * Carga masiva de preguntas desde tabla editable o archivo
- */
 function cargarMasivaPreguntas(token, payload) {
   const admin = assertAdmin(token);
   const nombreLote = payload.nombreLote ? payload.nombreLote.trim() : '';
@@ -685,9 +693,7 @@ function cargarMasivaPreguntas(token, payload) {
   }
 
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
-  const lData = lotesSheet.getDataRange().getValues();
 
-  // Generar un LoteID único
   let loteId = 'LOTE_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
   if (payload.loteIdExistente) {
     loteId = payload.loteIdExistente.trim();
@@ -699,7 +705,6 @@ function cargarMasivaPreguntas(token, payload) {
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
 
-  // Obtener IDs existentes para evitar colisiones
   const existingIds = new Set();
   for (let i = 1; i < pData.length; i++) {
     existingIds.add(String(pData[i][0]).trim());
@@ -712,7 +717,6 @@ function cargarMasivaPreguntas(token, payload) {
   preguntasNuevas.forEach((q, idx) => {
     let qId = String(q.no || (idx + 1)).trim();
     if (existingIds.has(qId)) {
-      // Si el ID numérico ya existe (p.ej. colisiona con 1-61), anteponer prefijo de Lote
       qId = loteId + '-' + qId;
     }
     existingIds.add(qId);
@@ -763,7 +767,7 @@ function cargarMasivaPreguntas(token, payload) {
 function getAsignacionesMap() {
   const sheet = getSheetSafe(SHEETS.ASIGNACIONES);
   const data = sheet.getDataRange().getValues();
-  const map = {}; // questionId -> subdireccion
+  const map = {};
 
   for (let i = 1; i < data.length; i++) {
     const qId = String(data[i][0]).trim();
@@ -848,12 +852,12 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
 }
 
 // ==============================================================================
-// MÓDULO DE RESPUESTAS (USER & ADMIN "MIS PREGUNTAS")
+// MÓDULO DE RESPUESTAS (USER & ADMIN "MIS PREGUNTAS") CON FLUJO DE ESTADOS
 // ==============================================================================
 
 /**
  * Obtiene las preguntas asignadas para el usuario actual.
- * SOLO MUESTRA PREGUNTAS DE LOTES ACTIVOS.
+ * LAS PREGUNTAS ASIGNADAS NUNCA DESAPARECEN DE LA VISTA DEL USUARIO.
  */
 function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const user = assertAuthenticatedUser(token);
@@ -883,14 +887,12 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
 
     const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
 
-    // FILTRO DE LOTE ACTIVO: Si el lote no está activo, las preguntas NO aparecen en vistas de captura
     if (lotesActivosMap[loteId] === false) {
       continue;
     }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
-    // SERVER-SIDE SECURITY FILTERING
     let esVisible = false;
     if (targetSubdireccion === 'ALL' && user.role === 'ADMIN') {
       esVisible = true;
@@ -907,8 +909,14 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
         evidenciaTextual: '',
         evidenciaDocumental: [],
         observaciones: '',
-        nivelRiesgo: ''
+        nivelRiesgo: '',
+        estadoRevision: 'Borrador',
+        observacionAdmin: ''
       };
+
+      const estRev = respObj.estadoRevision || 'Borrador';
+      // Regla de editabilidad: Solo editable si está en Borrador u Observada
+      const esEditable = (estRev === 'Borrador' || estRev === 'Observada');
 
       preguntasFiltradas.push({
         id: qId,
@@ -919,7 +927,8 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
         subdireccionSugerida: pData[i][5] || '',
         loteId: loteId,
         subdireccionAsignada: subAsignada,
-        respuestaData: respObj
+        respuestaData: respObj,
+        esEditable: esEditable
       });
     }
   }
@@ -956,13 +965,18 @@ function getRespuestasMap() {
         nivelRiesgo: data[i][6] || '',
         usuarioQueRespondio: data[i][7] || '',
         fechaCreacion: data[i][8] || '',
-        fechaUltimaModificacion: data[i][9] || ''
+        fechaUltimaModificacion: data[i][9] || '',
+        estadoRevision: data[i][10] || 'Borrador',
+        observacionAdmin: data[i][11] || ''
       };
     }
   }
   return map;
 }
 
+/**
+ * Guarda o actualiza borrador de respuesta
+ */
 function guardarRespuesta(token, payload) {
   const user = assertAuthenticatedUser(token);
   const qId = String(payload.questionId).trim();
@@ -995,12 +1009,20 @@ function guardarRespuesta(token, payload) {
       foundIndex = i + 1;
       let existingDocs = [];
       try { existingDocs = JSON.parse(data[i][4]); } catch (e) {}
+
+      const currentEstado = data[i][10] || 'Borrador';
+      if (user.role === 'USER' && (currentEstado === 'Enviada' || currentEstado === 'Aceptada')) {
+        throw new Error('No se puede modificar una pregunta que está enviada o aceptada.');
+      }
+
       oldObj = {
         respuesta: data[i][2],
         evidenciaTextual: data[i][3],
         evidenciaDocumental: existingDocs,
         observaciones: data[i][5],
-        nivelRiesgo: data[i][6]
+        nivelRiesgo: data[i][6],
+        estadoRevision: currentEstado,
+        observacionAdmin: data[i][11] || ''
       };
       break;
     }
@@ -1012,8 +1034,11 @@ function guardarRespuesta(token, payload) {
     docsJson = JSON.stringify(oldObj.evidenciaDocumental);
   }
 
+  const estadoFinal = (oldObj && oldObj.estadoRevision) ? oldObj.estadoRevision : 'Borrador';
+  const obsAdmin = (oldObj && oldObj.observacionAdmin) ? oldObj.observacionAdmin : '';
+
   if (foundIndex > 0) {
-    sheet.getRange(foundIndex, 3, 1, 8).setValues([[
+    sheet.getRange(foundIndex, 3, 1, 10).setValues([[
       respuesta,
       evidenciaTextual,
       docsJson,
@@ -1021,7 +1046,9 @@ function guardarRespuesta(token, payload) {
       nivelRiesgo,
       user.email,
       data[foundIndex - 1][8] || now,
-      now
+      now,
+      estadoFinal,
+      obsAdmin
     ]]);
     logAudit('RESPUESTA_GUARDAR', qId, oldObj, { respuesta, evidenciaTextual, observaciones, nivelRiesgo }, user.email);
   } else {
@@ -1035,7 +1062,9 @@ function guardarRespuesta(token, payload) {
       nivelRiesgo,
       user.email,
       now,
-      now
+      now,
+      'Borrador',
+      ''
     ]);
     logAudit('RESPUESTA_CREAR', qId, null, { respuesta, evidenciaTextual, observaciones, nivelRiesgo }, user.email);
   }
@@ -1045,6 +1074,233 @@ function guardarRespuesta(token, payload) {
     nivelRiesgo: nivelRiesgo,
     message: 'Guardado ✓'
   };
+}
+
+// ==============================================================================
+// CAMBIO 3: ENVÍO Y REENVÍO DE RESPUESTAS
+// ==============================================================================
+
+/**
+ * Valida y envía GLOBALMENTE todas las preguntas asignadas a la Subdirección del Usuario
+ */
+function enviarRespuestasUsuario(token) {
+  const user = assertAuthenticatedUser(token);
+  if (user.role !== 'USER') {
+    throw new Error('Solo los usuarios de Subdirección pueden enviar respuestas.');
+  }
+
+  const preguntasAsignadas = getPreguntasParaUsuario(token, false);
+  if (!preguntasAsignadas || preguntasAsignadas.length === 0) {
+    throw new Error('No tiene preguntas asignadas para enviar.');
+  }
+
+  // Validaciones obligatorias: Cada pregunta debe tener Respuesta y al menos una evidencia (Textual O Documental)
+  const incompletas = [];
+  preguntasAsignadas.forEach(q => {
+    const rData = q.respuestaData || {};
+    const tieneResp = !!(rData.respuesta && rData.respuesta.trim() !== '');
+    const tieneText = !!(rData.evidenciaTextual && rData.evidenciaTextual.trim() !== '');
+    const tieneDocs = Array.isArray(rData.evidenciaDocumental) && rData.evidenciaDocumental.length > 0;
+
+    if (!tieneResp || (!tieneText && !tieneDocs)) {
+      incompletas.push({
+        id: q.id,
+        pregunta: q.pregunta,
+        motivo: !tieneResp ? 'Falta respuesta' : 'Falta evidencia textual o documental'
+      });
+    }
+  });
+
+  if (incompletas.length > 0) {
+    return {
+      success: false,
+      incompletas: incompletas,
+      message: 'Existen preguntas incompletas que impiden el envío.'
+    };
+  }
+
+  // Actualizar estado a "Enviada" en la hoja RESPUESTAS
+  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const data = sheet.getDataRange().getValues();
+  const indexMap = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const qId = String(data[i][0]).trim();
+    const sub = String(data[i][1]).trim().toLowerCase();
+    if (qId && sub) {
+      indexMap[qId + '_' + sub] = i + 1;
+    }
+  }
+
+  const now = new Date();
+  const userSub = (user.subdireccion || '').trim().toLowerCase();
+
+  preguntasAsignadas.forEach(q => {
+    const key = q.id + '_' + userSub;
+    const rowIndex = indexMap[key];
+    if (rowIndex) {
+      sheet.getRange(rowIndex, 11).setValue('Enviada');
+      sheet.getRange(rowIndex, 10).setValue(now);
+      logAudit('RESPUESTA_ENVIAR', q.id, 'Borrador/Observada', 'Enviada', user.email);
+    }
+  });
+
+  return {
+    success: true,
+    message: 'Todas las respuestas fueron enviadas correctamente para revisión del Administrador.'
+  };
+}
+
+/**
+ * Reenvía individualmente una pregunta que fue Observada por el Administrador
+ */
+function reenviarRespuestaObservada(token, questionId) {
+  const user = assertAuthenticatedUser(token);
+  const qId = String(questionId).trim();
+  if (!qId) throw new Error('ID de pregunta inválido.');
+
+  const userSub = (user.subdireccion || '').trim().toLowerCase();
+  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === userSub) {
+      const respVal = String(data[i][2] || '').trim();
+      const tieneText = String(data[i][3] || '').trim().length > 0;
+      let docs = [];
+      try { docs = JSON.parse(data[i][4]); } catch (e) {}
+      const tieneDocs = Array.isArray(docs) && docs.length > 0;
+
+      if (!respVal || (!tieneText && !tieneDocs)) {
+        throw new Error('La pregunta requiere una respuesta y al menos una evidencia antes de reenviar.');
+      }
+
+      sheet.getRange(i + 1, 11).setValue('Enviada');
+      sheet.getRange(i + 1, 10).setValue(new Date());
+      logAudit('RESPUESTA_REENVIAR_OBSERVADA', qId, 'Observada', 'Enviada', user.email);
+
+      return {
+        success: true,
+        message: 'Pregunta reenviada exitosamente.'
+      };
+    }
+  }
+  throw new Error('No se encontró la respuesta especificada.');
+}
+
+// ==============================================================================
+// CAMBIO 2: NUEVO MÓDULO DE SEGUIMIENTO Y REVISIÓN (EXCLUSIVO ADMIN)
+// ==============================================================================
+
+/**
+ * Obtiene lista de respuestas para revisión del Admin
+ */
+function getRespuestasSeguimientoAdmin(token, filtros) {
+  assertAdmin(token);
+
+  const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
+  const pData = preguntasSheet.getDataRange().getValues();
+  const asignacionesMap = getAsignacionesMap();
+  const respuestasMap = getRespuestasMap();
+
+  const fLote = filtros ? filtros.loteId : 'TODOS';
+  const fSub = filtros ? filtros.subdireccion : 'TODAS';
+  const fComp = filtros ? filtros.componente : 'TODOS';
+  const fEstado = filtros ? filtros.estadoRevision : 'TODOS';
+
+  const list = [];
+
+  for (let i = 1; i < pData.length; i++) {
+    const qId = String(pData[i][0]).trim();
+    if (!qId) continue;
+
+    const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
+    if (fLote && fLote !== 'TODOS' && loteId !== fLote) continue;
+
+    const comp = pData[i][1];
+    if (fComp && fComp !== 'TODOS' && comp !== fComp) continue;
+
+    const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    if (fSub && fSub !== 'TODAS') {
+      if (fSub === 'SIN_ASIGNAR' && (subAsignada !== 'SIN_ASIGNAR' && subAsignada !== '')) continue;
+      if (fSub !== 'SIN_ASIGNAR' && subAsignada.toLowerCase().trim() !== fSub.toLowerCase().trim()) continue;
+    }
+
+    const respKey = qId + '_' + subAsignada;
+    const respObj = respuestasMap[respKey] || {
+      respuesta: '',
+      evidenciaTextual: '',
+      evidenciaDocumental: [],
+      observaciones: '',
+      nivelRiesgo: '',
+      estadoRevision: 'Borrador',
+      observacionAdmin: ''
+    };
+
+    const estRev = respObj.estadoRevision || 'Borrador';
+    if (fEstado && fEstado !== 'TODOS' && estRev !== fEstado) continue;
+
+    list.push({
+      id: qId,
+      componente: comp,
+      principio: pData[i][2],
+      pregunta: pData[i][3],
+      fundamentoLegal: pData[i][4],
+      subdireccionSugerida: pData[i][5] || '',
+      loteId: loteId,
+      subdireccionAsignada: subAsignada,
+      respuesta: respObj.respuesta,
+      evidenciaTextual: respObj.evidenciaTextual,
+      evidenciaDocumental: respObj.evidenciaDocumental,
+      observaciones: respObj.observaciones,
+      nivelRiesgo: respObj.nivelRiesgo,
+      usuarioQueRespondio: respObj.usuarioQueRespondio,
+      fechaUltimaModificacion: respObj.fechaUltimaModificacion,
+      estadoRevision: estRev,
+      observacionAdmin: respObj.observacionAdmin
+    });
+  }
+
+  return list;
+}
+
+/**
+ * Permite al Administrador ACEPTAR u OBSERVAR una respuesta enviada
+ */
+function revisarRespuestaAdmin(token, payload) {
+  const admin = assertAdmin(token);
+  const qId = String(payload.questionId).trim();
+  const subAsignada = String(payload.subdireccion).trim();
+  const nuevoEstado = payload.accion; // 'Aceptada' u 'Observada'
+  const obsAdminText = payload.observacionAdmin ? payload.observacionAdmin.trim() : '';
+
+  if (!qId || !subAsignada) throw new Error('Parámetros de pregunta inválidos.');
+  if (nuevoEstado !== 'Aceptada' && nuevoEstado !== 'Observada') {
+    throw new Error('Acción de revisión no válida.');
+  }
+
+  if (nuevoEstado === 'Observada' && !obsAdminText) {
+    throw new Error('La observación del administrador es obligatoria al marcar como Observada.');
+  }
+
+  const sheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+      sheet.getRange(i + 1, 11).setValue(nuevoEstado);
+      sheet.getRange(i + 1, 12).setValue(obsAdminText);
+      sheet.getRange(i + 1, 10).setValue(new Date());
+
+      logAudit('RESPUESTA_REVISAR_' + nuevoEstado.toUpperCase(), qId, data[i][10], { estado: nuevoEstado, obs: obsAdminText }, admin.email);
+
+      return {
+        success: true,
+        message: `La respuesta fue marcada como "${nuevoEstado}" correctamente.`
+      };
+    }
+  }
+  throw new Error('No se encontró el registro de respuesta.');
 }
 
 // ==============================================================================
@@ -1136,7 +1392,9 @@ function uploadEvidenceFile(token, payload) {
       '',
       user.email,
       now,
-      now
+      now,
+      'Borrador',
+      ''
     ]);
   }
 
@@ -1232,6 +1490,10 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
   let unassignedTotal = 0;
   let unassignedRespondidas = 0;
 
+  let countPendientesRevision = 0;
+  let countObservadas = 0;
+  let countAceptadas = 0;
+
   const subMap = {};
   const componenteMap = {};
 
@@ -1241,7 +1503,6 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
 
     const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
 
-    // Filtro por lote si se especifica
     if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
       continue;
     }
@@ -1278,6 +1539,11 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
         componenteMap[componente].distribucion[resp.respuesta]++;
       }
 
+      const estRev = resp.estadoRevision || 'Borrador';
+      if (estRev === 'Enviada') countPendientesRevision++;
+      else if (estRev === 'Observada') countObservadas++;
+      else if (estRev === 'Aceptada') countAceptadas++;
+
       if (subAsignada === 'SIN_ASIGNAR' || subAsignada === '') {
         unassignedRespondidas++;
       } else {
@@ -1304,7 +1570,10 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
       avanceGlobalPct: avanceGlobalPct,
       unassignedTotal: unassignedTotal,
       unassignedRespondidas: unassignedRespondidas,
-      unassignedPendientes: unassignedPendientes
+      unassignedPendientes: unassignedPendientes,
+      countPendientesRevision: countPendientesRevision,
+      countObservadas: countObservadas,
+      countAceptadas: countAceptadas
     },
     subdireccionesProgreso: subMap,
     componentesProgreso: componenteMap
@@ -1360,7 +1629,9 @@ function getDetallePreguntasAdmin(token, filtroSubdireccion, filtroComponente, f
       observaciones: respObj ? respObj.observaciones : '',
       nivelRiesgo: respObj ? respObj.nivelRiesgo : '',
       usuarioQueRespondio: respObj ? respObj.usuarioQueRespondio : '',
-      fechaUltimaModificacion: respObj ? respObj.fechaUltimaModificacion : ''
+      fechaUltimaModificacion: respObj ? respObj.fechaUltimaModificacion : '',
+      estadoRevision: respObj ? respObj.estadoRevision : 'Borrador',
+      observacionAdmin: respObj ? respObj.observacionAdmin : ''
     });
   }
 
@@ -1388,9 +1659,11 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
     'Subdirección Asignada',
     'Respuesta (Sí/Parcial/No/No Aplica)',
     'Nivel Riesgo Residual',
+    'Estado Revisión Admin',
+    'Observación Admin',
     'Evidencia Textual',
     'Archivos de Evidencia Documental (URLs)',
-    'Observaciones',
+    'Observaciones Usuario',
     'Usuario Responsable',
     'Última Modificación'
   ];
@@ -1426,6 +1699,8 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
       subAsignada,
       resp.respuesta || 'SIN RESPONDER',
       resp.nivelRiesgo || '',
+      resp.estadoRevision || 'Borrador',
+      resp.observacionAdmin || '',
       resp.evidenciaTextual || '',
       driveUrls,
       resp.observaciones || '',
@@ -1456,13 +1731,11 @@ function seedDatabase() {
   const ss = getSpreadsheet();
   initDatabaseStructure(ss);
 
-  // 1. Lotes iniciales
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
   lotesSheet.clear();
   initSheetHeader(lotesSheet, SHEETS.LOTES);
   lotesSheet.appendRow(['LOTE_INICIAL', 'Lote Inicial', 'Evaluación COSO 61 preguntas inicial', new Date(), 'SISTEMA', true]);
 
-  // 2. Sembrar Preguntas (61 preguntas COSO)
   const pSheet = getSheetSafe(SHEETS.PREGUNTAS);
   pSheet.clear();
   initSheetHeader(pSheet, SHEETS.PREGUNTAS);
@@ -1479,7 +1752,6 @@ function seedDatabase() {
   ]);
   pSheet.getRange(2, 1, pRows.length, 7).setValues(pRows);
 
-  // 3. Sembrar Subdirecciones Únicas
   const subSet = new Set();
   rawQuestions.forEach(q => {
     if (q.subdireccionSugerida && q.subdireccionSugerida.trim()) {
@@ -1496,7 +1768,6 @@ function seedDatabase() {
     subSheet.getRange(2, 1, subRows.length, 2).setValues(subRows);
   }
 
-  // 4. Pre-poblar Asignaciones basadas en la sugerencia por defecto
   const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
   asigSheet.clear();
   initSheetHeader(asigSheet, SHEETS.ASIGNACIONES);
@@ -1511,7 +1782,6 @@ function seedDatabase() {
   ]);
   asigSheet.getRange(2, 1, asigRows.length, 4).setValues(asigRows);
 
-  // 5. Asegurar usuario Admin por defecto
   const userSheet = getSheetSafe(SHEETS.USUARIOS);
   userSheet.clear();
   initSheetHeader(userSheet, SHEETS.USUARIOS);
@@ -1522,7 +1792,6 @@ function seedDatabase() {
 
 function get61CosoQuestionsData() {
   return [
-    // Componente 1: Ambiente de Control (Preguntas 1 a 12)
     { id: 1, componente: '1. Ambiente de Control', principio: 'Principio 1: Demuestra compromiso con la integridad y valores éticos', pregunta: '¿Se cuenta con un Código de Ética y/o Conducta actualizado y difundido a todo el personal?', fundamento: 'Reglamento Interior del H. Ayuntamiento de Mérida, Lineamientos de Ética', subdireccionSugerida: 'Subdirección de Administración y Proveeduría' },
     { id: 2, componente: '1. Ambiente de Control', principio: 'Principio 1: Demuestra compromiso con la integridad y valores éticos', pregunta: '¿Existen mecanismos institucionales para denunciar violaciones al Código de Ética o actos de corrupción?', fundamento: 'Lineamientos de Control Interno Municipal', subdireccionSugerida: 'Subdirección de Administración y Proveeduría // Comité de Ética' },
     { id: 3, componente: '1. Ambiente de Control', principio: 'Principio 1: Demuestra compromiso con la integridad y valores éticos', pregunta: '¿Se llevan a cabo capacitaciones periódicas en materia de ética, integridad y prevención de conflictos de interés?', fundamento: 'Programa Anual de Capacitación Municipal', subdireccionSugerida: 'Subdirección de Administración y Proveeduría' },
@@ -1536,7 +1805,6 @@ function get61CosoQuestionsData() {
     { id: 11, componente: '1. Ambiente de Control', principio: 'Principio 5: Enfoca la rendición de cuentas', pregunta: '¿Se comunican formalmente al personal las consecuencias del incumplimiento de políticas e instrucciones de trabajo?', fundamento: 'Condiciones Generales de Trabajo', subdireccionSugerida: 'Subdirección de Administración y Proveeduría' },
     { id: 12, componente: '1. Ambiente de Control', principio: 'Principio 5: Enfoca la rendición de cuentas', pregunta: '¿Se realiza seguimiento puntual a los hallazgos y recomendaciones de auditorías internas y externas?', fundamento: 'Lineamientos de Seguimiento de Auditoría Municipal', subdireccionSugerida: 'Subdirección de Planeación y Evaluación' },
 
-    // Componente 2: Evaluación de Riesgos (Preguntas 13 a 25)
     { id: 13, componente: '2. Evaluación de Riesgos', principio: 'Principio 6: Especifica objetivos idóneos y claros', pregunta: '¿La unidad administrativa cuenta con un Plan Operativo Anual (POA) alineado al Plan Municipal de Desarrollo?', fundamento: 'Ley de Planeación del Estado de Yucatán', subdireccionSugerida: 'Subdirección de Planeación y Evaluación' },
     { id: 14, componente: '2. Evaluación de Riesgos', principio: 'Principio 6: Especifica objetivos idóneos y claros', pregunta: '¿Los objetivos operativos y metas cuentan con indicadores clave de desempeño (KPI) medibles y verificables?', fundamento: 'Lineamientos del Presupuesto basado en Resultados (PbR)', subdireccionSugerida: '' },
     { id: 15, componente: '2. Evaluación de Riesgos', principio: 'Principio 6: Especifica objetivos idóneos y claros', pregunta: '¿Se revisan y actualizan periódicamente los objetivos institucionales ante cambios normativos o de entorno?', fundamento: 'Manual de Planeación Municipal', subdireccionSugerida: '' },
@@ -1551,7 +1819,6 @@ function get61CosoQuestionsData() {
     { id: 24, componente: '2. Evaluación de Riesgos', principio: 'Principio 9: Identifica y analiza cambios significativos', pregunta: '¿Se evalúan los riesgos de seguridad y continuidad operativa al implementar nuevas tecnologías o sistemas digitales?', fundamento: 'Políticas de Tecnologías de Información y Comunicaciones', subdireccionSugerida: '' },
     { id: 25, componente: '2. Evaluación de Riesgos', principio: 'Principio 9: Identifica y analiza cambios significativos', pregunta: '¿Existen planes de contingencia para asegurar la operación operativa crítica ante emergencias o desastres?', fundamento: 'Programa Municipal de Protección Civil', subdireccionSugerida: '' },
 
-    // Componente 3: Actividades de Control (Preguntas 26 a 40)
     { id: 26, componente: '3. Actividades de Control', principio: 'Principio 10: Selecciona e implementa actividades de control', pregunta: '¿Se cuenta con Manuales de Procedimientos formalizados y vigentes para todos los trámites y servicios operados?', fundamento: 'Lineamientos para la Elaboración de Manuales de Procedimientos', subdireccionSugerida: 'Subdirección de Operaciones y Servicios' },
     { id: 27, componente: '3. Actividades de Control', principio: 'Principio 10: Selecciona e implementa actividades de control', pregunta: '¿Están segregadas adecuadamente las funciones incompatibles (autorización, registro, custodia y revisión)?', fundamento: 'Normas Generales de Control Interno', subdireccionSugerida: 'Subdirección de Administración y Proveeduría' },
     { id: 28, componente: '3. Actividades de Control', principio: 'Principio 10: Selecciona e implementa actividades de control', pregunta: '¿Las autorizaciones de trámites, pagos o documentos oficiales son realizadas exclusivamente por servidores públicos facultados?', fundamento: 'Reglamento Interior y Catálogo de Firmas Autorizadas', subdireccionSugerida: 'Subdirección de Jurídico' },
@@ -1568,7 +1835,6 @@ function get61CosoQuestionsData() {
     { id: 39, componente: '3. Actividades de Control', principio: 'Principio 12: Despliega actividades de control a través de políticas y procedimientos', pregunta: '¿Se cuenta con expedientes administrativos debidamente integrados y foliados para cada asunto o procedimiento?', fundamento: 'Lineamientos de Gestión Documental y Archivo Municipal', subdireccionSugerida: 'Subdirección de Jurídico' },
     { id: 40, componente: '3. Actividades de Control', principio: 'Principio 12: Despliega actividades de control a través de políticas y procedimientos', pregunta: '¿Se exige la comprobación documental de todos los viáticos, fondos fijos o gastos a comprobar otorgados al personal?', fundamento: 'Reglamento para el Control del Presupuesto y Gasto Público Municipal', subdireccionSugerida: 'Subdirección de Finanzas y Presupuesto' },
 
-    // Componente 4: Información y Comunicación (Preguntas 41 a 50)
     { id: 41, componente: '4. Información y Comunicación', principio: 'Principio 13: Utiliza información relevante y de calidad', pregunta: '¿La información utilizada para la toma de decisiones operativas es veraz, oportuna, suficiente y actualizada?', fundamento: 'Normas Generales de Control Interno', subdireccionSugerida: 'Subdirección de Planeación y Evaluación' },
     { id: 42, componente: '4. Información y Comunicación', principio: 'Principio 13: Utiliza información relevante y de calidad', pregunta: '¿Se tienen definidos controles para verificar la precisión y exactitud de las cifras presentadas en informes oficiales?', fundamento: 'Ley de Contabilidad Gubernamental y Disciplina Financiera', subdireccionSugerida: 'Subdirección de Finanzas y Presupuesto' },
     { id: 43, componente: '4. Información y Comunicación', principio: 'Principio 13: Utiliza información relevante y de calidad', pregunta: '¿Se aplican medidas para resguardar la confidencialidad, integridad y disponibilidad de la información sensible?', fundamento: 'Ley de Protección de Datos Personales en Posesión de Sujetos Obligados', subdireccionSugerida: 'Subdirección de Tecnologías de la Información' },
@@ -1580,7 +1846,6 @@ function get61CosoQuestionsData() {
     { id: 49, componente: '4. Información y Comunicación', principio: 'Principio 15: Comunica externamente', pregunta: '¿Se registran y atienden oportunamente las quejas, denuncias y sugerencias presentadas por la ciudadanía?', fundamento: 'Lineamientos de Atención Ciudadana del Ayuntamiento de Mérida', subdireccionSugerida: 'Subdirección de Atención Ciudadana' },
     { id: 50, componente: '4. Información y Comunicación', principio: 'Principio 15: Comunica externamente', pregunta: '¿Se establecen mecanismos formales de comunicación y coordinación con entes fiscalizadores externos?', fundamento: 'Ley de Fiscalización Cuenta Pública del Estado de Yucatán', subdireccionSugerida: 'Subdirección de Jurídico' },
 
-    // Componente 5: Supervisión y Mejora Continua (Preguntas 51 a 61)
     { id: 51, componente: '5. Supervisión y Mejora Continua', principio: 'Principio 16: Conduce evaluaciones continuas y/o independientes', pregunta: '¿Se ejecutan autoevaluaciones continuas sobre la efectividad de las operaciones y controles aplicados en la unidad?', fundamento: 'Modelo General de Autoevaluación del Control Interno', subdireccionSugerida: 'Subdirección de Planeación y Evaluación' },
     { id: 52, componente: '5. Supervisión y Mejora Continua', principio: 'Principio 16: Conduce evaluaciones continuas y/o independientes', pregunta: '¿Se atiende de manera oportuna la autoevaluación anual del Programa Control Machete conforme a los calendarios fijados?', fundamento: 'Lineamientos del Sistema de Control Machete Municipal', subdireccionSugerida: 'Subdirección de Planeación y Evaluación' },
     { id: 53, componente: '5. Supervisión y Mejora Continua', principio: 'Principio 16: Conduce evaluaciones continuas y/o independientes', pregunta: '¿Se facilita el acceso a la documentación y personal durante las auditorías realizadas por la Contraloría Municipal?', fundamento: 'Reglamento de la Contraloría Municipal de Mérida', subdireccionSugerida: 'Subdirección de Jurídico' },
