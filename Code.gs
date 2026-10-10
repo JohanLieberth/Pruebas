@@ -33,6 +33,13 @@ const RIESGO_MAP = {
 };
 
 /**
+ * Helper para normalización robusta de cadenas antes de filtrar/comparar
+ */
+function cleanStr(val) {
+  return String(val || '').toLowerCase().trim();
+}
+
+/**
  * Servicio Web App - Punto de entrada doGet
  */
 function doGet(e) {
@@ -82,7 +89,7 @@ function loginUsuario(email, password) {
 
   migrateDatabaseStructure();
 
-  const cleanEmail = String(email).toLowerCase().trim();
+  const cleanEmail = cleanStr(email);
   const user = getUserByEmail(cleanEmail);
 
   if (!user) {
@@ -267,7 +274,7 @@ function migrateDatabaseStructure() {
 
   if (uData.length > 1) {
     for (let i = 1; i < uData.length; i++) {
-      let passVal = String(uData[i][5] || '').trim();
+      let passVal = cleanStr(uData[i][5]);
       if (!passVal) {
         passVal = hashPassword('admin123');
         uSheet.getRange(i + 1, 6).setValue(passVal);
@@ -284,7 +291,7 @@ function migrateDatabaseStructure() {
   let loteInicialExiste = false;
 
   for (let i = 1; i < lotesData.length; i++) {
-    if (String(lotesData[i][0]).toUpperCase() === 'LOTE_INICIAL' || String(lotesData[i][1]).toLowerCase() === 'lote inicial') {
+    if (cleanStr(lotesData[i][0]) === 'lote_inicial' || cleanStr(lotesData[i][1]) === 'lote inicial') {
       loteInicialExiste = true;
       break;
     }
@@ -303,7 +310,7 @@ function migrateDatabaseStructure() {
 
   if (pData.length > 1) {
     for (let i = 1; i < pData.length; i++) {
-      const currentLote = String(pData[i][6] || '').trim();
+      const currentLote = cleanStr(pData[i][6]);
       if (!currentLote) {
         pSheet.getRange(i + 1, 7).setValue('LOTE_INICIAL');
       }
@@ -320,8 +327,8 @@ function migrateDatabaseStructure() {
 
   if (rData.length > 1) {
     for (let i = 1; i < rData.length; i++) {
-      const respVal = String(rData[i][2] || '').trim();
-      let estRev = String(rData[i][10] || '').trim();
+      const respVal = cleanStr(rData[i][2]);
+      let estRev = cleanStr(rData[i][10]);
       if (!estRev) {
         estRev = respVal ? 'Enviada' : 'Borrador';
         rSheet.getRange(i + 1, 11).setValue(estRev);
@@ -357,12 +364,13 @@ function logAudit(entity, questionId, oldValue, newValue, userEmail) {
 
 function getUserByEmail(email) {
   if (!email) return null;
+  const target = cleanStr(email);
   const sheet = getSheetSafe(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
-    const rowEmail = String(data[i][0]).toLowerCase().trim();
-    if (rowEmail === email.toLowerCase().trim()) {
+    const rowEmail = cleanStr(data[i][0]);
+    if (rowEmail === target) {
       return {
         email: data[i][0],
         name: data[i][1],
@@ -385,7 +393,7 @@ function getUsuariosAdmin(token) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]) {
-      const hasPass = !!(data[i][5] && String(data[i][5]).trim() !== '');
+      const hasPass = !!(data[i][5] && cleanStr(data[i][5]) !== '');
       usuarios.push({
         email: data[i][0],
         name: data[i][1],
@@ -407,13 +415,13 @@ function saveUsuarioAdmin(token, userData) {
 
   const sheet = getSheetSafe(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
-  const targetEmail = userData.email.toLowerCase().trim();
+  const targetEmail = cleanStr(userData.email);
   let foundIndex = -1;
   let oldVal = null;
   let existingHash = '';
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).toLowerCase().trim() === targetEmail) {
+    if (cleanStr(data[i][0]) === targetEmail) {
       foundIndex = i + 1;
       existingHash = data[i][5] || '';
       oldVal = { email: data[i][0], name: data[i][1], subdireccion: data[i][2], role: data[i][3], active: data[i][4] };
@@ -459,10 +467,11 @@ function saveUsuarioAdmin(token, userData) {
 
 function toggleUsuarioEstado(token, email, active) {
   const adminSession = assertAdmin(token);
+  const targetEmail = cleanStr(email);
   const sheet = getSheetSafe(SHEETS.USUARIOS);
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).toLowerCase().trim() === email.toLowerCase().trim()) {
+    if (cleanStr(data[i][0]) === targetEmail) {
       const nuevoEstado = active ? 'ACTIVO' : 'INACTIVO';
       sheet.getRange(i + 1, 5).setValue(nuevoEstado);
       logAudit('USUARIO_TOGGLE_ESTADO', '', email, nuevoEstado, adminSession.email);
@@ -498,9 +507,10 @@ function saveSubdireccionAdmin(token, nombre) {
   const sheet = getSheetSafe(SHEETS.SUBDIRECCIONES);
   const data = sheet.getDataRange().getValues();
   const cleanName = nombre.trim();
+  const cleanTarget = cleanStr(cleanName);
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).toLowerCase().trim() === cleanName.toLowerCase()) {
+    if (cleanStr(data[i][0]) === cleanTarget) {
       sheet.getRange(i + 1, 2).setValue('ACTIVA');
       return { success: true, message: 'Subdirección reactivada.' };
     }
@@ -591,11 +601,12 @@ function getLotesListAdmin(token) {
 
 function toggleLoteEstado(token, loteId, active) {
   const admin = assertAdmin(token);
+  const targetLote = cleanStr(loteId);
   const sheet = getSheetSafe(SHEETS.LOTES);
   const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === String(loteId).trim()) {
+    if (cleanStr(data[i][0]) === targetLote) {
       sheet.getRange(i + 1, 6).setValue(active);
       logAudit('LOTE_TOGGLE_ESTADO', loteId, data[i][5], active, admin.email);
       return { success: true, message: 'Estado del lote actualizado.' };
@@ -606,7 +617,8 @@ function toggleLoteEstado(token, loteId, active) {
 
 function eliminarLoteAdmin(token, loteId) {
   const admin = assertAdmin(token);
-  if (String(loteId).toUpperCase() === 'LOTE_INICIAL') {
+  const targetLote = cleanStr(loteId);
+  if (targetLote === 'lote_inicial') {
     throw new Error('El Lote Inicial no puede ser eliminado.');
   }
 
@@ -618,8 +630,8 @@ function eliminarLoteAdmin(token, loteId) {
   const qIdsLote = [];
   for (let i = 1; i < pData.length; i++) {
     const qId = String(pData[i][0]);
-    const qLote = String(pData[i][6] || 'LOTE_INICIAL').trim();
-    if (qLote === String(loteId).trim()) {
+    const qLote = cleanStr(pData[i][6] || 'LOTE_INICIAL');
+    if (qLote === targetLote) {
       qIdsLote.push(qId);
     }
   }
@@ -634,8 +646,8 @@ function eliminarLoteAdmin(token, loteId) {
   }
 
   for (let i = pData.length - 1; i >= 1; i--) {
-    const qLote = String(pData[i][6] || 'LOTE_INICIAL').trim();
-    if (qLote === String(loteId).trim()) {
+    const qLote = cleanStr(pData[i][6] || 'LOTE_INICIAL');
+    if (qLote === targetLote) {
       preguntasSheet.deleteRow(i + 1);
     }
   }
@@ -643,7 +655,7 @@ function eliminarLoteAdmin(token, loteId) {
   const lotesSheet = getSheetSafe(SHEETS.LOTES);
   const lData = lotesSheet.getDataRange().getValues();
   for (let i = lData.length - 1; i >= 1; i--) {
-    if (String(lData[i][0]).trim() === String(loteId).trim()) {
+    if (cleanStr(lData[i][0]) === targetLote) {
       lotesSheet.deleteRow(i + 1);
       break;
     }
@@ -760,13 +772,15 @@ function getPreguntasConAsignacionAdmin(token, filtroLote) {
   const data = preguntasSheet.getDataRange().getValues();
   const asignaciones = getAsignacionesMap();
 
+  const targetLote = cleanStr(filtroLote);
+
   const result = [];
   for (let i = 1; i < data.length; i++) {
     const qId = String(data[i][0]).trim();
     if (qId) {
       const loteId = String(data[i][6] || 'LOTE_INICIAL').trim();
 
-      if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+      if (targetLote && targetLote !== 'todos' && cleanStr(loteId) !== targetLote) {
         continue;
       }
 
@@ -830,17 +844,11 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
 // CAMBIO 1: INTERFAZ DEL USUARIO — FUENTE DE VERDAD: ASIGNACIONES (NUNCA OMITIR FILAS)
 // ==============================================================================
 
-/**
- * Obtiene las preguntas asignadas para el usuario autenticado.
- * FUENTE DE VERDAD: Se leen EXCLUSIVAMENTE todas las preguntas asociadas en 'Asignaciones'.
- * NUNCA se omite ninguna pregunta asignada por tener o no respuesta.
- */
 function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const user = assertAuthenticatedUser(token);
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
 
-  // Indexar datos de Preguntas por QuestionID
   const preguntasMap = {};
   for (let i = 1; i < pData.length; i++) {
     const qId = String(pData[i][0]).trim();
@@ -863,19 +871,17 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
 
   let targetSubdireccion = '';
   if (user.role === 'ADMIN' && modoAdminMisPreguntas) {
-    targetSubdireccion = 'SIN_ASIGNAR';
+    targetSubdireccion = 'sin_asignar';
   } else if (user.role === 'USER') {
-    targetSubdireccion = user.subdireccion || '';
+    targetSubdireccion = cleanStr(user.subdireccion);
     if (!targetSubdireccion) {
       return [];
     }
   } else if (user.role === 'ADMIN' && !modoAdminMisPreguntas) {
-    targetSubdireccion = 'ALL';
+    targetSubdireccion = 'all';
   }
 
   const result = [];
-
-  // Iterar sobre las claves de Asignaciones (o sobre todas las preguntas si es ADMIN vista ALL)
   const qIdsList = Object.keys(preguntasMap);
 
   for (let i = 0; i < qIdsList.length; i++) {
@@ -883,21 +889,20 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     const qInfo = preguntasMap[qId];
     if (!qInfo) continue;
 
-    // Verificar si el lote está activo
     if (lotesActivosMap[qInfo.loteId] === false) {
       continue;
     }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
+    const subClean = cleanStr(subAsignada);
 
-    // SERVER-SIDE SECURITY FILTERING
     let esVisible = false;
-    if (targetSubdireccion === 'ALL' && user.role === 'ADMIN') {
+    if (targetSubdireccion === 'all' && user.role === 'ADMIN') {
       esVisible = true;
-    } else if (targetSubdireccion === 'SIN_ASIGNAR' && user.role === 'ADMIN') {
-      esVisible = (subAsignada === 'SIN_ASIGNAR' || subAsignada === '');
+    } else if (targetSubdireccion === 'sin_asignar' && user.role === 'ADMIN') {
+      esVisible = (subClean === 'sin_asignar' || subClean === '');
     } else if (user.role === 'USER') {
-      esVisible = (subAsignada.toLowerCase().trim() === targetSubdireccion.toLowerCase().trim());
+      esVisible = (subClean === targetSubdireccion);
     }
 
     if (esVisible) {
@@ -913,7 +918,6 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
       };
 
       const estRev = respObj.estadoRevision || 'Borrador';
-      // Regla de editabilidad
       const esEditable = (estRev === 'Borrador' || estRev === 'Observada');
 
       result.push({
@@ -972,9 +976,6 @@ function getRespuestasMap() {
   return map;
 }
 
-/**
- * ENVÍO INDIVIDUAL ATÓMICO POR PREGUNTA.
- */
 function enviarRespuestaIndividual(token, payload) {
   const user = assertAuthenticatedUser(token);
   const qId = String(payload.questionId).trim();
@@ -984,8 +985,8 @@ function enviarRespuestaIndividual(token, payload) {
   const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
   if (user.role === 'USER') {
-    const userSub = (user.subdireccion || '').toLowerCase().trim();
-    if (subAsignada.toLowerCase().trim() !== userSub) {
+    const userSub = cleanStr(user.subdireccion);
+    if (cleanStr(subAsignada) !== userSub) {
       throw new Error('ACCESO DENEGADO (403): La pregunta No. ' + qId + ' no está asignada a su Subdirección.');
     }
   }
@@ -1005,7 +1006,7 @@ function enviarRespuestaIndividual(token, payload) {
   let existingDocs = [];
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && cleanStr(data[i][1]) === cleanStr(subAsignada)) {
       foundIndex = i + 1;
       const currentEstado = data[i][10] || 'Borrador';
       if (user.role === 'USER' && (currentEstado === 'Enviada' || currentEstado === 'Aceptada')) {
@@ -1119,8 +1120,8 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
   const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
   if (user.role === 'USER') {
-    const userSub = (user.subdireccion || '').toLowerCase().trim();
-    if (subAsignada.toLowerCase().trim() !== userSub) {
+    const userSub = cleanStr(user.subdireccion);
+    if (cleanStr(subAsignada) !== userSub) {
       throw new Error('ACCESO DENEGADO (403): No puede eliminar archivos de esta pregunta.');
     }
   }
@@ -1137,7 +1138,7 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
   let updatedList = [];
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && cleanStr(data[i][1]) === cleanStr(subAsignada)) {
       let docs = [];
       try { docs = JSON.parse(data[i][4]); } catch (e) {}
       if (Array.isArray(docs)) {
@@ -1162,10 +1163,6 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
 // CAMBIO 2: MÓDULO SEGUIMIENTO Y REVISIÓN — LECTURA DIRECTA DE LA PESTAÑA "RESPUESTAS"
 // ==============================================================================
 
-/**
- * Obtiene la lista de seguimiento LEYENDO DIRECTAMENTE DE LA PESTAÑA "RESPUESTAS".
- * Mapea las filas registradas en 'Respuestas' y las cruza con 'Preguntas' para enriquecer con componente, lote, etc.
- */
 function getRespuestasSeguimientoAdmin(token, filtros) {
   assertAdmin(token);
 
@@ -1175,7 +1172,6 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
 
-  // Indexar catálogo de preguntas por QuestionID
   const pMap = {};
   for (let i = 1; i < pData.length; i++) {
     const qId = String(pData[i][0]).trim();
@@ -1191,10 +1187,10 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
     }
   }
 
-  const fLote = filtros ? filtros.loteId : 'TODOS';
-  const fSub = filtros ? filtros.subdireccion : 'TODAS';
-  const fComp = filtros ? filtros.componente : 'TODOS';
-  const fEstado = filtros ? filtros.estadoRevision : 'TODOS';
+  const fLote = cleanStr(filtros ? filtros.loteId : 'TODOS');
+  const fSub = cleanStr(filtros ? filtros.subdireccion : 'TODAS');
+  const fComp = cleanStr(filtros ? filtros.componente : 'TODOS');
+  const fEstado = cleanStr(filtros ? filtros.estadoRevision : 'TODOS');
 
   const list = [];
 
@@ -1206,7 +1202,6 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
     const respVal = String(rData[i][2] || '').trim();
     const estRev = String(rData[i][10] || 'Borrador').trim();
 
-    // Enriquecer con información de la hoja Preguntas
     const qInfo = pMap[qId] || {
       componente: 'Sin Componente',
       principio: 'Sin Principio',
@@ -1215,15 +1210,15 @@ function getRespuestasSeguimientoAdmin(token, filtros) {
       loteId: 'LOTE_INICIAL'
     };
 
-    if (fLote && fLote !== 'TODOS' && qInfo.loteId !== fLote) continue;
-    if (fComp && fComp !== 'TODOS' && qInfo.componente !== fComp) continue;
+    if (fLote && fLote !== 'todos' && cleanStr(qInfo.loteId) !== fLote) continue;
+    if (fComp && fComp !== 'todos' && cleanStr(qInfo.componente) !== fComp) continue;
 
-    if (fSub && fSub !== 'TODAS') {
-      if (fSub === 'SIN_ASIGNAR' && (subAsignada !== 'SIN_ASIGNAR' && subAsignada !== '')) continue;
-      if (fSub !== 'SIN_ASIGNAR' && subAsignada.toLowerCase().trim() !== fSub.toLowerCase().trim()) continue;
+    if (fSub && fSub !== 'todas') {
+      if (fSub === 'sin_asignar' && (cleanStr(subAsignada) !== 'sin_asignar' && cleanStr(subAsignada) !== '')) continue;
+      if (fSub !== 'sin_asignar' && cleanStr(subAsignada) !== fSub) continue;
     }
 
-    if (fEstado && fEstado !== 'TODOS' && estRev !== fEstado) continue;
+    if (fEstado && fEstado !== 'todos' && cleanStr(estRev) !== fEstado) continue;
 
     let docs = [];
     try {
@@ -1260,7 +1255,7 @@ function revisarRespuestaAdmin(token, payload) {
   const admin = assertAdmin(token);
   const qId = String(payload.questionId).trim();
   const subAsignada = String(payload.subdireccion).trim();
-  const nuevoEstado = payload.accion; // 'Aceptada' u 'Observada'
+  const nuevoEstado = payload.accion;
   const obsAdminText = payload.observacionAdmin ? payload.observacionAdmin.trim() : '';
 
   if (!qId || !subAsignada) throw new Error('Parámetros de pregunta inválidos.');
@@ -1276,7 +1271,7 @@ function revisarRespuestaAdmin(token, payload) {
   const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && String(data[i][1]).trim().toLowerCase() === subAsignada.toLowerCase()) {
+    if (String(data[i][0]).trim() === qId && cleanStr(data[i][1]) === cleanStr(subAsignada)) {
       sheet.getRange(i + 1, 11).setValue(nuevoEstado);
       sheet.getRange(i + 1, 12).setValue(obsAdminText);
       sheet.getRange(i + 1, 10).setValue(new Date());
@@ -1324,6 +1319,8 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
 
+  const targetLote = cleanStr(filtroLote);
+
   let totalPreguntas = 0;
   let totalRespondidasGlobal = 0;
 
@@ -1343,7 +1340,7 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
 
     const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
 
-    if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+    if (targetLote && targetLote !== 'todos' && cleanStr(loteId) !== targetLote) {
       continue;
     }
 
@@ -1427,6 +1424,10 @@ function getDetallePreguntasAdmin(token, filtroSubdireccion, filtroComponente, f
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
 
+  const targetSub = cleanStr(filtroSubdireccion);
+  const targetComp = cleanStr(filtroComponente);
+  const targetLote = cleanStr(filtroLote);
+
   const list = [];
 
   for (let i = 1; i < pData.length; i++) {
@@ -1436,18 +1437,18 @@ function getDetallePreguntasAdmin(token, filtroSubdireccion, filtroComponente, f
     const comp = pData[i][1];
     const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
 
-    if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+    if (targetLote && targetLote !== 'todos' && cleanStr(loteId) !== targetLote) {
       continue;
     }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
 
-    if (filtroSubdireccion && filtroSubdireccion !== 'TODAS') {
-      if (filtroSubdireccion === 'SIN_ASIGNAR' && (subAsignada !== 'SIN_ASIGNAR' && subAsignada !== '')) continue;
-      if (filtroSubdireccion !== 'SIN_ASIGNAR' && subAsignada.toLowerCase().trim() !== filtroSubdireccion.toLowerCase().trim()) continue;
+    if (targetSub && targetSub !== 'todas') {
+      if (targetSub === 'sin_asignar' && (cleanStr(subAsignada) !== 'sin_asignar' && cleanStr(subAsignada) !== '')) continue;
+      if (targetSub !== 'sin_asignar' && cleanStr(subAsignada) !== targetSub) continue;
     }
 
-    if (filtroComponente && filtroComponente !== 'TODOS' && comp !== filtroComponente) {
+    if (targetComp && targetComp !== 'todos' && cleanStr(comp) !== targetComp) {
       continue;
     }
 
@@ -1486,6 +1487,8 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
   const asignacionesMap = getAsignacionesMap();
   const respuestasMap = getRespuestasMap();
 
+  const targetLote = cleanStr(filtroLote);
+
   const newSs = SpreadsheetApp.create('Control Machete - Matriz de Respuestas (' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + ')');
   const sheet = newSs.getActiveSheet();
 
@@ -1516,7 +1519,7 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
     if (!qId) continue;
 
     const loteId = String(pData[i][6] || 'LOTE_INICIAL').trim();
-    if (filtroLote && filtroLote !== 'TODOS' && loteId !== filtroLote) {
+    if (targetLote && targetLote !== 'todos' && cleanStr(loteId) !== targetLote) {
       continue;
     }
 
