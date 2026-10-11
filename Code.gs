@@ -949,12 +949,6 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     const asigInfo = asigEstatusMap[qId] || { subdireccion: 'SIN_ASIGNAR', estatus: 'Pendiente' };
     const subAsignada = asigInfo.subdireccion || 'SIN_ASIGNAR';
     const subClean = cleanStr(subAsignada);
-    const estatusAsig = asigInfo.estatus || 'Pendiente';
-
-    // ERROR 3 FIX: Para rol USER, filtrar y mostrar únicamente preguntas con estatus 'Pendiente' (o no 'Contestada')
-    if (user.role === 'USER' && cleanStr(estatusAsig) === 'contestada') {
-      continue;
-    }
 
     let esVisible = false;
     if (targetSubdireccion === 'all' && user.role === 'ADMIN') {
@@ -1017,7 +1011,8 @@ function getRespuestasMap() {
         docs = [];
       }
 
-      map[qId + '_' + sub] = {
+      const key = cleanStr(qId) + '_' + cleanStr(sub);
+      map[key] = {
         questionId: qId,
         subdireccion: sub,
         respuesta: data[i][2] || '',
@@ -1393,7 +1388,7 @@ function revisarRespuestaAdmin(token, payload) {
   const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === qId && cleanStr(data[i][1]) === cleanStr(subAsignada)) {
+    if (cleanStr(data[i][0]) === cleanStr(qId) && cleanStr(data[i][1]) === cleanStr(subAsignada)) {
       sheet.getRange(i + 1, 11).setValue(nuevoEstado);
       sheet.getRange(i + 1, 12).setValue(obsAdminText);
       sheet.getRange(i + 1, 10).setValue(new Date());
@@ -1403,7 +1398,7 @@ function revisarRespuestaAdmin(token, payload) {
         const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
         const asigData = asigSheet.getDataRange().getValues();
         for (let j = 1; j < asigData.length; j++) {
-          if (String(asigData[j][0]).trim() === qId && cleanStr(asigData[j][1]) === cleanStr(subAsignada)) {
+          if (cleanStr(asigData[j][0]) === cleanStr(qId) && cleanStr(asigData[j][1]) === cleanStr(subAsignada)) {
             asigSheet.getRange(j + 1, 5).setValue('Pendiente');
             break;
           }
