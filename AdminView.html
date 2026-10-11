@@ -1280,7 +1280,20 @@
         <small class="text-muted">Preguntas marcadas como "Sin Asignar" en las cuales el Administrador funge como responsable directo de responder.</small>
       </div>
       <div id="admin-user-questions-root">
-        <div id="user-questions-accordion"></div>
+        <div class="text-center my-4" id="user-loading-spinner">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando preguntas...</span>
+          </div>
+          <p class="mt-2 text-muted">Cargando cuestionario asignado...</p>
+        </div>
+
+        <div id="user-questions-accordion" class="accordion my-3" style="display: none;"></div>
+
+        <div id="user-no-questions-msg" class="alert alert-info text-center my-4" style="display: none;">
+          <i class="fa-solid fa-circle-info fa-2x mb-2"></i>
+          <h5>No hay preguntas marcadas como Sin Asignar actualmente.</h5>
+          <p>Todas las preguntas han sido asignadas a Subdirecciones o respondidas.</p>
+        </div>
       </div>
     `;
     cargarCuestionarioUsuario(true);

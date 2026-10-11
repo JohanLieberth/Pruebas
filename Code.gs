@@ -333,7 +333,7 @@ function migrateDatabaseStructure() {
       let estatus = String(asigData[i][4] || '').trim();
 
       if (!estatus) {
-        const respKey = qId + '_' + sub;
+        const respKey = cleanStr(qId) + '_' + cleanStr(sub);
         const resp = respuestasMap[respKey];
         if (resp && resp.respuesta && resp.respuesta.trim() !== '' && resp.estadoRevision !== 'Borrador') {
           estatus = 'Contestada';
@@ -614,7 +614,7 @@ function getLotesListAdmin(token) {
     loteStats[loteId].totalPreguntas++;
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
-    const respKey = qId + '_' + subAsignada;
+    const respKey = cleanStr(qId) + '_' + cleanStr(subAsignada);
     const resp = respuestasMap[respKey];
 
     if (resp && resp.respuesta && resp.respuesta.trim() !== '' && (resp.estadoRevision === 'Enviada' || resp.estadoRevision === 'Aceptada')) {
@@ -687,7 +687,8 @@ function eliminarLoteAdmin(token, loteId) {
   for (let idx = 0; idx < qIdsLote.length; idx++) {
     const qId = qIdsLote[idx];
     const sub = asignacionesMap[qId] || 'SIN_ASIGNAR';
-    const resp = respuestasMap[qId + '_' + sub];
+    const respKey = cleanStr(qId) + '_' + cleanStr(sub);
+    const resp = respuestasMap[respKey];
     if (resp && resp.respuesta && resp.respuesta.trim() !== '') {
       throw new Error('No se puede eliminar el lote porque ya cuenta con respuestas registradas.');
     }
@@ -1495,7 +1496,7 @@ function getDashboardIndicatorsAdmin(token, filtroLote) {
       subMap[subAsignada].total++;
     }
 
-    const respKey = qId + '_' + subAsignada;
+    const respKey = cleanStr(qId) + '_' + cleanStr(subAsignada);
     const resp = respuestasMap[respKey];
 
     if (resp && resp.respuesta && resp.respuesta.trim() !== '') {
@@ -1581,7 +1582,7 @@ function getDetallePreguntasAdmin(token, filtroSubdireccion, filtroComponente, f
       continue;
     }
 
-    const respKey = qId + '_' + subAsignada;
+    const respKey = cleanStr(qId) + '_' + cleanStr(subAsignada);
     const respObj = respuestasMap[respKey] || null;
 
     list.push({
@@ -1653,7 +1654,7 @@ function exportarMatrizRespuestasSheet(token, filtroLote) {
     }
 
     const subAsignada = asignacionesMap[qId] || 'SIN_ASIGNAR';
-    const respKey = qId + '_' + subAsignada;
+    const respKey = cleanStr(qId) + '_' + cleanStr(subAsignada);
     const resp = respuestasMap[respKey] || {};
 
     let driveUrls = '';

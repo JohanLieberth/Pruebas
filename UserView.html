@@ -158,12 +158,12 @@
       else if (estRev === 'Aceptada') { revBadgeClass = 'bg-success text-white'; revBadgeTxt = 'Aceptada ✓'; }
 
       let observadaAlertHtml = '';
-      if (estRev === 'Observada') {
+      if (estRev === 'Observada' && obsAdmin && obsAdmin.trim() !== '') {
         observadaAlertHtml = `
-          <div class="alert alert-danger border-start border-4 border-danger my-3">
-            <h6 class="alert-heading fw-bold mb-1"><i class="fa-solid fa-triangle-exclamation me-2"></i> PREGUNTA OBSERVADA POR EL ADMINISTRADOR</h6>
-            <p class="m-0 text-dark fw-semibold small"><strong>Observación:</strong> ${obsAdmin}</p>
-            <p class="small text-muted mb-0 mt-1">Realice los ajustes necesarios abajo y presione "Enviar" para corregirla.</p>
+          <div class="alert alert-danger border-start border-4 border-danger my-3 shadow-sm">
+            <h6 class="alert-heading fw-bold mb-1 text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i> Observación del Administrador:</h6>
+            <div class="p-2 bg-white rounded border border-danger-subtle text-dark fw-semibold small mb-1">${obsAdmin}</div>
+            <p class="small text-muted mb-0"><i class="fa-solid fa-circle-info me-1"></i> Realice los ajustes necesarios abajo y presione "Enviar" para solventar la observación.</p>
           </div>
         `;
       }
@@ -216,30 +216,30 @@
                       <i class="fa-solid fa-paper-plane me-1"></i> Enviar
                     </button>
                   ` : `
-                    <span class="badge bg-light text-muted border p-2"><i class="fa-solid fa-lock me-1"></i> Bloqueada para edición</span>
+                    <button class="btn btn-secondary fw-bold shadow-sm px-4 disabled opacity-75" id="btn-send-q-${q.id}" type="button" disabled style="cursor: not-allowed;">
+                      <i class="fa-solid fa-lock me-1"></i> Enviada
+                    </button>
                   `}
                 </div>
 
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-align-left me-1"></i> Evidencia Textual</label>
-                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="onInputFormChange('${q.id}')">${evidenciaTextual}</textarea>
+                  <textarea class="form-control" id="text-evidencia-${q.id}" rows="2" ${!isEditable ? 'disabled readonly' : ''} placeholder="Describa los controles, manuales, sistemas o evidencias documentales que respaldan la respuesta..." oninput="onInputFormChange('${q.id}')">${evidenciaTextual}</textarea>
                 </div>
 
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones</label>
-                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" ${!isEditable ? 'readonly' : ''} placeholder="Comentarios adicionales o aclaraciones..." oninput="onInputFormChange('${q.id}')">${observaciones}</textarea>
+                  <textarea class="form-control" id="text-obs-${q.id}" rows="2" ${!isEditable ? 'disabled readonly' : ''} placeholder="Comentarios adicionales o aclaraciones..." oninput="onInputFormChange('${q.id}')">${observaciones}</textarea>
                 </div>
 
                 <div class="col-md-12">
                   <label class="form-label fw-bold text-dark"><i class="fa-solid fa-paperclip me-1"></i> Evidencia Documental (PDF, Imágenes, Word, Excel - Máx 10MB)</label>
-                  ${isEditable ? `
-                    <div class="d-flex gap-2 mb-2">
-                      <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
-                      <button class="btn btn-outline-primary px-3" type="button" onclick="agregarArchivoLocalMemoria('${q.id}')">
-                        <i class="fa-solid fa-plus me-1"></i> Seleccionar
-                      </button>
-                    </div>
-                  ` : ''}
+                  <div class="d-flex gap-2 mb-2">
+                    <input type="file" class="form-control" id="file-input-${q.id}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" ${!isEditable ? 'disabled' : ''}>
+                    <button class="btn btn-outline-primary px-3" type="button" ${!isEditable ? 'disabled' : ''} onclick="agregarArchivoLocalMemoria('${q.id}')">
+                      <i class="fa-solid fa-plus me-1"></i> Seleccionar
+                    </button>
+                  </div>
 
                   <div id="docs-list-${q.id}" class="mt-2">
                     ${renderizarListaDocsHtml(q.id, docs, isEditable)}
