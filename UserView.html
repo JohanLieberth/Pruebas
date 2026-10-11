@@ -1,3 +1,18 @@
+<style>
+  .pregunta-enviada {
+    background-color: #f8f9fa !important;
+    opacity: 0.88;
+  }
+  .pregunta-enviada .card-header {
+    background-color: #e9ecef !important;
+  }
+  .pregunta-enviada .form-control,
+  .pregunta-enviada .form-select {
+    background-color: #e9ecef !important;
+    color: #6c757d !important;
+  }
+</style>
+
 <div id="user-questionnaire-root">
   <div class="text-center my-4" id="user-loading-spinner">
     <div class="spinner-border text-primary" role="status">
@@ -169,7 +184,7 @@
       }
 
       return `
-        <div class="card mb-4 border-start border-4 ${estRev === 'Observada' ? 'border-danger' : isEditable ? 'border-primary' : 'border-secondary'} shadow-sm" id="qcard-${q.id}">
+        <div class="card mb-4 border-start border-4 ${estRev === 'Observada' ? 'border-danger' : isEditable ? 'border-primary' : 'border-secondary pregunta-enviada'} shadow-sm" id="qcard-${q.id}">
           <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
             <div>
               <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id}</span>
