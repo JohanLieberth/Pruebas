@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Control Machete - Autoevaluación de Control Interno</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap 5 CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+  <style>
+    :root {
+      --primary-color: #4A148C;
+      --secondary-color: #7B1FA2;
+      --accent-color: #D81B60;
+      --light-bg: #F8F9FA;
+      --dark-header: #311B92;
+    }
+
+    body {
+      background-color: #f4f6f9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .header-banner {
+      background: linear-gradient(135deg, var(--dark-header) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 1.2rem 1rem;
+      border-bottom: 4px solid var(--accent-color);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .navbar-custom {
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+
+    .nav-pills .nav-link.active {
+      background-color: var(--primary-color);
+    }
+
+    .card {
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .badge-admin {
+      background-color: var(--accent-color);
+    }
+
+    .badge-user {
+      background-color: var(--secondary-color);
+    }
+
+    .badge-risk-Alto {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .badge-risk-Medio {
+      background-color: #fd7e14;
+      color: white;
+    }
+
+    .badge-risk-Bajo {
+      background-color: #ffc107;
+      color: #212529;
+    }
+
+    .badge-risk-NoAplica {
+      background-color: #6c757d;
+      color: white;
+    }
+
+    .autosave-toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+    }
+
+    .login-container {
+      max-width: 420px;
+      margin: 4rem auto;
+    }
+
+    .login-header {
+      background-color: var(--primary-color);
+      color: white;
+      border-radius: 10px 10px 0 0;
+      padding: 1.5rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Encabezado Institucional -->
+  <header class="header-banner">
+    <div class="container-fluid d-flex flex-wrap align-items-center justify-content-between">
+      <div class="d-flex align-items-center">
+        <i class="fa-solid fa-shield-halved fa-2x me-3 text-warning"></i>
+        <div>
+          <h4 class="m-0 brand-title">CONTROL MACHETE</h4>
+          <small class="opacity-75">Sistema de Autoevaluación de Control Interno | H. Ayuntamiento de Mérida</small>
+        </div>
+      </div>
+
+      <div class="mt-2 mt-md-0 text-end" id="header-user-info" style="display: none;">
+        <div class="fw-bold" id="lbl-header-email">
+          <i class="fa-solid fa-user-circle me-1"></i> <span id="header-user-email-txt"></span>
+        </div>
+        <div>
+          <span class="badge" id="header-user-badge"></span>
+          <button class="btn btn-outline-light btn-sm ms-2 py-0" onclick="cerrarSesionUsuario()" title="Cerrar Sesión">
+            <i class="fa-solid fa-right-from-bracket me-1"></i> Salir
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container-fluid my-4">
+    <!-- PANTALLA 1: FORMULARIO DE LOGIN -->
+    <div id="section-login" class="login-container">
+      <div class="card shadow">
+        <div class="login-header">
+          <i class="fa-solid fa-user-shield fa-3x mb-2"></i>
+          <h4 class="m-0 fw-bold">Iniciar Sesión</h4>
+          <small class="opacity-75">Ingrese sus credenciales de acceso</small>
+        </div>
+        <div class="card-body p-4">
+          <form onsubmit="ejecutarLogin(event)">
+            <div class="mb-3">
+              <label class="form-label fw-bold"><i class="fa-solid fa-envelope me-1"></i> Correo Electrónico</label>
+              <input type="email" class="form-control" id="login-email" required placeholder="usuario@merida.gob.mx">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold"><i class="fa-solid fa-lock me-1"></i> Contraseña</label>
+              <input type="password" class="form-control" id="login-password" required placeholder="••••••••">
+            </div>
+
+            <div id="login-error-alert" class="alert alert-danger small py-2" style="display: none;"></div>
+
+            <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm" id="btn-login-submit">
+              <i class="fa-solid fa-key me-2"></i> Ingresar al Sistema
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANTALLA 2: APLICACIÓN PRINCIPAL (ADMIN / USER) -->
+    <div id="section-app" style="display: none;">
+
+      <!-- NAV Y VISTAS PARA ADMINISTRADOR -->
+      <div id="admin-app-root" style="display: none;">
+        <ul class="nav nav-pills mb-4 navbar-custom p-2 rounded" id="adminTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-dashboard-btn" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" role="tab" onclick="cargarDashboardIndicatorsAdmin()">
+              <i class="fa-solid fa-chart-line me-2"></i> Dashboard Global
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-seguimiento-btn" data-bs-toggle="tab" data-bs-target="#tab-seguimiento" type="button" role="tab" onclick="cargarSeguimientoRevisionAdmin()">
+              <i class="fa-solid fa-clipboard-check me-2"></i> Seguimiento y Revisión
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-asignaciones-btn" data-bs-toggle="tab" data-bs-target="#tab-asignaciones" type="button" role="tab" onclick="cargarAsignacionesAdmin()">
+              <i class="fa-solid fa-tasks me-2"></i> Gestor de Asignaciones
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-lotes-btn" data-bs-toggle="tab" data-bs-target="#tab-lotes" type="button" role="tab" onclick="cargarLotesModuloAdmin()">
+              <i class="fa-solid fa-layer-group me-2"></i> Gestión de Lotes y Carga Masiva
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-mispreguntas-btn" data-bs-toggle="tab" data-bs-target="#tab-mispreguntas" type="button" role="tab" onclick="cargarPreguntasUserAdmin()">
+              <i class="fa-solid fa-pen-to-square me-2"></i> Mis Preguntas (Sin Asignar)
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-usuarios-btn" data-bs-toggle="tab" data-bs-target="#tab-usuarios" type="button" role="tab" onclick="cargarUsuariosAdmin()">
+              <i class="fa-solid fa-users-gear me-2"></i> Usuarios y Subdirecciones
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="adminTabsContent">
+          <!-- Pestaña 1: Dashboard -->
+          <div class="tab-pane fade show active" id="tab-dashboard" role="tabpanel">
+            <?!= include('AdminView'); ?>
+          </div>
+
+          <!-- Pestaña 2: Seguimiento y Revisión -->
+          <div class="tab-pane fade" id="tab-seguimiento" role="tabpanel">
+            <div id="seguimiento-container"></div>
+          </div>
+
+          <!-- Pestaña 3: Gestor de Asignaciones -->
+          <div class="tab-pane fade" id="tab-asignaciones" role="tabpanel">
+            <div id="asignaciones-container"></div>
+          </div>
+
+          <!-- Pestaña 4: Gestión de Lotes y Carga Masiva -->
+          <div class="tab-pane fade" id="tab-lotes" role="tabpanel">
+            <div id="lotes-container"></div>
+          </div>
+
+          <!-- Pestaña 5: Mis Preguntas (Admin) -->
+          <div class="tab-pane fade" id="tab-mispreguntas" role="tabpanel">
+            <div id="admin-mis-preguntas-container"></div>
+          </div>
+
+          <!-- Pestaña 6: Usuarios y Subdirecciones -->
+          <div class="tab-pane fade" id="tab-usuarios" role="tabpanel">
+            <div id="usuarios-container"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VISTA PARA USUARIO OPERATIVO -->
+      <div id="user-app-root" style="display: none;">
+        <div class="card mb-3">
+          <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+              <h5 class="card-title text-primary m-0"><i class="fa-solid fa-building me-2"></i> Cuestionario para: <span id="user-subdireccion-lbl"></span></h5>
+              <small class="text-muted">Responda cada pregunta, adjunte evidencias textuales o documentales y presione Enviar en cada una.</small>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <span class="badge bg-primary fs-6" id="user-progress-badge">0 de 0 Enviadas (0%)</span>
+            </div>
+          </div>
+        </div>
+
+        <?!= include('UserView'); ?>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Indicador de Toast / Notificaciones -->
+  <div id="autosaveToast" class="toast align-items-center text-white bg-success border-0 autosave-toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="fa-solid fa-check-circle me-2"></i> <span id="autosaveToastMsg">Guardado ✓</span>
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    let currentSessionToken = sessionStorage.getItem('CM_SESSION_TOKEN') || null;
+    let currentUserObj = null;
+    let debounceTimer = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (currentSessionToken) {
+        verificarSesionExistente();
+      } else {
+        mostrarPantallaLogin();
+      }
+    });
+
+    function ejecutarLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const pass = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-login-submit');
+      const errBox = document.getElementById('login-error-alert');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Validando...';
+      errBox.style.display = 'none';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-key me-2"></i> Ingresar al Sistema';
+
+          if (res.success) {
+            currentSessionToken = res.token;
+            currentUserObj = res.user;
+            sessionStorage.setItem('CM_SESSION_TOKEN', res.token);
+            iniciarInterfazApp(res.user);
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-key me-2"></i> Ingresar al Sistema';
+          errBox.innerText = err.message || 'Error al iniciar sesión.';
+          errBox.style.display = 'block';
+        })
+        .loginUsuario(email, pass);
+    }
+
+    function verificarSesionExistente() {
+      google.script.run
+        .withSuccessHandler(function(user) {
+          currentUserObj = user;
+          iniciarInterfazApp(user);
+        })
+        .withFailureHandler(function(err) {
+          sessionStorage.removeItem('CM_SESSION_TOKEN');
+          currentSessionToken = null;
+          mostrarPantallaLogin();
+        })
+        .assertAuthenticatedUser(currentSessionToken);
+    }
+
+    function cerrarSesionUsuario() {
+      if (currentSessionToken) {
+        google.script.run.logoutUsuario(currentSessionToken);
+      }
+      sessionStorage.removeItem('CM_SESSION_TOKEN');
+      currentSessionToken = null;
+      currentUserObj = null;
+      mostrarPantallaLogin();
+    }
+
+    function mostrarPantallaLogin() {
+      document.getElementById('section-login').style.display = 'block';
+      document.getElementById('section-app').style.display = 'none';
+      document.getElementById('header-user-info').style.display = 'none';
+    }
+
+    function iniciarInterfazApp(user) {
+      document.getElementById('section-login').style.display = 'none';
+      document.getElementById('section-app').style.display = 'block';
+
+      const headerInfo = document.getElementById('header-user-info');
+      const headerEmail = document.getElementById('header-user-email-txt');
+      const headerBadge = document.getElementById('header-user-badge');
+
+      headerInfo.style.display = 'block';
+      headerEmail.innerText = user.email;
+
+      if (user.role === 'ADMIN') {
+        headerBadge.className = 'badge badge-admin';
+        headerBadge.innerHTML = '<i class="fa-solid fa-crown me-1"></i> ADMINISTRADOR';
+        document.getElementById('admin-app-root').style.display = 'block';
+        document.getElementById('user-app-root').style.display = 'none';
+
+        cargarDashboardIndicatorsAdmin();
+      } else {
+        headerBadge.className = 'badge badge-user';
+        headerBadge.innerHTML = '<i class="fa-solid fa-user me-1"></i> OPERATIVO';
+        document.getElementById('admin-app-root').style.display = 'none';
+        document.getElementById('user-app-root').style.display = 'block';
+        document.getElementById('user-subdireccion-lbl').innerText = user.subdireccion || 'Sin Subdirección';
+
+        cargarCuestionarioUsuario(false);
+      }
+    }
+
+    function manejarErrorSesion(err) {
+      if (err.message && (err.message.includes('Sesión expirada') || err.message.includes('ACCESO DENEGADO'))) {
+        alert(err.message);
+        cerrarSesionUsuario();
+      } else {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function showToast(msg, bgClass) {
+      const toastEl = document.getElementById('autosaveToast');
+      const toastMsg = document.getElementById('autosaveToastMsg');
+      toastMsg.innerText = msg || 'Guardado ✓';
+      toastEl.className = 'toast align-items-center text-white border-0 autosave-toast ' + (bgClass || 'bg-success');
+      const bsToast = new bootstrap.Toast(toastEl, { delay: 2500 });
+      bsToast.show();
+    }
+  </script>
+</body>
+</html>
