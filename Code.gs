@@ -282,7 +282,7 @@ function initSheetHeader(sheet, sheetName) {
       headers = ['QuestionID', 'Subdireccion', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin'];
       break;
     case SHEETS.VISTA_OPERATIVA:
-      headers = ['QuestionID', 'SubdireccionAsignada', 'Estatus', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin'];
+      headers = ['QuestionID', 'SubdireccionAsignada', 'Estatus', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin', 'Componente', 'Principio', 'Pregunta', 'FundamentoLegal'];
       break;
     case SHEETS.LOTES:
       headers = ['LoteID', 'NombreLote', 'Descripcion', 'FechaCreacion', 'CreadoPor', 'Activo'];
@@ -416,16 +416,45 @@ function migrateDatabaseStructure() {
 }
 
 /**
- * Sincroniza y consolida la hoja VistaOperativa a partir de Asignaciones y Respuestas.
+ * Sincroniza y consolida la hoja VistaOperativa a partir de Asignaciones, Respuestas y Preguntas.
  */
 function syncVistaOperativa(ss) {
   if (!ss) ss = getSpreadsheet();
   const voSheet = getSheetSafe(SHEETS.VISTA_OPERATIVA);
   const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
   const respSheet = getSheetSafe(SHEETS.RESPUESTAS);
+  const pregSheet = getSheetSafe(SHEETS.PREGUNTAS);
 
   const asigData = asigSheet.getDataRange().getValues();
   const respData = respSheet.getDataRange().getValues();
+  const pregData = pregSheet.getDataRange().getValues();
+
+  // Mapa de Preguntas (QuestionID -> { componente, principio, pregunta, fundamentoLegal })
+  const pregMap = {};
+  if (pregData && pregData.length > 1) {
+    const headerMapP = {};
+    for (let col = 0; col < pregData[0].length; col++) {
+      const key = cleanStr(pregData[0][col]);
+      if (key) headerMapP[key] = col;
+    }
+    const idxPId = headerMapP['id'] !== undefined ? headerMapP['id'] : (headerMapP['questionid'] !== undefined ? headerMapP['questionid'] : 0);
+    const idxPComp = headerMapP['componente'] !== undefined ? headerMapP['componente'] : 1;
+    const idxPPrin = headerMapP['principio'] !== undefined ? headerMapP['principio'] : 2;
+    const idxPPreg = headerMapP['pregunta'] !== undefined ? headerMapP['pregunta'] : 3;
+    const idxPFund = headerMapP['fundamentolegal'] !== undefined ? headerMapP['fundamentolegal'] : (headerMapP['fundamento'] !== undefined ? headerMapP['fundamento'] : 4);
+
+    for (let i = 1; i < pregData.length; i++) {
+      const qId = String(pregData[i][idxPId]).trim();
+      if (qId) {
+        pregMap[cleanStr(qId)] = {
+          componente: pregData[i][idxPComp] || '',
+          principio: pregData[i][idxPPrin] || '',
+          pregunta: pregData[i][idxPPreg] || '',
+          fundamentoLegal: pregData[i][idxPFund] || ''
+        };
+      }
+    }
+  }
 
   const respMap = {};
   if (respData && respData.length > 1) {
@@ -466,6 +495,7 @@ function syncVistaOperativa(ss) {
       const estAsig = asigData[i][idxAEst] || 'Pendiente';
 
       const rRow = respMap[cleanStr(qId)] || [];
+      const pRow = pregMap[cleanStr(qId)] || { componente: '', principio: '', pregunta: '', fundamentoLegal: '' };
 
       rows.push([
         qId,
@@ -480,7 +510,11 @@ function syncVistaOperativa(ss) {
         rRow[8] || '',
         rRow[9] || '',
         rRow[10] || 'Borrador',
-        rRow[11] || ''
+        rRow[11] || '',
+        pRow.componente || '',
+        pRow.principio || '',
+        pRow.pregunta || '',
+        pRow.fundamentoLegal || ''
       ]);
     }
   }
@@ -489,7 +523,7 @@ function syncVistaOperativa(ss) {
   initSheetHeader(voSheet, SHEETS.VISTA_OPERATIVA);
 
   if (rows.length > 0) {
-    voSheet.getRange(2, 1, rows.length, 13).setValues(rows);
+    voSheet.getRange(2, 1, rows.length, 17).setValues(rows);
   }
 }
 
