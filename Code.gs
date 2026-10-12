@@ -19,6 +19,7 @@ const SHEETS = {
   SUBDIRECCIONES: 'Subdirecciones',
   ASIGNACIONES: 'Asignaciones',
   RESPUESTAS: 'Respuestas',
+  VISTA_OPERATIVA: 'VistaOperativa',
   LOTES: 'Lotes',
   AUDIT: 'Audit',
   CONFIG: 'Config'
@@ -237,6 +238,9 @@ function initSheetHeader(sheet, sheetName) {
     case SHEETS.RESPUESTAS:
       headers = ['QuestionID', 'Subdireccion', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin'];
       break;
+    case SHEETS.VISTA_OPERATIVA:
+      headers = ['QuestionID', 'SubdireccionAsignada', 'Estatus', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin'];
+      break;
     case SHEETS.LOTES:
       headers = ['LoteID', 'NombreLote', 'Descripcion', 'FechaCreacion', 'CreadoPor', 'Activo'];
       break;
@@ -362,6 +366,183 @@ function migrateDatabaseStructure() {
         rSheet.getRange(i + 1, 11).setValue(estRev);
       }
     }
+  }
+
+  // 6. Sincronizar VistaOperativa
+  syncVistaOperativa(ss);
+}
+
+/**
+ * Sincroniza y consolida la hoja VistaOperativa a partir de Asignaciones y Respuestas.
+ */
+function syncVistaOperativa(ss) {
+  if (!ss) ss = getSpreadsheet();
+  const voSheet = getSheetSafe(SHEETS.VISTA_OPERATIVA);
+  const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
+  const respSheet = getSheetSafe(SHEETS.RESPUESTAS);
+
+  const asigData = asigSheet.getDataRange().getValues();
+  const respData = respSheet.getDataRange().getValues();
+
+  const respMap = {};
+  if (respData && respData.length > 1) {
+    const headerMapR = {};
+    for (let col = 0; col < respData[0].length; col++) {
+      const key = cleanStr(respData[0][col]);
+      if (key) headerMapR[key] = col;
+    }
+    const idxQ = headerMapR['questionid'] !== undefined ? headerMapR['questionid'] : 0;
+
+    for (let i = 1; i < respData.length; i++) {
+      const qId = String(respData[i][idxQ]).trim();
+      if (qId) {
+        respMap[cleanStr(qId)] = respData[i];
+      }
+    }
+  }
+
+  const headerMapA = {};
+  if (asigData && asigData.length > 0) {
+    for (let col = 0; col < asigData[0].length; col++) {
+      const key = cleanStr(asigData[0][col]);
+      if (key) headerMapA[key] = col;
+    }
+  }
+
+  const idxAQId = headerMapA['questionid'] !== undefined ? headerMapA['questionid'] : 0;
+  const idxASub = headerMapA['subdireccionasignada'] !== undefined ? headerMapA['subdireccionasignada'] : 1;
+  const idxAEst = headerMapA['estatus'] !== undefined ? headerMapA['estatus'] : 4;
+
+  const rows = [];
+  if (asigData && asigData.length > 1) {
+    for (let i = 1; i < asigData.length; i++) {
+      const qId = String(asigData[i][idxAQId]).trim();
+      if (!qId) continue;
+
+      const subAsig = asigData[i][idxASub] || '';
+      const estAsig = asigData[i][idxAEst] || 'Pendiente';
+
+      const rRow = respMap[cleanStr(qId)] || [];
+
+      rows.push([
+        qId,
+        subAsig,
+        estAsig,
+        rRow[2] || '',
+        rRow[3] || '',
+        rRow[4] || '',
+        rRow[5] || '',
+        rRow[6] || '',
+        rRow[7] || '',
+        rRow[8] || '',
+        rRow[9] || '',
+        rRow[10] || 'Borrador',
+        rRow[11] || ''
+      ]);
+    }
+  }
+
+  voSheet.clearContents();
+  initSheetHeader(voSheet, SHEETS.VISTA_OPERATIVA);
+
+  if (rows.length > 0) {
+    voSheet.getRange(2, 1, rows.length, 13).setValues(rows);
+  }
+}
+
+/**
+ * Trigger ejecutable onEdit para sincronización bidireccional entre Respuestas y VistaOperativa
+ */
+function onEdit(e) {
+  if (!e || !e.range) return;
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+
+  try {
+    const sheet = e.range.getSheet();
+    const sheetName = sheet.getName();
+    const row = e.range.getRow();
+    const col = e.range.getColumn();
+
+    if (row <= 1) return;
+
+    if (sheetName === SHEETS.RESPUESTAS) {
+      const rData = sheet.getRange(row, 1, 1, 12).getValues()[0];
+      const qId = String(rData[0]).trim();
+      if (!qId) return;
+
+      const voSheet = getSheetSafe(SHEETS.VISTA_OPERATIVA);
+      const voValues = voSheet.getDataRange().getValues();
+
+      for (let i = 1; i < voValues.length; i++) {
+        if (cleanStr(voValues[i][0]) === cleanStr(qId)) {
+          voSheet.getRange(i + 1, 4, 1, 10).setValues([[
+            rData[2] || '',
+            rData[3] || '',
+            rData[4] || '',
+            rData[5] || '',
+            rData[6] || '',
+            rData[7] || '',
+            rData[8] || '',
+            rData[9] || '',
+            rData[10] || '',
+            rData[11] || ''
+          ]]);
+          break;
+        }
+      }
+    } else if (sheetName === SHEETS.VISTA_OPERATIVA && col >= 4) {
+      const voRow = sheet.getRange(row, 1, 1, 13).getValues()[0];
+      const qId = String(voRow[0]).trim();
+      const subAsig = String(voRow[1]).trim();
+      if (!qId) return;
+
+      const respSheet = getSheetSafe(SHEETS.RESPUESTAS);
+      const respValues = respSheet.getDataRange().getValues();
+      let foundIndex = -1;
+
+      for (let i = 1; i < respValues.length; i++) {
+        if (cleanStr(respValues[i][0]) === cleanStr(qId)) {
+          foundIndex = i + 1;
+          break;
+        }
+      }
+
+      if (foundIndex > 0) {
+        respSheet.getRange(foundIndex, 3, 1, 10).setValues([[
+          voRow[3] || '',
+          voRow[4] || '',
+          voRow[5] || '',
+          voRow[6] || '',
+          voRow[7] || '',
+          voRow[8] || '',
+          voRow[9] || '',
+          voRow[10] || '',
+          voRow[11] || '',
+          voRow[12] || ''
+        ]]);
+      } else {
+        respSheet.appendRow([
+          qId,
+          subAsig,
+          voRow[3] || '',
+          voRow[4] || '',
+          voRow[5] || '',
+          voRow[6] || '',
+          voRow[7] || '',
+          voRow[8] || '',
+          voRow[9] || '',
+          voRow[10] || '',
+          voRow[11] || 'Borrador',
+          voRow[12] || ''
+        ]);
+      }
+    }
+  } catch (err) {
+    Logger.log('Error en trigger onEdit: ' + err.toString());
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -803,6 +984,8 @@ function cargarMasivaPreguntas(token, payload) {
 
   logAudit('PREGUNTAS_CARGA_MASIVA', loteId, null, pRowsToInsert.length + ' preguntas', admin.email);
 
+  syncVistaOperativa();
+
   return {
     success: true,
     loteId: loteId,
@@ -909,6 +1092,8 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
     }
   });
 
+  syncVistaOperativa();
+
   return {
     success: true,
     message: 'Se actualizaron ' + questionIds.length + ' asignaciones correctamente.'
@@ -944,8 +1129,6 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     }
   }
 
-  const asigEstatusMap = getAsignacionesConEstatusMap();
-  const respuestasMap = getRespuestasMap();
   const lotesActivosMap = getLotesActivosMap();
 
   let targetSubdireccion = '';
@@ -960,65 +1143,107 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     targetSubdireccion = 'all';
   }
 
+  const voSheet = getSheetSafe(SHEETS.VISTA_OPERATIVA);
+  let voData = voSheet.getDataRange().getValues();
+
+  if (!voData || voData.length <= 1) {
+    syncVistaOperativa();
+    voData = getSheetSafe(SHEETS.VISTA_OPERATIVA).getDataRange().getValues();
+  }
+
+  const headerMapVO = {};
+  if (voData && voData.length > 0) {
+    for (let col = 0; col < voData[0].length; col++) {
+      const key = cleanStr(voData[0][col]);
+      if (key) headerMapVO[key] = col;
+    }
+  }
+
+  const idxQId = headerMapVO['questionid'] !== undefined ? headerMapVO['questionid'] : 0;
+  const idxSub = headerMapVO['subdireccionasignada'] !== undefined ? headerMapVO['subdireccionasignada'] : 1;
+  const idxResp = headerMapVO['respuesta'] !== undefined ? headerMapVO['respuesta'] : 3;
+  const idxEvidText = headerMapVO['evidenciatextual'] !== undefined ? headerMapVO['evidenciatextual'] : 4;
+  const idxEvidDoc = headerMapVO['evidenciadocumental'] !== undefined ? headerMapVO['evidenciadocumental'] : 5;
+  const idxObs = headerMapVO['observaciones'] !== undefined ? headerMapVO['observaciones'] : 6;
+  const idxRiesgo = headerMapVO['nivelriesgo'] !== undefined ? headerMapVO['nivelriesgo'] : 7;
+  const idxUser = headerMapVO['usuarioquerespondio'] !== undefined ? headerMapVO['usuarioquerespondio'] : 8;
+  const idxCreac = headerMapVO['fechacreacion'] !== undefined ? headerMapVO['fechacreacion'] : 9;
+  const idxModif = headerMapVO['fechaultimamodificacion'] !== undefined ? headerMapVO['fechaultimamodificacion'] : 10;
+  const idxEstRev = headerMapVO['estadorevision'] !== undefined ? headerMapVO['estadorevision'] : 11;
+  const idxObsAdmin = headerMapVO['observacionadmin'] !== undefined ? headerMapVO['observacionadmin'] : 12;
+
   const result = [];
-  const qIdsList = Object.keys(preguntasMap);
 
-  for (let i = 0; i < qIdsList.length; i++) {
-    const qId = qIdsList[i];
-    const qInfo = preguntasMap[qId];
-    if (!qInfo) continue;
+  if (voData && voData.length > 1) {
+    for (let i = 1; i < voData.length; i++) {
+      const qId = String(voData[i][idxQId]).trim();
+      if (!qId) continue;
 
-    if (lotesActivosMap[qInfo.loteId] === false) {
-      continue;
-    }
+      const qInfo = preguntasMap[qId];
+      if (!qInfo) continue;
 
-    const asigInfo = asigEstatusMap[qId] || { subdireccion: 'SIN_ASIGNAR', estatus: 'Pendiente' };
-    const subAsignada = asigInfo.subdireccion || 'SIN_ASIGNAR';
-    const subClean = cleanStr(subAsignada);
-
-    let esVisible = false;
-    if (targetSubdireccion === 'all' && user.role === 'ADMIN') {
-      esVisible = true;
-    } else if (targetSubdireccion === 'sin_asignar' && user.role === 'ADMIN') {
-      esVisible = (subClean === 'sin_asignar' || subClean === '');
-    } else if (user.role === 'USER') {
-      if (subClean === targetSubdireccion) {
-        esVisible = true;
-      } else if (subClean && targetSubdireccion && subClean !== 'sin_asignar') {
-        const partsSub = subClean.split('//').map(s => cleanStr(s)).filter(Boolean);
-        const partsTarget = targetSubdireccion.split('//').map(s => cleanStr(s)).filter(Boolean);
-        esVisible = partsSub.some(p => partsTarget.includes(p) || p.includes(targetSubdireccion) || targetSubdireccion.includes(p));
+      if (lotesActivosMap[qInfo.loteId] === false) {
+        continue;
       }
-    }
 
-    if (esVisible) {
-      const qKey = cleanStr(qId);
-      const fullKey = qKey + '_' + cleanStr(subAsignada);
-      const respObj = respuestasMap[fullKey] || respuestasMap[qKey] || {
-        respuesta: '',
-        evidenciaTextual: '',
-        evidenciaDocumental: [],
-        observaciones: '',
-        nivelRiesgo: '',
-        estadoRevision: 'Borrador',
-        observacionAdmin: ''
-      };
+      const subAsignada = String(voData[i][idxSub] || 'SIN_ASIGNAR').trim();
+      const subClean = cleanStr(subAsignada);
 
-      const estRev = respObj.estadoRevision || 'Borrador';
-      const esEditable = (estRev === 'Borrador' || estRev === 'Observada');
+      let esVisible = false;
+      if (targetSubdireccion === 'all' && user.role === 'ADMIN') {
+        esVisible = true;
+      } else if (targetSubdireccion === 'sin_asignar' && user.role === 'ADMIN') {
+        esVisible = (subClean === 'sin_asignar' || subClean === '');
+      } else if (user.role === 'USER') {
+        if (subClean === targetSubdireccion) {
+          esVisible = true;
+        } else if (subClean && targetSubdireccion && subClean !== 'sin_asignar') {
+          const partsSub = subClean.split('//').map(s => cleanStr(s)).filter(Boolean);
+          const partsTarget = targetSubdireccion.split('//').map(s => cleanStr(s)).filter(Boolean);
+          esVisible = partsSub.some(p => partsTarget.includes(p) || p.includes(targetSubdireccion) || targetSubdireccion.includes(p));
+        }
+      }
 
-      result.push({
-        id: qId,
-        componente: qInfo.componente,
-        principio: qInfo.principio,
-        pregunta: qInfo.pregunta,
-        fundamentoLegal: qInfo.fundamentoLegal,
-        subdireccionSugerida: qInfo.subdireccionSugerida,
-        loteId: qInfo.loteId,
-        subdireccionAsignada: subAsignada,
-        respuestaData: respObj,
-        esEditable: esEditable
-      });
+      if (esVisible) {
+        let docs = [];
+        try {
+          if (voData[i][idxEvidDoc]) {
+            docs = JSON.parse(voData[i][idxEvidDoc]);
+            if (!Array.isArray(docs)) docs = [];
+          }
+        } catch (e) { docs = []; }
+
+        const respObj = {
+          questionId: qId,
+          subdireccion: subAsignada,
+          respuesta: voData[i][idxResp] || '',
+          evidenciaTextual: voData[i][idxEvidText] || '',
+          evidenciaDocumental: docs,
+          observaciones: voData[i][idxObs] || '',
+          nivelRiesgo: voData[i][idxRiesgo] || '',
+          usuarioQueRespondio: voData[i][idxUser] || '',
+          fechaCreacion: voData[i][idxCreac] || '',
+          fechaUltimaModificacion: voData[i][idxModif] || '',
+          estadoRevision: voData[i][idxEstRev] || 'Borrador',
+          observacionAdmin: voData[i][idxObsAdmin] || ''
+        };
+
+        const estRev = respObj.estadoRevision || 'Borrador';
+        const esEditable = (estRev === 'Borrador' || estRev === 'Observada');
+
+        result.push({
+          id: qId,
+          componente: qInfo.componente,
+          principio: qInfo.principio,
+          pregunta: qInfo.pregunta,
+          fundamentoLegal: qInfo.fundamentoLegal,
+          subdireccionSugerida: qInfo.subdireccionSugerida,
+          loteId: qInfo.loteId,
+          subdireccionAsignada: subAsignada,
+          respuestaData: respObj,
+          esEditable: esEditable
+        });
+      }
     }
   }
 
@@ -1228,7 +1453,7 @@ function enviarRespuestaIndividual(token, payload) {
     logAudit('RESPUESTA_ENVIAR_INDIVIDUAL', qId, null, 'Enviada', user.email);
   }
 
-  // 2. ERROR 3 FIX: Actualizar estatus en hoja ASIGNACIONES a 'Contestada'
+  // 2. Actualizar estatus en hoja ASIGNACIONES a 'Contestada'
   const asigSheet = getSheetSafe(SHEETS.ASIGNACIONES);
   const asigData = asigSheet.getDataRange().getValues();
   for (let i = 1; i < asigData.length; i++) {
@@ -1237,6 +1462,9 @@ function enviarRespuestaIndividual(token, payload) {
       break;
     }
   }
+
+  // 3. Sincronizar VistaOperativa
+  syncVistaOperativa();
 
   return {
     success: true,
@@ -1480,6 +1708,8 @@ function revisarRespuestaAdmin(token, payload) {
       }
 
       logAudit('RESPUESTA_REVISAR_' + nuevoEstado.toUpperCase(), qId, data[i][10], { estado: nuevoEstado, obs: obsAdminText }, admin.email);
+
+      syncVistaOperativa();
 
       return {
         success: true,
