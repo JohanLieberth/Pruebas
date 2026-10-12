@@ -4,6 +4,12 @@
  */
 
 function doGet(e) {
+  try {
+    verificarEstructuraBD();
+  } catch (err) {
+    console.error('Error al verificar estructura de la BD en doGet: ' + err.message);
+  }
+
   var template = HtmlService.createTemplateFromFile('Index');
   return template.evaluate()
       .setTitle('Control Machete - Gestión de Auditorías')
@@ -36,6 +42,74 @@ function getSpreadsheet() {
   }
 
   throw new Error('No hay una hoja de cálculo vinculada. Ejecute inicializarBD() o guarde SPREADSHEET_ID en Propiedades del Script.');
+}
+
+/**
+ * Verifies that all required sheets exist and contain all expected header columns.
+ * Missing sheets are created and missing columns are appended without losing existing data.
+ */
+function verificarEstructuraBD() {
+  var ss = getSpreadsheet();
+
+  var schemas = {
+    'Lotes': ['LoteID', 'NombreLote', 'Descripcion', 'Activo', 'FechaCreacion', 'CreadoPor'],
+    'Preguntas': ['QuestionID', 'LoteID', 'No', 'Categoria', 'Subcategoria', 'Pregunta', 'FundamentoLegal', 'Activa', 'FechaCreacion', 'FechaModificacion'],
+    'Subdirecciones': ['SubdireccionID', 'Nombre', 'Activa', 'FechaCreacion'],
+    'Usuarios': ['UsuarioID', 'Email', 'Nombre', 'PasswordHash', 'Salt', 'Rol', 'SubdireccionID', 'Activo', 'FechaCreacion', 'FechaModificacion', 'CreadoPor'],
+    'Asignaciones': ['AsignacionID', 'QuestionID', 'LoteID', 'SubdireccionID', 'Activa', 'FechaAsignacion', 'AsignadoPor'],
+    'Respuestas': ['RespuestaID', 'QuestionID', 'SubdireccionID', 'UsuarioID', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin', 'RevisadoPor', 'FechaRevision'],
+    'Catalogos': ['Tipo', 'Valor', 'Activo'],
+    'Logs': ['Fecha', 'Usuario', 'Accion', 'Detalle']
+  };
+
+  for (var sheetName in schemas) {
+    var expectedHeaders = schemas[sheetName];
+    var sheet = ss.getSheetByName(sheetName);
+
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      sheet.appendRow(expectedHeaders);
+      sheet.getRange(1, 1, 1, expectedHeaders.length)
+           .setFontWeight('bold')
+           .setBackground('#2B3A42')
+           .setFontColor('#FFFFFF');
+    } else {
+      var lastRow = sheet.getLastRow();
+      if (lastRow === 0) {
+        sheet.appendRow(expectedHeaders);
+        sheet.getRange(1, 1, 1, expectedHeaders.length)
+             .setFontWeight('bold')
+             .setBackground('#2B3A42')
+             .setFontColor('#FFFFFF');
+      } else {
+        var lastCol = sheet.getLastColumn();
+        var currentHeaders = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+
+        // Find missing columns
+        var missingHeaders = expectedHeaders.filter(function(h) {
+          return currentHeaders.indexOf(h) === -1;
+        });
+
+        if (missingHeaders.length > 0) {
+          var startCol = lastCol + 1;
+          for (var i = 0; i < missingHeaders.length; i++) {
+            var colIndex = startCol + i;
+            sheet.getRange(1, colIndex).setValue(missingHeaders[i])
+                 .setFontWeight('bold')
+                 .setBackground('#2B3A42')
+                 .setFontColor('#FFFFFF');
+          }
+        }
+      }
+    }
+  }
+
+  // Ensure Admin account sakurazukamori21@gmail.com is present and valid
+  try {
+    garantizarAdministradorPrincipal();
+  } catch (e) {
+    console.error('Error al verificar administrador principal: ' + e.message);
+  }
 }
 
 /**
@@ -122,30 +196,8 @@ function garantizarAdministradorPrincipal() {
  * Initializes database sheets and seeds default initial data.
  */
 function inicializarBD() {
+  verificarEstructuraBD();
   var ss = getSpreadsheet();
-
-  var schemas = {
-    'Lotes': ['LoteID', 'NombreLote', 'Descripcion', 'Activo', 'FechaCreacion', 'CreadoPor'],
-    'Preguntas': ['QuestionID', 'LoteID', 'No', 'Categoria', 'Subcategoria', 'Pregunta', 'FundamentoLegal', 'Activa', 'FechaCreacion', 'FechaModificacion'],
-    'Subdirecciones': ['SubdireccionID', 'Nombre', 'Activa', 'FechaCreacion'],
-    'Usuarios': ['UsuarioID', 'Email', 'Nombre', 'PasswordHash', 'Salt', 'Rol', 'SubdireccionID', 'Activo', 'FechaCreacion', 'FechaModificacion', 'CreadoPor'],
-    'Asignaciones': ['AsignacionID', 'QuestionID', 'LoteID', 'SubdireccionID', 'Activa', 'FechaAsignacion', 'AsignadoPor'],
-    'Respuestas': ['RespuestaID', 'QuestionID', 'SubdireccionID', 'UsuarioID', 'Respuesta', 'EvidenciaTextual', 'EvidenciaDocumental', 'Observaciones', 'NivelRiesgo', 'UsuarioQueRespondio', 'FechaCreacion', 'FechaUltimaModificacion', 'EstadoRevision', 'ObservacionAdmin', 'RevisadoPor', 'FechaRevision'],
-    'Catalogos': ['Tipo', 'Valor', 'Activo'],
-    'Logs': ['Fecha', 'Usuario', 'Accion', 'Detalle']
-  };
-
-  for (var sheetName in schemas) {
-    var sheet = ss.getSheetByName(sheetName);
-    if (!sheet) {
-      sheet = ss.insertSheet(sheetName);
-      sheet.appendRow(schemas[sheetName]);
-      sheet.getRange(1, 1, 1, schemas[sheetName].length).setFontWeight('bold').setBackground('#2B3A42').setFontColor('#FFFFFF');
-    } else if (sheet.getLastRow() === 0) {
-      sheet.appendRow(schemas[sheetName]);
-      sheet.getRange(1, 1, 1, schemas[sheetName].length).setFontWeight('bold').setBackground('#2B3A42').setFontColor('#FFFFFF');
-    }
-  }
 
   // Seed Catalogos
   var catSheet = ss.getSheetByName('Catalogos');
@@ -187,9 +239,6 @@ function inicializarBD() {
       subSheet.appendRow(row);
     });
   }
-
-  // Ensure main admin user sakurazukamori21@gmail.com
-  garantizarAdministradorPrincipal();
 
   // Seed Default Lote & Sample Preguntas if empty
   var loteSheet = ss.getSheetByName('Lotes');
