@@ -65,19 +65,21 @@ Cree y pegue los contenidos de los siguientes archivos en el editor:
    - **Propiedad**: `SPREADSHEET_ID`
    - **Valor**: `[Su ID de Hoja de Cálculo]`
 
-### 4. Inicializar la Base de Datos
-1. En el editor de Apps Script, seleccione la función `inicializarBD` en el archivo `Code.gs`.
+### 4. Inicializar la Base de Datos y Garantizar Administrador
+1. En el editor de Apps Script, seleccione la función `inicializarBD` o `garantizarAdministradorPrincipal` en el archivo `Code.gs`.
 2. Haga clic en **Ejecutar**.
 3. Otorgue los permisos requeridos cuando Google los solicite.
-4. Esto creará automáticamente todas las pestañas, catálogos, subdirecciones iniciales del Excel y el usuario administrador inicial.
+4. Esto creará o actualizará automáticamente el usuario Administrador del Sistema con rol `administrador` y estado activo.
 
 ---
 
-## 🔑 Credenciales por Defecto
+## 🔑 Credenciales del Administrador
 
 - **Usuario Administrador**:
-  - **Correo**: `admin@machete.gob.mx`
-  - **Contraseña**: `Admin123456!`
+  - **Correo**: `sakurazukamori21@gmail.com`
+  - **Contraseña**: `Admin123`
+  - **Rol**: `administrador`
+  - **Estado**: `Activo`
 
 ---
 

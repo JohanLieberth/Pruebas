@@ -51,6 +51,74 @@ function getSheetSafe(sheetName) {
 }
 
 /**
+ * Guarantees that system administrator sakurazukamori21@gmail.com exists with password Admin123, role administrador and active state.
+ */
+function garantizarAdministradorPrincipal() {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    var targetEmail = 'sakurazukamori21@gmail.com';
+    var targetPassword = 'Admin123';
+    var targetRol = 'administrador';
+
+    var sheet = getSheetSafe('Usuarios');
+    var users = getSheetObjects('Usuarios');
+    var existingUser = null;
+
+    for (var i = 0; i < users.length; i++) {
+      if (String(users[i].Email).toLowerCase().trim() === targetEmail.toLowerCase().trim()) {
+        existingUser = users[i];
+        break;
+      }
+    }
+
+    var now = new Date().toISOString();
+
+    if (existingUser) {
+      var rIdx = existingUser._rowIndex;
+      var newSalt = Utilities.getUuid();
+      var newHash = hashPasswordWithSalt(targetPassword, newSalt);
+
+      sheet.getRange(rIdx, 2).setValue(targetEmail);
+      sheet.getRange(rIdx, 4).setValue(newHash);
+      sheet.getRange(rIdx, 5).setValue(newSalt);
+      sheet.getRange(rIdx, 6).setValue(targetRol);
+      sheet.getRange(rIdx, 8).setValue(true);
+      sheet.getRange(rIdx, 10).setValue(now);
+
+      logAccion('Sistema', 'Garantizar Administrador', 'Usuario ' + targetEmail + ' actualizado a Administrador activo.');
+      return { success: true, message: 'Administrador ' + targetEmail + ' actualizado exitosamente.' };
+    } else {
+      var newID = 'USR-' + ('000' + (users.length + 1)).slice(-3);
+      var salt = Utilities.getUuid();
+      var hash = hashPasswordWithSalt(targetPassword, salt);
+
+      sheet.appendRow([
+        newID,
+        targetEmail,
+        'Administrador del Sistema',
+        hash,
+        salt,
+        targetRol,
+        '',
+        true,
+        now,
+        now,
+        'Sistema'
+      ]);
+
+      logAccion('Sistema', 'Garantizar Administrador', 'Usuario ' + targetEmail + ' creado como Administrador activo.');
+      return { success: true, message: 'Administrador ' + targetEmail + ' creado exitosamente.' };
+    }
+  } catch (e) {
+    console.error('Error al garantizar administrador principal: ' + e.message);
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Initializes database sheets and seeds default initial data.
  */
 function inicializarBD() {
@@ -120,27 +188,8 @@ function inicializarBD() {
     });
   }
 
-  // Seed Default Admin User
-  var userSheet = ss.getSheetByName('Usuarios');
-  if (userSheet.getLastRow() <= 1) {
-    var adminEmail = 'admin@machete.gob.mx';
-    var adminSalt = Utilities.getUuid();
-    var adminHash = hashPasswordWithSalt('Admin123456!', adminSalt);
-
-    userSheet.appendRow([
-      'USR-001',
-      adminEmail,
-      'Administrador del Sistema',
-      adminHash,
-      adminSalt,
-      'administrador',
-      '',
-      true,
-      new Date().toISOString(),
-      new Date().toISOString(),
-      'Sistema'
-    ]);
-  }
+  // Ensure main admin user sakurazukamori21@gmail.com
+  garantizarAdministradorPrincipal();
 
   // Seed Default Lote & Sample Preguntas if empty
   var loteSheet = ss.getSheetByName('Lotes');
@@ -152,7 +201,7 @@ function inicializarBD() {
       'Lote inicial de preguntas de auditoría interna basadas en Excel Control Machete',
       true,
       new Date().toISOString(),
-      'admin@machete.gob.mx'
+      'sakurazukamori21@gmail.com'
     ]);
 
     var pregSheet = ss.getSheetByName('Preguntas');
@@ -166,9 +215,9 @@ function inicializarBD() {
     });
 
     var asigSheet = ss.getSheetByName('Asignaciones');
-    asigSheet.appendRow(['ASIG-001', 'LOTE-001-001', loteID, 'SUB-001', true, new Date().toISOString(), 'admin@machete.gob.mx']);
-    asigSheet.appendRow(['ASIG-002', 'LOTE-001-002', loteID, 'SUB-002', true, new Date().toISOString(), 'admin@machete.gob.mx']);
-    asigSheet.appendRow(['ASIG-003', 'LOTE-001-003', loteID, 'SUB-003', true, new Date().toISOString(), 'admin@machete.gob.mx']);
+    asigSheet.appendRow(['ASIG-001', 'LOTE-001-001', loteID, 'SUB-001', true, new Date().toISOString(), 'sakurazukamori21@gmail.com']);
+    asigSheet.appendRow(['ASIG-002', 'LOTE-001-002', loteID, 'SUB-002', true, new Date().toISOString(), 'sakurazukamori21@gmail.com']);
+    asigSheet.appendRow(['ASIG-003', 'LOTE-001-003', loteID, 'SUB-003', true, new Date().toISOString(), 'sakurazukamori21@gmail.com']);
   }
 
   logAccion('Sistema', 'Inicialización', 'Base de datos inicializada correctamente');
