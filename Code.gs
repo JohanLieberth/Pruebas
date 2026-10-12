@@ -1206,6 +1206,7 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const idxModif = headerMapVO['fechaultimamodificacion'] !== undefined ? headerMapVO['fechaultimamodificacion'] : 10;
   const idxEstRev = headerMapVO['estadorevision'] !== undefined ? headerMapVO['estadorevision'] : 11;
   const idxObsAdmin = headerMapVO['observacionadmin'] !== undefined ? headerMapVO['observacionadmin'] : 12;
+  const idxVOPreg = headerMapVO['pregunta'] !== undefined ? headerMapVO['pregunta'] : -1;
 
   const result = [];
 
@@ -1258,6 +1259,10 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
           }
         } catch (e) { docs = []; }
 
+        const textoPregunta = (idxVOPreg !== -1 && voData[i][idxVOPreg] && String(voData[i][idxVOPreg]).trim() !== '')
+          ? String(voData[i][idxVOPreg]).trim()
+          : qInfo.pregunta;
+
         const respObj = {
           questionId: qId,
           subdireccion: subAsignada,
@@ -1280,7 +1285,7 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
           id: qId,
           componente: qInfo.componente,
           principio: qInfo.principio,
-          pregunta: qInfo.pregunta,
+          pregunta: textoPregunta,
           fundamentoLegal: qInfo.fundamentoLegal,
           subdireccionSugerida: qInfo.subdireccionSugerida,
           loteId: qInfo.loteId,

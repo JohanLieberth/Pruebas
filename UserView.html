@@ -174,26 +174,11 @@
 
       return `
         <div class="card mb-4 border-start border-4 ${estRev === 'Observada' ? 'border-danger' : isEditable ? 'border-primary' : 'border-secondary pregunta-enviada'} shadow-sm" id="qcard-${q.id}">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-            <div>
-              <span class="fw-bold text-dark fs-6">Pregunta No. ${q.id}</span>
-              <small class="text-muted ms-2">(${q.loteId})</small>
-            </div>
-            <div>
-              <span class="badge ${revBadgeClass} me-2" id="badge-status-rev-${q.id}">${revBadgeTxt}</span>
-              <span class="badge bg-info text-dark me-2">${q.subdireccionAsignada}</span>
-              <span class="badge badge-risk-${nivelRiesgo.replace(/\s+/g, '')}" id="badge-risk-${q.id}">
-                ${nivelRiesgo ? 'Riesgo: ' + nivelRiesgo : 'Sin Responder'}
-              </span>
-            </div>
-          </div>
           <div class="card-body">
             <div class="row g-3">
               <!-- COLUMNA IZQUIERDA: FORMULARIO Y PREGUNTA -->
               <div class="col-lg-8 border-end-lg">
-                <h6 class="text-secondary small fw-bold mb-1"><i class="fa-solid fa-bookmark me-1"></i> ${q.principio}</h6>
-                <p class="card-text fs-6 fw-semibold text-dark mb-2">${q.pregunta}</p>
-                <p class="small text-muted bg-light p-2 rounded mb-3"><i class="fa-solid fa-scale-balanced me-1"></i> <strong>Fundamento:</strong> ${q.fundamentoLegal || 'N/A'}</p>
+                <p class="card-text fs-6 fw-bold text-dark mb-3">${q.pregunta}</p>
 
                 <form id="form-q-${q.id}" onsubmit="return false;">
                   <input type="hidden" name="questionId" value="${q.id}">
@@ -221,7 +206,7 @@
                     </div>
 
                     <div class="col-md-12">
-                      <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones del Usuario</label>
+                      <label class="form-label fw-bold text-dark"><i class="fa-solid fa-comment-dots me-1"></i> Observaciones</label>
                       <textarea class="form-control" id="text-obs-${q.id}" rows="2" ${!isEditable ? 'disabled readonly' : ''} placeholder="Comentarios adicionales o aclaraciones..." oninput="onInputFormChange('${q.id}')">${observaciones}</textarea>
                     </div>
 
