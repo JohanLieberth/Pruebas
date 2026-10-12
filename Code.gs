@@ -34,10 +34,15 @@ const RIESGO_MAP = {
 };
 
 /**
- * Helper para normalización robusta de cadenas antes de filtrar/comparar
+ * Helper para normalización robusta de cadenas antes de filtrar/comparar (despoja acentos/diacríticos y espacios)
  */
 function cleanStr(val) {
-  return String(val || '').toLowerCase().trim();
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 }
 
 /**
@@ -213,6 +218,16 @@ function getSpreadsheet() {
 function getSheetSafe(sheetName) {
   const ss = getSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    const sheets = ss.getSheets();
+    const cleanTarget = cleanStr(sheetName);
+    for (let i = 0; i < sheets.length; i++) {
+      if (cleanStr(sheets[i].getName()) === cleanTarget) {
+        sheet = sheets[i];
+        break;
+      }
+    }
+  }
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
     initSheetHeader(sheet, sheetName);
@@ -743,6 +758,7 @@ function getLotesActivosMap() {
     if (loteId) {
       const activo = data[i][5] === true || String(data[i][5]).toUpperCase() === 'TRUE' || String(data[i][5]).toUpperCase() === 'ACTIVO';
       map[loteId] = activo;
+      map[cleanStr(loteId)] = activo;
     }
   }
   return map;
@@ -1211,7 +1227,7 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
         loteId: 'LOTE_INICIAL'
       };
 
-      if (lotesActivosMap[qInfo.loteId] === false) {
+      if (lotesActivosMap[qInfo.loteId] === false || lotesActivosMap[cleanStr(qInfo.loteId)] === false) {
         continue;
       }
 
@@ -1275,6 +1291,9 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
       }
     }
   }
+
+  Logger.log('[getPreguntasParaUsuario] Usuario: ' + user.email + ' | Rol: ' + user.role + ' | Subdirección usuario: "' + user.subdireccion + '" | Target: "' + targetSubdireccion + '"');
+  Logger.log('[getPreguntasParaUsuario] Filas en VistaOperativa: ' + (voData ? voData.length - 1 : 0) + ' | Coincidencias devueltas: ' + result.length);
 
   return result;
 }
