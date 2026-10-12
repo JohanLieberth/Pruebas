@@ -1197,7 +1197,12 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const idxModif = headerMapVO['fechaultimamodificacion'] !== undefined ? headerMapVO['fechaultimamodificacion'] : 10;
   const idxEstRev = headerMapVO['estadorevision'] !== undefined ? headerMapVO['estadorevision'] : 11;
   const idxObsAdmin = headerMapVO['observacionadmin'] !== undefined ? headerMapVO['observacionadmin'] : 12;
+
+  // Nuevas columnas en VistaOperativa
+  const idxVOComp = headerMapVO['componente'] !== undefined ? headerMapVO['componente'] : -1;
+  const idxVOPrin = headerMapVO['principio'] !== undefined ? headerMapVO['principio'] : -1;
   const idxVOPreg = headerMapVO['pregunta'] !== undefined ? headerMapVO['pregunta'] : -1;
+  const idxVOFund = headerMapVO['fundamentolegal'] !== undefined ? headerMapVO['fundamentolegal'] : (headerMapVO['fundamento'] !== undefined ? headerMapVO['fundamento'] : -1);
 
   // Cargar información de Preguntas por QuestionID para cruce si Pregunta no está en VistaOperativa
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
@@ -1277,11 +1282,32 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
           loteId: 'LOTE_INICIAL'
         };
 
+        let valComponente = '';
+        if (idxVOComp !== -1 && voData[i][idxVOComp] !== undefined && voData[i][idxVOComp] !== null && String(voData[i][idxVOComp]).trim() !== '') {
+          valComponente = String(voData[i][idxVOComp]).trim();
+        } else {
+          valComponente = qInfo.componente || 'Sin Componente';
+        }
+
+        let valPrincipio = '';
+        if (idxVOPrin !== -1 && voData[i][idxVOPrin] !== undefined && voData[i][idxVOPrin] !== null && String(voData[i][idxVOPrin]).trim() !== '') {
+          valPrincipio = String(voData[i][idxVOPrin]).trim();
+        } else {
+          valPrincipio = qInfo.principio || 'Sin Principio';
+        }
+
         let textoPregunta = '';
         if (idxVOPreg !== -1 && voData[i][idxVOPreg] !== undefined && voData[i][idxVOPreg] !== null && String(voData[i][idxVOPreg]).trim() !== '') {
           textoPregunta = String(voData[i][idxVOPreg]).trim();
         } else {
           textoPregunta = qInfo.pregunta || ('Pregunta No. ' + qId);
+        }
+
+        let valFundamento = '';
+        if (idxVOFund !== -1 && voData[i][idxVOFund] !== undefined && voData[i][idxVOFund] !== null && String(voData[i][idxVOFund]).trim() !== '') {
+          valFundamento = String(voData[i][idxVOFund]).trim();
+        } else {
+          valFundamento = qInfo.fundamentoLegal || '';
         }
 
         let docs = [];
@@ -1312,10 +1338,10 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
 
         result.push({
           id: qId,
-          componente: qInfo.componente,
-          principio: qInfo.principio,
+          componente: valComponente,
+          principio: valPrincipio,
           pregunta: textoPregunta,
-          fundamentoLegal: qInfo.fundamentoLegal,
+          fundamentoLegal: valFundamento,
           subdireccionSugerida: qInfo.subdireccionSugerida,
           loteId: qInfo.loteId,
           subdireccionAsignada: subAsignada,
