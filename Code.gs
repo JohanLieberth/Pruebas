@@ -961,8 +961,9 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     }
 
     if (esVisible) {
-      const respKey = qId + '_' + subAsignada;
-      const respObj = respuestasMap[respKey] || {
+      const qKey = cleanStr(qId);
+      const fullKey = qKey + '_' + cleanStr(subAsignada);
+      const respObj = respuestasMap[fullKey] || respuestasMap[qKey] || {
         respuesta: '',
         evidenciaTextual: '',
         evidenciaDocumental: [],
@@ -998,35 +999,62 @@ function getRespuestasMap() {
   const data = sheet.getDataRange().getValues();
   const map = {};
 
+  if (!data || data.length <= 1) return map;
+
+  const headerMap = {};
+  const headerRow = data[0];
+  for (let col = 0; col < headerRow.length; col++) {
+    const key = cleanStr(headerRow[col]);
+    if (key) headerMap[key] = col;
+  }
+
+  const idxQId = headerMap['questionid'] !== undefined ? headerMap['questionid'] : 0;
+  const idxSub = headerMap['subdireccion'] !== undefined ? headerMap['subdireccion'] : 1;
+  const idxResp = headerMap['respuesta'] !== undefined ? headerMap['respuesta'] : 2;
+  const idxEvidText = headerMap['evidenciatextual'] !== undefined ? headerMap['evidenciatextual'] : 3;
+  const idxEvidDoc = headerMap['evidenciadocumental'] !== undefined ? headerMap['evidenciadocumental'] : 4;
+  const idxObs = headerMap['observaciones'] !== undefined ? headerMap['observaciones'] : 5;
+  const idxRiesgo = headerMap['nivelriesgo'] !== undefined ? headerMap['nivelriesgo'] : 6;
+  const idxUser = headerMap['usuarioquerespondio'] !== undefined ? headerMap['usuarioquerespondio'] : 7;
+  const idxCreac = headerMap['fechacreacion'] !== undefined ? headerMap['fechacreacion'] : 8;
+  const idxModif = headerMap['fechaultimamodificacion'] !== undefined ? headerMap['fechaultimamodificacion'] : 9;
+  const idxEstRev = headerMap['estadorevision'] !== undefined ? headerMap['estadorevision'] : 10;
+  const idxObsAdmin = headerMap['observacionadmin'] !== undefined ? headerMap['observacionadmin'] : 11;
+
   for (let i = 1; i < data.length; i++) {
-    const qId = String(data[i][0]).trim();
-    const sub = String(data[i][1] || '').trim();
-    if (qId && sub) {
+    const qId = String(data[i][idxQId]).trim();
+    if (qId) {
+      const sub = String(data[i][idxSub] || '').trim();
       let docs = [];
       try {
-        if (data[i][4]) {
-          docs = JSON.parse(data[i][4]);
+        if (data[i][idxEvidDoc]) {
+          docs = JSON.parse(data[i][idxEvidDoc]);
           if (!Array.isArray(docs)) docs = [];
         }
       } catch (e) {
         docs = [];
       }
 
-      const key = cleanStr(qId) + '_' + cleanStr(sub);
-      map[key] = {
+      const qKey = cleanStr(qId);
+      const fullKey = qKey + '_' + cleanStr(sub);
+
+      const obj = {
         questionId: qId,
         subdireccion: sub,
-        respuesta: data[i][2] || '',
-        evidenciaTextual: data[i][3] || '',
+        respuesta: data[i][idxResp] || '',
+        evidenciaTextual: data[i][idxEvidText] || '',
         evidenciaDocumental: docs,
-        observaciones: data[i][5] || '',
-        nivelRiesgo: data[i][6] || '',
-        usuarioQueRespondio: data[i][7] || '',
-        fechaCreacion: data[i][8] || '',
-        fechaUltimaModificacion: data[i][9] || '',
-        estadoRevision: data[i][10] || 'Borrador',
-        observacionAdmin: data[i][11] || ''
+        observaciones: data[i][idxObs] || '',
+        nivelRiesgo: data[i][idxRiesgo] || '',
+        usuarioQueRespondio: data[i][idxUser] || '',
+        fechaCreacion: data[i][idxCreac] || '',
+        fechaUltimaModificacion: data[i][idxModif] || '',
+        estadoRevision: data[i][idxEstRev] || 'Borrador',
+        observacionAdmin: data[i][idxObsAdmin] || ''
       };
+
+      map[qKey] = obj;
+      map[fullKey] = obj;
     }
   }
   return map;
