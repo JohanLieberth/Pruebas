@@ -1106,7 +1106,7 @@ function guardarAsignacionesPreguntas(token, questionIds, nuevaSubdireccion) {
 
 /**
  * Obtiene las preguntas asignadas para el usuario autenticado.
- * Consulta la pestaña Asignaciones y filtra por Estatus Pendiente.
+ * Consulta exclusivamente la pestaña VistaOperativa como fuente primaria de datos.
  */
 function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const user = assertAuthenticatedUser(token);
