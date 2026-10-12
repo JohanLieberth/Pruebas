@@ -1113,19 +1113,38 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
   const preguntasSheet = getSheetSafe(SHEETS.PREGUNTAS);
   const pData = preguntasSheet.getDataRange().getValues();
 
+  const headerMapP = {};
+  if (pData && pData.length > 0) {
+    for (let col = 0; col < pData[0].length; col++) {
+      const key = cleanStr(pData[0][col]);
+      if (key) headerMapP[key] = col;
+    }
+  }
+
+  const idxPId = headerMapP['id'] !== undefined ? headerMapP['id'] : 0;
+  const idxPComp = headerMapP['componente'] !== undefined ? headerMapP['componente'] : 1;
+  const idxPPrin = headerMapP['principio'] !== undefined ? headerMapP['principio'] : 2;
+  const idxPPreg = headerMapP['pregunta'] !== undefined ? headerMapP['pregunta'] : 3;
+  const idxPFund = headerMapP['fundamentolegal'] !== undefined ? headerMapP['fundamentolegal'] : (headerMapP['fundamento'] !== undefined ? headerMapP['fundamento'] : 4);
+  const idxPSubS = headerMapP['subdireccionsugerida'] !== undefined ? headerMapP['subdireccionsugerida'] : 5;
+  const idxPLote = headerMapP['loteid'] !== undefined ? headerMapP['loteid'] : 6;
+
   const preguntasMap = {};
   for (let i = 1; i < pData.length; i++) {
-    const qId = String(pData[i][0]).trim();
-    if (qId) {
-      preguntasMap[qId] = {
-        id: qId,
-        componente: pData[i][1],
-        principio: pData[i][2],
-        pregunta: pData[i][3],
-        fundamentoLegal: pData[i][4],
-        subdireccionSugerida: pData[i][5] || '',
-        loteId: String(pData[i][6] || 'LOTE_INICIAL').trim()
+    const rawPId = pData[i][idxPId];
+    if (rawPId !== undefined && rawPId !== null && String(rawPId).trim() !== '') {
+      const qIdStr = String(rawPId).trim();
+      const qObj = {
+        id: qIdStr,
+        componente: pData[i][idxPComp] || 'Sin Componente',
+        principio: pData[i][idxPPrin] || 'Sin Principio',
+        pregunta: pData[i][idxPPreg] || '',
+        fundamentoLegal: pData[i][idxPFund] || '',
+        subdireccionSugerida: pData[i][idxPSubS] || '',
+        loteId: String(pData[i][idxPLote] || 'LOTE_INICIAL').trim()
       };
+      preguntasMap[qIdStr] = qObj;
+      preguntasMap[cleanStr(qIdStr)] = qObj;
     }
   }
 
@@ -1176,11 +1195,21 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
 
   if (voData && voData.length > 1) {
     for (let i = 1; i < voData.length; i++) {
-      const qId = String(voData[i][idxQId]).trim();
+      const rawVOId = voData[i][idxQId];
+      if (rawVOId === undefined || rawVOId === null) continue;
+
+      const qId = String(rawVOId).trim();
       if (!qId) continue;
 
-      const qInfo = preguntasMap[qId];
-      if (!qInfo) continue;
+      const qInfo = preguntasMap[qId] || preguntasMap[cleanStr(qId)] || {
+        id: qId,
+        componente: 'Sin Componente',
+        principio: 'Sin Principio',
+        pregunta: 'Pregunta No. ' + qId,
+        fundamentoLegal: '',
+        subdireccionSugerida: '',
+        loteId: 'LOTE_INICIAL'
+      };
 
       if (lotesActivosMap[qInfo.loteId] === false) {
         continue;
