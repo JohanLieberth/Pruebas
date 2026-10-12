@@ -540,79 +540,161 @@ function onEdit(e) {
     const sheet = e.range.getSheet();
     const sheetName = sheet.getName();
     const row = e.range.getRow();
-    const col = e.range.getColumn();
 
     if (row <= 1) return;
 
-    if (sheetName === SHEETS.RESPUESTAS) {
-      const rData = sheet.getRange(row, 1, 1, 12).getValues()[0];
-      const qId = String(rData[0]).trim();
+    if (cleanStr(sheetName) === cleanStr(SHEETS.RESPUESTAS)) {
+      const rSheet = sheet;
+      const rValues = rSheet.getDataRange().getValues();
+      if (!rValues || rValues.length <= row - 1) return;
+
+      const headerMapR = {};
+      for (let col = 0; col < rValues[0].length; col++) {
+        const k = cleanStr(rValues[0][col]);
+        if (k) headerMapR[k] = col;
+      }
+      const idxRQId = headerMapR['questionid'] !== undefined ? headerMapR['questionid'] : 0;
+      const rRow = rValues[row - 1];
+      const qId = String(rRow[idxRQId] || '').trim();
       if (!qId) return;
 
       const voSheet = getSheetSafe(SHEETS.VISTA_OPERATIVA);
       const voValues = voSheet.getDataRange().getValues();
+      if (!voValues || voValues.length <= 1) return;
+
+      const headerMapVO = {};
+      for (let col = 0; col < voValues[0].length; col++) {
+        const k = cleanStr(voValues[0][col]);
+        if (k) headerMapVO[k] = col;
+      }
+
+      const idxVOQId = headerMapVO['questionid'] !== undefined ? headerMapVO['questionid'] : 0;
+      const idxVOResp = headerMapVO['respuesta'] !== undefined ? headerMapVO['respuesta'] : 3;
+      const idxVOEvidText = headerMapVO['evidenciatextual'] !== undefined ? headerMapVO['evidenciatextual'] : 4;
+      const idxVOEvidDoc = headerMapVO['evidenciadocumental'] !== undefined ? headerMapVO['evidenciadocumental'] : 5;
+      const idxVOObs = headerMapVO['observaciones'] !== undefined ? headerMapVO['observaciones'] : 6;
+      const idxVORiesgo = headerMapVO['nivelriesgo'] !== undefined ? headerMapVO['nivelriesgo'] : 7;
+      const idxVOUser = headerMapVO['usuarioquerespondio'] !== undefined ? headerMapVO['usuarioquerespondio'] : 8;
+      const idxVOCreac = headerMapVO['fechacreacion'] !== undefined ? headerMapVO['fechacreacion'] : 9;
+      const idxVOModif = headerMapVO['fechaultimamodificacion'] !== undefined ? headerMapVO['fechaultimamodificacion'] : 10;
+      const idxVOEstRev = headerMapVO['estadorevision'] !== undefined ? headerMapVO['estadorevision'] : 11;
+      const idxVOObsAdmin = headerMapVO['observacionadmin'] !== undefined ? headerMapVO['observacionadmin'] : 12;
+
+      const idxRResp = headerMapR['respuesta'] !== undefined ? headerMapR['respuesta'] : 2;
+      const idxREvidText = headerMapR['evidenciatextual'] !== undefined ? headerMapR['evidenciatextual'] : 3;
+      const idxREvidDoc = headerMapR['evidenciadocumental'] !== undefined ? headerMapR['evidenciadocumental'] : 4;
+      const idxRObs = headerMapR['observaciones'] !== undefined ? headerMapR['observaciones'] : 5;
+      const idxRRiesgo = headerMapR['nivelriesgo'] !== undefined ? headerMapR['nivelriesgo'] : 6;
+      const idxRUser = headerMapR['usuarioquerespondio'] !== undefined ? headerMapR['usuarioquerespondio'] : 7;
+      const idxRCreac = headerMapR['fechacreacion'] !== undefined ? headerMapR['fechacreacion'] : 8;
+      const idxRModif = headerMapR['fechaultimamodificacion'] !== undefined ? headerMapR['fechaultimamodificacion'] : 9;
+      const idxREstRev = headerMapR['estadorevision'] !== undefined ? headerMapR['estadorevision'] : 10;
+      const idxRObsAdmin = headerMapR['observacionadmin'] !== undefined ? headerMapR['observacionadmin'] : 11;
 
       for (let i = 1; i < voValues.length; i++) {
-        if (cleanStr(voValues[i][0]) === cleanStr(qId)) {
-          voSheet.getRange(i + 1, 4, 1, 10).setValues([[
-            rData[2] || '',
-            rData[3] || '',
-            rData[4] || '',
-            rData[5] || '',
-            rData[6] || '',
-            rData[7] || '',
-            rData[8] || '',
-            rData[9] || '',
-            rData[10] || '',
-            rData[11] || ''
-          ]]);
+        if (cleanStr(voValues[i][idxVOQId]) === cleanStr(qId)) {
+          const targetRowIndex = i + 1;
+          voSheet.getRange(targetRowIndex, idxVOResp + 1).setValue(rRow[idxRResp] || '');
+          voSheet.getRange(targetRowIndex, idxVOEvidText + 1).setValue(rRow[idxREvidText] || '');
+          voSheet.getRange(targetRowIndex, idxVOEvidDoc + 1).setValue(rRow[idxREvidDoc] || '');
+          voSheet.getRange(targetRowIndex, idxVOObs + 1).setValue(rRow[idxRObs] || '');
+          voSheet.getRange(targetRowIndex, idxVORiesgo + 1).setValue(rRow[idxRRiesgo] || '');
+          voSheet.getRange(targetRowIndex, idxVOUser + 1).setValue(rRow[idxRUser] || '');
+          voSheet.getRange(targetRowIndex, idxVOCreac + 1).setValue(rRow[idxRCreac] || '');
+          voSheet.getRange(targetRowIndex, idxVOModif + 1).setValue(rRow[idxRModif] || '');
+          voSheet.getRange(targetRowIndex, idxVOEstRev + 1).setValue(rRow[idxREstRev] || 'Borrador');
+          voSheet.getRange(targetRowIndex, idxVOObsAdmin + 1).setValue(rRow[idxRObsAdmin] || '');
           break;
         }
       }
-    } else if (sheetName === SHEETS.VISTA_OPERATIVA && col >= 4) {
-      const voRow = sheet.getRange(row, 1, 1, 13).getValues()[0];
-      const qId = String(voRow[0]).trim();
-      const subAsig = String(voRow[1]).trim();
+    } else if (cleanStr(sheetName) === cleanStr(SHEETS.VISTA_OPERATIVA)) {
+      const voSheet = sheet;
+      const voValues = voSheet.getDataRange().getValues();
+      if (!voValues || voValues.length <= row - 1) return;
+
+      const headerMapVO = {};
+      for (let col = 0; col < voValues[0].length; col++) {
+        const k = cleanStr(voValues[0][col]);
+        if (k) headerMapVO[k] = col;
+      }
+
+      const idxVOQId = headerMapVO['questionid'] !== undefined ? headerMapVO['questionid'] : 0;
+      const idxVOSub = headerMapVO['subdireccionasignada'] !== undefined ? headerMapVO['subdireccionasignada'] : (headerMapVO['subdireccion'] !== undefined ? headerMapVO['subdireccion'] : 1);
+      const idxVOResp = headerMapVO['respuesta'] !== undefined ? headerMapVO['respuesta'] : 3;
+      const idxVOEvidText = headerMapVO['evidenciatextual'] !== undefined ? headerMapVO['evidenciatextual'] : 4;
+      const idxVOEvidDoc = headerMapVO['evidenciadocumental'] !== undefined ? headerMapVO['evidenciadocumental'] : 5;
+      const idxVOObs = headerMapVO['observaciones'] !== undefined ? headerMapVO['observaciones'] : 6;
+      const idxVORiesgo = headerMapVO['nivelriesgo'] !== undefined ? headerMapVO['nivelriesgo'] : 7;
+      const idxVOUser = headerMapVO['usuarioquerespondio'] !== undefined ? headerMapVO['usuarioquerespondio'] : 8;
+      const idxVOCreac = headerMapVO['fechacreacion'] !== undefined ? headerMapVO['fechacreacion'] : 9;
+      const idxVOModif = headerMapVO['fechaultimamodificacion'] !== undefined ? headerMapVO['fechaultimamodificacion'] : 10;
+      const idxVOEstRev = headerMapVO['estadorevision'] !== undefined ? headerMapVO['estadorevision'] : 11;
+      const idxVOObsAdmin = headerMapVO['observacionadmin'] !== undefined ? headerMapVO['observacionadmin'] : 12;
+
+      const voRow = voValues[row - 1];
+      const qId = String(voRow[idxVOQId] || '').trim();
+      const subAsig = String(voRow[idxVOSub] || '').trim();
       if (!qId) return;
 
       const respSheet = getSheetSafe(SHEETS.RESPUESTAS);
       const respValues = respSheet.getDataRange().getValues();
-      let foundIndex = -1;
 
-      for (let i = 1; i < respValues.length; i++) {
-        if (cleanStr(respValues[i][0]) === cleanStr(qId)) {
-          foundIndex = i + 1;
-          break;
+      const headerMapR = {};
+      if (respValues && respValues.length > 0) {
+        for (let col = 0; col < respValues[0].length; col++) {
+          const k = cleanStr(respValues[0][col]);
+          if (k) headerMapR[k] = col;
+        }
+      }
+
+      const idxRQId = headerMapR['questionid'] !== undefined ? headerMapR['questionid'] : 0;
+      const idxRSub = headerMapR['subdireccion'] !== undefined ? headerMapR['subdireccion'] : 1;
+      const idxRResp = headerMapR['respuesta'] !== undefined ? headerMapR['respuesta'] : 2;
+      const idxREvidText = headerMapR['evidenciatextual'] !== undefined ? headerMapR['evidenciatextual'] : 3;
+      const idxREvidDoc = headerMapR['evidenciadocumental'] !== undefined ? headerMapR['evidenciadocumental'] : 4;
+      const idxRObs = headerMapR['observaciones'] !== undefined ? headerMapR['observaciones'] : 5;
+      const idxRRiesgo = headerMapR['nivelriesgo'] !== undefined ? headerMapR['nivelriesgo'] : 6;
+      const idxRUser = headerMapR['usuarioquerespondio'] !== undefined ? headerMapR['usuarioquerespondio'] : 7;
+      const idxRCreac = headerMapR['fechacreacion'] !== undefined ? headerMapR['fechacreacion'] : 8;
+      const idxRModif = headerMapR['fechaultimamodificacion'] !== undefined ? headerMapR['fechaultimamodificacion'] : 9;
+      const idxREstRev = headerMapR['estadorevision'] !== undefined ? headerMapR['estadorevision'] : 10;
+      const idxRObsAdmin = headerMapR['observacionadmin'] !== undefined ? headerMapR['observacionadmin'] : 11;
+
+      let foundIndex = -1;
+      if (respValues && respValues.length > 1) {
+        for (let i = 1; i < respValues.length; i++) {
+          if (cleanStr(respValues[i][idxRQId]) === cleanStr(qId)) {
+            foundIndex = i + 1;
+            break;
+          }
         }
       }
 
       if (foundIndex > 0) {
-        respSheet.getRange(foundIndex, 3, 1, 10).setValues([[
-          voRow[3] || '',
-          voRow[4] || '',
-          voRow[5] || '',
-          voRow[6] || '',
-          voRow[7] || '',
-          voRow[8] || '',
-          voRow[9] || '',
-          voRow[10] || '',
-          voRow[11] || '',
-          voRow[12] || ''
-        ]]);
+        respSheet.getRange(foundIndex, idxRResp + 1).setValue(voRow[idxVOResp] || '');
+        respSheet.getRange(foundIndex, idxREvidText + 1).setValue(voRow[idxVOEvidText] || '');
+        respSheet.getRange(foundIndex, idxREvidDoc + 1).setValue(voRow[idxVOEvidDoc] || '');
+        respSheet.getRange(foundIndex, idxRObs + 1).setValue(voRow[idxVOObs] || '');
+        respSheet.getRange(foundIndex, idxRRiesgo + 1).setValue(voRow[idxVORiesgo] || '');
+        respSheet.getRange(foundIndex, idxRUser + 1).setValue(voRow[idxVOUser] || '');
+        respSheet.getRange(foundIndex, idxRCreac + 1).setValue(voRow[idxVOCreac] || '');
+        respSheet.getRange(foundIndex, idxRModif + 1).setValue(voRow[idxVOModif] || '');
+        respSheet.getRange(foundIndex, idxREstRev + 1).setValue(voRow[idxVOEstRev] || 'Borrador');
+        respSheet.getRange(foundIndex, idxRObsAdmin + 1).setValue(voRow[idxVOObsAdmin] || '');
       } else {
         respSheet.appendRow([
           qId,
           subAsig,
-          voRow[3] || '',
-          voRow[4] || '',
-          voRow[5] || '',
-          voRow[6] || '',
-          voRow[7] || '',
-          voRow[8] || '',
-          voRow[9] || '',
-          voRow[10] || '',
-          voRow[11] || 'Borrador',
-          voRow[12] || ''
+          voRow[idxVOResp] || '',
+          voRow[idxVOEvidText] || '',
+          voRow[idxVOEvidDoc] || '',
+          voRow[idxVOObs] || '',
+          voRow[idxVORiesgo] || '',
+          voRow[idxVOUser] || '',
+          voRow[idxVOCreac] || new Date(),
+          voRow[idxVOModif] || new Date(),
+          voRow[idxVOEstRev] || 'Borrador',
+          voRow[idxVOObsAdmin] || ''
         ]);
       }
     }
@@ -1386,7 +1468,12 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     }
   }
 
-  Logger.log('[DIAGNÓSTICO VistaOperativa] Subdirección esperada: "' + targetSubdireccion + '" | Filas leídas: ' + totalFilasLeidas + ' | Filas coincidentes: ' + totalFilasCoincidentes);
+  let firstMatchSummary = 'Sin coincidencias';
+  if (result.length > 0) {
+    firstMatchSummary = 'QuestionID: ' + result[0].id + ' | Subdirección: "' + result[0].subdireccionAsignada + '" | Pregunta: "' + (result[0].pregunta ? result[0].pregunta.substring(0, 40) + '...' : '') + '"';
+  }
+
+  Logger.log('[DIAGNÓSTICO VistaOperativa] Subdirección esperada: "' + targetSubdireccion + '" | Filas totales leídas: ' + totalFilasLeidas + ' | Filas coincidentes: ' + totalFilasCoincidentes + ' | Primer registro: ' + firstMatchSummary);
 
   return result;
 }
