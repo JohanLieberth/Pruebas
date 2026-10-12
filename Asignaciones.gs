@@ -44,6 +44,66 @@ function obtenerAsignaciones(token, loteID) {
   }
 }
 
+/**
+ * Gets questions for a batch enriched with currently assigned subdirectorates.
+ */
+function obtenerPreguntasConAsignacionesPorLote(token, loteID) {
+  try {
+    var session = requireAuth(token);
+    var preguntas = getSheetObjects('Preguntas');
+    var asignaciones = getSheetObjects('Asignaciones');
+    var subdirecciones = getSheetObjects('Subdirecciones');
+
+    var subMap = {};
+    subdirecciones.forEach(function(s) { subMap[s.SubdireccionID] = s.Nombre; });
+
+    // Map QuestionID -> Array of assigned Subdireccion names
+    var qSubMap = {};
+    asignaciones.forEach(function(a) {
+      var isAct = String(a.Activa).toUpperCase() === 'TRUE' || a.Activa === true;
+      if (isAct) {
+        if (!qSubMap[a.QuestionID]) qSubMap[a.QuestionID] = [];
+        var sName = subMap[a.SubdireccionID] || a.SubdireccionID;
+        if (qSubMap[a.QuestionID].indexOf(sName) === -1) {
+          qSubMap[a.QuestionID].push(sName);
+        }
+      }
+    });
+
+    var filtered = preguntas;
+    if (loteID) {
+      filtered = preguntas.filter(function(p) { return p.LoteID === loteID; });
+    }
+
+    var result = filtered.map(function(p) {
+      var subs = qSubMap[p.QuestionID] || [];
+      var displaySub = 'Sin asignar';
+      if (subs.length === 1) {
+        displaySub = subs[0];
+      } else if (subs.length > 1) {
+        displaySub = 'Múltiples (' + subs.join(', ') + ')';
+      }
+
+      return {
+        QuestionID: p.QuestionID,
+        LoteID: p.LoteID,
+        No: p.No,
+        Categoria: p.Categoria,
+        Subcategoria: p.Subcategoria,
+        Pregunta: p.Pregunta,
+        FundamentoLegal: p.FundamentoLegal,
+        Activa: String(p.Activa).toUpperCase() === 'TRUE' || p.Activa === true,
+        SubdireccionesAsignadas: displaySub,
+        SubdireccionesList: subs
+      };
+    });
+
+    return { success: true, data: result };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
 function asignarPreguntasMasivas(token, loteID, questionIDs, subdireccionIDs) {
   var lock = LockService.getScriptLock();
   try {
