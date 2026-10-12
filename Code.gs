@@ -575,12 +575,25 @@ function getAsignacionesConEstatusMap() {
   const data = sheet.getDataRange().getValues();
   const map = {}; // questionId -> { subdireccion, estatus }
 
+  if (!data || data.length <= 1) return map;
+
+  const headerMap = {};
+  const headerRow = data[0];
+  for (let col = 0; col < headerRow.length; col++) {
+    const key = cleanStr(headerRow[col]);
+    if (key) headerMap[key] = col;
+  }
+
+  const idxQId = headerMap['questionid'] !== undefined ? headerMap['questionid'] : 0;
+  const idxSub = headerMap['subdireccionasignada'] !== undefined ? headerMap['subdireccionasignada'] : (headerMap['subdireccion'] !== undefined ? headerMap['subdireccion'] : 1);
+  const idxEst = headerMap['estatus'] !== undefined ? headerMap['estatus'] : 4;
+
   for (let i = 1; i < data.length; i++) {
-    const qId = String(data[i][0]).trim();
+    const qId = String(data[i][idxQId]).trim();
     if (qId) {
       map[qId] = {
-        subdireccion: String(data[i][1] || '').trim(),
-        estatus: String(data[i][4] || 'Pendiente').trim()
+        subdireccion: String(data[i][idxSub] || '').trim(),
+        estatus: String(data[i][idxEst] || 'Pendiente').trim()
       };
     }
   }
@@ -806,10 +819,22 @@ function getAsignacionesMap() {
   const data = sheet.getDataRange().getValues();
   const map = {};
 
+  if (!data || data.length <= 1) return map;
+
+  const headerMap = {};
+  const headerRow = data[0];
+  for (let col = 0; col < headerRow.length; col++) {
+    const key = cleanStr(headerRow[col]);
+    if (key) headerMap[key] = col;
+  }
+
+  const idxQId = headerMap['questionid'] !== undefined ? headerMap['questionid'] : 0;
+  const idxSub = headerMap['subdireccionasignada'] !== undefined ? headerMap['subdireccionasignada'] : (headerMap['subdireccion'] !== undefined ? headerMap['subdireccion'] : 1);
+
   for (let i = 1; i < data.length; i++) {
-    const qId = String(data[i][0]).trim();
+    const qId = String(data[i][idxQId]).trim();
     if (qId) {
-      const sub = String(data[i][1] || '').trim();
+      const sub = String(data[i][idxSub] || '').trim();
       map[qId] = sub;
     }
   }
@@ -957,7 +982,13 @@ function getPreguntasParaUsuario(token, modoAdminMisPreguntas) {
     } else if (targetSubdireccion === 'sin_asignar' && user.role === 'ADMIN') {
       esVisible = (subClean === 'sin_asignar' || subClean === '');
     } else if (user.role === 'USER') {
-      esVisible = (subClean === targetSubdireccion);
+      if (subClean === targetSubdireccion) {
+        esVisible = true;
+      } else if (subClean && targetSubdireccion && subClean !== 'sin_asignar') {
+        const partsSub = subClean.split('//').map(s => cleanStr(s)).filter(Boolean);
+        const partsTarget = targetSubdireccion.split('//').map(s => cleanStr(s)).filter(Boolean);
+        esVisible = partsSub.some(p => partsTarget.includes(p) || p.includes(targetSubdireccion) || targetSubdireccion.includes(p));
+      }
     }
 
     if (esVisible) {
@@ -1073,7 +1104,14 @@ function enviarRespuestaIndividual(token, payload) {
 
   if (user.role === 'USER') {
     const userSub = cleanStr(user.subdireccion);
-    if (cleanStr(subAsignada) !== userSub) {
+    const subClean = cleanStr(subAsignada);
+    let matchSub = (subClean === userSub);
+    if (!matchSub && subClean && userSub && subClean !== 'sin_asignar') {
+      const partsSub = subClean.split('//').map(s => cleanStr(s)).filter(Boolean);
+      const partsUser = userSub.split('//').map(s => cleanStr(s)).filter(Boolean);
+      matchSub = partsSub.some(p => partsUser.includes(p) || p.includes(userSub) || userSub.includes(p));
+    }
+    if (!matchSub) {
       throw new Error('ACCESO DENEGADO (403): La pregunta No. ' + qId + ' no está asignada a su Subdirección.');
     }
   }
@@ -1219,7 +1257,14 @@ function deleteEvidenceFile(token, qIdRaw, fileId) {
 
   if (user.role === 'USER') {
     const userSub = cleanStr(user.subdireccion);
-    if (cleanStr(subAsignada) !== userSub) {
+    const subClean = cleanStr(subAsignada);
+    let matchSub = (subClean === userSub);
+    if (!matchSub && subClean && userSub && subClean !== 'sin_asignar') {
+      const partsSub = subClean.split('//').map(s => cleanStr(s)).filter(Boolean);
+      const partsUser = userSub.split('//').map(s => cleanStr(s)).filter(Boolean);
+      matchSub = partsSub.some(p => partsUser.includes(p) || p.includes(userSub) || userSub.includes(p));
+    }
+    if (!matchSub) {
       throw new Error('ACCESO DENEGADO (403): No puede eliminar archivos de esta pregunta.');
     }
   }
