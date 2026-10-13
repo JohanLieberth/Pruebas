@@ -1,7 +1,6 @@
 <script>
   // Global State
   const OSORIO_ICON_SRC = "<?!= include('OsorioIcon'); ?>";
-  const OSORIO_FALLBACK_URL = "https://drive.google.com/uc?export=view&id=1wKDyff6cej4mqG6ByV7ZRySCWd_zPVv0";
   let adminPassword = "";
   let isAuthenticated = false;
   let participantesActivos = [];
@@ -64,7 +63,7 @@
     if (!numIcons || numIcons <= 0) return '';
     let html = '<span class="osorio-icons-container" title="Cada vez más Osorio">';
     for (let i = 0; i < numIcons; i++) {
-      html += `<img src="${OSORIO_ICON_SRC}" alt="Osorio" width="28" height="28" class="osorio-icon-img" onerror="if (this.src !== '${OSORIO_FALLBACK_URL}') this.src='${OSORIO_FALLBACK_URL}';">`;
+      html += `<img src="${OSORIO_ICON_SRC}" alt="Osorio" width="48" height="48" class="osorio-icon-img">`;
     }
     html += '</span>';
     return html;
