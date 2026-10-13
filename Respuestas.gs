@@ -31,7 +31,7 @@ function obtenerPreguntasOperativo(token) {
     // Filter active assignments for user's subdirectorate
     var assignedQuestionIDs = [];
     asignaciones.forEach(function(a) {
-      if ((String(a.Activa).toUpperCase() === 'TRUE' || a.Activa === true)) {
+      if (String(a.Activa).toUpperCase() === 'TRUE' || a.Activa === true) {
         if (!isOp || a.SubdireccionID === userSubID) {
           if (assignedQuestionIDs.indexOf(a.QuestionID) === -1) {
             assignedQuestionIDs.push(a.QuestionID);
@@ -45,16 +45,17 @@ function obtenerPreguntasOperativo(token) {
       return isAct && (!isOp || assignedQuestionIDs.indexOf(p.QuestionID) !== -1);
     });
 
-    // Map existing responses
+    // Map existing responses by QuestionID + SubdireccionID
     var respMap = {};
     respuestas.forEach(function(r) {
       if (!isOp || r.SubdireccionID === userSubID) {
-        respMap[r.QuestionID] = r;
+        respMap[r.QuestionID + '_' + r.SubdireccionID] = r;
       }
     });
 
     var result = activePreguntas.map(function(p) {
-      var resp = respMap[p.QuestionID] || {};
+      var subKey = p.QuestionID + '_' + userSubID;
+      var resp = respMap[subKey] || {};
       return {
         QuestionID: p.QuestionID,
         LoteID: p.LoteID,
@@ -135,7 +136,7 @@ function guardarRespuestaOperativo(token, respuestaData) {
     var nivelRiesgo = calcularNivelRiesgo(respuestaData.respuesta);
     var estadoRevision = respuestaData.esBorrador ? 'En revisión' : 'Enviada';
 
-    // Check if response record already exists for this question + subdirectorate
+    // Check if response record already exists for this exact question + subdirectorate pair
     var existingResp = null;
     for (var i = 0; i < respuestas.length; i++) {
       if (respuestas[i].QuestionID === respuestaData.questionID && (!subID || respuestas[i].SubdireccionID === subID)) {
@@ -146,8 +147,6 @@ function guardarRespuestaOperativo(token, respuestaData) {
 
     if (existingResp) {
       var rIndex = existingResp._rowIndex;
-
-      // Merge EvidenciaDocumental if provided
       var evidenciaDoc = respuestaData.evidenciaDocumental || existingResp.EvidenciaDocumental || '';
 
       sheet.getRange(rIndex, 5).setValue(respuestaData.respuesta || '');
@@ -159,7 +158,7 @@ function guardarRespuestaOperativo(token, respuestaData) {
       sheet.getRange(rIndex, 12).setValue(now);
       sheet.getRange(rIndex, 13).setValue(estadoRevision);
 
-      logAccion(session.email, 'Guardar Respuesta', 'Respuesta actualizada para ' + respuestaData.questionID + ' (Estado: ' + estadoRevision + ')');
+      logAccion(session.email, 'Guardar Respuesta', 'Respuesta actualizada para ' + respuestaData.questionID + ' / ' + subID + ' (Estado: ' + estadoRevision + ')');
       return { success: true, message: respuestaData.esBorrador ? 'Borrador guardado con éxito.' : 'Respuesta enviada exitosamente.' };
     } else {
       var newID = 'RESP-' + ('000' + (respuestas.length + 1)).slice(-3);
@@ -183,7 +182,7 @@ function guardarRespuestaOperativo(token, respuestaData) {
         ''
       ]);
 
-      logAccion(session.email, 'Crear Respuesta', 'Nueva respuesta creada para ' + respuestaData.questionID + ' (Estado: ' + estadoRevision + ')');
+      logAccion(session.email, 'Crear Respuesta', 'Nueva respuesta creada para ' + respuestaData.questionID + ' / ' + subID + ' (Estado: ' + estadoRevision + ')');
       return { success: true, message: respuestaData.esBorrador ? 'Borrador guardado con éxito.' : 'Respuesta enviada exitosamente.' };
     }
   } catch (e) {
@@ -194,7 +193,7 @@ function guardarRespuestaOperativo(token, respuestaData) {
 }
 
 /**
- * Retrieves full responses tracking table for Administrator with filters
+ * Retrieves full responses tracking table for Administrator showing one row per QuestionID + SubdireccionID pair.
  */
 function obtenerSeguimientoRespuestas(token, loteID) {
   try {
@@ -212,9 +211,8 @@ function obtenerSeguimientoRespuestas(token, loteID) {
 
     var respMap = {};
     respuestas.forEach(function(r) {
-      respMap[r.QuestionID + '_' + r.SubdireccionID] = r;
-      // also map by QuestionID fallback
-      if (!respMap[r.QuestionID]) respMap[r.QuestionID] = r;
+      var key = r.QuestionID + '_' + r.SubdireccionID;
+      respMap[key] = r;
     });
 
     var activeAsig = asignaciones.filter(function(a) {
@@ -223,7 +221,8 @@ function obtenerSeguimientoRespuestas(token, loteID) {
 
     var result = activeAsig.map(function(a) {
       var p = pregMap[a.QuestionID] || {};
-      var r = respMap[a.QuestionID + '_' + a.SubdireccionID] || respMap[a.QuestionID] || {};
+      var key = a.QuestionID + '_' + a.SubdireccionID;
+      var r = respMap[key] || {};
 
       return {
         QuestionID: a.QuestionID,
@@ -258,7 +257,7 @@ function obtenerSeguimientoRespuestas(token, loteID) {
 }
 
 /**
- * Reviews response (Observar o Aceptar)
+ * Reviews response specifically for QuestionID + SubdireccionID pair (Observar o Aceptar)
  */
 function revisarRespuestaAdmin(token, revisionData) {
   var lock = LockService.getScriptLock();
@@ -273,11 +272,12 @@ function revisarRespuestaAdmin(token, revisionData) {
     var sheet = getSheetSafe('Respuestas');
     var respuestas = getSheetObjects('Respuestas');
     var now = new Date().toISOString();
+    var subID = revisionData.subdireccionID || '';
 
     var targetResp = null;
     for (var i = 0; i < respuestas.length; i++) {
       if (respuestas[i].QuestionID === revisionData.questionID) {
-        if (!revisionData.subdireccionID || respuestas[i].SubdireccionID === revisionData.subdireccionID) {
+        if (!subID || respuestas[i].SubdireccionID === subID) {
           targetResp = respuestas[i];
           break;
         }
@@ -285,12 +285,12 @@ function revisarRespuestaAdmin(token, revisionData) {
     }
 
     if (!targetResp) {
-      // Create record if admin accepts/observes prior to explicit submission
+      // Create record if admin accepts/observes prior to explicit submission for this subdirectorate
       var newID = 'RESP-' + ('000' + (respuestas.length + 1)).slice(-3);
       sheet.appendRow([
         newID,
         revisionData.questionID,
-        revisionData.subdireccionID || '',
+        subID,
         '',
         '',
         '',
@@ -314,7 +314,7 @@ function revisarRespuestaAdmin(token, revisionData) {
       sheet.getRange(rIdx, 16).setValue(now);
     }
 
-    logAccion(session.email, 'Revisar Respuesta', 'Pregunta ' + revisionData.questionID + ' cambiada a ' + revisionData.estado);
+    logAccion(session.email, 'Revisar Respuesta', 'Pregunta ' + revisionData.questionID + ' / ' + subID + ' cambiada a ' + revisionData.estado);
     return { success: true, message: 'Respuesta marcada como ' + revisionData.estado + ' correctamente.' };
   } catch (e) {
     return { success: false, message: e.message };
