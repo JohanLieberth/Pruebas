@@ -4,6 +4,12 @@ Aplicación Web completa desarrollada en **Google Apps Script (V8)**, **HTML5**,
 
 ---
 
+## 📚 Documentación y Manuales
+
+- [📘 Manual de Usuario Operativo](MANUAL_OPERATIVO.md): Guía paso a paso para usuarios operativos para responder preguntas, adjuntar evidencias a Google Drive y corregir observaciones.
+
+---
+
 ## 🚀 Características Principales
 
 1. **Base de Datos Relacional en Google Sheets**:
@@ -11,8 +17,8 @@ Aplicación Web completa desarrollada en **Google Apps Script (V8)**, **HTML5**,
    - `Preguntas`: Banco de preguntas con ID secuencial (`LOTE-001-001`).
    - `Subdirecciones`: Subdirecciones responsables (simples y compuestas).
    - `Usuarios`: Gestión de cuentas, roles (`administrador` / `operativo`) y contraseñas encriptadas con **SHA-256 + Salt**.
-   - `Asignaciones`: Asignación individual y masiva de preguntas a subdirecciones.
-   - `Respuestas`: Gestión de respuestas, cálculo de riesgo residual automático, carpetas de Drive para evidencias textuales/documentales y flujo de observaciones.
+   - `Asignaciones`: Asignación individual y masiva de preguntas a subdirecciones (soporta múltiples subdirecciones por pregunta).
+   - `Respuestas`: Gestión de respuestas individuales por combinación de pregunta y subdirección, cálculo de riesgo residual automático, carpetas de Drive para evidencias textuales/documentales y flujo de observaciones.
    - `Catalogos`: Catálogos maestros de respuesta, riesgo y estado de revisión.
    - `Logs`: Auditoría completa de acciones del sistema.
 
