@@ -4,8 +4,9 @@ Aplicación Web completa desarrollada en **Google Apps Script (V8)**, **HTML5**,
 
 ---
 
-## 📚 Documentación y Manuales
+## 📚 Documentación y Manuales de Usuario
 
+- [🛠️ Manual de Usuario Administrador](MANUAL_ADMINISTRADOR.md): Guía paso a paso para Administradores sobre gestión de usuarios, creación de lotes, importación y limpieza de preguntas, asignación múltiple, revisión individual de respuestas y monitoreo del dashboard.
 - [📘 Manual de Usuario Operativo](MANUAL_OPERATIVO.md): Guía paso a paso para usuarios operativos para responder preguntas, adjuntar evidencias a Google Drive y corregir observaciones.
 
 ---
