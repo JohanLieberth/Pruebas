@@ -1,0 +1,949 @@
+<script>
+/**
+ * ==============================================================================
+ * PLANNER GOOGLE APPS SCRIPT - CLIENT JAVASCRIPT (JavaScript.html)
+ * ==============================================================================
+ */
+
+// Estado Global de la Aplicación
+window.appState = {
+  usuarioActual: null,
+  proyectos: [],
+  proyectoSeleccionadoId: null,
+  proyectoActualData: null,
+  vistaActual: 'kanban',
+  fechaCalendario: new Date(),
+  instanciaGantt: null,
+  instanciaChartEstado: null,
+  instanciaChartMiembros: null,
+  instanciasSortable: []
+};
+
+// Modales Bootstrap Globales
+window.modales = {};
+
+/**
+ * Inicialización de la Aplicación
+ */
+document.addEventListener('DOMContentLoaded', function() {
+  window.inicializarModales();
+  window.cargarUsuarioActual();
+  window.cargarListadoProyectos();
+});
+
+window.inicializarModales = function() {
+  window.modales.tarea = new bootstrap.Modal(document.getElementById('modalTarea'));
+  window.modales.proyecto = new bootstrap.Modal(document.getElementById('modalProyecto'));
+  window.modales.iaPlan = new bootstrap.Modal(document.getElementById('modalIAPlan'));
+  window.modales.drawerGemini = new bootstrap.Offcanvas(document.getElementById('drawerGemini'));
+};
+
+window.cargarUsuarioActual = function() {
+  google.script.run
+    .withSuccessHandler(function(user) {
+      window.appState.usuarioActual = user;
+      document.getElementById('user-name').innerText = user.nombre;
+      document.getElementById('user-role').innerText = user.rol;
+    })
+    .withFailureHandler(function(err) {
+      console.error('Error cargando usuario:', err);
+    })
+    .getUsuarioActual();
+};
+
+window.cargarListadoProyectos = function() {
+  google.script.run
+    .withSuccessHandler(function(proyectos) {
+      window.appState.proyectos = proyectos;
+      const select = document.getElementById('select-proyecto');
+      select.innerHTML = '';
+
+      if (!proyectos || proyectos.length === 0) {
+        select.innerHTML = '<option value="">Sin proyectos disponibles</option>';
+        return;
+      }
+
+      proyectos.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.ID;
+        opt.innerText = p.Nombre;
+        select.appendChild(opt);
+      });
+
+      // Seleccionar el primero por defecto
+      if (!window.appState.proyectoSeleccionadoId && proyectos.length > 0) {
+        window.appState.proyectoSeleccionadoId = proyectos[0].ID;
+      }
+      select.value = window.appState.proyectoSeleccionadoId;
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error al cargar proyectos: ' + err.message);
+    })
+    .obtenerProyectos();
+};
+
+window.cargarProyectoSeleccionado = function() {
+  const select = document.getElementById('select-proyecto');
+  const prjId = select.value;
+  if (!prjId) return;
+
+  window.appState.proyectoSeleccionadoId = prjId;
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      window.appState.proyectoActualData = data;
+      document.getElementById('proyecto-titulo').innerText = data.proyecto.Nombre;
+      window.renderizarVistaActual();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error cargando los datos del proyecto: ' + err.message);
+    })
+    .obtenerDatosCompletosProyecto(prjId);
+};
+
+// ==============================================================================
+// GESTIÓN Y CAMBIO DE VISTAS
+// ==============================================================================
+
+window.cambiarVista = function(nombreVista) {
+  window.appState.vistaActual = nombreVista;
+
+  // Actualizar tabs activas
+  document.querySelectorAll('#pills-tab .nav-link').forEach(btn => btn.classList.remove('active'));
+  const activeTab = document.getElementById(`tab-${nombreVista}`);
+  if (activeTab) activeTab.classList.add('active');
+
+  // Ocultar todas las secciones y mostrar la elegida
+  document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('d-none'));
+  const targetSec = document.getElementById(`view-${nombreVista}`);
+  if (targetSec) targetSec.classList.remove('d-none');
+
+  window.renderizarVistaActual();
+};
+
+window.renderizarVistaActual = function() {
+  if (!window.appState.proyectoActualData) return;
+
+  switch (window.appState.vistaActual) {
+    case 'kanban':
+      window.renderizarKanban();
+      break;
+    case 'grid':
+      window.renderizarGrid();
+      break;
+    case 'calendar':
+      window.renderizarCalendar();
+      break;
+    case 'gantt':
+      window.renderizarGantt();
+      break;
+    case 'dashboard':
+      window.renderizarDashboard();
+      break;
+  }
+};
+
+window.aplicarFiltroTareas = function() {
+  window.renderizarVistaActual();
+};
+
+window.obtenerTareasFiltradas = function() {
+  if (!window.appState.proyectoActualData) return [];
+  let tareas = window.appState.proyectoActualData.tareas || [];
+
+  const busqueda = (document.getElementById('filtro-busqueda').value || '').toLowerCase();
+  const prioridad = document.getElementById('filtro-prioridad').value;
+
+  return tareas.filter(t => {
+    const coincideBusqueda = !busqueda || t.Título.toLowerCase().includes(busqueda) || (t.Descripción && t.Descripción.toLowerCase().includes(busqueda));
+    const coincidePrioridad = !prioridad || t.Prioridad === prioridad;
+    return coincideBusqueda && coincidePrioridad;
+  });
+};
+
+// ==============================================================================
+// VISTA KANBAN (PANEL CON DRAG & DROP)
+// ==============================================================================
+
+window.renderizarKanban = function() {
+  const container = document.getElementById('kanban-board');
+  container.innerHTML = '';
+
+  // Destruir instancias previas de Sortable
+  window.appState.instanciasSortable.forEach(s => s.destroy());
+  window.appState.instanciasSortable = [];
+
+  const buckets = window.appState.proyectoActualData.buckets || [];
+  const tareasFiltradas = window.obtenerTareasFiltradas();
+
+  buckets.forEach(bucket => {
+    const bucketEl = document.createElement('div');
+    bucketEl.className = 'kanban-bucket shadow-xs';
+    bucketEl.setAttribute('data-bucket-id', bucket.ID);
+
+    // Tareas pertenecientes a este bucket
+    const tareasBucket = tareasFiltradas.filter(t => t.BucketID.toString() === bucket.ID.toString());
+
+    let cardsHtml = '';
+    tareasBucket.forEach(t => {
+      const priorClass = `priority-${t.Prioridad.toLowerCase()}`;
+      const chkTotal = t.checklist ? t.checklist.length : 0;
+      const chkComp = t.checklist ? t.checklist.filter(c => c.Completado).length : 0;
+
+      cardsHtml += `
+        <div class="task-card ${priorClass}" data-task-id="${t.ID}" onclick="window.abrirModalEditarTarea('${t.ID}')">
+          <div class="task-card-title">${t.Título}</div>
+          <div class="task-card-meta">
+            ${t.FechaVencimiento ? `<span><i class="fa-regular fa-clock"></i> ${t.FechaVencimiento}</span>` : ''}
+            ${chkTotal > 0 ? `<span><i class="fa-regular fa-square-check"></i> ${chkComp}/${chkTotal}</span>` : ''}
+            ${t.adjuntos && t.adjuntos.length > 0 ? `<span><i class="fa-solid fa-paperclip"></i> ${t.adjuntos.length}</span>` : ''}
+            ${t.comentarios && t.comentarios.length > 0 ? `<span><i class="fa-regular fa-comment"></i> ${t.comentarios.length}</span>` : ''}
+          </div>
+          <div class="mt-2 d-flex justify-content-between align-items-center">
+            <span class="badge badge-${priorClass}">${t.Prioridad}</span>
+            <small class="text-muted fs-8">${t.Asignados ? t.Asignados.split(',')[0] : ''}</small>
+          </div>
+        </div>
+      `;
+    });
+
+    bucketEl.innerHTML = `
+      <div class="kanban-bucket-header">
+        <span class="fw-bold fs-7">${bucket.Nombre} <span class="badge bg-secondary rounded-pill ms-1">${tareasBucket.length}</span></span>
+        <div class="dropdown">
+          <button class="btn btn-xs btn-link text-muted" data-bs-toggle="dropdown"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item fs-7" href="#" onclick="window.renombrarBucketPrompt('${bucket.ID}', '${bucket.Nombre}')">Renombrar Bucket</a></li>
+            <li><a class="dropdown-item fs-7 text-danger" href="#" onclick="window.eliminarBucketConfirm('${bucket.ID}')">Eliminar Bucket</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="kanban-cards-container" id="bucket-cards-${bucket.ID}">
+        ${cardsHtml}
+      </div>
+      <div class="p-2 border-top bg-light text-center">
+        <button class="btn btn-xs btn-outline-primary w-100" onclick="window.abrirModalNuevaTarea('${bucket.ID}')">
+          <i class="fa-solid fa-plus"></i> Agregar tarea
+        </button>
+      </div>
+    `;
+
+    container.appendChild(bucketEl);
+
+    // Inicializar SortableJS en el contenedor de tarjetas
+    const cardsContainer = bucketEl.querySelector(`.kanban-cards-container`);
+    const sortable = new Sortable(cardsContainer, {
+      group: 'kanban-tasks',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      onEnd: function(evt) {
+        const taskId = evt.item.getAttribute('data-task-id');
+        const targetBucketId = evt.to.closest('.kanban-bucket').getAttribute('data-bucket-id');
+        const newIndex = evt.newIndex + 1;
+
+        google.script.run
+          .withSuccessHandler(function() {
+            window.cargarProyectoSeleccionado();
+          })
+          .withFailureHandler(function(err) {
+            alert('Error actualizando posición de la tarea: ' + err.message);
+          })
+          .moverTareaBucket(taskId, targetBucketId, newIndex);
+      }
+    });
+
+    window.appState.instanciasSortable.push(sortable);
+  });
+
+  // Botón para agregar un nuevo Bucket
+  const addBucketBtn = document.createElement('div');
+  addBucketBtn.className = 'kanban-bucket bg-transparent border-dashed text-center p-3 d-flex align-items-center justify-content-center';
+  addBucketBtn.style.border = '2px dashed #ccc';
+  addBucketBtn.style.cursor = 'pointer';
+  addBucketBtn.onclick = window.crearNuevoBucketPrompt;
+  addBucketBtn.innerHTML = '<span class="fw-semibold text-muted"><i class="fa-solid fa-plus me-1"></i> Agregar nuevo bucket</span>';
+  container.appendChild(addBucketBtn);
+};
+
+window.crearNuevoBucketPrompt = function() {
+  const nombre = prompt('Ingrese el nombre del nuevo Bucket:');
+  if (!nombre || !nombre.trim()) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error creando bucket: ' + err.message);
+    })
+    .crearBucket(window.appState.proyectoSeleccionadoId, nombre.trim());
+};
+
+window.renombrarBucketPrompt = function(bucketId, nombreActual) {
+  const nuevoNombre = prompt('Nuevo nombre para el Bucket:', nombreActual);
+  if (!nuevoNombre || !nuevoNombre.trim() || nuevoNombre === nombreActual) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error al renombrar bucket: ' + err.message);
+    })
+    .actualizarNombreBucket(bucketId, nuevoNombre.trim());
+};
+
+window.eliminarBucketConfirm = function(bucketId) {
+  if (!confirm('¿Está seguro de eliminar este bucket? No debe contener tareas.')) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert(err.message);
+    })
+    .eliminarBucket(bucketId);
+};
+
+// ==============================================================================
+// VISTA CUADRÍCULA / LISTA (TABLA)
+// ==============================================================================
+
+window.renderizarGrid = function() {
+  const tbody = document.getElementById('grid-table-body');
+  tbody.innerHTML = '';
+
+  const tareas = window.obtenerTareasFiltradas();
+  const bucketsMap = {};
+  (window.appState.proyectoActualData.buckets || []).forEach(b => bucketsMap[b.ID] = b.Nombre);
+
+  if (tareas.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No hay tareas que mostrar</td></tr>';
+    return;
+  }
+
+  tareas.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="fw-semibold">${t.Título}</td>
+      <td><span class="badge bg-light text-dark border">${bucketsMap[t.BucketID] || 'Desconocido'}</span></td>
+      <td>
+        <span class="badge ${t.Estado === 'Completada' ? 'bg-success' : (t.Estado === 'En curso' ? 'bg-warning text-dark' : 'bg-secondary')}">
+          ${t.Estado}
+        </span>
+      </td>
+      <td><span class="badge badge-priority-${t.Prioridad.toLowerCase()}">${t.Prioridad}</span></td>
+      <td>${t.FechaInicio || '-'}</td>
+      <td>${t.FechaVencimiento || '-'}</td>
+      <td class="fs-7 text-muted">${t.Asignados || 'Sin asignar'}</td>
+      <td class="text-end">
+        <button class="btn btn-xs btn-outline-primary me-1" onclick="window.abrirModalEditarTarea('${t.ID}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-xs btn-outline-danger" onclick="window.eliminarTareaDirecto('${t.ID}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+};
+
+// ==============================================================================
+// VISTA CALENDARIO
+// ==============================================================================
+
+window.renderizarCalendar = function() {
+  const calendarContainer = document.getElementById('calendar-grid');
+  calendarContainer.innerHTML = '';
+
+  const fechaBase = window.appState.fechaCalendario;
+  const anio = fechaBase.getFullYear();
+  const mes = fechaBase.getMonth();
+
+  const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  document.getElementById('calendar-month-year').innerText = `${mesesNombres[mes]} ${anio}`;
+
+  // Encabezados Días de la semana
+  const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  diasSemana.forEach(dia => {
+    const h = document.createElement('div');
+    h.className = 'calendar-day-header';
+    h.innerText = dia;
+    calendarContainer.appendChild(h);
+  });
+
+  const primerDiaMes = new Date(anio, mes, 1).getDay();
+  const totalDiasMes = new Date(anio, mes + 1, 0).getDate();
+
+  // Días del mes anterior
+  for (let i = 0; i < primerDiaMes; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day-cell other-month';
+    calendarContainer.appendChild(cell);
+  }
+
+  const tareas = window.obtenerTareasFiltradas();
+
+  // Días del mes actual
+  for (let dia = 1; dia <= totalDiasMes; dia++) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day-cell';
+
+    const num = document.createElement('div');
+    num.className = 'calendar-day-number';
+    num.innerText = dia;
+    cell.appendChild(num);
+
+    // Formato fecha YYYY-MM-DD
+    const fechaIso = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    const tareasDia = tareas.filter(t => t.FechaVencimiento === fechaIso || t.FechaInicio === fechaIso);
+
+    tareasDia.forEach(t => {
+      const ev = document.createElement('div');
+      ev.className = 'calendar-event';
+      ev.innerText = t.Título;
+      ev.onclick = function() { window.abrirModalEditarTarea(t.ID); };
+      cell.appendChild(ev);
+    });
+
+    calendarContainer.appendChild(cell);
+  }
+};
+
+window.navCalendario = function(delta) {
+  window.appState.fechaCalendario.setMonth(window.appState.fechaCalendario.getMonth() + delta);
+  window.renderizarCalendar();
+};
+
+// ==============================================================================
+// VISTA GANTT (LÍNEA DE TIEMPO)
+// ==============================================================================
+
+window.renderizarGantt = function() {
+  const container = document.getElementById('gantt-chart-container');
+  container.innerHTML = '';
+
+  const tareas = window.obtenerTareasFiltradas();
+  const ganttTasks = [];
+
+  const hoy = new Date().toISOString().split('T')[0];
+
+  tareas.forEach(t => {
+    if (t.FechaInicio || t.FechaVencimiento) {
+      ganttTasks.push({
+        id: t.ID,
+        name: t.Título,
+        start: t.FechaInicio || t.FechaVencimiento || hoy,
+        end: t.FechaVencimiento || t.FechaInicio || hoy,
+        progress: t.Estado === 'Completada' ? 100 : (t.Estado === 'En curso' ? 50 : 0)
+      });
+    }
+  });
+
+  if (ganttTasks.length === 0) {
+    container.innerHTML = '<div class="p-4 text-center text-muted">No hay tareas con fechas de inicio o vencimiento para mostrar en el Gantt.</div>';
+    return;
+  }
+
+  window.appState.instanciaGantt = new Gantt('#gantt-chart-container', ganttTasks, {
+    view_mode: 'Week',
+    language: 'es',
+    on_click: function (task) {
+      window.abrirModalEditarTarea(task.id);
+    }
+  });
+};
+
+window.cambiarModoGantt = function(mode) {
+  if (window.appState.instanciaGantt) {
+    window.appState.instanciaGantt.change_view_mode(mode);
+  }
+};
+
+// ==============================================================================
+// VISTA DASHBOARD & GRÁFICOS
+// ==============================================================================
+
+window.renderizarDashboard = function() {
+  const tareas = window.appState.proyectoActualData.tareas || [];
+
+  const total = tareas.length;
+  const completadas = tareas.filter(t => t.Estado === 'Completada').length;
+  const enCurso = tareas.filter(t => t.Estado === 'En curso').length;
+
+  const hoy = new Date().toISOString().split('T')[0];
+  const retrasadas = tareas.filter(t => t.Estado !== 'Completada' && t.FechaVencimiento && t.FechaVencimiento < hoy).length;
+
+  document.getElementById('kpi-total').innerText = total;
+  document.getElementById('kpi-completadas').innerText = completadas;
+  document.getElementById('kpi-encurso').innerText = enCurso;
+  document.getElementById('kpi-retrasadas').innerText = retrasadas;
+
+  // Renderizar Gráfico de Estados
+  const ctxEstado = document.getElementById('chart-estado').getContext('2d');
+  if (window.appState.instanciaChartEstado) window.appState.instanciaChartEstado.destroy();
+
+  const noIniciadas = total - (completadas + enCurso);
+
+  window.appState.instanciaChartEstado = new Chart(ctxEstado, {
+    type: 'doughnut',
+    data: {
+      labels: ['No iniciadas', 'En curso', 'Completadas'],
+      datasets: [{
+        data: [noIniciadas, enCurso, completadas],
+        backgroundColor: ['#6c757d', '#ffc107', '#198754']
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  // Renderizar Gráfico de Miembros
+  const cargaMiembros = {};
+  tareas.forEach(t => {
+    if (t.Asignados) {
+      t.Asignados.split(',').forEach(m => {
+        const email = m.trim();
+        if (email) {
+          cargaMiembros[email] = (cargaMiembros[email] || 0) + 1;
+        }
+      });
+    } else {
+      cargaMiembros['Sin Asignar'] = (cargaMiembros['Sin Asignar'] || 0) + 1;
+    }
+  });
+
+  const ctxMiembros = document.getElementById('chart-miembros').getContext('2d');
+  if (window.appState.instanciaChartMiembros) window.appState.instanciaChartMiembros.destroy();
+
+  window.appState.instanciaChartMiembros = new Chart(ctxMiembros, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(cargaMiembros),
+      datasets: [{
+        label: 'Tareas Asignadas',
+        data: Object.values(cargaMiembros),
+        backgroundColor: '#0f6cbd'
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+};
+
+// ==============================================================================
+// MODALES Y OPERACIONES DE TAREAS & PROYECTOS
+// ==============================================================================
+
+window.abrirModalNuevaTarea = function(bucketIdPredeterminado) {
+  document.getElementById('task-id').value = '';
+  document.getElementById('task-titulo').value = '';
+  document.getElementById('task-descripcion').value = '';
+  document.getElementById('task-estado').value = 'No iniciada';
+  document.getElementById('task-prioridad').value = 'Media';
+  document.getElementById('task-inicio').value = '';
+  document.getElementById('task-vencimiento').value = '';
+  document.getElementById('task-asignados').value = '';
+
+  document.getElementById('modalTareaLabel').innerText = 'Nueva Tarea';
+  document.getElementById('btn-eliminar-tarea').classList.add('d-none');
+
+  // Poblar select buckets
+  const selectBucket = document.getElementById('task-bucket');
+  selectBucket.innerHTML = '';
+  (window.appState.proyectoActualData.buckets || []).forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.ID;
+    opt.innerText = b.Nombre;
+    selectBucket.appendChild(opt);
+  });
+
+  if (bucketIdPredeterminado) selectBucket.value = bucketIdPredeterminado;
+
+  document.getElementById('checklist-items-container').innerHTML = '<small class="text-muted">Guarde la tarea para gestionar la lista de comprobación.</small>';
+  document.getElementById('attachments-container').innerHTML = '<small class="text-muted">Guarde la tarea para adjuntar archivos de Drive.</small>';
+  document.getElementById('comments-container').innerHTML = '<small class="text-muted">Guarde la tarea para comentar.</small>';
+
+  window.modales.tarea.show();
+};
+
+window.abrirModalEditarTarea = function(tareaId) {
+  const tarea = (window.appState.proyectoActualData.tareas || []).find(t => t.ID.toString() === tareaId.toString());
+  if (!tarea) return;
+
+  document.getElementById('task-id').value = tarea.ID;
+  document.getElementById('task-titulo').value = tarea.Título;
+  document.getElementById('task-descripcion').value = tarea.Descripción || '';
+  document.getElementById('task-estado').value = tarea.Estado || 'No iniciada';
+  document.getElementById('task-prioridad').value = tarea.Prioridad || 'Media';
+  document.getElementById('task-inicio').value = tarea.FechaInicio || '';
+  document.getElementById('task-vencimiento').value = tarea.FechaVencimiento || '';
+  document.getElementById('task-asignados').value = tarea.Asignados || '';
+
+  document.getElementById('modalTareaLabel').innerText = 'Editar Tarea';
+  document.getElementById('btn-eliminar-tarea').classList.remove('d-none');
+
+  // Poblar select buckets
+  const selectBucket = document.getElementById('task-bucket');
+  selectBucket.innerHTML = '';
+  (window.appState.proyectoActualData.buckets || []).forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.ID;
+    opt.innerText = b.Nombre;
+    selectBucket.appendChild(opt);
+  });
+  selectBucket.value = tarea.BucketID;
+
+  // Renderizar Checklist
+  window.renderizarChecklistModal(tarea.checklist || []);
+  // Renderizar Adjuntos
+  window.renderizarAdjuntosModal(tarea.adjuntos || []);
+  // Renderizar Comentarios
+  window.renderizarComentariosModal(tarea.comentarios || []);
+
+  window.modales.tarea.show();
+};
+
+window.guardarTareaModal = function() {
+  const tareaData = {
+    ID: document.getElementById('task-id').value,
+    ProyectoID: window.appState.proyectoSeleccionadoId,
+    BucketID: document.getElementById('task-bucket').value,
+    Título: document.getElementById('task-titulo').value.trim(),
+    Descripción: document.getElementById('task-descripcion').value.trim(),
+    Estado: document.getElementById('task-estado').value,
+    Prioridad: document.getElementById('task-prioridad').value,
+    FechaInicio: document.getElementById('task-inicio').value,
+    FechaVencimiento: document.getElementById('task-vencimiento').value,
+    Asignados: document.getElementById('task-asignados').value.trim()
+  };
+
+  if (!tareaData.Título) {
+    alert('Por favor ingrese el título de la tarea.');
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function() {
+      window.modales.tarea.hide();
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error guardando la tarea: ' + err.message);
+    })
+    .crearOActualizarTarea(tareaData);
+};
+
+window.eliminarTareaActual = function() {
+  const taskId = document.getElementById('task-id').value;
+  if (!taskId) return;
+
+  if (confirm('¿Está seguro de eliminar esta tarea?')) {
+    window.eliminarTareaDirecto(taskId);
+    window.modales.tarea.hide();
+  }
+};
+
+window.eliminarTareaDirecto = function(taskId) {
+  if (!confirm('¿Desea eliminar la tarea?')) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error al eliminar tarea: ' + err.message);
+    })
+    .eliminarTarea(taskId);
+};
+
+// CHECKLIST EN MODAL
+window.renderizarChecklistModal = function(items) {
+  const container = document.getElementById('checklist-items-container');
+  container.innerHTML = '';
+
+  if (items.length === 0) {
+    container.innerHTML = '<small class="text-muted d-block mb-1">Sin elementos en la lista.</small>';
+    return;
+  }
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'd-flex align-items-center justify-content-between mb-1';
+    div.innerHTML = `
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" ${item.Completado ? 'checked' : ''} onchange="window.toggleChecklistModal('${item.ID}', this.checked)">
+        <label class="form-check-label fs-7 ${item.Completado ? 'text-decoration-line-through text-muted' : ''}">${item.Texto}</label>
+      </div>
+      <button class="btn btn-xs btn-link text-danger p-0" onclick="window.eliminarChecklistModal('${item.ID}')"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    container.appendChild(div);
+  });
+};
+
+window.agregarChecklistItem = function() {
+  const taskId = document.getElementById('task-id').value;
+  const input = document.getElementById('new-checklist-text');
+  const texto = input.value.trim();
+
+  if (!taskId || !texto) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      input.value = '';
+      window.cargarProyectoSeleccionado();
+    })
+    .agregarItemChecklist(taskId, texto);
+};
+
+window.toggleChecklistModal = function(itemId, completado) {
+  google.script.run.toggleItemChecklist(itemId, completado);
+};
+
+window.eliminarChecklistModal = function(itemId) {
+  google.script.run
+    .withSuccessHandler(function() {
+      window.cargarProyectoSeleccionado();
+    })
+    .eliminarItemChecklist(itemId);
+};
+
+// ADJUNTOS EN MODAL
+window.renderizarAdjuntosModal = function(adjuntos) {
+  const container = document.getElementById('attachments-container');
+  container.innerHTML = '';
+
+  if (adjuntos.length === 0) {
+    container.innerHTML = '<small class="text-muted d-block mb-1">Sin archivos adjuntos.</small>';
+    return;
+  }
+
+  adjuntos.forEach(a => {
+    const chip = document.createElement('a');
+    chip.href = a.URL;
+    chip.target = '_blank';
+    chip.className = 'btn btn-xs btn-outline-secondary text-truncate';
+    chip.style.maxWidth = '200px';
+    chip.innerHTML = `<i class="fa-solid fa-file-arrow-down me-1"></i> ${a.Nombre}`;
+    container.appendChild(chip);
+  });
+};
+
+window.subirAdjuntoDrive = function() {
+  const taskId = document.getElementById('task-id').value;
+  const fileInput = document.getElementById('file-upload-input');
+  if (!taskId || !fileInput.files || fileInput.files.length === 0) return;
+
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    const fileData = {
+      name: file.name,
+      mimeType: file.type,
+      base64: e.target.result
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        fileInput.value = '';
+        window.cargarProyectoSeleccionado();
+      })
+      .withFailureHandler(function(err) {
+        alert('Error subiendo archivo: ' + err.message);
+      })
+      .adjuntarArchivoDrive(taskId, fileData);
+  };
+
+  reader.readAsDataURL(file);
+};
+
+// COMENTARIOS EN MODAL
+window.renderizarComentariosModal = function(comentarios) {
+  const container = document.getElementById('comments-container');
+  container.innerHTML = '';
+
+  if (comentarios.length === 0) {
+    container.innerHTML = '<small class="text-muted d-block">No hay comentarios aún.</small>';
+    return;
+  }
+
+  comentarios.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'bg-white p-2 rounded mb-2 border shadow-xs fs-7';
+    div.innerHTML = `
+      <div class="d-flex justify-content-between text-muted fs-8 mb-1">
+        <span class="fw-bold">${c.Autor}</span>
+        <span>${c.Fecha}</span>
+      </div>
+      <div>${c.Texto}</div>
+    `;
+    container.appendChild(div);
+  });
+};
+
+window.agregarComentarioModal = function() {
+  const taskId = document.getElementById('task-id').value;
+  const input = document.getElementById('new-comment-text');
+  const texto = input.value.trim();
+
+  if (!taskId || !texto) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      input.value = '';
+      window.cargarProyectoSeleccionado();
+    })
+    .agregarComentario(taskId, texto);
+};
+
+window.enviarRecordatorioMailModal = function() {
+  const taskId = document.getElementById('task-id').value;
+  const asignados = document.getElementById('task-asignados').value.trim();
+
+  if (!taskId || !asignados) {
+    alert('Ingrese al menos un correo de asignado para enviar el recordatorio.');
+    return;
+  }
+
+  const destinatario = asignados.split(',')[0].trim();
+  const msj = prompt('Escriba un mensaje personalizado para el recordatorio por Gmail:', 'Por favor actualiza el estado de esta tarea.');
+
+  if (!msj) return;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      alert(`Recordatorio enviado con éxito a ${destinatario}`);
+    })
+    .withFailureHandler(function(err) {
+      alert('Error enviando correo: ' + err.message);
+    })
+    .enviarRecordatorioGmail(taskId, destinatario, msj);
+};
+
+// ==============================================================================
+// GESTIÓN DE PROYECTO MODAL
+// ==============================================================================
+
+window.abrirModalNuevoProyecto = function() {
+  document.getElementById('prj-id').value = '';
+  document.getElementById('prj-nombre').value = '';
+  document.getElementById('prj-descripcion').value = '';
+  document.getElementById('prj-miembros').value = window.appState.usuarioActual ? window.appState.usuarioActual.email : '';
+  document.getElementById('modalProyectoLabel').innerText = 'Nuevo Proyecto';
+  window.modales.proyecto.show();
+};
+
+window.abrirModalEditarProyecto = function() {
+  if (!window.appState.proyectoActualData) return;
+  const prj = window.appState.proyectoActualData.proyecto;
+
+  document.getElementById('prj-id').value = prj.ID;
+  document.getElementById('prj-nombre').value = prj.Nombre;
+  document.getElementById('prj-descripcion').value = prj.Descripción || '';
+  document.getElementById('prj-miembros').value = prj.Miembros || '';
+  document.getElementById('modalProyectoLabel').innerText = 'Editar Proyecto';
+  window.modales.proyecto.show();
+};
+
+window.guardarProyectoModal = function() {
+  const data = {
+    ID: document.getElementById('prj-id').value,
+    Nombre: document.getElementById('prj-nombre').value.trim(),
+    Descripción: document.getElementById('prj-descripcion').value.trim(),
+    Miembros: document.getElementById('prj-miembros').value.trim()
+  };
+
+  if (!data.Nombre) {
+    alert('Ingrese un nombre de proyecto válido.');
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function(newPrjId) {
+      window.modales.proyecto.hide();
+      window.appState.proyectoSeleccionadoId = newPrjId;
+      window.cargarListadoProyectos();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error guardando proyecto: ' + err.message);
+    })
+    .crearOActualizarProyecto(data);
+};
+
+// ==============================================================================
+// INTEGRACIÓN GEMINI IA
+// ==============================================================================
+
+window.toggleDrawerGemini = function() {
+  window.modales.drawerGemini.toggle();
+};
+
+window.enviarPromptGemini = function() {
+  const textarea = document.getElementById('gemini-prompt');
+  const promptText = textarea.value.trim();
+  if (!promptText) return;
+
+  const chatContainer = document.getElementById('chat-messages');
+
+  // Agregar mensaje de usuario
+  const userMsgDiv = document.createElement('div');
+  userMsgDiv.className = 'user-msg bg-primary text-white p-2 rounded shadow-xs mb-2 ms-auto';
+  userMsgDiv.style.maxWidth = '85%';
+  userMsgDiv.innerText = promptText;
+  chatContainer.appendChild(userMsgDiv);
+
+  textarea.value = '';
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+  // Indicador de carga
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'ai-msg bg-white p-2 rounded shadow-xs mb-2 border-start border-warning border-3 text-muted';
+  loadingDiv.innerText = 'Pensando...';
+  chatContainer.appendChild(loadingDiv);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+  google.script.run
+    .withSuccessHandler(function(respuesta) {
+      chatContainer.removeChild(loadingDiv);
+
+      const aiMsgDiv = document.createElement('div');
+      aiMsgDiv.className = 'ai-msg bg-white p-2 rounded shadow-xs mb-2 border-start border-primary border-3';
+      aiMsgDiv.innerText = respuesta;
+      chatContainer.appendChild(aiMsgDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    })
+    .withFailureHandler(function(err) {
+      chatContainer.removeChild(loadingDiv);
+      alert('Error al consultar Gemini IA: ' + err.message);
+    })
+    .consultarAsistenteGemini(promptText, window.appState.proyectoSeleccionadoId);
+};
+
+window.abrirModalGenerarPlanIA = function() {
+  document.getElementById('ia-plan-objetivo').value = '';
+  window.modales.iaPlan.show();
+};
+
+window.ejecutarGenerarPlanIA = function() {
+  const objetivo = document.getElementById('ia-plan-objetivo').value.trim();
+  if (!objetivo) {
+    alert('Por favor describa el objetivo del proyecto.');
+    return;
+  }
+
+  if (!window.appState.proyectoSeleccionadoId) {
+    alert('Seleccione o cree un proyecto primero.');
+    return;
+  }
+
+  window.modales.iaPlan.hide();
+
+  google.script.run
+    .withSuccessHandler(function() {
+      alert('¡Plan de proyecto generado exitosamente con Gemini IA!');
+      window.cargarProyectoSeleccionado();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error generando plan con IA: ' + err.message);
+    })
+    .generarPlanDeProyectoConIA(window.appState.proyectoSeleccionadoId, objetivo);
+};
+</script>
