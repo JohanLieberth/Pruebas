@@ -1,0 +1,199 @@
+<style>
+  /* ==============================================================================
+     PLANNER GOOGLE APPS SCRIPT - ESTILOS CSS (Estilos.html)
+     ============================================================================== */
+
+  :root {
+    --planner-primary: #0f6cbd;
+    --planner-primary-hover: #115ea3;
+    --planner-bg: #f5f5f5;
+    --planner-card-bg: #ffffff;
+    --planner-border: #e0e0e0;
+    --planner-text-primary: #242424;
+    --planner-text-secondary: #616161;
+    --planner-urgente: #d9534f;
+    --planner-alta: #f0ad4e;
+    --planner-media: #0275d8;
+    --planner-baja: #5bc0de;
+  }
+
+  body {
+    background-color: var(--planner-bg);
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+    color: var(--planner-text-primary);
+    overflow-x: hidden;
+  }
+
+  /* Utility classes */
+  .fs-7 { font-size: 0.85rem; }
+  .fs-8 { font-size: 0.75rem; }
+  .shadow-xs { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .max-h-200 { max-height: 200px; }
+
+  /* Header Pills Navigation */
+  .header-pills .nav-link {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .header-pills .nav-link:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .header-pills .nav-link.active {
+    color: var(--planner-primary);
+    background-color: #ffffff;
+    font-weight: 600;
+  }
+
+  /* KANBAN BOARD & BUCKETS */
+  #kanban-board {
+    min-height: calc(100vh - 170px);
+  }
+
+  .kanban-bucket {
+    background-color: #ebedf0;
+    border-radius: 8px;
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+    display: flex;
+    flex-column: column;
+    max-height: calc(100vh - 180px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .kanban-bucket-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+
+  .kanban-cards-container {
+    padding: 8px;
+    overflow-y: auto;
+    flex-grow: 1;
+    min-height: 80px;
+  }
+
+  /* TASK CARD */
+  .task-card {
+    background-color: var(--planner-card-bg);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-left: 4px solid var(--planner-primary);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+  }
+
+  .task-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+  }
+
+  .task-card.priority-urgente { border-left-color: var(--planner-urgente); }
+  .task-card.priority-alta { border-left-color: var(--planner-alta); }
+  .task-card.priority-media { border-left-color: var(--planner-media); }
+  .task-card.priority-baja { border-left-color: var(--planner-baja); }
+
+  .task-card-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--planner-text-primary);
+  }
+
+  .task-card-meta {
+    font-size: 0.78rem;
+    color: var(--planner-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* BADGES & PRIORITY TAGS */
+  .badge-priority-urgente { background-color: #fde8e8; color: #9b1c1c; }
+  .badge-priority-alta { background-color: #fef3c7; color: #92400e; }
+  .badge-priority-media { background-color: #e1f5fe; color: #0275d8; }
+  .badge-priority-baja { background-color: #e0f2fe; color: #0369a1; }
+
+  /* CALENDAR VIEW */
+  .calendar-container {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background-color: var(--planner-border);
+    border: 1px solid var(--planner-border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .calendar-day-header {
+    background-color: #f8f9fa;
+    padding: 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .calendar-day-cell {
+    background-color: #ffffff;
+    min-height: 100px;
+    padding: 6px;
+    position: relative;
+  }
+
+  .calendar-day-number {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--planner-text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .calendar-day-cell.other-month {
+    background-color: #fcfcfc;
+    opacity: 0.5;
+  }
+
+  .calendar-event {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background-color: #e3f2fd;
+    color: #0d47a1;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  /* GANTT OVERRIDES */
+  .gantt .bar-progress {
+    fill: var(--planner-primary) !important;
+  }
+
+  /* CHAT DRAWER GEMINI */
+  .ai-msg {
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+
+  /* SORTABLE GHOST CARD */
+  .sortable-ghost {
+    opacity: 0.4;
+    background-color: #d1e7dd !important;
+  }
+</style>
