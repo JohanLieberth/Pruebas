@@ -81,11 +81,12 @@
         </div>
       `;
 
-      let fileName = 'DashboardView';
-      if (tabName === 'proyectos') fileName = 'ProyectosView';
-      else if (tabName === 'minuta') fileName = 'MinutaView';
-      else if (tabName === 'acuerdo-ind') fileName = 'AcuerdoIndividualView';
-      else if (tabName === 'usuarios') fileName = 'UsuariosView';
+      let fileName = 'Dashboard';
+      if (tabName === 'proyectos' || tabName === 'Proyectos') fileName = 'Proyectos';
+      else if (tabName === 'minuta' || tabName === 'Minuta') fileName = 'Minuta';
+      else if (tabName === 'acuerdo-ind' || tabName === 'AcuerdoIndividual') fileName = 'AcuerdoIndividual';
+      else if (tabName === 'usuarios' || tabName === 'Usuarios') fileName = 'Usuarios';
+      else if (tabName === 'dashboard' || tabName === 'Dashboard') fileName = 'Dashboard';
 
       google.script.run
         .withSuccessHandler(html => {

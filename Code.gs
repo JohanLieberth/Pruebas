@@ -37,7 +37,17 @@ function doGet(e) {
  * Helper para incluir archivos HTML parciales (CSS / JS) dentro de las plantillas.
  */
 function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  try {
+    var template = HtmlService.createTemplateFromFile(filename);
+    return template.evaluate().getContent();
+  } catch (e1) {
+    if (filename.indexOf("View") !== -1) {
+      var baseName = filename.replace("View", "");
+      var templateBase = HtmlService.createTemplateFromFile(baseName);
+      return templateBase.evaluate().getContent();
+    }
+    throw e1;
+  }
 }
 
 /**
@@ -94,14 +104,23 @@ function ejecutarRecordatoriosAhora() {
 /**
  * Modales de acceso rápido desde la hoja de cálculo.
  */
-function abrirModalProyectos() { abrirModalVista("ProyectosView", "Gestión de Proyectos", 850, 600); }
-function abrirModalMinuta() { abrirModalVista("MinutaView", "Registrar Minuta", 950, 680); }
-function abrirModalAcuerdoIndividual() { abrirModalVista("AcuerdoIndividualView", "Registrar Acuerdo Individual", 800, 550); }
-function abrirModalDashboard() { abrirModalVista("DashboardView", "Dashboard General", 1000, 700); }
-function abrirModalUsuarios() { abrirModalVista("UsuariosView", "Gestión de Usuarios", 850, 600); }
+function abrirModalProyectos() { abrirModalVista("Proyectos", "Gestión de Proyectos", 850, 600); }
+function abrirModalMinuta() { abrirModalVista("Minuta", "Registrar Minuta", 950, 680); }
+function abrirModalAcuerdoIndividual() { abrirModalVista("AcuerdoIndividual", "Registrar Acuerdo Individual", 800, 550); }
+function abrirModalDashboard() { abrirModalVista("Dashboard", "Dashboard General", 1000, 700); }
+function abrirModalUsuarios() { abrirModalVista("Usuarios", "Gestión de Usuarios", 850, 600); }
 
 function abrirModalVista(file, title, width, height) {
-  var template = HtmlService.createTemplateFromFile(file);
+  var template;
+  try {
+    template = HtmlService.createTemplateFromFile(file);
+  } catch (e) {
+    if (file.indexOf("View") === -1) {
+      template = HtmlService.createTemplateFromFile(file + "View");
+    } else {
+      template = HtmlService.createTemplateFromFile(file.replace("View", ""));
+    }
+  }
   var html = template.evaluate().setWidth(width).setHeight(height);
   SpreadsheetApp.getUi().showModalDialog(html, title);
 }
