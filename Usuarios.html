@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Gestión de Usuarios</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  <div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="fw-bold text-primary mb-0"><i class="bi bi-people-fill me-2"></i>Gestión de Usuarios</h4>
+      <button class="btn btn-primary-custom btn-sm" onclick="abrirModalNuevoUsuario()">
+        <i class="bi bi-person-plus-fill me-1"></i>Nuevo Usuario
+      </button>
+    </div>
+
+    <div class="card card-custom">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Correo Electrónico</th>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Subdirección</th>
+                <th>Activo</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyUsuarios">
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">Cargando usuarios...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Usuario -->
+  <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="modalUsuarioLabel">Nuevo Usuario</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formUsuario" onsubmit="guardarUsuarioSubmit(event)">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Correo Electrónico <span class="text-danger">*</span></label>
+              <input type="email" class="form-control" id="usr_correo" required placeholder="usuario@dominio.com">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nombre Completo <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="usr_nombre" required placeholder="Ej. Juan Pérez">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Rol <span class="text-danger">*</span></label>
+              <select class="form-select" id="usr_rol" required onchange="toggleSubdireccionInput()">
+                <option value="Operador">Operador</option>
+                <option value="Administrador">Administrador</option>
+              </select>
+            </div>
+            <div class="mb-3" id="groupSubdireccion">
+              <label class="form-label fw-semibold">Subdirección Asignada</label>
+              <select class="form-select" id="usr_subdireccion">
+                <option value="">-- Seleccionar Subdirección --</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Estatus Activo</label>
+              <select class="form-select" id="usr_activo">
+                <option value="Sí">Sí</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary-custom">Guardar Usuario</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+
+  <script>
+    let usuariosList = [];
+    let catalogos = {};
+
+    function initUsuarios() {
+      cargarCatalogosYUsuarios();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initUsuarios);
+    } else {
+      initUsuarios();
+    }
+
+    function cargarCatalogosYUsuarios() {
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(cats => {
+          catalogos = cats || {};
+          poblarSelectSubdirecciones();
+          cargarUsuarios();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al cargar catálogos: " + err.message, "danger");
+        })
+        .obtenerCatalogos();
+    }
+
+    function poblarSelectSubdirecciones() {
+      const select = document.getElementById('usr_subdireccion');
+      select.innerHTML = '<option value="">-- Seleccionar Subdirección --</option>';
+      if (catalogos.Subdirección) {
+        catalogos.Subdirección.forEach(sub => {
+          select.innerHTML += `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`;
+        });
+      }
+    }
+
+    function cargarUsuarios() {
+      google.script.run
+        .withSuccessHandler(data => {
+          toggleSpinner(false);
+          usuariosList = data || [];
+          renderTablaUsuarios();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al cargar usuarios: " + err.message, "danger");
+        })
+        .listarUsuarios();
+    }
+
+    function renderTablaUsuarios() {
+      const tbody = document.getElementById('tbodyUsuarios');
+      if (usuariosList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No hay usuarios registrados.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = usuariosList.map(u => `
+        <tr>
+          <td class="fw-bold text-primary">${escapeHtml(u.Correo)}</td>
+          <td>${escapeHtml(u.Nombre)}</td>
+          <td>
+            <span class="badge ${u.Rol === 'Administrador' ? 'bg-indigo text-white' : 'bg-info text-dark'}" style="${u.Rol === 'Administrador' ? 'background-color:#1A237E;' : ''}">${escapeHtml(u.Rol)}</span>
+          </td>
+          <td>${escapeHtml(u.Subdirección || '-')}</td>
+          <td>
+            <span class="badge ${u.Activo === 'Sí' || u.Activo === 'Si' ? 'bg-success' : 'bg-danger'}">${escapeHtml(u.Activo)}</span>
+          </td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" onclick="editarUsuario('${u.Correo}')">
+              <i class="bi bi-pencil-fill"></i> Editar
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function toggleSubdireccionInput() {
+      const rol = document.getElementById('usr_rol').value;
+      const group = document.getElementById('groupSubdireccion');
+      if (rol === 'Administrador') {
+        group.style.display = 'none';
+      } else {
+        group.style.display = 'block';
+      }
+    }
+
+    function abrirModalNuevoUsuario() {
+      document.getElementById('formUsuario').reset();
+      document.getElementById('usr_correo').readOnly = false;
+      document.getElementById('modalUsuarioLabel').innerText = 'Nuevo Usuario';
+      toggleSubdireccionInput();
+      new bootstrap.Modal(document.getElementById('modalUsuario')).show();
+    }
+
+    function editarUsuario(correo) {
+      const usr = usuariosList.find(u => u.Correo.toLowerCase() === correo.toLowerCase());
+      if (!usr) return;
+
+      document.getElementById('usr_correo').value = usr.Correo;
+      document.getElementById('usr_correo').readOnly = true;
+      document.getElementById('usr_nombre').value = usr.Nombre;
+      document.getElementById('usr_rol').value = usr.Rol;
+      document.getElementById('usr_subdireccion').value = usr.Subdirección || '';
+      document.getElementById('usr_activo').value = (usr.Activo === 'Sí' || usr.Activo === 'Si') ? 'Sí' : 'No';
+
+      toggleSubdireccionInput();
+      document.getElementById('modalUsuarioLabel').innerText = 'Editar Usuario';
+      new bootstrap.Modal(document.getElementById('modalUsuario')).show();
+    }
+
+    function guardarUsuarioSubmit(e) {
+      e.preventDefault();
+      const payload = {
+        Correo: document.getElementById('usr_correo').value,
+        Nombre: document.getElementById('usr_nombre').value,
+        Rol: document.getElementById('usr_rol').value,
+        Subdirección: document.getElementById('usr_subdireccion').value,
+        Activo: document.getElementById('usr_activo').value
+      };
+
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
+          mostrarAlerta(res.mensaje, "success");
+          cargarUsuarios();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error: " + err.message, "danger");
+        })
+        .guardarUsuario(payload);
+    }
+  </script>
+</body>
+</html>

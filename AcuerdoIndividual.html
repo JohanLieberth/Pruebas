@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Acuerdo Individual</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  <div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="fw-bold text-primary mb-0"><i class="bi bi-lightning-charge-fill me-2"></i>Registrar Acuerdo Individual</h4>
+      <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Sin Minuta (Caso de Emergencia)</span>
+    </div>
+
+    <div class="card card-custom">
+      <div class="card-body">
+        <form id="formAcuerdoInd" onsubmit="guardarAcuerdoIndSubmit(event)">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+              <select class="form-select" id="ind_tipo" required onchange="toggleIndFechaLimite(this)">
+                <option value="Acuerdo">Acuerdo</option>
+                <option value="Informativo">Informativo</option>
+              </select>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Prioridad <span class="text-danger">*</span></label>
+              <select class="form-select" id="ind_prioridad" required>
+                <option value="Alta">Alta</option>
+                <option value="Media" selected>Media</option>
+                <option value="Baja">Baja</option>
+              </select>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Fecha Límite</label>
+              <input type="date" class="form-control" id="ind_fecha_limite" required>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Subdirección Asignada <span class="text-danger">*</span></label>
+              <select class="form-select" id="ind_subdireccion" required>
+                <option value="">-- Seleccionar Subdirección --</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Solicitante(s)</label>
+              <input type="text" class="form-control" id="ind_solicitantes" placeholder="Ej. Ing. Carlos Ruiz; Lic. María Torres">
+              <span class="form-text">Nombres separados por punto y coma (;)</span>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Responsable(s)</label>
+              <input type="text" class="form-control" id="ind_responsables" placeholder="Ej. Mtro. Roberto Gómez; Dra. Ana López">
+              <span class="form-text">Nombres separados por punto y coma (;)</span>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-semibold">Descripción del Acuerdo <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="ind_descripcion" rows="4" required placeholder="Describa claramente el acuerdo o compromiso asignado..."></textarea>
+            </div>
+
+            <div class="col-12 text-end mt-4">
+              <button type="button" class="btn btn-secondary me-2" onclick="window.history.back()">Cancelar</button>
+              <button type="submit" class="btn btn-primary-custom px-4"><i class="bi bi-send-fill me-1"></i>Guardar Acuerdo Individual</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+
+  <script>
+    function initAcuerdoInd() {
+      document.getElementById('ind_fecha_limite').valueAsDate = new Date();
+      cargarSubdirecciones();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAcuerdoInd);
+    } else {
+      initAcuerdoInd();
+    }
+
+    function cargarSubdirecciones() {
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(cats => {
+          toggleSpinner(false);
+          const sel = document.getElementById('ind_subdireccion');
+          sel.innerHTML = '<option value="">-- Seleccionar Subdirección --</option>';
+          if (cats && cats.Subdirección) {
+            cats.Subdirección.forEach(sub => {
+              sel.innerHTML += `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`;
+            });
+          }
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al cargar subdirecciones: " + err.message, "danger");
+        })
+        .obtenerCatalogos();
+    }
+
+    function toggleIndFechaLimite(select) {
+      const input = document.getElementById('ind_fecha_limite');
+      if (select.value === 'Informativo') {
+        input.value = '';
+        input.disabled = true;
+        input.required = false;
+      } else {
+        input.disabled = false;
+        input.required = true;
+      }
+    }
+
+    function guardarAcuerdoIndSubmit(e) {
+      e.preventDefault();
+
+      const tipo = document.getElementById('ind_tipo').value;
+      const fechaLim = document.getElementById('ind_fecha_limite').value;
+
+      if (tipo === 'Acuerdo' && !fechaLim) {
+        mostrarAlerta("La fecha límite es obligatoria para acuerdos de tipo 'Acuerdo'.", "warning");
+        return;
+      }
+
+      const payload = {
+        Tipo: tipo,
+        Prioridad: document.getElementById('ind_prioridad').value,
+        Fecha_Límite: tipo === 'Acuerdo' ? fechaLim : '',
+        Subdirección_Asignada: document.getElementById('ind_subdireccion').value,
+        Solicitantes: document.getElementById('ind_solicitantes').value.trim(),
+        Responsables: document.getElementById('ind_responsables').value.trim(),
+        Descripción_Acuerdo: document.getElementById('ind_descripcion').value.trim()
+      };
+
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          mostrarAlerta(res.mensaje, "success");
+          document.getElementById('formAcuerdoInd').reset();
+          setTimeout(() => {
+            if (window.top !== window.self) {
+              google.script.host.close();
+            }
+          }, 1500);
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al guardar acuerdo: " + err.message, "danger");
+        })
+        .guardarAcuerdoIndividual(payload);
+    }
+  </script>
+</body>
+</html>
