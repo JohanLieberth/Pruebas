@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Dashboard Administrador</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  <div class="container-fluid py-3">
+    <!-- Fila KPIs Resumen -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-2 col-6">
+        <div class="card card-custom kpi-card p-3">
+          <div class="kpi-title">Total Acuerdos</div>
+          <div class="kpi-value text-primary" id="kpiTotal">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="card card-custom p-3 border-left-secondary" style="border-left: 4px solid #6c757d;">
+          <div class="kpi-title">Pendientes</div>
+          <div class="kpi-value text-secondary" id="kpiPendientes">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="card card-custom p-3" style="border-left: 4px solid #0dcaf0;">
+          <div class="kpi-title">En Proceso</div>
+          <div class="kpi-value text-info" id="kpiProceso">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="card card-custom p-3" style="border-left: 4px solid #198754;">
+          <div class="kpi-title">Cumplidos</div>
+          <div class="kpi-value text-success" id="kpiCumplidos">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="card card-custom p-3" style="border-left: 4px solid #dc3545;">
+          <div class="kpi-title">Vencidos</div>
+          <div class="kpi-value text-danger" id="kpiVencidos">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="card card-custom p-3" style="border-left: 4px solid #1A237E;">
+          <div class="kpi-title">Proyectos</div>
+          <div class="kpi-value" style="color: #1A237E;" id="kpiProyectos">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seccion Gráficas -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="card card-custom h-100">
+          <div class="card-header card-header-custom">
+            <i class="bi bi-pie-chart-fill me-2"></i>Acuerdos por Subdirección
+          </div>
+          <div class="card-body">
+            <canvas id="chartSubdireccion" style="max-height: 250px;"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-custom h-100">
+          <div class="card-header card-header-custom">
+            <i class="bi bi-bar-chart-fill me-2"></i>Distribución por Prioridad
+          </div>
+          <div class="card-body">
+            <canvas id="chartPrioridad" style="max-height: 250px;"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla Filtrable General -->
+    <div class="card card-custom">
+      <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-2"></i>Listado General de Acuerdos</span>
+        <div class="d-flex gap-2">
+          <select class="form-select form-select-sm" id="dash_filter_subdireccion" onchange="aplicarFiltrosDashboard()">
+            <option value="">Todas las Subdirecciones</option>
+          </select>
+          <select class="form-select form-select-sm" id="dash_filter_estatus" onchange="aplicarFiltrosDashboard()">
+            <option value="">Todos los Estatus</option>
+            <option value="Pendiente">Pendiente</option>
+            <option value="En Proceso">En Proceso</option>
+            <option value="Cumplido">Cumplido</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>ID / Minuta</th>
+                <th>Subdirección</th>
+                <th>Descripción del Acuerdo</th>
+                <th>Prioridad</th>
+                <th>Fecha Límite</th>
+                <th>Responsables</th>
+                <th>Estatus</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyDashboard">
+              <tr>
+                <td colspan="8" class="text-center py-4 text-muted">Cargando métricas...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar Acuerdo Admin -->
+  <div class="modal fade" id="modalEditAdmin" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-pencil-fill me-2"></i>Editar Acuerdo (Administrador)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formEditAdmin" onsubmit="guardarEditAdminSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="edit_id_acuerdo">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Subdirección Asignada</label>
+                <select class="form-select" id="edit_subdireccion">
+                  <option value="">-- Sin Asignar --</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Prioridad</label>
+                <select class="form-select" id="edit_prioridad">
+                  <option value="Alta">Alta</option>
+                  <option value="Media">Media</option>
+                  <option value="Baja">Baja</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Estatus</label>
+                <select class="form-select" id="edit_estatus">
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="En Proceso">En Proceso</option>
+                  <option value="Cumplido">Cumplido</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Fecha Límite</label>
+                <input type="date" class="form-control" id="edit_fecha_limite">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-semibold">Descripción del Acuerdo</label>
+                <textarea class="form-control" id="edit_descripcion" rows="3" required></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary-custom">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+
+  <script>
+    let dashboardData = null;
+    let chartSub = null;
+    let chartPrio = null;
+
+    function initDashboard() {
+      cargarDashboard();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initDashboard);
+    } else {
+      initDashboard();
+    }
+
+    function cargarDashboard() {
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(data => {
+          toggleSpinner(false);
+          dashboardData = data;
+          renderKPIs(data);
+          renderGraficas(data);
+          poblarFiltroSubdirecciones(data.porSubdireccion);
+          aplicarFiltrosDashboard();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al cargar dashboard: " + err.message, "danger");
+        })
+        .obtenerMetricasDashboard();
+    }
+
+    function renderKPIs(d) {
+      document.getElementById('kpiTotal').innerText = d.totalAcuerdos || 0;
+      document.getElementById('kpiPendientes').innerText = d.porEstatus['Pendiente'] || 0;
+      document.getElementById('kpiProceso').innerText = d.porEstatus['En Proceso'] || 0;
+      document.getElementById('kpiCumplidos').innerText = d.porEstatus['Cumplido'] || 0;
+      document.getElementById('kpiVencidos').innerText = d.vencidos || 0;
+      document.getElementById('kpiProyectos').innerText = d.totalProyectos || 0;
+    }
+
+    function renderGraficas(d) {
+      if (chartSub) chartSub.destroy();
+      if (chartPrio) chartPrio.destroy();
+
+      const ctxSub = document.getElementById('chartSubdireccion').getContext('2d');
+      const labelsSub = Object.keys(d.porSubdireccion);
+      const valuesSub = Object.values(d.porSubdireccion);
+
+      chartSub = new Chart(ctxSub, {
+        type: 'doughnut',
+        data: {
+          labels: labelsSub,
+          datasets: [{
+            data: valuesSub,
+            backgroundColor: ['#1A237E', '#3949AB', '#00BCD4', '#ffc107', '#dc3545', '#198754']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      const ctxPrio = document.getElementById('chartPrioridad').getContext('2d');
+      chartPrio = new Chart(ctxPrio, {
+        type: 'bar',
+        data: {
+          labels: ['Alta', 'Media', 'Baja'],
+          datasets: [{
+            label: 'Acuerdos',
+            data: [d.porPrioridad['Alta'] || 0, d.porPrioridad['Media'] || 0, d.porPrioridad['Baja'] || 0],
+            backgroundColor: ['#dc3545', '#ffc107', '#198754']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      });
+    }
+
+    function poblarFiltroSubdirecciones(subMap) {
+      const select = document.getElementById('dash_filter_subdireccion');
+      const modalSelect = document.getElementById('edit_subdireccion');
+
+      select.innerHTML = '<option value="">Todas las Subdirecciones</option>';
+      modalSelect.innerHTML = '<option value="">-- Sin Asignar --</option>';
+
+      Object.keys(subMap).forEach(sub => {
+        if (sub && sub !== 'Sin Asignar') {
+          select.innerHTML += `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`;
+          modalSelect.innerHTML += `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`;
+        }
+      });
+    }
+
+    function aplicarFiltrosDashboard() {
+      if (!dashboardData || !dashboardData.acuerdos) return;
+
+      const subFiltro = document.getElementById('dash_filter_subdireccion').value.toLowerCase();
+      const estFiltro = document.getElementById('dash_filter_estatus').value.toLowerCase();
+
+      const filtrados = dashboardData.acuerdos.filter(a => {
+        const matchSub = !subFiltro || (a.Subdirección_Asignada || '').toLowerCase() === subFiltro;
+        const matchEst = !estFiltro || (a.Estatus || '').toLowerCase() === estFiltro;
+        return matchSub && matchEst;
+      });
+
+      renderTablaDashboard(filtrados);
+    }
+
+    function renderTablaDashboard(lista) {
+      const tbody = document.getElementById('tbodyDashboard');
+      if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No hay acuerdos registrados para los filtros seleccionados.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = lista.map(a => `
+        <tr>
+          <td>
+            <span class="fw-bold">${escapeHtml(a.Folio_Minuta || a.ID_Acuerdo)}</span>
+            ${a.Folio_Minuta ? `<br><small class="text-muted">${escapeHtml(a.ID_Acuerdo)}</small>` : ''}
+          </td>
+          <td><span class="badge bg-light text-dark border">${escapeHtml(a.Subdirección_Asignada || 'Sin Asignar')}</span></td>
+          <td style="max-width: 250px;">${escapeHtml(a.Descripción_Acuerdo)}</td>
+          <td>${getBadgePrioridad(a.Prioridad)}</td>
+          <td><strong class="text-danger">${escapeHtml(a.Fecha_Límite || 'N/A')}</strong></td>
+          <td><small>${escapeHtml(a.Responsables || 'Sin asignar')}</small></td>
+          <td>${getBadgeEstatus(a.Estatus)}</td>
+          <td class="text-end">
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary" onclick="abrirModalEditAdmin('${a.ID_Acuerdo}')" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-outline-warning text-dark" onclick="enviarRecordatorioManual('${a.ID_Acuerdo}')" title="Enviar Notificación/Recordatorio">
+                <i class="bi bi-bell-fill"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function abrirModalEditAdmin(idAcuerdo) {
+      const acu = dashboardData.acuerdos.find(a => a.ID_Acuerdo === idAcuerdo);
+      if (!acu) return;
+
+      document.getElementById('edit_id_acuerdo').value = acu.ID_Acuerdo;
+      document.getElementById('edit_subdireccion').value = acu.Subdirección_Asignada || '';
+      document.getElementById('edit_prioridad').value = acu.Prioridad || 'Media';
+      document.getElementById('edit_estatus').value = acu.Estatus || 'Pendiente';
+      document.getElementById('edit_fecha_limite').value = acu.Fecha_Límite || '';
+      document.getElementById('edit_descripcion').value = acu.Descripción_Acuerdo || '';
+
+      new bootstrap.Modal(document.getElementById('modalEditAdmin')).show();
+    }
+
+    function guardarEditAdminSubmit(e) {
+      e.preventDefault();
+      const payload = {
+        ID_Acuerdo: document.getElementById('edit_id_acuerdo').value,
+        Subdirección_Asignada: document.getElementById('edit_subdireccion').value,
+        Prioridad: document.getElementById('edit_prioridad').value,
+        Estatus: document.getElementById('edit_estatus').value,
+        Fecha_Límite: document.getElementById('edit_fecha_limite').value,
+        Descripción_Acuerdo: document.getElementById('edit_descripcion').value
+      };
+
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          bootstrap.Modal.getInstance(document.getElementById('modalEditAdmin')).hide();
+          mostrarAlerta(res.mensaje, "success");
+          cargarDashboard();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error: " + err.message, "danger");
+        })
+        .editarAcuerdoAdmin(payload);
+    }
+
+    function enviarRecordatorioManual(idAcuerdo) {
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          mostrarAlerta("Notificación enviada exitosamente por correo.", "success");
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al enviar notificación: " + err.message, "danger");
+        })
+        .enviarNotificacionAcuerdo(idAcuerdo);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Panel del Operador - Seguimiento de Acuerdos</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  <!-- Navbar Institutional -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-institutional mb-4">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="#">
+        <i class="bi bi-clipboard-check-fill me-2 fs-4"></i>
+        <span>Panel del Operador - <?= userSubdireccion ?></span>
+      </a>
+      <div class="d-flex align-items-center text-white">
+        <span class="me-3"><i class="bi bi-person-circle me-1"></i><?= userEmail ?></span>
+        <span class="badge bg-light text-primary fw-bold">Operador</span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4">
+    <!-- Filtros de búsqueda -->
+    <div class="card card-custom mb-4">
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Filtrar por Estatus</label>
+            <select class="form-select" id="op_filter_estatus" onchange="aplicarFiltrosOperador()">
+              <option value="">Todos los estatus</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="En Proceso">En Proceso</option>
+              <option value="Cumplido">Cumplido</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Filtrar por Prioridad</label>
+            <select class="form-select" id="op_filter_prioridad" onchange="aplicarFiltrosOperador()">
+              <option value="">Todas las prioridades</option>
+              <option value="Alta">Alta</option>
+              <option value="Media">Media</option>
+              <option value="Baja">Baja</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Buscar por Texto</label>
+            <input type="text" class="form-control" id="op_filter_texto" oninput="aplicarFiltrosOperador()" placeholder="Descripción, folio, responsable...">
+          </div>
+          <div class="col-md-2 text-end">
+            <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltrosOperador()">
+              <i class="bi bi-eraser me-1"></i>Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla de Acuerdos -->
+    <div class="card card-custom">
+      <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check me-2"></i>Acuerdos Asignados a <?= userSubdireccion ?></span>
+        <span class="badge bg-primary" id="cntAcuerdosOp">0 Registros</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>ID / Folio</th>
+                <th>Origen</th>
+                <th>Descripción del Acuerdo</th>
+                <th>Prioridad</th>
+                <th>Fecha Límite</th>
+                <th>Responsable(s)</th>
+                <th>Estatus</th>
+                <th class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyOperador">
+              <tr>
+                <td colspan="8" class="text-center py-4 text-muted">Cargando acuerdos de la subdirección...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Cambiar Estatus y Comentarios -->
+  <div class="modal fade" id="modalEstatus" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Actualizar Estatus de Acuerdo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formEstatus" onsubmit="guardarEstatusSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="est_id_acuerdo">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Acuerdo:</label>
+              <div class="p-2 bg-light border rounded" id="est_desc_acuerdo">---</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Nuevo Estatus <span class="text-danger">*</span></label>
+                <select class="form-select" id="est_nuevo_estatus" required>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="En Proceso">En Proceso</option>
+                  <option value="Cumplido">Cumplido</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Agregar Comentario de Seguimiento</label>
+                <textarea class="form-control" id="est_comentario" rows="2" placeholder="Describa el avance, observaciones o justificación..."></textarea>
+              </div>
+            </div>
+
+            <hr class="my-4">
+            <h6><i class="bi bi-chat-left-text me-2"></i>Historial de Comentarios</h6>
+            <div id="historialComentarios" class="p-2 bg-light border rounded" style="max-height: 200px; overflow-y: auto;">
+              <small class="text-muted">Cargando comentarios...</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary-custom">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Solicitar Seguimiento al Administrador -->
+  <div class="modal fade" id="modalSolicitarSeguimiento" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark">
+          <h5 class="modal-title"><i class="bi bi-envelope-exclamation-fill me-2"></i>Solicitar Seguimiento a Administrador</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formSolicitar" onsubmit="enviarSolicitudAdminSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="sol_id_acuerdo">
+            <p class="small text-muted">
+              Envía una notificación por correo electrónico a los Administradores solicitando su apoyo o intervención en este acuerdo.
+            </p>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Motivo / Explicación <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="sol_motivo" rows="4" required placeholder="Escriba la razón de la solicitud, bloqueos o dudas planteadas..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-warning fw-bold"><i class="bi bi-send-fill me-1"></i>Enviar Notificación</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+
+  <script>
+    let todosAcuerdosOperador = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      cargarAcuerdosOperador();
+    });
+
+    function cargarAcuerdosOperador() {
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(data => {
+          toggleSpinner(false);
+          todosAcuerdosOperador = data || [];
+          aplicarFiltrosOperador();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al cargar acuerdos: " + err.message, "danger");
+        })
+        .obtenerAcuerdosPorSubdireccion();
+    }
+
+    function aplicarFiltrosOperador() {
+      const estatus = document.getElementById('op_filter_estatus').value.toLowerCase();
+      const prioridad = document.getElementById('op_filter_prioridad').value.toLowerCase();
+      const texto = document.getElementById('op_filter_texto').value.toLowerCase().trim();
+
+      const filtrados = todosAcuerdosOperador.filter(a => {
+        const matchEstatus = !estatus || (a.Estatus || '').toLowerCase() === estatus;
+        const matchPrioridad = !prioridad || (a.Prioridad || '').toLowerCase() === prioridad;
+        const matchTexto = !texto ||
+          (a.Descripción_Acuerdo || '').toLowerCase().includes(texto) ||
+          (a.Folio_Minuta || '').toLowerCase().includes(texto) ||
+          (a.ID_Acuerdo || '').toLowerCase().includes(texto) ||
+          (a.Responsables || '').toLowerCase().includes(texto);
+
+        return matchEstatus && matchPrioridad && matchTexto;
+      });
+
+      renderTablaOperador(filtrados);
+    }
+
+    function limpiarFiltrosOperador() {
+      document.getElementById('op_filter_estatus').value = '';
+      document.getElementById('op_filter_prioridad').value = '';
+      document.getElementById('op_filter_texto').value = '';
+      aplicarFiltrosOperador();
+    }
+
+    function renderTablaOperador(lista) {
+      const tbody = document.getElementById('tbodyOperador');
+      document.getElementById('cntAcuerdosOp').innerText = `${lista.length} Registros`;
+
+      if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No se encontraron acuerdos asignados.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = lista.map(a => `
+        <tr>
+          <td>
+            <span class="fw-bold">${escapeHtml(a.Folio_Minuta || a.ID_Acuerdo)}</span>
+            ${a.Folio_Minuta ? `<br><small class="text-muted">${escapeHtml(a.ID_Acuerdo)}</small>` : ''}
+          </td>
+          <td><span class="badge ${a.Origen === 'Minuta' ? 'bg-indigo text-white' : 'bg-warning text-dark'}" style="${a.Origen === 'Minuta' ? 'background-color:#1A237E;' : ''}">${escapeHtml(a.Origen || 'Minuta')}</span></td>
+          <td style="max-width: 300px;">${escapeHtml(a.Descripción_Acuerdo)}</td>
+          <td>${getBadgePrioridad(a.Prioridad)}</td>
+          <td><strong class="text-danger">${escapeHtml(a.Fecha_Límite || 'N/A')}</strong></td>
+          <td><small>${escapeHtml(a.Responsables || 'Sin asignar')}</small></td>
+          <td>${getBadgeEstatus(a.Estatus)}</td>
+          <td class="text-center">
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary" onclick="abrirModalEstatus('${a.ID_Acuerdo}')" title="Actualizar Estatus">
+                <i class="bi bi-pencil-square"></i> Estatus
+              </button>
+              <button class="btn btn-outline-warning text-dark" onclick="abrirModalSolicitud('${a.ID_Acuerdo}')" title="Solicitar seguimiento al Administrador">
+                <i class="bi bi-envelope-exclamation-fill"></i> Solicitar
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function abrirModalEstatus(idAcuerdo) {
+      const acu = todosAcuerdosOperador.find(a => a.ID_Acuerdo === idAcuerdo);
+      if (!acu) return;
+
+      document.getElementById('est_id_acuerdo').value = acu.ID_Acuerdo;
+      document.getElementById('est_desc_acuerdo').innerText = acu.Descripción_Acuerdo;
+      document.getElementById('est_nuevo_estatus').value = acu.Estatus || 'Pendiente';
+      document.getElementById('est_comentario').value = '';
+
+      cargarComentariosModal(idAcuerdo);
+      new bootstrap.Modal(document.getElementById('modalEstatus')).show();
+    }
+
+    function cargarComentariosModal(idAcuerdo) {
+      const div = document.getElementById('historialComentarios');
+      div.innerHTML = '<small class="text-muted">Cargando comentarios...</small>';
+
+      google.script.run
+        .withSuccessHandler(comentarios => {
+          if (!comentarios || comentarios.length === 0) {
+            div.innerHTML = '<small class="text-muted">No hay comentarios registrados.</small>';
+            return;
+          }
+          div.innerHTML = comentarios.map(c => `
+            <div class="mb-2 pb-2 border-bottom">
+              <div class="d-flex justify-content-between text-muted small">
+                <strong>${escapeHtml(c.Usuario)}</strong>
+                <span>${escapeHtml(c.Fecha_Hora)}</span>
+              </div>
+              <div class="text-dark mt-1">${escapeHtml(c.Comentario)}</div>
+            </div>
+          `).join('');
+        })
+        .withFailureHandler(err => {
+          div.innerHTML = `<small class="text-danger">Error al cargar comentarios: ${err.message}</small>`;
+        })
+        .obtenerComentariosAcuerdo(idAcuerdo);
+    }
+
+    function guardarEstatusSubmit(e) {
+      e.preventDefault();
+      const idAcuerdo = document.getElementById('est_id_acuerdo').value;
+      const nuevoEstatus = document.getElementById('est_nuevo_estatus').value;
+      const comentario = document.getElementById('est_comentario').value;
+
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          bootstrap.Modal.getInstance(document.getElementById('modalEstatus')).hide();
+          mostrarAlerta(res.mensaje, "success");
+          cargarAcuerdosOperador();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error: " + err.message, "danger");
+        })
+        .actualizarEstatusAcuerdo(idAcuerdo, nuevoEstatus, comentario);
+    }
+
+    function abrirModalSolicitud(idAcuerdo) {
+      document.getElementById('sol_id_acuerdo').value = idAcuerdo;
+      document.getElementById('sol_motivo').value = '';
+      new bootstrap.Modal(document.getElementById('modalSolicitarSeguimiento')).show();
+    }
+
+    function enviarSolicitudAdminSubmit(e) {
+      e.preventDefault();
+      const idAcuerdo = document.getElementById('sol_id_acuerdo').value;
+      const motivo = document.getElementById('sol_motivo').value.trim();
+
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          bootstrap.Modal.getInstance(document.getElementById('modalSolicitarSeguimiento')).hide();
+          mostrarAlerta(res.mensaje, "success");
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error: " + err.message, "danger");
+        })
+        .solicitarSeguimientoAdmin(idAcuerdo, motivo);
+    }
+  </script>
+</body>
+</html>
