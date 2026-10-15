@@ -64,17 +64,38 @@ function inicializarEstructuraBD() {
 
     if (!sheet) {
       sheet = ss.insertSheet(sheetName);
-      if (expectedHeaders) {
+      if (expectedHeaders && expectedHeaders.length > 0) {
         sheet.appendRow(expectedHeaders);
         sheet.getRange(1, 1, 1, expectedHeaders.length).setFontWeight("bold").setBackground("#1A237E").setFontColor("#FFFFFF");
       }
       logMessages.push("Pestaña creada: " + sheetName);
     } else {
-      if (expectedHeaders && sheet.getLastRow() === 0) {
+      if (!expectedHeaders || expectedHeaders.length === 0) return;
+
+      if (sheet.getLastRow() === 0) {
         sheet.appendRow(expectedHeaders);
         sheet.getRange(1, 1, 1, expectedHeaders.length).setFontWeight("bold").setBackground("#1A237E").setFontColor("#FFFFFF");
+        logMessages.push("Encabezados agregados a pestaña vacía: " + sheetName);
+      } else {
+        // Verificar encabezados existentes en la fila 1 y agregar columnas faltantes al final
+        var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(h) {
+          return h.toString().trim();
+        });
+
+        var missingHeaders = expectedHeaders.filter(function(h) {
+          return existingHeaders.indexOf(h) === -1;
+        });
+
+        if (missingHeaders.length > 0) {
+          var startCol = sheet.getLastColumn() + 1;
+          var newHeaderRange = sheet.getRange(1, startCol, 1, missingHeaders.length);
+          newHeaderRange.setValues([missingHeaders]);
+          newHeaderRange.setFontWeight("bold").setBackground("#1A237E").setFontColor("#FFFFFF");
+          logMessages.push("Columnas agregadas a " + sheetName + ": " + missingHeaders.join(", "));
+        } else {
+          logMessages.push("Pestaña verificada (completa): " + sheetName);
+        }
       }
-      logMessages.push("Pestaña verificada: " + sheetName);
     }
   });
 

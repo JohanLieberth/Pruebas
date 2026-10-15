@@ -7,6 +7,9 @@
  * Detecta el usuario activo y renderiza la interfaz correspondiente a su rol.
  */
 function doGet(e) {
+  // Garantizar verificación e inicialización automática de la estructura de la base de datos
+  inicializarEstructuraBD();
+
   var userEmail = Session.getActiveUser().getEmail() || "";
   var rol = obtenerRolUsuario(userEmail);
 
