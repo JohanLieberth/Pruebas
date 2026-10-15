@@ -191,15 +191,42 @@
       google.script.run
         .withSuccessHandler(data => {
           toggleSpinner(false);
-          dashboardData = data;
-          renderKPIs(data);
-          renderGraficas(data);
-          poblarFiltroSubdirecciones(data.porSubdireccion);
+          dashboardData = data || {
+            totalProyectos: 0,
+            totalMinutas: 0,
+            totalAcuerdos: 0,
+            porEstatus: {},
+            porPrioridad: {},
+            porSubdireccion: {},
+            vencidos: 0,
+            acuerdos: [],
+            proyectos: [],
+            minutas: []
+          };
+          renderKPIs(dashboardData);
+          renderGraficas(dashboardData);
+          poblarFiltroSubdirecciones(dashboardData.porSubdireccion || {});
           aplicarFiltrosDashboard();
         })
         .withFailureHandler(err => {
           toggleSpinner(false);
-          mostrarAlerta("Error al cargar dashboard: " + err.message, "danger");
+          mostrarAlerta("Error al cargar dashboard: " + (err ? err.message : "Desconocido"), "danger");
+          dashboardData = {
+            totalProyectos: 0,
+            totalMinutas: 0,
+            totalAcuerdos: 0,
+            porEstatus: {},
+            porPrioridad: {},
+            porSubdireccion: {},
+            vencidos: 0,
+            acuerdos: [],
+            proyectos: [],
+            minutas: []
+          };
+          renderKPIs(dashboardData);
+          renderGraficas(dashboardData);
+          poblarFiltroSubdirecciones({});
+          aplicarFiltrosDashboard();
         })
         .obtenerMetricasDashboard();
     }

@@ -175,6 +175,7 @@
       toggleSpinner(true);
       google.script.run
         .withSuccessHandler(res => {
+          res = res || {};
           catalogos = res.catalogos || {};
           proyectosList = res.proyectos || [];
           poblarOpciones();
@@ -182,7 +183,11 @@
         })
         .withFailureHandler(err => {
           toggleSpinner(false);
-          mostrarAlerta("Error al inicializar datos: " + err.message, "danger");
+          console.warn("Error al inicializar datos de minuta: " + (err ? err.message : "Desconocido"));
+          catalogos = {};
+          proyectosList = [];
+          poblarOpciones();
+          generarFolio();
         })
         .obtenerDatosMinutaIniciales();
     }

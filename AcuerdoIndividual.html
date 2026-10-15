@@ -92,6 +92,7 @@
       google.script.run
         .withSuccessHandler(cats => {
           toggleSpinner(false);
+          cats = cats || {};
           const sel = document.getElementById('ind_subdireccion');
           sel.innerHTML = '<option value="">-- Seleccionar Subdirección --</option>';
           if (cats && cats.Subdirección) {
@@ -102,7 +103,7 @@
         })
         .withFailureHandler(err => {
           toggleSpinner(false);
-          mostrarAlerta("Error al cargar subdirecciones: " + err.message, "danger");
+          mostrarAlerta("Error al cargar subdirecciones: " + (err ? err.message : "Desconocido"), "danger");
         })
         .obtenerCatalogos();
     }

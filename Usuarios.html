@@ -113,8 +113,10 @@
           cargarUsuarios();
         })
         .withFailureHandler(err => {
-          toggleSpinner(false);
-          mostrarAlerta("Error al cargar catálogos: " + err.message, "danger");
+          console.warn("Error cargando catálogos: " + (err ? err.message : "Desconocido"));
+          catalogos = {};
+          poblarSelectSubdirecciones();
+          cargarUsuarios();
         })
         .obtenerCatalogos();
     }
@@ -138,7 +140,9 @@
         })
         .withFailureHandler(err => {
           toggleSpinner(false);
-          mostrarAlerta("Error al cargar usuarios: " + err.message, "danger");
+          mostrarAlerta("Error al cargar usuarios: " + (err ? err.message : "Desconocido"), "danger");
+          usuariosList = [];
+          renderTablaUsuarios();
         })
         .listarUsuarios();
     }

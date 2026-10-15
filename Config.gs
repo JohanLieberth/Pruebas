@@ -30,7 +30,23 @@ var HEADERS = {
  * Obtiene la hoja de cálculo activa.
  */
 function getSpreadsheet() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) return ss;
+  } catch (e) {
+    console.warn("getActiveSpreadsheet() falló: " + e.toString());
+  }
+
+  var propId = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
+  if (propId) {
+    try {
+      return SpreadsheetApp.openById(propId);
+    } catch (eProp) {
+      console.error("Error abriendo spreadsheet por ID (" + propId + "): " + eProp.toString());
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -38,12 +54,20 @@ function getSpreadsheet() {
  */
 function getSheetSafe(sheetName) {
   var ss = getSpreadsheet();
+  if (!ss) return null;
+
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    if (HEADERS[sheetName.toUpperCase()]) {
-      sheet.appendRow(HEADERS[sheetName.toUpperCase()]);
-      sheet.getRange(1, 1, 1, HEADERS[sheetName.toUpperCase()].length).setFontWeight("bold").setBackground("#E8EAF6");
+    try {
+      sheet = ss.insertSheet(sheetName);
+      var headerKey = sheetName.toUpperCase();
+      if (HEADERS[headerKey]) {
+        sheet.appendRow(HEADERS[headerKey]);
+        sheet.getRange(1, 1, 1, HEADERS[headerKey].length).setFontWeight("bold").setBackground("#E8EAF6");
+      }
+    } catch (e) {
+      console.error("No se pudo crear/obtener la hoja " + sheetName + ": " + e.toString());
+      return null;
     }
   }
   return sheet;
@@ -175,23 +199,36 @@ function generarIDUnico(prefix) {
  * Convierte una hoja a una lista de objetos JSON basándose en los encabezados de la fila 1.
  */
 function sheetToObjects(sheetName) {
-  var sheet = getSheetSafe(sheetName);
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
+  try {
+    var ss = getSpreadsheet();
+    if (!ss) return [];
 
-  var headers = data[0].map(function(h) { return h.toString().trim(); });
-  var rows = data.slice(1);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return [];
 
-  return rows.map(function(row) {
-    var obj = {};
-    headers.forEach(function(header, idx) {
-      var val = row[idx];
-      if (val instanceof Date) {
-        obj[header] = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-      } else {
-        obj[header] = val !== undefined && val !== null ? val.toString() : "";
-      }
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return [];
+
+    var data = sheet.getDataRange().getValues();
+    if (!data || data.length <= 1) return [];
+
+    var headers = data[0].map(function(h) { return h.toString().trim(); });
+    var rows = data.slice(1);
+
+    return rows.map(function(row) {
+      var obj = {};
+      headers.forEach(function(header, idx) {
+        var val = row[idx];
+        if (val instanceof Date) {
+          obj[header] = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+        } else {
+          obj[header] = val !== undefined && val !== null ? val.toString() : "";
+        }
+      });
+      return obj;
     });
-    return obj;
-  });
+  } catch (e) {
+    console.error("Error en sheetToObjects para " + sheetName + ": " + e.toString());
+    return [];
+  }
 }

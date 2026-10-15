@@ -54,38 +54,50 @@ function guardarAcuerdoIndividual(acuerdo) {
  * Obtiene la lista completa de acuerdos (para Administrador).
  */
 function obtenerTodosLosAcuerdos() {
-  var correo = Session.getActiveUser().getEmail();
-  if (!validarAdministrador(correo)) {
-    throw new Error("Acceso denegado.");
+  try {
+    var correo = Session.getActiveUser().getEmail();
+    if (!validarAdministrador(correo)) {
+      console.warn("Acceso denegado a obtenerTodosLosAcuerdos para: " + correo);
+      return [];
+    }
+    var res = sheetToObjects(SHEETS.ACUERDOS);
+    return res || [];
+  } catch (e) {
+    console.error("Error en obtenerTodosLosAcuerdos: " + e.toString());
+    return [];
   }
-  return sheetToObjects(SHEETS.ACUERDOS);
 }
 
 /**
  * Obtiene los acuerdos filtrados para un Operador según su subdirección asignada.
  */
 function obtenerAcuerdosPorSubdireccion(subdireccionFiltro) {
-  var correo = Session.getActiveUser().getEmail();
-  var rol = obtenerRolUsuario(correo);
-  var subdireccionUsuario = subdireccionFiltro || obtenerSubdireccionUsuario(correo);
+  try {
+    var correo = Session.getActiveUser().getEmail();
+    var rol = obtenerRolUsuario(correo);
+    var subdireccionUsuario = subdireccionFiltro || obtenerSubdireccionUsuario(correo);
 
-  var acuerdos = sheetToObjects(SHEETS.ACUERDOS);
+    var acuerdos = sheetToObjects(SHEETS.ACUERDOS) || [];
 
-  if (rol === "Administrador") {
-    if (subdireccionFiltro) {
-      return acuerdos.filter(function(a) {
-        return a.Subdirección_Asignada.toLowerCase().trim() === subdireccionFiltro.toLowerCase().trim();
-      });
+    if (rol === "Administrador") {
+      if (subdireccionFiltro) {
+        return acuerdos.filter(function(a) {
+          return a && a.Subdirección_Asignada && a.Subdirección_Asignada.toLowerCase().trim() === subdireccionFiltro.toLowerCase().trim();
+        });
+      }
+      return acuerdos;
     }
-    return acuerdos;
+
+    // Si es Operador
+    if (!subdireccionUsuario) return [];
+
+    return acuerdos.filter(function(a) {
+      return a && a.Subdirección_Asignada && a.Subdirección_Asignada.toLowerCase().trim() === subdireccionUsuario.toLowerCase().trim();
+    });
+  } catch (e) {
+    console.error("Error en obtenerAcuerdosPorSubdireccion: " + e.toString());
+    return [];
   }
-
-  // Si es Operador
-  if (!subdireccionUsuario) return [];
-
-  return acuerdos.filter(function(a) {
-    return a.Subdirección_Asignada.toLowerCase().trim() === subdireccionUsuario.toLowerCase().trim();
-  });
 }
 
 /**

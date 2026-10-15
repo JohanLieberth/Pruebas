@@ -1,36 +1,42 @@
 /**
- * Usuarios.gs - Gestión de roles, autenticación y usuarios.
+ * UsuariosBackend.gs - Gestión de roles, autenticación y usuarios.
  */
 
 /**
  * Obtiene el rol del usuario según su correo electrónico registrado.
  */
 function obtenerRolUsuario(correo) {
-  if (!correo) correo = Session.getActiveUser().getEmail();
-  if (!correo) return "Sin Acceso";
+  try {
+    if (!correo) correo = Session.getActiveUser().getEmail();
+    if (!correo) return "Sin Acceso";
 
-  var emailNormalizado = correo.toLowerCase().trim();
-  var sheet = getSheetSafe(SHEETS.USUARIOS);
-  var data = sheet.getDataRange().getValues();
+    var emailNormalizado = correo.toLowerCase().trim();
+    var sheet = getSheetSafe(SHEETS.USUARIOS);
+    if (!sheet) return "Sin Acceso";
 
-  if (data.length <= 1) return "Sin Acceso";
+    var data = sheet.getDataRange().getValues();
+    if (!data || data.length <= 1) return "Sin Acceso";
 
-  var headers = data[0].map(function(h) { return h.toString().trim(); });
-  var colCorreo = headers.indexOf("Correo");
-  var colRol = headers.indexOf("Rol");
-  var colActivo = headers.indexOf("Activo");
+    var headers = data[0].map(function(h) { return h.toString().trim(); });
+    var colCorreo = headers.indexOf("Correo");
+    var colRol = headers.indexOf("Rol");
+    var colActivo = headers.indexOf("Activo");
 
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    var emailCell = row[colCorreo] ? row[colCorreo].toString().toLowerCase().trim() : "";
-    var activoCell = row[colActivo] ? row[colActivo].toString().trim() : "";
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var emailCell = row[colCorreo] ? row[colCorreo].toString().toLowerCase().trim() : "";
+      var activoCell = row[colActivo] ? row[colActivo].toString().trim() : "";
 
-    if (emailCell === emailNormalizado && (activoCell === "Sí" || activoCell === "Si" || activoCell === "SI")) {
-      return row[colRol] ? row[colRol].toString().trim() : "Sin Acceso";
+      if (emailCell === emailNormalizado && (activoCell === "Sí" || activoCell === "Si" || activoCell === "SI")) {
+        return row[colRol] ? row[colRol].toString().trim() : "Sin Acceso";
+      }
     }
-  }
 
-  return "Sin Acceso";
+    return "Sin Acceso";
+  } catch (e) {
+    console.error("Error en obtenerRolUsuario: " + e.toString());
+    return "Sin Acceso";
+  }
 }
 
 /**
@@ -53,29 +59,35 @@ function validarOperador(correo) {
  * Obtiene la subdirección asociada al correo del usuario.
  */
 function obtenerSubdireccionUsuario(correo) {
-  if (!correo) correo = Session.getActiveUser().getEmail();
-  var emailNormalizado = correo.toLowerCase().trim();
-  var sheet = getSheetSafe(SHEETS.USUARIOS);
-  var data = sheet.getDataRange().getValues();
+  try {
+    if (!correo) correo = Session.getActiveUser().getEmail();
+    var emailNormalizado = correo.toLowerCase().trim();
+    var sheet = getSheetSafe(SHEETS.USUARIOS);
+    if (!sheet) return "";
 
-  if (data.length <= 1) return "";
+    var data = sheet.getDataRange().getValues();
+    if (!data || data.length <= 1) return "";
 
-  var headers = data[0].map(function(h) { return h.toString().trim(); });
-  var colCorreo = headers.indexOf("Correo");
-  var colSubdireccion = headers.indexOf("Subdirección");
-  var colActivo = headers.indexOf("Activo");
+    var headers = data[0].map(function(h) { return h.toString().trim(); });
+    var colCorreo = headers.indexOf("Correo");
+    var colSubdireccion = headers.indexOf("Subdirección");
+    var colActivo = headers.indexOf("Activo");
 
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    var emailCell = row[colCorreo] ? row[colCorreo].toString().toLowerCase().trim() : "";
-    var activoCell = row[colActivo] ? row[colActivo].toString().trim() : "";
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var emailCell = row[colCorreo] ? row[colCorreo].toString().toLowerCase().trim() : "";
+      var activoCell = row[colActivo] ? row[colActivo].toString().trim() : "";
 
-    if (emailCell === emailNormalizado && (activoCell === "Sí" || activoCell === "Si" || activoCell === "SI")) {
-      return row[colSubdireccion] ? row[colSubdireccion].toString().trim() : "";
+      if (emailCell === emailNormalizado && (activoCell === "Sí" || activoCell === "Si" || activoCell === "SI")) {
+        return row[colSubdireccion] ? row[colSubdireccion].toString().trim() : "";
+      }
     }
-  }
 
-  return "";
+    return "";
+  } catch (e) {
+    console.error("Error en obtenerSubdireccionUsuario: " + e.toString());
+    return "";
+  }
 }
 
 /**
@@ -115,11 +127,18 @@ function obtenerDatosUsuarioActual() {
  * Obtiene la lista completa de usuarios (solo Administrador).
  */
 function listarUsuarios() {
-  var correo = Session.getActiveUser().getEmail();
-  if (!validarAdministrador(correo)) {
-    throw new Error("Acceso denegado. Solo el Administrador puede consultar los usuarios.");
+  try {
+    var correo = Session.getActiveUser().getEmail();
+    if (!validarAdministrador(correo)) {
+      console.warn("Acceso denegado a listarUsuarios para: " + correo);
+      return [];
+    }
+    var res = sheetToObjects(SHEETS.USUARIOS);
+    return res || [];
+  } catch (e) {
+    console.error("Error en listarUsuarios: " + e.toString());
+    return [];
   }
-  return sheetToObjects(SHEETS.USUARIOS);
 }
 
 /**

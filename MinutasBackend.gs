@@ -6,31 +6,40 @@
  * Genera un folio consecutivo anual en formato MIN-YYYY-NNN (ej. MIN-2025-001).
  */
 function generarFolioMinuta() {
-  var sheet = getSheetSafe(SHEETS.MINUTAS);
-  var data = sheet.getDataRange().getValues();
-  var yearActual = new Date().getFullYear().toString();
-  var maxConsecutivo = 0;
+  try {
+    var sheet = getSheetSafe(SHEETS.MINUTAS);
+    var yearActual = new Date().getFullYear().toString();
+    var maxConsecutivo = 0;
 
-  if (data.length > 1) {
-    var headers = data[0].map(function(h) { return h.toString().trim(); });
-    var colFolio = headers.indexOf("Folio");
+    if (sheet) {
+      var data = sheet.getDataRange().getValues();
+      if (data && data.length > 1) {
+        var headers = data[0].map(function(h) { return h.toString().trim(); });
+        var colFolio = headers.indexOf("Folio");
 
-    for (var i = 1; i < data.length; i++) {
-      var folio = data[i][colFolio] ? data[i][colFolio].toString().trim() : "";
-      if (folio && folio.indexOf("MIN-" + yearActual) === 0) {
-        var partes = folio.split("-");
-        if (partes.length >= 3) {
-          var num = parseInt(partes[2], 10);
-          if (!isNaN(num) && num > maxConsecutivo) {
-            maxConsecutivo = num;
+        if (colFolio > -1) {
+          for (var i = 1; i < data.length; i++) {
+            var folio = data[i][colFolio] ? data[i][colFolio].toString().trim() : "";
+            if (folio && folio.indexOf("MIN-" + yearActual) === 0) {
+              var partes = folio.split("-");
+              if (partes.length >= 3) {
+                var num = parseInt(partes[2], 10);
+                if (!isNaN(num) && num > maxConsecutivo) {
+                  maxConsecutivo = num;
+                }
+              }
+            }
           }
         }
       }
     }
-  }
 
-  var siguienteConsecutivo = (maxConsecutivo + 1).toString().padStart(3, '0');
-  return "MIN-" + yearActual + "-" + siguienteConsecutivo;
+    var siguienteConsecutivo = (maxConsecutivo + 1).toString().padStart(3, '0');
+    return "MIN-" + yearActual + "-" + siguienteConsecutivo;
+  } catch (e) {
+    console.error("Error en generarFolioMinuta: " + e.toString());
+    return "MIN-" + new Date().getFullYear() + "-001";
+  }
 }
 
 /**
@@ -160,7 +169,13 @@ function guardarMinuta(datos) {
  * Obtiene la lista completa de minutas registradas.
  */
 function listarMinutas() {
-  return sheetToObjects(SHEETS.MINUTAS);
+  try {
+    var res = sheetToObjects(SHEETS.MINUTAS);
+    return res || [];
+  } catch (e) {
+    console.error("Error en listarMinutas: " + e.toString());
+    return [];
+  }
 }
 
 /**

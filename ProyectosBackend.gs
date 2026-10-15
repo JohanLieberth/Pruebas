@@ -6,17 +6,28 @@
  * Obtiene todos los proyectos registrados.
  */
 function listarProyectos() {
-  return sheetToObjects(SHEETS.PROYECTOS);
+  try {
+    var res = sheetToObjects(SHEETS.PROYECTOS);
+    return res || [];
+  } catch (e) {
+    console.error("Error en listarProyectos: " + e.toString());
+    return [];
+  }
 }
 
 /**
  * Obtiene solo los proyectos activos.
  */
 function listarProyectosActivos() {
-  var proyectos = sheetToObjects(SHEETS.PROYECTOS);
-  return proyectos.filter(function(p) {
-    return p.Estatus === "Activo";
-  });
+  try {
+    var proyectos = sheetToObjects(SHEETS.PROYECTOS) || [];
+    return proyectos.filter(function(p) {
+      return p && p.Estatus === "Activo";
+    });
+  } catch (e) {
+    console.error("Error en listarProyectosActivos: " + e.toString());
+    return [];
+  }
 }
 
 /**

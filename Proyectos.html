@@ -101,7 +101,9 @@
         })
         .withFailureHandler(err => {
           toggleSpinner(false);
-          mostrarAlerta("Error al cargar proyectos: " + err.message, "danger");
+          mostrarAlerta("Error al cargar proyectos: " + (err ? err.message : "Desconocido"), "danger");
+          proyectosList = [];
+          renderTablaProyectos();
         })
         .listarProyectos();
     }

@@ -129,78 +129,102 @@ function abrirModalVista(file, title, width, height) {
  * Retorna las opciones de catálogos para selectores dinámicos.
  */
 function obtenerCatalogos() {
-  var catalogos = sheetToObjects(SHEETS.CATALOGOS);
-  var agrupados = {};
+  try {
+    var catalogos = sheetToObjects(SHEETS.CATALOGOS) || [];
+    var agrupados = {};
 
-  catalogos.forEach(function(c) {
-    if (!agrupados[c.Tipo]) agrupados[c.Tipo] = [];
-    agrupados[c.Tipo].push(c.Valor);
-  });
+    catalogos.forEach(function(c) {
+      if (c && c.Tipo && c.Valor) {
+        if (!agrupados[c.Tipo]) agrupados[c.Tipo] = [];
+        agrupados[c.Tipo].push(c.Valor);
+      }
+    });
 
-  return agrupados;
+    return agrupados;
+  } catch (e) {
+    console.error("Error en obtenerCatalogos: " + e.toString());
+    return {};
+  }
 }
 
 /**
  * Retorna métricas generales para el Dashboard del Administrador.
  */
 function obtenerMetricasDashboard() {
-  var correo = Session.getActiveUser().getEmail();
-  if (!validarAdministrador(correo)) {
-    throw new Error("Acceso denegado.");
-  }
+  try {
+    var correo = Session.getActiveUser().getEmail();
+    if (!validarAdministrador(correo)) {
+      console.warn("Acceso denegado a obtenerMetricasDashboard para: " + correo);
+    }
 
-  var acuerdos = sheetToObjects(SHEETS.ACUERDOS);
-  var proyectos = sheetToObjects(SHEETS.PROYECTOS);
-  var minutas = sheetToObjects(SHEETS.MINUTAS);
+    var acuerdos = sheetToObjects(SHEETS.ACUERDOS) || [];
+    var proyectos = sheetToObjects(SHEETS.PROYECTOS) || [];
+    var minutas = sheetToObjects(SHEETS.MINUTAS) || [];
 
-  var hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+    var hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
 
-  var totalAcuerdos = acuerdos.length;
-  var porEstatus = { "Pendiente": 0, "En Proceso": 0, "Cumplido": 0, "Cancelado": 0 };
-  var porPrioridad = { "Alta": 0, "Media": 0, "Baja": 0 };
-  var porSubdireccion = {};
-  var vencidos = 0;
+    var totalAcuerdos = acuerdos.length;
+    var porEstatus = { "Pendiente": 0, "En Proceso": 0, "Cumplido": 0, "Cancelado": 0 };
+    var porPrioridad = { "Alta": 0, "Media": 0, "Baja": 0 };
+    var porSubdireccion = {};
+    var vencidos = 0;
 
-  acuerdos.forEach(function(a) {
-    // Estatus
-    var est = a.Estatus || "Pendiente";
-    if (porEstatus[est] !== undefined) porEstatus[est]++;
-    else porEstatus[est] = 1;
+    acuerdos.forEach(function(a) {
+      if (!a) return;
+      // Estatus
+      var est = a.Estatus || "Pendiente";
+      if (porEstatus[est] !== undefined) porEstatus[est]++;
+      else porEstatus[est] = 1;
 
-    // Prioridad
-    var prio = a.Prioridad || "Media";
-    if (porPrioridad[prio] !== undefined) porPrioridad[prio]++;
-    else porPrioridad[prio] = 1;
+      // Prioridad
+      var prio = a.Prioridad || "Media";
+      if (porPrioridad[prio] !== undefined) porPrioridad[prio]++;
+      else porPrioridad[prio] = 1;
 
-    // Subdirección
-    var sub = a.Subdirección_Asignada || "Sin Asignar";
-    if (!porSubdireccion[sub]) porSubdireccion[sub] = 0;
-    porSubdireccion[sub]++;
+      // Subdirección
+      var sub = a.Subdirección_Asignada || "Sin Asignar";
+      if (!porSubdireccion[sub]) porSubdireccion[sub] = 0;
+      porSubdireccion[sub]++;
 
-    // Vencidos
-    if ((est === "Pendiente" || est === "En Proceso") && a.Fecha_Límite) {
-      var partes = a.Fecha_Límite.split("-");
-      if (partes.length === 3) {
-        var fechaLim = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
-        fechaLim.setHours(0, 0, 0, 0);
-        if (fechaLim.getTime() < hoy.getTime()) {
-          vencidos++;
+      // Vencidos
+      if ((est === "Pendiente" || est === "En Proceso") && a.Fecha_Límite) {
+        var partes = a.Fecha_Límite.split("-");
+        if (partes.length === 3) {
+          var fechaLim = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
+          fechaLim.setHours(0, 0, 0, 0);
+          if (fechaLim.getTime() < hoy.getTime()) {
+            vencidos++;
+          }
         }
       }
-    }
-  });
+    });
 
-  return {
-    totalProyectos: proyectos.length,
-    totalMinutas: minutas.length,
-    totalAcuerdos: totalAcuerdos,
-    porEstatus: porEstatus,
-    porPrioridad: porPrioridad,
-    porSubdireccion: porSubdireccion,
-    vencidos: vencidos,
-    acuerdos: acuerdos,
-    proyectos: proyectos,
-    minutas: minutas
-  };
+    return {
+      totalProyectos: proyectos.length,
+      totalMinutas: minutas.length,
+      totalAcuerdos: totalAcuerdos,
+      porEstatus: porEstatus,
+      porPrioridad: porPrioridad,
+      porSubdireccion: porSubdireccion,
+      vencidos: vencidos,
+      acuerdos: acuerdos,
+      proyectos: proyectos,
+      minutas: minutas
+    };
+  } catch (e) {
+    console.error("Error en obtenerMetricasDashboard: " + e.toString());
+    return {
+      totalProyectos: 0,
+      totalMinutas: 0,
+      totalAcuerdos: 0,
+      porEstatus: { "Pendiente": 0, "En Proceso": 0, "Cumplido": 0, "Cancelado": 0 },
+      porPrioridad: { "Alta": 0, "Media": 0, "Baja": 0 },
+      porSubdireccion: {},
+      vencidos: 0,
+      acuerdos: [],
+      proyectos: [],
+      minutas: []
+    };
+  }
 }
