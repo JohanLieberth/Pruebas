@@ -62,11 +62,11 @@ El sistema crea y gestiona automáticamente 9 pestañas en Google Sheets:
      - `Scripts.html`
      - `Admin.html`
      - `Operador.html`
-     - `Dashboard.html`
-     - `Proyectos.html`
-     - `Minuta.html`
-     - `AcuerdoIndividual.html`
-     - `Usuarios.html`
+     - `DashboardView.html`
+     - `ProyectosView.html`
+     - `MinutaView.html`
+     - `AcuerdoIndividualView.html`
+     - `UsuariosView.html`
      - `AccesoDenegado.html`
    - **Manifiesto**:
      - `appsscript.json` (Asegúrate de tener activada la opción de ver el manifiesto en la configuración del proyecto de Apps Script).

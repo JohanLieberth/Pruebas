@@ -91,11 +91,11 @@ function ejecutarRecordatoriosAhora() {
 /**
  * Modales de acceso rápido desde la hoja de cálculo.
  */
-function abrirModalProyectos() { abrirModalVista("Proyectos", "Gestión de Proyectos", 850, 600); }
-function abrirModalMinuta() { abrirModalVista("Minuta", "Registrar Minuta", 950, 680); }
-function abrirModalAcuerdoIndividual() { abrirModalVista("AcuerdoIndividual", "Registrar Acuerdo Individual", 800, 550); }
-function abrirModalDashboard() { abrirModalVista("Dashboard", "Dashboard General", 1000, 700); }
-function abrirModalUsuarios() { abrirModalVista("Usuarios", "Gestión de Usuarios", 850, 600); }
+function abrirModalProyectos() { abrirModalVista("ProyectosView", "Gestión de Proyectos", 850, 600); }
+function abrirModalMinuta() { abrirModalVista("MinutaView", "Registrar Minuta", 950, 680); }
+function abrirModalAcuerdoIndividual() { abrirModalVista("AcuerdoIndividualView", "Registrar Acuerdo Individual", 800, 550); }
+function abrirModalDashboard() { abrirModalVista("DashboardView", "Dashboard General", 1000, 700); }
+function abrirModalUsuarios() { abrirModalVista("UsuariosView", "Gestión de Usuarios", 850, 600); }
 
 function abrirModalVista(file, title, width, height) {
   var template = HtmlService.createTemplateFromFile(file);
