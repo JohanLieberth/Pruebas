@@ -1,0 +1,1278 @@
+<!-- JAVASCRIPT.HTML -->
+<script>
+  // ==========================================
+  // ESTADO GLOBAL DE LA APLICACIÓN
+  // ==========================================
+  let CURRENT_USER = null;
+  let GLOBAL_CATALOGOS = {
+    Dependencia: [],
+    Subdirección: [],
+    Etapa: [],
+    Prioridad: [],
+    Estatus: []
+  };
+  let GLOBAL_PROYECTOS = [];
+  let GLOBAL_MINUTAS = [];
+  let GLOBAL_ACUERDOS = [];
+  let GLOBAL_USUARIOS = [];
+  let ACUERDO_ACTUAL_DETALLE_ID = null;
+
+  // ==========================================
+  // INICIALIZACIÓN
+  // ==========================================
+  document.addEventListener('DOMContentLoaded', function() {
+    verificarSesionInicial();
+  });
+
+  function showSpinner(msg = 'Procesando...') {
+    document.getElementById('spinner-message').innerText = msg;
+    document.getElementById('spinner-overlay').classList.remove('d-none');
+  }
+
+  function hideSpinner() {
+    document.getElementById('spinner-overlay').classList.add('d-none');
+  }
+
+  function mostrarToast(mensaje, esError = false) {
+    const toastEl = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toast-message');
+    toastBody.innerText = mensaje;
+    toastEl.className = `toast align-items-center text-white border-0 ${esError ? 'bg-danger' : 'bg-success'}`;
+    const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+    toast.show();
+  }
+
+  // ==========================================
+  // AUTENTICACIÓN Y SESIÓN
+  // ==========================================
+  function verificarSesionInicial() {
+    showSpinner('Verificando sesión...');
+    google.script.run
+      .withSuccessHandler(function(sesion) {
+        hideSpinner();
+        if (sesion) {
+          CURRENT_USER = sesion;
+          iniciarAplicacionConSesion();
+        } else {
+          mostrarLogin();
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarLogin();
+      })
+      .obtenerSesion();
+  }
+
+  function ejecutarLogin() {
+    const email = document.getElementById('login-email').value;
+    const alertEl = document.getElementById('login-alert');
+    alertEl.classList.add('d-none');
+
+    showSpinner('Autenticando usuario...');
+    google.script.run
+      .withSuccessHandler(function(sesion) {
+        hideSpinner();
+        CURRENT_USER = sesion;
+        iniciarAplicacionConSesion();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        alertEl.innerText = err.message || 'Error al iniciar sesión.';
+        alertEl.classList.remove('d-none');
+      })
+      .login(email);
+  }
+
+  function ejecutarLogout() {
+    showSpinner('Cerrando sesión...');
+    google.script.run
+      .withSuccessHandler(function() {
+        hideSpinner();
+        CURRENT_USER = null;
+        mostrarLogin();
+      })
+      .withFailureHandler(function() {
+        hideSpinner();
+        mostrarLogin();
+      })
+      .logout();
+  }
+
+  function mostrarLogin() {
+    document.getElementById('app-layout').classList.add('d-none');
+    document.getElementById('app-layout').classList.remove('d-flex');
+    document.getElementById('login-view').classList.remove('d-none');
+  }
+
+  function iniciarAplicacionConSesion() {
+    document.getElementById('login-view').classList.add('d-none');
+    document.getElementById('app-layout').classList.remove('d-none');
+    document.getElementById('app-layout').classList.add('d-flex');
+
+    document.getElementById('user-display-name').innerText = CURRENT_USER.nombre || CURRENT_USER.email;
+    document.getElementById('user-display-role-sub').innerText = `${CURRENT_USER.rol} • ${CURRENT_USER.subdireccion}`;
+
+    aplicarPermisosRolUI();
+    cargarCatalogosGlobales();
+    navegarA('dashboard');
+  }
+
+  function aplicarPermisosRolUI() {
+    const rol = CURRENT_USER.rol;
+
+    // Elementos exclusivos para Administrador
+    const elementosAdmin = document.querySelectorAll('.sol-admin-only, #nav-item-usuarios, #nav-item-catalogos');
+    elementosAdmin.forEach(el => {
+      if (rol === 'Administrador') {
+        el.classList.remove('d-none');
+      } else {
+        el.classList.add('d-none');
+      }
+    });
+
+    // Elementos para Creador / Operador / Admin
+    const elementosOperadorAdmin = document.querySelectorAll('.sol-operador-admin, .sol-creador-admin');
+    elementosOperadorAdmin.forEach(el => {
+      if (rol === 'Lector') {
+        el.classList.add('d-none');
+      } else {
+        el.classList.remove('d-none');
+      }
+    });
+  }
+
+  // ==========================================
+  // NAVEGACIÓN Y VISTAS
+  // ==========================================
+  function navegarA(vistaId, parametro = null) {
+    const vistas = document.querySelectorAll('.app-view');
+    vistas.forEach(v => v.classList.add('d-none'));
+
+    const navBtns = document.querySelectorAll('.nav-btn');
+    navBtns.forEach(b => b.classList.remove('active'));
+
+    const targetView = document.getElementById(`view-${vistaId}`);
+    if (targetView) {
+      targetView.classList.remove('d-none');
+    }
+
+    const targetNav = document.getElementById(`nav-${vistaId}`);
+    if (targetNav) {
+      targetNav.classList.add('active');
+    }
+
+    // Cargar datos de la vista seleccionada
+    if (vistaId === 'dashboard') {
+      cargarDashboard();
+    } else if (vistaId === 'proyectos') {
+      cargarProyectos();
+    } else if (vistaId === 'minutas') {
+      cargarMinutas();
+    } else if (vistaId === 'acuerdos') {
+      cargarAcuerdos();
+    } else if (vistaId === 'detalle-acuerdo' && parametro) {
+      cargarDetalleAcuerdo(parametro);
+    } else if (vistaId === 'usuarios') {
+      cargarUsuarios();
+    } else if (vistaId === 'catalogos') {
+      cargarCatalogosVista();
+    }
+
+    // Cerrar navbar en móviles
+    const navCollapse = document.getElementById('navbarMain');
+    if (navCollapse && navCollapse.classList.contains('show')) {
+      const bsCollapse = new bootstrap.Collapse(navCollapse, { toggle: true });
+      bsCollapse.hide();
+    }
+  }
+
+  // ==========================================
+  // CATÁLOGOS GLOBALES
+  // ==========================================
+  function cargarCatalogosGlobales(callback) {
+    google.script.run
+      .withSuccessHandler(function(cats) {
+        GLOBAL_CATALOGOS = cats;
+        poblarDropdowns();
+        if (callback) callback();
+      })
+      .obtenerCatalogos();
+  }
+
+  function poblarDropdowns() {
+    poblarSelect('minuta-etapa', GLOBAL_CATALOGOS.Etapa);
+    poblarSelect('minuta-dependencia', GLOBAL_CATALOGOS.Dependencia);
+    poblarSelect('minuta-subdireccion', GLOBAL_CATALOGOS.Subdirección);
+    poblarSelect('filtro-minuta-etapa', GLOBAL_CATALOGOS.Etapa, '-- Todas las etapas --');
+    poblarSelect('filtro-minuta-subdireccion', GLOBAL_CATALOGOS.Subdirección, '-- Todas las subdirecciones --');
+
+    poblarSelect('acuerdo-prioridad', GLOBAL_CATALOGOS.Prioridad);
+    poblarSelect('acuerdo-subdireccion', GLOBAL_CATALOGOS.Subdirección);
+    poblarSelect('acuerdo-estatus', GLOBAL_CATALOGOS.Estatus);
+    poblarSelect('filtro-acuerdo-estatus', GLOBAL_CATALOGOS.Estatus, '-- Todos --');
+    poblarSelect('filtro-acuerdo-prioridad', GLOBAL_CATALOGOS.Prioridad, '-- Todas --');
+    poblarSelect('filtro-acuerdo-subdireccion', GLOBAL_CATALOGOS.Subdirección, '-- Todas --');
+
+    poblarSelect('usuario-subdireccion', GLOBAL_CATALOGOS.Subdirección);
+  }
+
+  function poblarSelect(elemId, opcionesArray, defaultText = null) {
+    const sel = document.getElementById(elemId);
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    if (defaultText !== null) {
+      const optDefault = document.createElement('option');
+      optDefault.value = '';
+      optDefault.textContent = defaultText;
+      sel.appendChild(optDefault);
+    }
+
+    if (Array.isArray(opcionesArray)) {
+      opcionesArray.forEach(val => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        sel.appendChild(opt);
+      });
+    }
+  }
+
+  // ==========================================
+  // DASHBOARD
+  // ==========================================
+  function cargarDashboard() {
+    showSpinner('Cargando indicadores...');
+    google.script.run
+      .withSuccessHandler(function(kpis) {
+        hideSpinner();
+        document.getElementById('kpi-proyectos').innerText = kpis.totalProyectos;
+        document.getElementById('kpi-minutas').innerText = kpis.totalMinutas;
+        document.getElementById('kpi-acuerdos').innerText = kpis.totalAcuerdos;
+        document.getElementById('kpi-pendientes').innerText = kpis.pendientes;
+        document.getElementById('kpi-por-vencer').innerText = kpis.porVencer;
+        document.getElementById('kpi-cumplidos').innerText = kpis.cumplidos;
+
+        // Tabla Subdirecciones
+        const tbodySub = document.querySelector('#tabla-kpi-subdirecciones tbody');
+        tbodySub.innerHTML = '';
+        if (Object.keys(kpis.porSubdireccion).length === 0) {
+          tbodySub.innerHTML = '<tr><td colspan="2" class="text-center text-muted">No hay datos registrados</td></tr>';
+        } else {
+          for (const [subName, total] of Object.entries(kpis.porSubdireccion)) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="fw-semibold">${subName}</td>
+              <td class="text-end fw-bold">${total}</td>
+            `;
+            tbodySub.appendChild(tr);
+          }
+        }
+
+        // Cargar alertas de acuerdos por vencer / vencidos
+        cargarAlertasDashboard();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar Dashboard', true);
+      })
+      .obtenerKPIsDashboard();
+  }
+
+  function cargarAlertasDashboard() {
+    google.script.run
+      .withSuccessHandler(function(acuerdos) {
+        const cont = document.getElementById('contenedor-alertas-vencimiento');
+        cont.innerHTML = '';
+
+        const urgentes = acuerdos.filter(a => {
+          const est = a.Estatus;
+          return (est === 'Pendiente' || est === 'En Proceso');
+        });
+
+        if (urgentes.length === 0) {
+          cont.innerHTML = '<div class="p-3 text-center text-muted">No hay acuerdos vencidos o por vencer.</div>';
+          return;
+        }
+
+        urgentes.slice(0, 5).forEach(a => {
+          const item = document.createElement('a');
+          item.href = '#';
+          item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3';
+          item.onclick = function(e) {
+            e.preventDefault();
+            navegarA('detalle-acuerdo', a.ID_Acuerdo);
+          };
+
+          item.innerHTML = `
+            <div>
+              <div class="fw-bold text-dark">${a.ID_Acuerdo} — <span class="fw-normal">${a.Descripción_Acuerdo.substring(0, 50)}...</span></div>
+              <small class="text-muted"><i class="bi bi-geo-alt me-1"></i>${a.Subdirección_Asignada} | Límite: ${a.Fecha_Límite}</small>
+            </div>
+            <span class="badge ${a.Prioridad === 'Alta' ? 'bg-danger' : 'bg-warning text-dark'} rounded-pill">${a.Prioridad}</span>
+          `;
+          cont.appendChild(item);
+        });
+      })
+      .listarAcuerdos({ estatus: 'Pendiente' });
+  }
+
+  // ==========================================
+  // PROYECTOS
+  // ==========================================
+  function cargarProyectos() {
+    showSpinner('Cargando proyectos...');
+    google.script.run
+      .withSuccessHandler(function(proyectos) {
+        hideSpinner();
+        GLOBAL_PROYECTOS = proyectos;
+        renderizarTablaProyectos(proyectos);
+        poblarSelectProyectosMinuta(proyectos);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar proyectos', true);
+      })
+      .listarProyectos();
+  }
+
+  function renderizarTablaProyectos(proyectos) {
+    const tbody = document.querySelector('#tabla-proyectos tbody');
+    tbody.innerHTML = '';
+
+    if (proyectos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay proyectos registrados</td></tr>';
+      return;
+    }
+
+    proyectos.forEach(p => {
+      const tr = document.createElement('tr');
+      const badgeClass = p.Estatus === 'Activo' ? 'bg-success' : (p.Estatus === 'Inactivo' ? 'bg-secondary' : 'bg-dark');
+
+      tr.innerHTML = `
+        <td class="fw-bold">${p.ID_Proyecto}</td>
+        <td class="fw-semibold">${p.Nombre_Proyecto}</td>
+        <td class="text-muted small">${p.Descripción || '-'}</td>
+        <td><span class="badge ${badgeClass} badge-status">${p.Estatus}</span></td>
+        <td class="small">${p.Fecha_Creación}</td>
+        <td class="small">${p.Creado_Por}</td>
+        <td class="text-end">
+          ${CURRENT_USER.rol !== 'Lector' ? `
+            <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarProyecto('${p.ID_Proyecto}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+          ` : '-'}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function poblarSelectProyectosMinuta(proyectos) {
+    const sel = document.getElementById('minuta-proyecto');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Sin Proyecto (Opcional) --</option>';
+    proyectos.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.ID_Proyecto;
+      opt.textContent = `${p.ID_Proyecto} - ${p.Nombre_Proyecto}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  function abrirModalNuevoProyecto() {
+    document.getElementById('form-proyecto').reset();
+    document.getElementById('proyecto-id').value = '';
+    document.getElementById('modalProyectoTitle').innerHTML = '<i class="bi bi-folder-plus me-2"></i>Nuevo Proyecto';
+    const modal = new bootstrap.Modal(document.getElementById('modalProyecto'));
+    modal.show();
+  }
+
+  function abrirModalEditarProyecto(idP) {
+    const p = GLOBAL_PROYECTOS.find(item => item.ID_Proyecto === idP);
+    if (!p) return;
+
+    document.getElementById('proyecto-id').value = p.ID_Proyecto;
+    document.getElementById('proyecto-nombre').value = p.Nombre_Proyecto;
+    document.getElementById('proyecto-descripcion').value = p.Descripción;
+    document.getElementById('proyecto-estatus').value = p.Estatus;
+
+    document.getElementById('modalProyectoTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Editar Proyecto';
+    const modal = new bootstrap.Modal(document.getElementById('modalProyecto'));
+    modal.show();
+  }
+
+  function guardarProyecto() {
+    const idP = document.getElementById('proyecto-id').value;
+    const data = {
+      nombreProyecto: document.getElementById('proyecto-nombre').value,
+      descripcion: document.getElementById('proyecto-descripcion').value,
+      estatus: document.getElementById('proyecto-estatus').value
+    };
+
+    showSpinner(idP ? 'Actualizando proyecto...' : 'Guardando proyecto...');
+    const modalEl = document.getElementById('modalProyecto');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    if (idP) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarProyectos();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al actualizar proyecto', true);
+        })
+        .actualizarProyecto(idP, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarProyectos();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al crear proyecto', true);
+        })
+        .crearProyecto(data);
+    }
+  }
+
+  // ==========================================
+  // MINUTAS
+  // ==========================================
+  function cargarMinutas() {
+    showSpinner('Cargando minutas...');
+    google.script.run
+      .withSuccessHandler(function(minutas) {
+        hideSpinner();
+        GLOBAL_MINUTAS = minutas;
+        renderizarTablaMinutas(minutas);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar minutas', true);
+      })
+      .listarMinutas();
+  }
+
+  function renderizarTablaMinutas(minutas) {
+    const tbody = document.querySelector('#tabla-minutas tbody');
+    tbody.innerHTML = '';
+
+    if (minutas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No hay minutas registradas</td></tr>';
+      return;
+    }
+
+    minutas.forEach(m => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-bold text-primary">${m.Folio}</td>
+        <td class="fw-semibold">${m.Nombre_Reunión}</td>
+        <td><span class="badge bg-light text-dark border">${m.Etapa}</span></td>
+        <td class="small">${m.Subdirección}</td>
+        <td class="small">${m.Fecha}</td>
+        <td class="small text-muted">${m.Lugar || '-'}</td>
+        <td class="small text-muted">${m.Creado_Por}</td>
+        <td class="text-end">
+          <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="verDetalleMinutaModal('${m.Folio}')" title="Ver Detalle">
+            <i class="bi bi-eye"></i>
+          </button>
+          ${CURRENT_USER.rol !== 'Lector' ? `
+            <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarMinuta('${m.Folio}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+          ` : ''}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function filtrarMinutas() {
+    const q = document.getElementById('filtro-minuta-busqueda').value.toLowerCase();
+    const etapa = document.getElementById('filtro-minuta-etapa').value;
+    const sub = document.getElementById('filtro-minuta-subdireccion').value;
+
+    const filtradas = GLOBAL_MINUTAS.filter(m => {
+      const matchQ = !q || m.Folio.toLowerCase().includes(q) || m.Nombre_Reunión.toLowerCase().includes(q) || (m.Lugar && m.Lugar.toLowerCase().includes(q));
+      const matchEtapa = !etapa || m.Etapa === etapa;
+      const matchSub = !sub || m.Subdirección === sub;
+      return matchQ && matchEtapa && matchSub;
+    });
+
+    renderizarTablaMinutas(filtradas);
+  }
+
+  function limpiarFiltrosMinuta() {
+    document.getElementById('filtro-minuta-busqueda').value = '';
+    document.getElementById('filtro-minuta-etapa').value = '';
+    document.getElementById('filtro-minuta-subdireccion').value = '';
+    renderizarTablaMinutas(GLOBAL_MINUTAS);
+  }
+
+  function abrirModalNuevaMinuta() {
+    document.getElementById('form-minuta').reset();
+    document.getElementById('minuta-folio').value = '';
+    document.getElementById('minuta-subdireccion').value = CURRENT_USER.subdireccion;
+    document.getElementById('minuta-fecha').value = new Date().toISOString().split('T')[0];
+
+    // Limpiar tablas dinámicas
+    document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
+    document.querySelector('#tabla-form-odd tbody').innerHTML = '';
+    document.querySelector('#tabla-form-acuerdos tbody').innerHTML = '';
+
+    // Agregar 1 fila inicial por defecto
+    agregarFilaAsistencia();
+    agregarFilaODD();
+
+    // Activar primera pestaña
+    const firstTabEl = document.querySelector('#minutaTabs button:first-child');
+    const firstTab = new bootstrap.Tab(firstTabEl);
+    firstTab.show();
+
+    document.getElementById('modalMinutaTitle').innerHTML = '<i class="bi bi-journal-plus me-2"></i>Nueva Minuta de Reunión';
+    const modal = new bootstrap.Modal(document.getElementById('modalMinuta'));
+    modal.show();
+  }
+
+  function agregarFilaAsistencia(nombre = '', dep = '', cargo = '') {
+    const tbody = document.querySelector('#tabla-form-asistencia tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="form-control form-control-sm ast-nombre" value="${nombre}" placeholder="Nombre o Correo" required></td>
+      <td><input type="text" class="form-control form-control-sm ast-dep" value="${dep}" placeholder="Dependencia / Área"></td>
+      <td><input type="text" class="form-control form-control-sm ast-cargo" value="${cargo}" placeholder="Cargo"></td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function agregarFilaODD(num = '', desc = '') {
+    const tbody = document.querySelector('#tabla-form-odd tbody');
+    const count = tbody.querySelectorAll('tr').length + 1;
+    const numPunto = num || `${count}.0`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="form-control form-control-sm odd-num" value="${numPunto}" placeholder="1.0"></td>
+      <td><input type="text" class="form-control form-control-sm odd-desc" value="${desc}" placeholder="Descripción del punto" required></td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function agregarFilaAcuerdoMinuta(acuObj = null) {
+    const tbody = document.querySelector('#tabla-form-acuerdos tbody');
+    const tr = document.createElement('tr');
+
+    const tipo = acuObj ? acuObj.Tipo : 'Acuerdo';
+    const desc = acuObj ? acuObj.Descripción_Acuerdo : '';
+    const prio = acuObj ? acuObj.Prioridad : 'Media';
+    const sol = acuObj ? acuObj.Solicitantes : '';
+    const resp = acuObj ? acuObj.Responsables : CURRENT_USER.email;
+    const fLim = acuObj ? acuObj.Fecha_Límite : new Date().toISOString().split('T')[0];
+    const sub = acuObj ? acuObj.Subdirección_Asignada : CURRENT_USER.subdireccion;
+
+    let subOptionsHTML = '';
+    GLOBAL_CATALOGOS.Subdirección.forEach(s => {
+      subOptionsHTML += `<option value="${s}" ${s === sub ? 'selected' : ''}>${s}</option>`;
+    });
+
+    let prioOptionsHTML = '';
+    GLOBAL_CATALOGOS.Prioridad.forEach(p => {
+      prioOptionsHTML += `<option value="${p}" ${p === prio ? 'selected' : ''}>${p}</option>`;
+    });
+
+    tr.innerHTML = `
+      <td>
+        <select class="form-select form-select-sm acu-tipo">
+          <option value="Acuerdo" ${tipo === 'Acuerdo' ? 'selected' : ''}>Acuerdo</option>
+          <option value="Compromiso" ${tipo === 'Compromiso' ? 'selected' : ''}>Compromiso</option>
+          <option value="Tarea" ${tipo === 'Tarea' ? 'selected' : ''}>Tarea</option>
+        </select>
+      </td>
+      <td><textarea class="form-control form-control-sm acu-desc" rows="2" placeholder="Descripción" required>${desc}</textarea></td>
+      <td><select class="form-select form-select-sm acu-prio">${prioOptionsHTML}</select></td>
+      <td><input type="text" class="form-control form-control-sm acu-sol" value="${sol}" placeholder="Solicitantes"></td>
+      <td><input type="text" class="form-control form-control-sm acu-resp" value="${resp}" placeholder="Responsables" required></td>
+      <td><input type="date" class="form-control form-control-sm acu-flim" value="${fLim}" required></td>
+      <td><select class="form-select form-select-sm acu-sub">${subOptionsHTML}</select></td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function guardarMinuta() {
+    const folio = document.getElementById('minuta-folio').value;
+
+    // Recopilar Asistencia
+    const asistencia = [];
+    document.querySelectorAll('#tabla-form-asistencia tbody tr').forEach(row => {
+      const nombre = row.querySelector('.ast-nombre').value.trim();
+      if (nombre) {
+        asistencia.push({
+          nombre: nombre,
+          dependenciaArea: row.querySelector('.ast-dep').value.trim(),
+          cargo: row.querySelector('.ast-cargo').value.trim()
+        });
+      }
+    });
+
+    // Recopilar Orden del Día
+    const ordenDelDia = [];
+    document.querySelectorAll('#tabla-form-odd tbody tr').forEach(row => {
+      const desc = row.querySelector('.odd-desc').value.trim();
+      if (desc) {
+        ordenDelDia.push({
+          numeroPunto: row.querySelector('.odd-num').value.trim(),
+          descripcionPunto: desc
+        });
+      }
+    });
+
+    // Recopilar Acuerdos
+    const acuerdos = [];
+    document.querySelectorAll('#tabla-form-acuerdos tbody tr').forEach(row => {
+      const desc = row.querySelector('.acu-desc').value.trim();
+      if (desc) {
+        acuerdos.push({
+          tipo: row.querySelector('.acu-tipo').value,
+          descripcionAcuerdo: desc,
+          prioridad: row.querySelector('.acu-prio').value,
+          solicitantes: row.querySelector('.acu-sol').value.trim(),
+          responsables: row.querySelector('.acu-resp').value.trim(),
+          fechaLimite: row.querySelector('.acu-flim').value,
+          subdireccionAsignada: row.querySelector('.acu-sub').value,
+          estatus: 'Pendiente'
+        });
+      }
+    });
+
+    const data = {
+      idProyecto: document.getElementById('minuta-proyecto').value,
+      nombreReunion: document.getElementById('minuta-nombre').value,
+      etapa: document.getElementById('minuta-etapa').value,
+      dependencia: document.getElementById('minuta-dependencia').value,
+      subdireccion: document.getElementById('minuta-subdireccion').value,
+      fecha: document.getElementById('minuta-fecha').value,
+      lugar: document.getElementById('minuta-lugar').value,
+      objetivos: document.getElementById('minuta-objetivos').value,
+      asistencia: asistencia,
+      ordenDelDia: ordenDelDia,
+      acuerdos: acuerdos
+    };
+
+    showSpinner(folio ? 'Actualizando minuta...' : 'Guardando minuta...');
+    const modalEl = document.getElementById('modalMinuta');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    if (folio) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarMinutas();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al actualizar minuta', true);
+        })
+        .actualizarMinuta(folio, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarMinutas();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al guardar minuta', true);
+        })
+        .crearMinuta(data);
+    }
+  }
+
+  function abrirModalEditarMinuta(folio) {
+    showSpinner('Cargando minuta para edición...');
+    google.script.run
+      .withSuccessHandler(function(det) {
+        hideSpinner();
+        if (!det) return;
+
+        const m = det.minuta;
+        document.getElementById('minuta-folio').value = m.Folio;
+        document.getElementById('minuta-proyecto').value = m.ID_Proyecto;
+        document.getElementById('minuta-nombre').value = m.Nombre_Reunión;
+        document.getElementById('minuta-etapa').value = m.Etapa;
+        document.getElementById('minuta-dependencia').value = m.Dependencia;
+        document.getElementById('minuta-subdireccion').value = m.Subdirección;
+        document.getElementById('minuta-fecha').value = m.Fecha;
+        document.getElementById('minuta-lugar').value = m.Lugar;
+        document.getElementById('minuta-objetivos').value = m.Objetivos;
+
+        // Cargar Asistencia
+        document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
+        det.asistencia.forEach(a => agregarFilaAsistencia(a.Nombre, a.Dependencia_Area, a.Cargo));
+
+        // Cargar ODD
+        document.querySelector('#tabla-form-odd tbody').innerHTML = '';
+        det.ordenDelDia.forEach(o => agregarFilaODD(o.Número_Punto, o.Descripción_Punto));
+
+        // Cargar Acuerdos
+        document.querySelector('#tabla-form-acuerdos tbody').innerHTML = '';
+        det.acuerdos.forEach(a => agregarFilaAcuerdoMinuta(a));
+
+        document.getElementById('modalMinutaTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Minuta ${m.Folio}`;
+        const modal = new bootstrap.Modal(document.getElementById('modalMinuta'));
+        modal.show();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al obtener minuta', true);
+      })
+      .obtenerMinuta(folio);
+  }
+
+  function verDetalleMinutaModal(folio) {
+    abrirModalEditarMinuta(folio);
+  }
+
+  // ==========================================
+  // ACUERDOS
+  // ==========================================
+  function cargarAcuerdos() {
+    showSpinner('Cargando acuerdos...');
+    google.script.run
+      .withSuccessHandler(function(acuerdos) {
+        hideSpinner();
+        GLOBAL_ACUERDOS = acuerdos;
+        renderizarTablaAcuerdos(acuerdos);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar acuerdos', true);
+      })
+      .listarAcuerdos();
+  }
+
+  function renderizarTablaAcuerdos(acuerdos) {
+    const tbody = document.querySelector('#tabla-acuerdos tbody');
+    tbody.innerHTML = '';
+
+    if (acuerdos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No hay acuerdos registrados</td></tr>';
+      return;
+    }
+
+    const hoyStr = new Date().toISOString().split('T')[0];
+
+    acuerdos.forEach(a => {
+      const tr = document.createElement('tr');
+
+      // Semáforo Vencimiento
+      let semaforoClass = '';
+      if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
+        if (a.Fecha_Límite < hoyStr) semaforoClass = 'semaforo-vencido';
+        else if (a.Fecha_Límite === hoyStr) semaforoClass = 'semaforo-por-vencer';
+        else semaforoClass = 'semaforo-en-tiempo';
+      }
+      tr.className = semaforoClass;
+
+      // Badge prioridad
+      let prioBadge = 'bg-secondary';
+      if (a.Prioridad === 'Alta') prioBadge = 'bg-danger';
+      else if (a.Prioridad === 'Media') prioBadge = 'bg-warning text-dark';
+      else if (a.Prioridad === 'Baja') prioBadge = 'bg-info text-dark';
+
+      // Badge Estatus
+      let estBadge = 'bg-secondary';
+      if (a.Estatus === 'Cumplido') estBadge = 'bg-success';
+      else if (a.Estatus === 'En Proceso') estBadge = 'bg-primary';
+      else if (a.Estatus === 'Pendiente') estBadge = 'bg-warning text-dark';
+      else if (a.Estatus === 'Cancelado') estBadge = 'bg-dark';
+
+      tr.innerHTML = `
+        <td class="fw-bold"><a href="#" onclick="navegarA('detalle-acuerdo', '${a.ID_Acuerdo}'); return false;">${a.ID_Acuerdo}</a></td>
+        <td class="small">${a.Folio_Minuta ? '<span class="text-primary fw-semibold">'+a.Folio_Minuta+'</span>' : '<span class="text-muted">Individual</span>'}</td>
+        <td class="small">${a.Tipo}</td>
+        <td class="small fw-medium">${a.Descripción_Acuerdo.substring(0, 60)}${a.Descripción_Acuerdo.length > 60 ? '...' : ''}</td>
+        <td><span class="badge ${prioBadge}">${a.Prioridad}</span></td>
+        <td class="small">${a.Subdirección_Asignada}</td>
+        <td class="small text-truncate" style="max-width: 150px;">${a.Responsables}</td>
+        <td class="small fw-bold">${a.Fecha_Límite}</td>
+        <td><span class="badge ${estBadge}">${a.Estatus}</span></td>
+        <td class="text-end">
+          <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="navegarA('detalle-acuerdo', '${a.ID_Acuerdo}')" title="Ver Detalle">
+            <i class="bi bi-eye"></i>
+          </button>
+          ${CURRENT_USER.rol !== 'Lector' ? `
+            <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+          ` : ''}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function filtrarAcuerdos() {
+    const q = document.getElementById('filtro-acuerdo-busqueda').value.toLowerCase();
+    const est = document.getElementById('filtro-acuerdo-estatus').value;
+    const prio = document.getElementById('filtro-acuerdo-prioridad').value;
+    const sub = document.getElementById('filtro-acuerdo-subdireccion').value;
+
+    const filtrados = GLOBAL_ACUERDOS.filter(a => {
+      const matchQ = !q || a.ID_Acuerdo.toLowerCase().includes(q) || a.Descripción_Acuerdo.toLowerCase().includes(q) || a.Responsables.toLowerCase().includes(q);
+      const matchEst = !est || a.Estatus === est;
+      const matchPrio = !prio || a.Prioridad === prio;
+      const matchSub = !sub || a.Subdirección_Asignada === sub;
+      return matchQ && matchEst && matchPrio && matchSub;
+    });
+
+    renderizarTablaAcuerdos(filtrados);
+  }
+
+  function limpiarFiltrosAcuerdo() {
+    document.getElementById('filtro-acuerdo-busqueda').value = '';
+    document.getElementById('filtro-acuerdo-estatus').value = '';
+    document.getElementById('filtro-acuerdo-prioridad').value = '';
+    document.getElementById('filtro-acuerdo-subdireccion').value = '';
+    renderizarTablaAcuerdos(GLOBAL_ACUERDOS);
+  }
+
+  function abrirModalNuevoAcuerdoInd() {
+    document.getElementById('form-acuerdo').reset();
+    document.getElementById('acuerdo-id').value = '';
+    document.getElementById('acuerdo-origen').value = 'Individual';
+    document.getElementById('acuerdo-folio-minuta').value = '';
+    document.getElementById('acuerdo-subdireccion').value = CURRENT_USER.subdireccion;
+    document.getElementById('acuerdo-fecha-limite').value = new Date().toISOString().split('T')[0];
+
+    document.getElementById('modalAcuerdoTitle').innerHTML = '<i class="bi bi-check2-square me-2"></i>Nuevo Acuerdo Individual';
+    const modal = new bootstrap.Modal(document.getElementById('modalAcuerdo'));
+    modal.show();
+  }
+
+  function abrirModalEditarAcuerdo(idAcuerdo) {
+    const a = GLOBAL_ACUERDOS.find(item => item.ID_Acuerdo === idAcuerdo);
+    if (!a) return;
+
+    document.getElementById('acuerdo-id').value = a.ID_Acuerdo;
+    document.getElementById('acuerdo-origen').value = a.Origen;
+    document.getElementById('acuerdo-folio-minuta').value = a.Folio_Minuta;
+    document.getElementById('acuerdo-tipo').value = a.Tipo;
+    document.getElementById('acuerdo-prioridad').value = a.Prioridad;
+    document.getElementById('acuerdo-descripcion').value = a.Descripción_Acuerdo;
+    document.getElementById('acuerdo-solicitantes').value = a.Solicitantes;
+    document.getElementById('acuerdo-responsables').value = a.Responsables;
+    document.getElementById('acuerdo-fecha-limite').value = a.Fecha_Límite;
+    document.getElementById('acuerdo-subdireccion').value = a.Subdirección_Asignada;
+    document.getElementById('acuerdo-estatus').value = a.Estatus;
+
+    document.getElementById('modalAcuerdoTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Acuerdo ${a.ID_Acuerdo}`;
+    const modal = new bootstrap.Modal(document.getElementById('modalAcuerdo'));
+    modal.show();
+  }
+
+  function guardarAcuerdoModal() {
+    const idA = document.getElementById('acuerdo-id').value;
+    const data = {
+      origen: document.getElementById('acuerdo-origen').value,
+      folioMinuta: document.getElementById('acuerdo-folio-minuta').value,
+      tipo: document.getElementById('acuerdo-tipo').value,
+      prioridad: document.getElementById('acuerdo-prioridad').value,
+      descripcionAcuerdo: document.getElementById('acuerdo-descripcion').value,
+      solicitantes: document.getElementById('acuerdo-solicitantes').value,
+      responsables: document.getElementById('acuerdo-responsables').value,
+      fechaLimite: document.getElementById('acuerdo-fecha-limite').value,
+      subdireccionAsignada: document.getElementById('acuerdo-subdireccion').value,
+      estatus: document.getElementById('acuerdo-estatus').value
+    };
+
+    showSpinner(idA ? 'Actualizando acuerdo...' : 'Guardando acuerdo...');
+    const modalEl = document.getElementById('modalAcuerdo');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    if (idA) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarAcuerdos();
+          if (ACUERDO_ACTUAL_DETALLE_ID === idA) {
+            cargarDetalleAcuerdo(idA);
+          }
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al actualizar acuerdo', true);
+        })
+        .actualizarAcuerdo(idA, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarAcuerdos();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al crear acuerdo', true);
+        })
+        .crearAcuerdo(data);
+    }
+  }
+
+  // ==========================================
+  // DETALLE DE ACUERDO Y COMENTARIOS
+  // ==========================================
+  function cargarDetalleAcuerdo(idAcuerdo) {
+    ACUERDO_ACTUAL_DETALLE_ID = idAcuerdo;
+    showSpinner('Cargando detalle del acuerdo...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (!res || !res.acuerdo) {
+          mostrarToast('No se encontró el acuerdo especificado.', true);
+          navegarA('acuerdos');
+          return;
+        }
+
+        const a = res.acuerdo;
+        document.getElementById('det-acuerdo-id-title').innerText = a.ID_Acuerdo;
+        document.getElementById('det-acuerdo-descripcion').innerText = a.Descripción_Acuerdo;
+        document.getElementById('det-acuerdo-origen').innerText = a.Origen;
+        document.getElementById('det-acuerdo-folio-minuta').innerText = a.Folio_Minuta || 'N/A';
+        document.getElementById('det-acuerdo-tipo').innerText = a.Tipo;
+        document.getElementById('det-acuerdo-prioridad').innerText = a.Prioridad;
+        document.getElementById('det-acuerdo-estatus').innerText = a.Estatus;
+        document.getElementById('det-acuerdo-fecha-limite').innerText = a.Fecha_Límite;
+        document.getElementById('det-acuerdo-subdireccion').innerText = a.Subdirección_Asignada;
+        document.getElementById('det-acuerdo-creado-por').innerText = a.Creado_Por;
+        document.getElementById('det-acuerdo-solicitantes').innerText = a.Solicitantes || 'Ninguno';
+        document.getElementById('det-acuerdo-responsables').innerText = a.Responsables;
+
+        // Semáforo Estado
+        const hoyStr = new Date().toISOString().split('T')[0];
+        let semBadge = '<span class="badge bg-success">En Tiempo</span>';
+        if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
+          if (a.Fecha_Límite < hoyStr) semBadge = '<span class="badge bg-danger">Vencido</span>';
+          else if (a.Fecha_Límite === hoyStr) semBadge = '<span class="badge bg-warning text-dark">Vence Hoy</span>';
+        } else if (a.Estatus === 'Cumplido') {
+          semBadge = '<span class="badge bg-success">Cumplido</span>';
+        }
+        document.getElementById('det-acuerdo-semaforo').innerHTML = semBadge;
+
+        // Acciones Header
+        const headerActions = document.getElementById('det-acuerdo-acciones-header');
+        if (CURRENT_USER.rol !== 'Lector') {
+          headerActions.innerHTML = `
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')">
+              <i class="bi bi-pencil me-1"></i> Editar Acuerdo
+            </button>
+          `;
+        } else {
+          headerActions.innerHTML = '';
+        }
+
+        // Renderizar Notificaciones
+        renderizarNotificacionesDetalle(res.notificaciones);
+
+        // Renderizar Timeline Comentarios
+        renderizarTimelineComentarios(res.comentarios);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al obtener detalle del acuerdo', true);
+      })
+      .obtenerAcuerdo(idAcuerdo);
+  }
+
+  function renderizarNotificacionesDetalle(notifs) {
+    const tbody = document.querySelector('#tabla-det-notificaciones tbody');
+    tbody.innerHTML = '';
+
+    if (!notifs || notifs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No hay registros de notificaciones</td></tr>';
+      return;
+    }
+
+    notifs.forEach(n => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="small">${n.Fecha_Envío}</td>
+        <td class="small text-truncate" style="max-width: 150px;">${n.Correo_Destino}</td>
+        <td class="small text-truncate" style="max-width: 180px;">${n.Asunto}</td>
+        <td><span class="badge ${n.Estatus_Envío.includes('Enviado') ? 'bg-success' : 'bg-warning text-dark'}">${n.Estatus_Envío}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderizarTimelineComentarios(comentarios) {
+    const cont = document.getElementById('contenedor-timeline-comentarios');
+    cont.innerHTML = '';
+    document.getElementById('det-comentarios-count').innerText = comentarios ? comentarios.length : 0;
+
+    if (!comentarios || comentarios.length === 0) {
+      cont.innerHTML = '<div class="text-muted text-center py-4 fs-7">No hay comentarios de seguimiento aún.</div>';
+      return;
+    }
+
+    // Ordenar descendente (más recientes arriba)
+    comentarios.reverse().forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'timeline-item';
+      item.innerHTML = `
+        <div class="timeline-body">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold small text-primary">${c.Usuario}</span>
+            <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+          </div>
+          <div class="text-dark fs-7">${c.Comentario}</div>
+        </div>
+      `;
+      cont.appendChild(item);
+    });
+  }
+
+  function guardarComentarioSeguimiento() {
+    const texto = document.getElementById('nuevo-comentario-texto').value;
+    if (!texto.trim() || !ACUERDO_ACTUAL_DETALLE_ID) return;
+
+    showSpinner('Guardando comentario...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        document.getElementById('nuevo-comentario-texto').value = '';
+        mostrarToast(res.message);
+        cargarDetalleAcuerdo(ACUERDO_ACTUAL_DETALLE_ID);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al guardar comentario', true);
+      })
+      .agregarComentario(ACUERDO_ACTUAL_DETALLE_ID, texto);
+  }
+
+  // ==========================================
+  // USUARIOS
+  // ==========================================
+  function cargarUsuarios() {
+    showSpinner('Cargando usuarios...');
+    google.script.run
+      .withSuccessHandler(function(usuarios) {
+        hideSpinner();
+        GLOBAL_USUARIOS = usuarios;
+        renderizarTablaUsuarios(usuarios);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar usuarios', true);
+      })
+      .listarUsuarios();
+  }
+
+  function renderizarTablaUsuarios(usuarios) {
+    const tbody = document.querySelector('#tabla-usuarios tbody');
+    tbody.innerHTML = '';
+
+    if (usuarios.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No hay usuarios registrados</td></tr>';
+      return;
+    }
+
+    usuarios.forEach(u => {
+      const tr = document.createElement('tr');
+      const esActivo = String(u.Activo).toUpperCase() === 'SÍ' || String(u.Activo).toUpperCase() === 'SI';
+
+      tr.innerHTML = `
+        <td class="fw-semibold">${u.Correo}</td>
+        <td>${u.Nombre}</td>
+        <td><span class="badge ${u.Rol === 'Administrador' ? 'bg-danger' : (u.Rol === 'Operador' ? 'bg-primary' : 'bg-secondary')}">${u.Rol}</span></td>
+        <td class="small">${u.Subdirección}</td>
+        <td><span class="badge ${esActivo ? 'bg-success' : 'bg-danger'}">${u.Activo}</span></td>
+        <td class="text-end sol-admin-only">
+          <button class="btn btn-outline-primary btn-sm rounded-circle me-1" onclick="abrirModalEditarUsuario('${u.Correo}')" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-outline-danger btn-sm rounded-circle" onclick="eliminarUsuarioConfirm('${u.Correo}')" title="Eliminar">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function abrirModalNuevoUsuario() {
+    document.getElementById('form-usuario').reset();
+    document.getElementById('usuario-correo').removeAttribute('readonly');
+    document.getElementById('modalUsuarioTitle').innerHTML = '<i class="bi bi-person-plus me-2"></i>Registrar Usuario';
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function abrirModalEditarUsuario(correo) {
+    const u = GLOBAL_USUARIOS.find(item => item.Correo.toLowerCase() === correo.toLowerCase());
+    if (!u) return;
+
+    document.getElementById('usuario-correo').value = u.Correo;
+    document.getElementById('usuario-correo').setAttribute('readonly', 'readonly');
+    document.getElementById('usuario-nombre').value = u.Nombre;
+    document.getElementById('usuario-rol').value = u.Rol;
+    document.getElementById('usuario-subdireccion').value = u.Subdirección;
+    document.getElementById('usuario-activo').value = u.Activo;
+
+    document.getElementById('modalUsuarioTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Usuario`;
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function guardarUsuarioModal() {
+    const data = {
+      correo: document.getElementById('usuario-correo').value,
+      nombre: document.getElementById('usuario-nombre').value,
+      rol: document.getElementById('usuario-rol').value,
+      subdireccion: document.getElementById('usuario-subdireccion').value,
+      activo: document.getElementById('usuario-activo').value
+    };
+
+    showSpinner('Guardando datos del usuario...');
+    const modalEl = document.getElementById('modalUsuario');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (bsModal) bsModal.hide();
+        mostrarToast(res.message);
+        cargarUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al guardar usuario', true);
+      })
+      .guardarUsuario(data);
+  }
+
+  function eliminarUsuarioConfirm(correo) {
+    if (!confirm(`¿Está seguro de eliminar al usuario ${correo}?`)) return;
+
+    showSpinner('Eliminando usuario...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        cargarUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al eliminar usuario', true);
+      })
+      .eliminarUsuario(correo);
+  }
+
+  // ==========================================
+  // CATÁLOGOS
+  // ==========================================
+  function cargarCatalogosVista() {
+    showSpinner('Cargando catálogos...');
+    cargarCatalogosGlobales(function() {
+      hideSpinner();
+      renderizarTablaCatalogos();
+    });
+  }
+
+  function renderizarTablaCatalogos() {
+    const tbody = document.querySelector('#tabla-catalogos tbody');
+    tbody.innerHTML = '';
+
+    const filtroTipo = document.getElementById('filtro-catalogo-tipo').value;
+
+    let itemsTotal = [];
+    for (const [tipo, valores] of Object.entries(GLOBAL_CATALOGOS)) {
+      if (!filtroTipo || filtroTipo === tipo) {
+        valores.forEach(v => {
+          itemsTotal.push({ tipo, valor: v });
+        });
+      }
+    }
+
+    if (itemsTotal.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No hay items registrados</td></tr>';
+      return;
+    }
+
+    itemsTotal.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="badge bg-light text-dark border">${item.tipo}</span></td>
+        <td class="fw-medium">${item.valor}</td>
+        <td class="text-end">
+          <button class="btn btn-outline-danger btn-sm rounded-circle" onclick="eliminarCatalogoItemModal('${item.tipo}', '${item.valor}')" title="Eliminar">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function guardarCatalogoItemModal() {
+    const tipo = document.getElementById('catalogo-tipo').value;
+    const valor = document.getElementById('catalogo-valor').value;
+
+    showSpinner('Guardando ítem en el catálogo...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        document.getElementById('catalogo-valor').value = '';
+        mostrarToast(res.message);
+        cargarCatalogosVista();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al guardar catálogo', true);
+      })
+      .guardarCatalogoItem(tipo, valor);
+  }
+
+  function eliminarCatalogoItemModal(tipo, valor) {
+    if (!confirm(`¿Eliminar "${valor}" del catálogo ${tipo}?`)) return;
+
+    showSpinner('Eliminando ítem...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        cargarCatalogosVista();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al eliminar catálogo', true);
+      })
+      .eliminarCatalogoItem(tipo, valor);
+  }
+</script>

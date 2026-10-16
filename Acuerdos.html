@@ -1,0 +1,136 @@
+<!-- ACUERDOS.HTML -->
+<div id="view-acuerdos" class="app-view d-none">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-1"><i class="bi bi-list-check text-primary me-2"></i>Gestión de Acuerdos</h3>
+      <p class="text-muted small mb-0">Control general de acuerdos derivados de minutas e individuales</p>
+    </div>
+    <button class="btn btn-primary-custom rounded-pill px-3 sol-creador-admin" onclick="abrirModalNuevoAcuerdoInd();">
+      <i class="bi bi-plus-lg me-1"></i> Acuerdo Individual
+    </button>
+  </div>
+
+  <!-- Filtros Avanzados -->
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label small fw-semibold">Buscar por palabra</label>
+          <input type="text" class="form-control form-control-sm" id="filtro-acuerdo-busqueda" placeholder="ID, descripción, persona..." onkeyup="filtrarAcuerdos();">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small fw-semibold">Estatus</label>
+          <select class="form-select form-select-sm" id="filtro-acuerdo-estatus" onchange="filtrarAcuerdos();">
+            <option value="">-- Todos --</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small fw-semibold">Prioridad</label>
+          <select class="form-select form-select-sm" id="filtro-acuerdo-prioridad" onchange="filtrarAcuerdos();">
+            <option value="">-- Todas --</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small fw-semibold">Subdirección</label>
+          <select class="form-select form-select-sm" id="filtro-acuerdo-subdireccion" onchange="filtrarAcuerdos();">
+            <option value="">-- Todas --</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 d-flex align-items-end">
+          <button class="btn btn-outline-secondary btn-sm w-100" onclick="limpiarFiltrosAcuerdo();">
+            <i class="bi bi-x-circle me-1"></i> Limpiar Filtros
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla Acuerdos -->
+  <div class="card border-0 shadow-sm rounded-3">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla-acuerdos">
+          <thead>
+            <tr>
+              <th>ID Acuerdo</th>
+              <th>Folio / Origen</th>
+              <th>Tipo</th>
+              <th>Descripción</th>
+              <th>Prioridad</th>
+              <th>Subdirección</th>
+              <th>Responsables</th>
+              <th>Fecha Límite</th>
+              <th>Estatus</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Inyectado por JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Acuerdo Individual / Edición -->
+<div class="modal fade" id="modalAcuerdo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-custom text-white">
+        <h5 class="modal-title fw-bold" id="modalAcuerdoTitle"><i class="bi bi-check2-square me-2"></i>Nuevo Acuerdo Individual</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="form-acuerdo" onsubmit="event.preventDefault(); guardarAcuerdoModal();">
+        <div class="modal-body">
+          <input type="hidden" id="acuerdo-id">
+          <input type="hidden" id="acuerdo-origen" value="Individual">
+          <input type="hidden" id="acuerdo-folio-minuta" value="">
+
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label for="acuerdo-tipo" class="form-label fw-semibold">Tipo *</label>
+              <select class="form-select" id="acuerdo-tipo" required>
+                <option value="Acuerdo">Acuerdo</option>
+                <option value="Compromiso">Compromiso</option>
+                <option value="Tarea">Tarea</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label for="acuerdo-prioridad" class="form-label fw-semibold">Prioridad *</label>
+              <select class="form-select" id="acuerdo-prioridad" required></select>
+            </div>
+            <div class="col-12">
+              <label for="acuerdo-descripcion" class="form-label fw-semibold">Descripción del Acuerdo *</label>
+              <textarea class="form-control" id="acuerdo-descripcion" rows="3" required placeholder="Detalle claro del acuerdo o compromiso..."></textarea>
+            </div>
+            <div class="col-12 col-md-6">
+              <label for="acuerdo-solicitantes" class="form-label fw-semibold">Solicitantes (Separados por coma)</label>
+              <input type="text" class="form-control" id="acuerdo-solicitantes" placeholder="ej. correo1@merida.gob.mx, Juan Perez">
+            </div>
+            <div class="col-12 col-md-6">
+              <label for="acuerdo-responsables" class="form-label fw-semibold">Responsables (Separados por coma) *</label>
+              <input type="text" class="form-control" id="acuerdo-responsables" required placeholder="ej. correo2@merida.gob.mx, Maria Lopez">
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="acuerdo-fecha-limite" class="form-label fw-semibold">Fecha Límite *</label>
+              <input type="date" class="form-control" id="acuerdo-fecha-limite" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="acuerdo-subdireccion" class="form-label fw-semibold">Subdirección Asignada *</label>
+              <select class="form-select" id="acuerdo-subdireccion" required></select>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="acuerdo-estatus" class="form-label fw-semibold">Estatus *</label>
+              <select class="form-select" id="acuerdo-estatus" required></select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Guardar Acuerdo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
