@@ -1,0 +1,33 @@
+<!-- LOGIN.HTML -->
+<div class="row justify-content-center align-items-center min-vh-100 w-100 m-0" id="login-view">
+  <div class="col-11 col-sm-8 col-md-6 col-lg-4">
+    <div class="card shadow-lg border-0 rounded-4">
+      <div class="card-body p-4 p-sm-5 text-center">
+        <div class="mb-4">
+          <div class="d-inline-flex align-items-center justify-content-center bg-primary-custom text-white rounded-circle mb-3" style="width: 70px; height: 70px;">
+            <i class="bi bi-file-earmark-check-fill fs-1"></i>
+          </div>
+          <h3 class="fw-bold text-dark">Acuerdos de Dirección</h3>
+          <p class="text-muted small">Ingrese su correo institucional para acceder al sistema</p>
+        </div>
+
+        <form id="form-login" onsubmit="event.preventDefault(); ejecutarLogin();">
+          <div class="form-floating mb-3 text-start">
+            <input type="email" class="form-control" id="login-email" placeholder="nombre@merida.gob.mx" required>
+            <label for="login-email"><i class="bi bi-envelope me-2"></i>Correo Electrónico</label>
+          </div>
+
+          <div id="login-alert" class="alert alert-danger d-none py-2 small" role="alert"></div>
+
+          <button type="submit" class="btn btn-primary-custom w-100 py-2.5 fw-bold rounded-3" id="btn-login-submit">
+            <i class="bi bi-box-arrow-in-right me-2"></i>Iniciar Sesión
+          </button>
+        </form>
+
+        <div class="mt-4 pt-3 border-top text-center text-muted fs-7">
+          <small>H. Ayuntamiento de Mérida</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

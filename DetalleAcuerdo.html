@@ -1,0 +1,135 @@
+<!-- DETALLEACUERDO.HTML -->
+<div id="view-detalle-acuerdo" class="app-view d-none">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <button class="btn btn-outline-secondary btn-sm mb-2 rounded-pill px-3" onclick="navegarA('acuerdos');">
+        <i class="bi bi-arrow-left me-1"></i> Volver a Acuerdos
+      </button>
+      <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2"></i>Detalle de Acuerdo <span id="det-acuerdo-id-title" class="text-primary"></span></h3>
+    </div>
+    <div id="det-acuerdo-acciones-header">
+      <!-- Botones de edición/cambio de estatus si aplica -->
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Columna Izquierda: Datos del Acuerdo -->
+    <div class="col-12 col-lg-7">
+      <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white fw-bold py-3 border-bottom d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-info-circle me-2 text-primary"></i>Información del Acuerdo</span>
+          <span id="det-acuerdo-semaforo"></span>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Descripción</label>
+            <p class="fs-6 fw-normal bg-light p-3 rounded-3 border" id="det-acuerdo-descripcion">-</p>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-6 col-sm-4">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Origen</label>
+              <span id="det-acuerdo-origen" class="fw-medium">-</span>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Folio Minuta</label>
+              <span id="det-acuerdo-folio-minuta" class="fw-medium">-</span>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Tipo</label>
+              <span id="det-acuerdo-tipo" class="fw-medium">-</span>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Prioridad</label>
+              <span id="det-acuerdo-prioridad">-</span>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Estatus</label>
+              <span id="det-acuerdo-estatus">-</span>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Fecha Límite</label>
+              <span id="det-acuerdo-fecha-limite" class="fw-medium text-danger">-</span>
+            </div>
+          </div>
+
+          <hr class="my-3 text-muted">
+
+          <div class="row g-3">
+            <div class="col-12 col-sm-6">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Subdirección Asignada</label>
+              <span id="det-acuerdo-subdireccion" class="fw-medium">-</span>
+            </div>
+            <div class="col-12 col-sm-6">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Creado Por</label>
+              <span id="det-acuerdo-creado-por" class="fw-medium">-</span>
+            </div>
+            <div class="col-12 col-sm-6">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Solicitantes</label>
+              <span id="det-acuerdo-solicitantes" class="fw-medium">-</span>
+            </div>
+            <div class="col-12 col-sm-6">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Responsables</label>
+              <span id="det-acuerdo-responsables" class="fw-medium text-primary">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log de Notificaciones -->
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white fw-bold py-3 border-bottom">
+          <i class="bi bi-bell-history me-2 text-primary"></i>Historial de Notificaciones
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="tabla-det-notificaciones">
+              <thead>
+                <tr>
+                  <th>Fecha Envío</th>
+                  <th>Correo Destino</th>
+                  <th>Asunto</th>
+                  <th>Estatus</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Inyectado por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna Derecha: Comentarios de Seguimiento -->
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white fw-bold py-3 border-bottom d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-chat-left-text me-2 text-primary"></i>Seguimiento y Comentarios</span>
+          <span class="badge bg-secondary rounded-pill" id="det-comentarios-count">0</span>
+        </div>
+        <div class="card-body">
+          <!-- Formulario Agregar Comentario -->
+          <div class="mb-4 sol-operador-admin">
+            <form id="form-comentario" onsubmit="event.preventDefault(); guardarComentarioSeguimiento();">
+              <label for="nuevo-comentario-texto" class="form-label small fw-semibold">Agregar Nota de Seguimiento</label>
+              <textarea class="form-control mb-2" id="nuevo-comentario-texto" rows="3" required placeholder="Escriba los avances, evidencias o estado del acuerdo..."></textarea>
+              <div class="text-end">
+                <button type="submit" class="btn btn-primary-custom btn-sm rounded-pill px-3">
+                  <i class="bi bi-send me-1"></i> Publicar Comentario
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <hr class="my-3 text-muted sol-operador-admin">
+
+          <!-- Timeline de Comentarios -->
+          <div class="timeline" id="contenedor-timeline-comentarios">
+            <!-- Inyectado por JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
