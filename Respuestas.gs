@@ -232,7 +232,7 @@ function obtenerSeguimientoRespuestas(token, loteID) {
         No: p.No || '',
         Categoria: p.Categoria || '',
         Subcategoria: p.Subcategoria || '',
-        Pregunta: p.Pregunta || '',
+        Pregunta: p.Pregunta || 'Pregunta sin texto',
         FundamentoLegal: p.FundamentoLegal || '',
         RespuestaID: r.RespuestaID || '',
         Respuesta: r.Respuesta || 'Sin responder',
@@ -253,6 +253,93 @@ function obtenerSeguimientoRespuestas(token, loteID) {
     return { success: true, data: result };
   } catch (e) {
     return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Generates an Excel (.xlsx) file using a temporary Google Spreadsheet from the exact tracking data.
+ */
+function exportarSeguimientoExcel(token, loteID) {
+  try {
+    var session = requireAuth(token, 'administrador');
+    var trackingRes = obtenerSeguimientoRespuestas(token, loteID);
+
+    if (!trackingRes.success) {
+      return { success: false, message: trackingRes.message };
+    }
+
+    var list = trackingRes.data;
+    if (!list || list.length === 0) {
+      return { success: false, message: 'No hay datos disponibles para exportar.' };
+    }
+
+    var tempSS = SpreadsheetApp.create('Seguimiento_Auditoria_' + new Date().getTime());
+    var sheet = tempSS.getActiveSheet();
+    sheet.setName('Seguimiento_Respuestas');
+
+    var headers = [
+      'No.',
+      'QuestionID',
+      'Categoría',
+      'Subcategoría',
+      'Pregunta',
+      'Fundamento Legal',
+      'Subdirección Responsable',
+      'Respuesta',
+      'Evidencia Textual',
+      'Evidencia Documental (URL)',
+      'Nivel de Riesgo Residual',
+      'Usuario que Respondió',
+      'Estado de Revisión',
+      'Observación Administrador',
+      'Revisado Por',
+      'Fecha Revisión'
+    ];
+
+    sheet.appendRow(headers);
+    sheet.getRange(1, 1, 1, headers.length)
+         .setFontWeight('bold')
+         .setBackground('#1A365D')
+         .setFontColor('#FFFFFF');
+
+    list.forEach(function(item) {
+      sheet.appendRow([
+        item.No,
+        item.QuestionID,
+        item.Categoria,
+        item.Subcategoria,
+        item.Pregunta,
+        item.FundamentoLegal,
+        item.NombreSubdireccion,
+        item.Respuesta,
+        item.EvidenciaTextual,
+        item.EvidenciaDocumental,
+        item.NivelRiesgo,
+        item.UsuarioQueRespondio,
+        item.EstadoRevision,
+        item.ObservacionAdmin,
+        item.RevisadoPor,
+        item.FechaRevision
+      ]);
+    });
+
+    sheet.autoResizeColumns(1, headers.length);
+    SpreadsheetApp.flush();
+
+    var spreadsheetId = tempSS.getId();
+    var exportUrl = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx';
+
+    logAccion(session.email, 'Exportar Excel', 'Se generó exportación a Excel de seguimiento para lote: ' + (loteID || 'Todos'));
+
+    return {
+      success: true,
+      exportUrl: exportUrl,
+      spreadsheetId: spreadsheetId,
+      message: 'Archivo Excel generado exitosamente.'
+    };
+  } catch (e) {
+    console.error('Error al exportar seguimiento Excel: ' + e.message);
+    return { success: false, message: 'Error al generar archivo Excel: ' + e.message };
   }
 }
 
