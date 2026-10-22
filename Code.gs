@@ -25,7 +25,7 @@ const ENCABEZADOS = {
   [HOJAS.HOJA1]: [],
   [HOJAS.PROYECTOS]: ['ID_Proyecto', 'Nombre_Proyecto', 'Descripción', 'Estatus', 'Fecha_Creación', 'Creado_Por'],
   [HOJAS.MINUTAS]: ['Folio', 'ID_Proyecto', 'Etapa', 'Nombre_Reunión', 'Fecha', 'Lugar', 'Objetivos', 'Creado_Por', 'Fecha_Creación'],
-  [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Cargo', 'Correo', 'Asistio'],
+  [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Dependencia_Area', 'Cargo', 'Correo Electrónico', 'Asistencia'],
   [HOJAS.ORDEN_DEL_DIA]: ['ID_Punto', 'Folio_Minuta', 'Número_Punto', 'Descripción_Punto'],
   [HOJAS.ACUERDOS]: ['ID_Acuerdo', 'Folio_Minuta', 'Tipo', 'Descripción_Acuerdo', 'Prioridad', 'Solicitantes', 'Responsables', 'Fecha_Límite', 'Subdirección_Asignada', 'Estatus', 'Origen', 'Creado_Por', 'Fecha_Creación', 'Fecha_Modificación'],
   [HOJAS.CATALOGOS]: ['Tipo', 'Valor'],
@@ -382,7 +382,8 @@ function listarProyectos() {
 
   const asistencia = getSheetData(HOJAS.ASISTENCIA);
   asistencia.forEach(a => {
-    if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(a.Correo, sesion.email)) {
+    const correoVal = a['Correo Electrónico'] || a.Correo || '';
+    if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(correoVal, sesion.email)) {
       foliosMinutasVisibles.add(String(a.Folio_Minuta).trim());
     }
   });
@@ -425,7 +426,8 @@ function listarMinutas(filtros) {
   if (sesion.rol !== ROLES.ADMINISTRADOR) {
     const foliosAsistidos = new Set();
     asistencia.forEach(a => {
-      if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(a.Correo, sesion.email)) {
+      const correoVal = a['Correo Electrónico'] || a.Correo || '';
+      if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(correoVal, sesion.email)) {
         foliosAsistidos.add(String(a.Folio_Minuta).trim());
       }
     });
@@ -464,7 +466,23 @@ function obtenerMinuta(folio) {
   const minuta = minutas.find(m => String(m.Folio).trim() === String(folio).trim());
   if (!minuta) return null;
 
-  const asistencia = getSheetData(HOJAS.ASISTENCIA).filter(a => String(a.Folio_Minuta).trim() === String(folio).trim());
+  const asistenciaRaw = getSheetData(HOJAS.ASISTENCIA).filter(a => String(a.Folio_Minuta).trim() === String(folio).trim());
+  const asistencia = asistenciaRaw.map(a => {
+    const correoVal = a['Correo Electrónico'] || a.Correo || '';
+    const asistioVal = a.Asistencia !== undefined && a.Asistencia !== '' ? a.Asistencia : (a.Assitencia !== undefined && a.Assitencia !== '' ? a.Assitencia : (a.Asistio !== undefined ? a.Asistio : 'Sí'));
+    const depVal = a.Dependencia_Area || a.Dependencia || a.Area || '';
+    return {
+      ID_Asistencia: a.ID_Asistencia || '',
+      Folio_Minuta: a.Folio_Minuta || folio,
+      Nombre: a.Nombre || '',
+      Cargo: a.Cargo || '',
+      Correo: correoVal,
+      Dependencia_Area: depVal,
+      Asistencia: asistioVal,
+      Asistio: asistioVal
+    };
+  });
+
   const ordenDelDia = getSheetData(HOJAS.ORDEN_DEL_DIA).filter(o => String(o.Folio_Minuta).trim() === String(folio).trim());
   const acuerdos = listarAcuerdos().filter(a => String(a.Folio_Minuta).trim() === String(folio).trim());
 
@@ -642,20 +660,7 @@ function crearMinuta(data) {
     minSheet.appendRow(newMinutaRow);
 
     // Asistencia
-    if (Array.isArray(data.asistencia) && data.asistencia.length > 0) {
-      const astSheet = ss.getSheetByName(HOJAS.ASISTENCIA);
-      data.asistencia.forEach(ast => {
-        const idAst = generarIDUnico(HOJAS.ASISTENCIA, 'AST');
-        astSheet.appendRow([
-          idAst,
-          folio,
-          ast.nombre || '',
-          ast.cargo || '',
-          ast.correo || '',
-          ast.asistio ? 'Sí' : 'No'
-        ]);
-      });
-    }
+    guardarAsistenciaMinuta(ss, folio, data.asistencia);
 
     // Orden del Día
     if (Array.isArray(data.ordenDelDia) && data.ordenDelDia.length > 0) {
@@ -717,18 +722,7 @@ function actualizarMinuta(folio, data) {
     // Reemplazar Asistencia
     if (Array.isArray(data.asistencia)) {
       eliminarRegistrosHijo(HOJAS.ASISTENCIA, 2, folio);
-      const astSheet = ss.getSheetByName(HOJAS.ASISTENCIA);
-      data.asistencia.forEach(ast => {
-        const idAst = generarIDUnico(HOJAS.ASISTENCIA, 'AST');
-        astSheet.appendRow([
-          idAst,
-          folio,
-          ast.nombre || '',
-          ast.cargo || '',
-          ast.correo || '',
-          ast.asistio ? 'Sí' : 'No'
-        ]);
-      });
+      guardarAsistenciaMinuta(ss, folio, data.asistencia);
     }
 
     // Reemplazar Orden del Día
@@ -746,6 +740,38 @@ function actualizarMinuta(folio, data) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function guardarAsistenciaMinuta(ss, folio, asistenciaArray) {
+  if (!Array.isArray(asistenciaArray) || asistenciaArray.length === 0) return;
+  const astSheet = ss.getSheetByName(HOJAS.ASISTENCIA);
+  const headers = astSheet.getLastColumn() > 0 ? astSheet.getRange(1, 1, 1, astSheet.getLastColumn()).getValues()[0] : ENCABEZADOS[HOJAS.ASISTENCIA];
+
+  asistenciaArray.forEach(ast => {
+    const idAst = ast.idAsistencia || generarIDUnico(HOJAS.ASISTENCIA, 'AST');
+    const row = [];
+    headers.forEach(h => {
+      const hNorm = String(h).trim().toLowerCase();
+      if (hNorm === 'id_asistencia') {
+        row.push(idAst);
+      } else if (hNorm === 'folio_minuta') {
+        row.push(folio);
+      } else if (hNorm === 'nombre') {
+        row.push(ast.nombre || '');
+      } else if (hNorm === 'cargo') {
+        row.push(ast.cargo || '');
+      } else if (hNorm === 'dependencia_area' || hNorm === 'dependencia' || hNorm === 'area') {
+        row.push(ast.dependenciaArea || ast.dependencia || '');
+      } else if (hNorm.includes('correo')) {
+        row.push(ast.correo || ast['correo electrónico'] || '');
+      } else if (hNorm.includes('asist')) {
+        row.push(ast.asistio ? 'Sí' : 'No');
+      } else {
+        row.push('');
+      }
+    });
+    astSheet.appendRow(row);
+  });
 }
 
 function eliminarRegistrosHijo(nombreHoja, colFolioIndex, folioMinuta) {
@@ -774,16 +800,19 @@ function enviarMinutaPorCorreo(folio) {
   const ordenDelDia = det.ordenDelDia || [];
   const acuerdos = det.acuerdos || [];
 
-  // Obtener correos de los asistentes
+  // Filtrar asistentes que efectivamente asistieron ("Sí", true, "1", "VERDADERO") y tienen correo
   const correosSet = new Set();
   asistencia.forEach(a => {
-    if (a.Correo && String(a.Correo).includes('@')) {
-      correosSet.add(String(a.Correo).trim());
+    const asistioVal = a.Asistencia !== undefined ? a.Asistencia : (a.Asistio !== undefined ? a.Asistio : 'Sí');
+    const esPresente = (asistioVal === 'Sí' || asistioVal === 'SI' || asistioVal === true || asistioVal === 'VERDADERO' || asistioVal === '1');
+    const emailVal = a.Correo || a['Correo Electrónico'] || '';
+    if (esPresente && emailVal && String(emailVal).includes('@')) {
+      correosSet.add(String(emailVal).trim());
     }
   });
 
   if (correosSet.size === 0) {
-    throw new Error('No hay asistentes con correo registrado en esta minuta.');
+    throw new Error('No hay asistentes confirmados (con Asistencia = "Sí") que tengan correo registrado en esta minuta.');
   }
 
   const destinatariosStr = Array.from(correosSet).join(', ');
@@ -791,11 +820,13 @@ function enviarMinutaPorCorreo(folio) {
   // Generar HTML para el PDF de la minuta
   let htmlAsistientes = '';
   asistencia.forEach(a => {
+    const asistioVal = a.Asistencia !== undefined ? a.Asistencia : (a.Asistio !== undefined ? a.Asistio : 'Sí');
+    const correoVal = a.Correo || a['Correo Electrónico'] || '';
     htmlAsistientes += `<tr>
       <td style="padding: 6px; border: 1px solid #ccc;">${a.Nombre}</td>
       <td style="padding: 6px; border: 1px solid #ccc;">${a.Cargo}</td>
-      <td style="padding: 6px; border: 1px solid #ccc;">${a.Correo}</td>
-      <td style="padding: 6px; border: 1px solid #ccc; text-align: center;">${a.Asistio || 'Sí'}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${correoVal}</td>
+      <td style="padding: 6px; border: 1px solid #ccc; text-align: center;">${asistioVal}</td>
     </tr>`;
   });
 
@@ -891,7 +922,7 @@ function enviarMinutaPorCorreo(folio) {
     attachments: [pdfBlob]
   });
 
-  return { success: true, destinatarios: destinatariosStr, message: `Minuta ${m.Folio} enviada exitosamente a: ${destinatariosStr}` };
+  return { success: true, destinatarios: destinatariosStr, message: `Minuta ${m.Folio} enviada exitosamente a asistentes confirmados: ${destinatariosStr}` };
 }
 
 // --- ACUERDOS ---
@@ -1053,7 +1084,6 @@ function enviarRecordatorioManualAcuerdo(idAcuerdo) {
 
   const correosSet = new Set();
 
-  // Correo de la Subdirección / usuarios activos asignados
   usuarios.forEach(u => {
     if (String(u.Subdirección).trim() === subAsignada &&
         (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
@@ -1061,7 +1091,6 @@ function enviarRecordatorioManualAcuerdo(idAcuerdo) {
     }
   });
 
-  // Agregar responsables
   if (acuerdo.Responsables) {
     const listResp = String(acuerdo.Responsables).split(',').map(s => s.trim());
     listResp.forEach(r => {
