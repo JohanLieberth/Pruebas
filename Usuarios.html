@@ -1,0 +1,85 @@
+<!-- USUARIOS.HTML -->
+<div id="view-usuarios" class="app-view d-none">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-1"><i class="bi bi-people text-primary me-2"></i>Gestión de Usuarios</h3>
+      <p class="text-muted small mb-0">Administración de acceso, roles y asignación de subdirecciones</p>
+    </div>
+    <button class="btn btn-primary-custom rounded-pill px-3 sol-admin-only" onclick="abrirModalNuevoUsuario();">
+      <i class="bi bi-person-plus me-1"></i> Registrar Usuario
+    </button>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla-usuarios">
+          <thead>
+            <tr>
+              <th>Correo Electrónico</th>
+              <th>Nombre Completo</th>
+              <th>Rol</th>
+              <th>Subdirección</th>
+              <th>Activo</th>
+              <th class="text-end sol-admin-only">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Inyectado por JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Usuario (Crear / Editar) -->
+<div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-custom text-white">
+        <h5 class="modal-title fw-bold" id="modalUsuarioTitle"><i class="bi bi-person-plus me-2"></i>Registrar Usuario</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="form-usuario" onsubmit="event.preventDefault(); guardarUsuarioModal();">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="usuario-correo" class="form-label fw-semibold">Correo Electrónico *</label>
+            <input type="email" class="form-control" id="usuario-correo" required placeholder="correo@merida.gob.mx">
+          </div>
+
+          <div class="mb-3">
+            <label for="usuario-nombre" class="form-label fw-semibold">Nombre Completo *</label>
+            <input type="text" class="form-control" id="usuario-nombre" required placeholder="Nombre Apellido">
+          </div>
+
+          <div class="mb-3">
+            <label for="usuario-rol" class="form-label fw-semibold">Rol *</label>
+            <select class="form-select" id="usuario-rol" required>
+              <option value="Administrador">Administrador</option>
+              <option value="Operador">Operador</option>
+              <option value="Lector">Lector</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="usuario-subdireccion" class="form-label fw-semibold">Subdirección *</label>
+            <select class="form-select" id="usuario-subdireccion" required></select>
+          </div>
+
+          <div class="mb-3">
+            <label for="usuario-activo" class="form-label fw-semibold">Activo *</label>
+            <select class="form-select" id="usuario-activo" required>
+              <option value="Sí">Sí</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Guardar Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
