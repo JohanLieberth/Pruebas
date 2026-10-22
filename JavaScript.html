@@ -6,7 +6,15 @@
   let CURRENT_USER = null;
   let GLOBAL_CATALOGOS = {
     Dependencia: [],
-    Subdirección: [],
+    Subdirección: [
+      'Dirección de Administración',
+      'Subdirección de Administración y de Proveeduría',
+      'Subdirección de Servicios Internos',
+      'Subdirección de Recursos Humanos',
+      'Subdirección de Mejora Regulatoria',
+      'Subdirección de Patrimonio Municipal',
+      'Subdirección de Ventanilla Única'
+    ],
     Etapa: [],
     Prioridad: [],
     Estatus: []
@@ -16,6 +24,16 @@
   let GLOBAL_ACUERDOS = [];
   let GLOBAL_USUARIOS = [];
   let ACUERDO_ACTUAL_DETALLE_ID = null;
+
+  const ASISTENTES_PREDETERMINADOS_UI = [
+    { nombre: 'Lic. Mariana Gaber Fernández Montilla', cargo: 'Directora de Administración', correo: 'mariana.gaber@merida.gob.mx' },
+    { nombre: 'MTRO. Edgar Miguel Poot Delfino', cargo: 'Subdirector de Administración y Proveeduría', correo: 'edgar.poot@merida.gob.mx' },
+    { nombre: 'M.A.D. Eric Gerardo Millet Corona', cargo: 'Subdirector de Servicios Internos', correo: 'eric.millet@merida.gob.mx' },
+    { nombre: 'M.D.O. Wendy Leticia Rejón Barrancos', cargo: 'Subdirectora de Recursos Humanos', correo: 'wendy.rejon@merida.gob.mx' },
+    { nombre: 'Mtra. Ana Carolina Hidalgo Ortiz', cargo: 'Subdirectora de Mejora Regulatoria', correo: 'ana.hidalgo@merida.gob.mx' },
+    { nombre: 'Licda. María Cecilia Ruiz del Hoyo Cervera, Mtra.', cargo: 'Encargada de la Subdirección de Patrimonio Municipal', correo: 'maria.ruizdelhoyo@merida.gob.mx' },
+    { nombre: 'Lic. Joaquín Gustavo Chan Espinosa', cargo: 'Subdirector de Ventanillas Únicas', correo: 'joaquin.chane@merida.gob.mx' }
+  ];
 
   // ==========================================
   // INICIALIZACIÓN
@@ -121,7 +139,6 @@
   function aplicarPermisosRolUI() {
     const rol = CURRENT_USER.rol;
 
-    // Elementos exclusivos para Administrador
     const elementosAdmin = document.querySelectorAll('.sol-admin-only, #nav-item-usuarios, #nav-item-catalogos');
     elementosAdmin.forEach(el => {
       if (rol === 'Administrador') {
@@ -131,7 +148,6 @@
       }
     });
 
-    // Elementos para Creador / Operador / Admin
     const elementosOperadorAdmin = document.querySelectorAll('.sol-operador-admin, .sol-creador-admin');
     elementosOperadorAdmin.forEach(el => {
       if (rol === 'Lector') {
@@ -162,7 +178,6 @@
       targetNav.classList.add('active');
     }
 
-    // Cargar datos de la vista seleccionada
     if (vistaId === 'dashboard') {
       cargarDashboard();
     } else if (vistaId === 'proyectos') {
@@ -179,7 +194,6 @@
       cargarCatalogosVista();
     }
 
-    // Cerrar navbar en móviles
     const navCollapse = document.getElementById('navbarMain');
     if (navCollapse && navCollapse.classList.contains('show')) {
       const bsCollapse = new bootstrap.Collapse(navCollapse, { toggle: true });
@@ -202,10 +216,7 @@
 
   function poblarDropdowns() {
     poblarSelect('minuta-etapa', GLOBAL_CATALOGOS.Etapa);
-    poblarSelect('minuta-dependencia', GLOBAL_CATALOGOS.Dependencia);
-    poblarSelect('minuta-subdireccion', GLOBAL_CATALOGOS.Subdirección);
     poblarSelect('filtro-minuta-etapa', GLOBAL_CATALOGOS.Etapa, '-- Todas las etapas --');
-    poblarSelect('filtro-minuta-subdireccion', GLOBAL_CATALOGOS.Subdirección, '-- Todas las subdirecciones --');
 
     poblarSelect('acuerdo-prioridad', GLOBAL_CATALOGOS.Prioridad);
     poblarSelect('acuerdo-subdireccion', GLOBAL_CATALOGOS.Subdirección);
@@ -254,7 +265,6 @@
         document.getElementById('kpi-por-vencer').innerText = kpis.porVencer;
         document.getElementById('kpi-cumplidos').innerText = kpis.cumplidos;
 
-        // Tabla Subdirecciones
         const tbodySub = document.querySelector('#tabla-kpi-subdirecciones tbody');
         tbodySub.innerHTML = '';
         if (Object.keys(kpis.porSubdireccion).length === 0) {
@@ -270,7 +280,6 @@
           }
         }
 
-        // Cargar alertas de acuerdos por vencer / vencidos
         cargarAlertasDashboard();
       })
       .withFailureHandler(function(err) {
@@ -467,7 +476,7 @@
     tbody.innerHTML = '';
 
     if (minutas.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No hay minutas registradas</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay minutas registradas</td></tr>';
       return;
     }
 
@@ -477,11 +486,13 @@
         <td class="fw-bold text-primary">${m.Folio}</td>
         <td class="fw-semibold">${m.Nombre_Reunión}</td>
         <td><span class="badge bg-light text-dark border">${m.Etapa}</span></td>
-        <td class="small">${m.Subdirección}</td>
         <td class="small">${m.Fecha}</td>
         <td class="small text-muted">${m.Lugar || '-'}</td>
         <td class="small text-muted">${m.Creado_Por}</td>
         <td class="text-end">
+          <button class="btn btn-outline-success btn-sm rounded-circle me-1" onclick="enviarMinutaPorCorreoUI('${m.Folio}')" title="Enviar por Correo">
+            <i class="bi bi-envelope-at"></i>
+          </button>
           <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="verDetalleMinutaModal('${m.Folio}')" title="Ver Detalle">
             <i class="bi bi-eye"></i>
           </button>
@@ -496,16 +507,30 @@
     });
   }
 
+  function enviarMinutaPorCorreoUI(folio) {
+    if (!confirm(`¿Desea enviar la Minuta ${folio} en PDF a todos los asistentes registrados con correo?`)) return;
+
+    showSpinner(`Generando PDF y enviando minuta ${folio}...`);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al enviar minuta por correo', true);
+      })
+      .enviarMinutaPorCorreo(folio);
+  }
+
   function filtrarMinutas() {
     const q = document.getElementById('filtro-minuta-busqueda').value.toLowerCase();
     const etapa = document.getElementById('filtro-minuta-etapa').value;
-    const sub = document.getElementById('filtro-minuta-subdireccion').value;
 
     const filtradas = GLOBAL_MINUTAS.filter(m => {
       const matchQ = !q || m.Folio.toLowerCase().includes(q) || m.Nombre_Reunión.toLowerCase().includes(q) || (m.Lugar && m.Lugar.toLowerCase().includes(q));
       const matchEtapa = !etapa || m.Etapa === etapa;
-      const matchSub = !sub || m.Subdirección === sub;
-      return matchQ && matchEtapa && matchSub;
+      return matchQ && matchEtapa;
     });
 
     renderizarTablaMinutas(filtradas);
@@ -514,26 +539,24 @@
   function limpiarFiltrosMinuta() {
     document.getElementById('filtro-minuta-busqueda').value = '';
     document.getElementById('filtro-minuta-etapa').value = '';
-    document.getElementById('filtro-minuta-subdireccion').value = '';
     renderizarTablaMinutas(GLOBAL_MINUTAS);
   }
 
   function abrirModalNuevaMinuta() {
     document.getElementById('form-minuta').reset();
     document.getElementById('minuta-folio').value = '';
-    document.getElementById('minuta-subdireccion').value = CURRENT_USER.subdireccion;
     document.getElementById('minuta-fecha').value = new Date().toISOString().split('T')[0];
 
-    // Limpiar tablas dinámicas
     document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
     document.querySelector('#tabla-form-odd tbody').innerHTML = '';
     document.querySelector('#tabla-form-acuerdos tbody').innerHTML = '';
 
-    // Agregar 1 fila inicial por defecto
-    agregarFilaAsistencia();
+    ASISTENTES_PREDETERMINADOS_UI.forEach(ast => {
+      agregarFilaAsistenciaPredeterminada(ast.nombre, ast.cargo, ast.correo, true);
+    });
+
     agregarFilaODD();
 
-    // Activar primera pestaña
     const firstTabEl = document.querySelector('#minutaTabs button:first-child');
     const firstTab = new bootstrap.Tab(firstTabEl);
     firstTab.show();
@@ -543,18 +566,25 @@
     modal.show();
   }
 
-  function agregarFilaAsistencia(nombre = '', dep = '', cargo = '') {
+  function agregarFilaAsistenciaPredeterminada(nombre = '', cargo = '', correo = '', asistio = true) {
     const tbody = document.querySelector('#tabla-form-asistencia tbody');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="text" class="form-control form-control-sm ast-nombre" value="${nombre}" placeholder="Nombre o Correo" required></td>
-      <td><input type="text" class="form-control form-control-sm ast-dep" value="${dep}" placeholder="Dependencia / Área"></td>
+      <td class="text-center">
+        <input type="checkbox" class="form-check-input ast-chk" ${asistio ? 'checked' : ''}>
+      </td>
+      <td><input type="text" class="form-control form-control-sm ast-nombre" value="${nombre}" placeholder="Nombre" required></td>
       <td><input type="text" class="form-control form-control-sm ast-cargo" value="${cargo}" placeholder="Cargo"></td>
+      <td><input type="email" class="form-control form-control-sm ast-correo" value="${correo}" placeholder="correo@merida.gob.mx"></td>
       <td class="text-center">
         <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
       </td>
     `;
     tbody.appendChild(tr);
+  }
+
+  function agregarFilaAsistenciaManualmente() {
+    agregarFilaAsistenciaPredeterminada('', '', '', true);
   }
 
   function agregarFilaODD(num = '', desc = '') {
@@ -583,7 +613,7 @@
     const sol = acuObj ? acuObj.Solicitantes : '';
     const resp = acuObj ? acuObj.Responsables : CURRENT_USER.email;
     const fLim = acuObj ? acuObj.Fecha_Límite : new Date().toISOString().split('T')[0];
-    const sub = acuObj ? acuObj.Subdirección_Asignada : CURRENT_USER.subdireccion;
+    const sub = acuObj ? acuObj.Subdirección_Asignada : GLOBAL_CATALOGOS.Subdirección[0];
 
     let subOptionsHTML = '';
     GLOBAL_CATALOGOS.Subdirección.forEach(s => {
@@ -601,6 +631,7 @@
           <option value="Acuerdo" ${tipo === 'Acuerdo' ? 'selected' : ''}>Acuerdo</option>
           <option value="Compromiso" ${tipo === 'Compromiso' ? 'selected' : ''}>Compromiso</option>
           <option value="Tarea" ${tipo === 'Tarea' ? 'selected' : ''}>Tarea</option>
+          <option value="Informativo" ${tipo === 'Informativo' ? 'selected' : ''}>Informativo</option>
         </select>
       </td>
       <td><textarea class="form-control form-control-sm acu-desc" rows="2" placeholder="Descripción" required>${desc}</textarea></td>
@@ -619,20 +650,19 @@
   function guardarMinuta() {
     const folio = document.getElementById('minuta-folio').value;
 
-    // Recopilar Asistencia
     const asistencia = [];
     document.querySelectorAll('#tabla-form-asistencia tbody tr').forEach(row => {
       const nombre = row.querySelector('.ast-nombre').value.trim();
       if (nombre) {
         asistencia.push({
+          asistio: row.querySelector('.ast-chk').checked,
           nombre: nombre,
-          dependenciaArea: row.querySelector('.ast-dep').value.trim(),
-          cargo: row.querySelector('.ast-cargo').value.trim()
+          cargo: row.querySelector('.ast-cargo').value.trim(),
+          correo: row.querySelector('.ast-correo').value.trim()
         });
       }
     });
 
-    // Recopilar Orden del Día
     const ordenDelDia = [];
     document.querySelectorAll('#tabla-form-odd tbody tr').forEach(row => {
       const desc = row.querySelector('.odd-desc').value.trim();
@@ -644,7 +674,6 @@
       }
     });
 
-    // Recopilar Acuerdos
     const acuerdos = [];
     document.querySelectorAll('#tabla-form-acuerdos tbody tr').forEach(row => {
       const desc = row.querySelector('.acu-desc').value.trim();
@@ -666,8 +695,6 @@
       idProyecto: document.getElementById('minuta-proyecto').value,
       nombreReunion: document.getElementById('minuta-nombre').value,
       etapa: document.getElementById('minuta-etapa').value,
-      dependencia: document.getElementById('minuta-dependencia').value,
-      subdireccion: document.getElementById('minuta-subdireccion').value,
       fecha: document.getElementById('minuta-fecha').value,
       lugar: document.getElementById('minuta-lugar').value,
       objetivos: document.getElementById('minuta-objetivos').value,
@@ -721,21 +748,19 @@
         document.getElementById('minuta-proyecto').value = m.ID_Proyecto;
         document.getElementById('minuta-nombre').value = m.Nombre_Reunión;
         document.getElementById('minuta-etapa').value = m.Etapa;
-        document.getElementById('minuta-dependencia').value = m.Dependencia;
-        document.getElementById('minuta-subdireccion').value = m.Subdirección;
         document.getElementById('minuta-fecha').value = m.Fecha;
         document.getElementById('minuta-lugar').value = m.Lugar;
         document.getElementById('minuta-objetivos').value = m.Objetivos;
 
-        // Cargar Asistencia
         document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
-        det.asistencia.forEach(a => agregarFilaAsistencia(a.Nombre, a.Dependencia_Area, a.Cargo));
+        det.asistencia.forEach(a => {
+          const asistioBool = (a.Asistio === 'Sí' || a.Asistio === 'SI' || a.Asistio === true || a.Asistio === '1');
+          agregarFilaAsistenciaPredeterminada(a.Nombre, a.Cargo, a.Correo, asistioBool);
+        });
 
-        // Cargar ODD
         document.querySelector('#tabla-form-odd tbody').innerHTML = '';
         det.ordenDelDia.forEach(o => agregarFilaODD(o.Número_Punto, o.Descripción_Punto));
 
-        // Cargar Acuerdos
         document.querySelector('#tabla-form-acuerdos tbody').innerHTML = '';
         det.acuerdos.forEach(a => agregarFilaAcuerdoMinuta(a));
 
@@ -786,7 +811,6 @@
     acuerdos.forEach(a => {
       const tr = document.createElement('tr');
 
-      // Semáforo Vencimiento
       let semaforoClass = '';
       if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
         if (a.Fecha_Límite < hoyStr) semaforoClass = 'semaforo-vencido';
@@ -795,13 +819,11 @@
       }
       tr.className = semaforoClass;
 
-      // Badge prioridad
       let prioBadge = 'bg-secondary';
       if (a.Prioridad === 'Alta') prioBadge = 'bg-danger';
       else if (a.Prioridad === 'Media') prioBadge = 'bg-warning text-dark';
       else if (a.Prioridad === 'Baja') prioBadge = 'bg-info text-dark';
 
-      // Badge Estatus
       let estBadge = 'bg-secondary';
       if (a.Estatus === 'Cumplido') estBadge = 'bg-success';
       else if (a.Estatus === 'En Proceso') estBadge = 'bg-primary';
@@ -863,7 +885,6 @@
     document.getElementById('acuerdo-id').value = '';
     document.getElementById('acuerdo-origen').value = 'Individual';
     document.getElementById('acuerdo-folio-minuta').value = '';
-    document.getElementById('acuerdo-subdireccion').value = CURRENT_USER.subdireccion;
     document.getElementById('acuerdo-fecha-limite').value = new Date().toISOString().split('T')[0];
 
     document.getElementById('modalAcuerdoTitle').innerHTML = '<i class="bi bi-check2-square me-2"></i>Nuevo Acuerdo Individual';
@@ -973,7 +994,6 @@
         document.getElementById('det-acuerdo-solicitantes').innerText = a.Solicitantes || 'Ninguno';
         document.getElementById('det-acuerdo-responsables').innerText = a.Responsables;
 
-        // Semáforo Estado
         const hoyStr = new Date().toISOString().split('T')[0];
         let semBadge = '<span class="badge bg-success">En Tiempo</span>';
         if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
@@ -984,22 +1004,22 @@
         }
         document.getElementById('det-acuerdo-semaforo').innerHTML = semBadge;
 
-        // Acciones Header
         const headerActions = document.getElementById('det-acuerdo-acciones-header');
+        let htmlBtns = `
+          <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="enviarRecordatorioManualUI('${a.ID_Acuerdo}')">
+            <i class="bi bi-bell me-1"></i> Enviar Recordatorio
+          </button>
+        `;
         if (CURRENT_USER.rol !== 'Lector') {
-          headerActions.innerHTML = `
+          htmlBtns += `
             <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')">
               <i class="bi bi-pencil me-1"></i> Editar Acuerdo
             </button>
           `;
-        } else {
-          headerActions.innerHTML = '';
         }
+        headerActions.innerHTML = htmlBtns;
 
-        // Renderizar Notificaciones
         renderizarNotificacionesDetalle(res.notificaciones);
-
-        // Renderizar Timeline Comentarios
         renderizarTimelineComentarios(res.comentarios);
       })
       .withFailureHandler(function(err) {
@@ -1007,6 +1027,23 @@
         mostrarToast(err.message || 'Error al obtener detalle del acuerdo', true);
       })
       .obtenerAcuerdo(idAcuerdo);
+  }
+
+  function enviarRecordatorioManualUI(idAcuerdo) {
+    if (!confirm(`¿Desea enviar un recordatorio por correo a la Subdirección responsable de este acuerdo?`)) return;
+
+    showSpinner('Enviando recordatorio...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        cargarDetalleAcuerdo(idAcuerdo);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al enviar recordatorio', true);
+      })
+      .enviarRecordatorioManualAcuerdo(idAcuerdo);
   }
 
   function renderizarNotificacionesDetalle(notifs) {
@@ -1040,7 +1077,6 @@
       return;
     }
 
-    // Ordenar descendente (más recientes arriba)
     comentarios.reverse().forEach(c => {
       const item = document.createElement('div');
       item.className = 'timeline-item';

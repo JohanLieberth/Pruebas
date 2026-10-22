@@ -14,23 +14,17 @@
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-4">
           <label class="form-label small fw-semibold">Buscar por texto</label>
           <input type="text" class="form-control form-control-sm" id="filtro-minuta-busqueda" placeholder="Folio, reunión, lugar..." onkeyup="filtrarMinutas();">
         </div>
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-4">
           <label class="form-label small fw-semibold">Etapa</label>
           <select class="form-select form-select-sm" id="filtro-minuta-etapa" onchange="filtrarMinutas();">
             <option value="">-- Todas las etapas --</option>
           </select>
         </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label small fw-semibold">Subdirección</label>
-          <select class="form-select form-select-sm" id="filtro-minuta-subdireccion" onchange="filtrarMinutas();">
-            <option value="">-- Todas las subdirecciones --</option>
-          </select>
-        </div>
-        <div class="col-12 col-md-3 d-flex align-items-end">
+        <div class="col-12 col-md-4 d-flex align-items-end">
           <button class="btn btn-outline-secondary btn-sm w-100" onclick="limpiarFiltrosMinuta();">
             <i class="bi bi-x-circle me-1"></i> Limpiar Filtros
           </button>
@@ -49,7 +43,6 @@
               <th>Folio</th>
               <th>Nombre de Reunión</th>
               <th>Etapa</th>
-              <th>Subdirección</th>
               <th>Fecha</th>
               <th>Lugar</th>
               <th>Creado Por</th>
@@ -121,18 +114,10 @@
                   <select class="form-select" id="minuta-etapa" required></select>
                 </div>
                 <div class="col-12 col-md-4">
-                  <label for="minuta-dependencia" class="form-label fw-semibold">Dependencia *</label>
-                  <select class="form-select" id="minuta-dependencia" required></select>
-                </div>
-                <div class="col-12 col-md-4">
-                  <label for="minuta-subdireccion" class="form-label fw-semibold">Subdirección *</label>
-                  <select class="form-select" id="minuta-subdireccion" required></select>
-                </div>
-                <div class="col-12 col-md-6">
                   <label for="minuta-fecha" class="form-label fw-semibold">Fecha de la Reunión *</label>
                   <input type="date" class="form-control" id="minuta-fecha" required>
                 </div>
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
                   <label for="minuta-lugar" class="form-label fw-semibold">Lugar / Sede *</label>
                   <input type="text" class="form-control" id="minuta-lugar" placeholder="Ej. Sala B / Vía Teams" required>
                 </div>
@@ -147,17 +132,18 @@
             <div class="tab-pane fade" id="tab-asistencia" role="tabpanel">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold m-0"><i class="bi bi-people me-2 text-primary"></i>Lista de Asistentes</h6>
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="agregarFilaAsistencia();">
-                  <i class="bi bi-plus-circle me-1"></i> Agregar Asistente
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="agregarFilaAsistenciaManualmente();">
+                  <i class="bi bi-plus-circle me-1"></i> Agregar Asistente Adicional
                 </button>
               </div>
               <div class="table-responsive">
                 <table class="table table-bordered table-sm align-middle" id="tabla-form-asistencia">
                   <thead class="table-light">
                     <tr>
-                      <th>Nombre / Correo</th>
-                      <th>Dependencia / Área</th>
+                      <th style="width: 70px;" class="text-center">Asistió</th>
+                      <th>Nombre Completo</th>
                       <th>Cargo</th>
+                      <th>Correo Electrónico</th>
                       <th style="width: 50px;"></th>
                     </tr>
                   </thead>
@@ -204,7 +190,7 @@
                 <table class="table table-bordered table-sm align-middle" id="tabla-form-acuerdos">
                   <thead class="table-light">
                     <tr>
-                      <th style="width: 110px;">Tipo</th>
+                      <th style="width: 120px;">Tipo</th>
                       <th>Descripción del Acuerdo</th>
                       <th style="width: 100px;">Prioridad</th>
                       <th>Solicitantes</th>

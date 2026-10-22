@@ -24,8 +24,8 @@ const HOJAS = {
 const ENCABEZADOS = {
   [HOJAS.HOJA1]: [],
   [HOJAS.PROYECTOS]: ['ID_Proyecto', 'Nombre_Proyecto', 'Descripción', 'Estatus', 'Fecha_Creación', 'Creado_Por'],
-  [HOJAS.MINUTAS]: ['Folio', 'ID_Proyecto', 'Etapa', 'Dependencia', 'Subdirección', 'Nombre_Reunión', 'Fecha', 'Lugar', 'Objetivos', 'Creado_Por', 'Fecha_Creación'],
-  [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Dependencia_Area', 'Cargo'],
+  [HOJAS.MINUTAS]: ['Folio', 'ID_Proyecto', 'Etapa', 'Nombre_Reunión', 'Fecha', 'Lugar', 'Objetivos', 'Creado_Por', 'Fecha_Creación'],
+  [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Cargo', 'Correo', 'Asistio'],
   [HOJAS.ORDEN_DEL_DIA]: ['ID_Punto', 'Folio_Minuta', 'Número_Punto', 'Descripción_Punto'],
   [HOJAS.ACUERDOS]: ['ID_Acuerdo', 'Folio_Minuta', 'Tipo', 'Descripción_Acuerdo', 'Prioridad', 'Solicitantes', 'Responsables', 'Fecha_Límite', 'Subdirección_Asignada', 'Estatus', 'Origen', 'Creado_Por', 'Fecha_Creación', 'Fecha_Modificación'],
   [HOJAS.CATALOGOS]: ['Tipo', 'Valor'],
@@ -39,6 +39,16 @@ const ROLES = {
   OPERADOR: 'Operador',
   LECTOR: 'Lector'
 };
+
+const ASISTENTES_PREDETERMINADOS = [
+  { nombre: 'Lic. Mariana Gaber Fernández Montilla', cargo: 'Directora de Administración', correo: 'mariana.gaber@merida.gob.mx' },
+  { nombre: 'MTRO. Edgar Miguel Poot Delfino', cargo: 'Subdirector de Administración y Proveeduría', correo: 'edgar.poot@merida.gob.mx' },
+  { nombre: 'M.A.D. Eric Gerardo Millet Corona', cargo: 'Subdirector de Servicios Internos', correo: 'eric.millet@merida.gob.mx' },
+  { nombre: 'M.D.O. Wendy Leticia Rejón Barrancos', cargo: 'Subdirectora de Recursos Humanos', correo: 'wendy.rejon@merida.gob.mx' },
+  { nombre: 'Mtra. Ana Carolina Hidalgo Ortiz', cargo: 'Subdirectora de Mejora Regulatoria', correo: 'ana.hidalgo@merida.gob.mx' },
+  { nombre: 'Licda. María Cecilia Ruiz del Hoyo Cervera, Mtra.', cargo: 'Encargada de la Subdirección de Patrimonio Municipal', correo: 'maria.ruizdelhoyo@merida.gob.mx' },
+  { nombre: 'Lic. Joaquín Gustavo Chan Espinosa', cargo: 'Subdirector de Ventanillas Únicas', correo: 'joaquin.chane@merida.gob.mx' }
+];
 
 // ==========================================
 // INICIALIZACIÓN Y CONFIGURACIÓN (setup)
@@ -67,14 +77,18 @@ function setup() {
   const catSheet = ss.getSheetByName(HOJAS.CATALOGOS);
   if (catSheet.getLastRow() <= 1) {
     const catalogosIniciales = [
+      ['Dependencia', 'Dirección de Administración'],
       ['Dependencia', 'Dirección de Tecnologías'],
       ['Dependencia', 'Dirección de Gobernación'],
       ['Dependencia', 'Dirección de Obras Públicas'],
       ['Dependencia', 'Dirección de Servicios Públicos'],
-      ['Subdirección', 'Subdirección de Innovación'],
-      ['Subdirección', 'Subdirección de Infraestructura'],
-      ['Subdirección', 'Subdirección de Operación'],
+      ['Subdirección', 'Dirección de Administración'],
+      ['Subdirección', 'Subdirección de Administración y de Proveeduría'],
+      ['Subdirección', 'Subdirección de Servicios Internos'],
+      ['Subdirección', 'Subdirección de Recursos Humanos'],
       ['Subdirección', 'Subdirección de Mejora Regulatoria'],
+      ['Subdirección', 'Subdirección de Patrimonio Municipal'],
+      ['Subdirección', 'Subdirección de Ventanilla Única'],
       ['Etapa', 'Planeación'],
       ['Etapa', 'Ejecución'],
       ['Etapa', 'Seguimiento'],
@@ -95,8 +109,8 @@ function setup() {
   if (usrSheet.getLastRow() <= 1) {
     const usuariosIniciales = [
       ['sakurazukamori21@gmail.com', 'Lalo', 'Administrador', 'Subdirección de Mejora Regulatoria', 'Sí'],
-      ['ana.carolina@merida.gob.mx', 'Carolina Hidalgo', 'Operador', 'Subdirección de Infraestructura', 'Sí'],
-      ['santos.jimenez@merida.gob.mx', 'Santos Jimenez', 'Operador', 'Subdirección de Innovación', 'Sí']
+      ['mariana.gaber@merida.gob.mx', 'Mariana Gaber Fernández Montilla', 'Administrador', 'Dirección de Administración', 'Sí'],
+      ['ana.hidalgo@merida.gob.mx', 'Ana Carolina Hidalgo Ortiz', 'Operador', 'Subdirección de Mejora Regulatoria', 'Sí']
     ];
     usrSheet.getRange(2, 1, usuariosIniciales.length, 5).setValues(usuariosIniciales);
   }
@@ -359,18 +373,16 @@ function listarProyectos() {
   const minutas = getSheetData(HOJAS.MINUTAS);
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
 
-  // Subdirecciones o involucramiento
   const foliosMinutasVisibles = new Set();
   minutas.forEach(m => {
-    if (String(m.Subdirección).trim() === sesion.subdireccion ||
-        String(m.Creado_Por).trim().toLowerCase() === sesion.email.toLowerCase()) {
+    if (String(m.Creado_Por).trim().toLowerCase() === sesion.email.toLowerCase()) {
       foliosMinutasVisibles.add(String(m.Folio).trim());
     }
   });
 
   const asistencia = getSheetData(HOJAS.ASISTENCIA);
   asistencia.forEach(a => {
-    if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(a.Nombre, sesion.email)) {
+    if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(a.Correo, sesion.email)) {
       foliosMinutasVisibles.add(String(a.Folio_Minuta).trim());
     }
   });
@@ -413,16 +425,15 @@ function listarMinutas(filtros) {
   if (sesion.rol !== ROLES.ADMINISTRADOR) {
     const foliosAsistidos = new Set();
     asistencia.forEach(a => {
-      if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(a.Nombre, sesion.email)) {
+      if (esInvolucradoString(a.Nombre, sesion.nombre) || esInvolucradoString(a.Correo, sesion.email)) {
         foliosAsistidos.add(String(a.Folio_Minuta).trim());
       }
     });
 
     minutas = minutas.filter(m => {
-      const subMatch = String(m.Subdirección).trim() === sesion.subdireccion;
       const creadorMatch = String(m.Creado_Por).trim().toLowerCase() === sesion.email.toLowerCase();
       const asistioMatch = foliosAsistidos.has(String(m.Folio).trim());
-      return subMatch || creadorMatch || asistioMatch;
+      return creadorMatch || asistioMatch;
     });
   }
 
@@ -432,9 +443,6 @@ function listarMinutas(filtros) {
     }
     if (filtros.etapa) {
       minutas = minutas.filter(m => String(m.Etapa).trim() === String(filtros.etapa).trim());
-    }
-    if (filtros.subdireccion) {
-      minutas = minutas.filter(m => String(m.Subdirección).trim() === String(filtros.subdireccion).trim());
     }
     if (filtros.busqueda) {
       const q = String(filtros.busqueda).toLowerCase();
@@ -526,13 +534,7 @@ function obtenerAcuerdo(idAcuerdo) {
 
   const sesion = validarSesion();
   const comentarios = getSheetData(HOJAS.COMENTARIOS_SEGUIMIENTO).filter(c => String(c.ID_Acuerdo).trim() === String(idAcuerdo).trim());
-
-  let notificaciones = [];
-  if (sesion.rol === ROLES.ADMINISTRADOR) {
-    notificaciones = getSheetData(HOJAS.LOG_NOTIFICACIONES).filter(l => String(l.ID_Acuerdo).trim() === String(idAcuerdo).trim());
-  } else {
-    notificaciones = getSheetData(HOJAS.LOG_NOTIFICACIONES).filter(l => String(l.ID_Acuerdo).trim() === String(idAcuerdo).trim());
-  }
+  const notificaciones = getSheetData(HOJAS.LOG_NOTIFICACIONES).filter(l => String(l.ID_Acuerdo).trim() === String(idAcuerdo).trim());
 
   return {
     acuerdo,
@@ -630,8 +632,6 @@ function crearMinuta(data) {
       folio,
       data.idProyecto || '',
       data.etapa || 'Planeación',
-      data.dependencia || '',
-      data.subdireccion || sesion.subdireccion,
       data.nombreReunion || '',
       data.fecha || formatDateShort(new Date()),
       data.lugar || '',
@@ -646,7 +646,14 @@ function crearMinuta(data) {
       const astSheet = ss.getSheetByName(HOJAS.ASISTENCIA);
       data.asistencia.forEach(ast => {
         const idAst = generarIDUnico(HOJAS.ASISTENCIA, 'AST');
-        astSheet.appendRow([idAst, folio, ast.nombre || '', ast.dependenciaArea || '', ast.cargo || '']);
+        astSheet.appendRow([
+          idAst,
+          folio,
+          ast.nombre || '',
+          ast.cargo || '',
+          ast.correo || '',
+          ast.asistio ? 'Sí' : 'No'
+        ]);
       });
     }
 
@@ -702,24 +709,29 @@ function actualizarMinuta(folio, data) {
 
     if (data.idProyecto !== undefined) minSheet.getRange(rowIndex, 2).setValue(data.idProyecto);
     if (data.etapa !== undefined) minSheet.getRange(rowIndex, 3).setValue(data.etapa);
-    if (data.dependencia !== undefined) minSheet.getRange(rowIndex, 4).setValue(data.dependencia);
-    if (data.subdireccion !== undefined) minSheet.getRange(rowIndex, 5).setValue(data.subdireccion);
-    if (data.nombreReunion !== undefined) minSheet.getRange(rowIndex, 6).setValue(data.nombreReunion);
-    if (data.fecha !== undefined) minSheet.getRange(rowIndex, 7).setValue(data.fecha);
-    if (data.lugar !== undefined) minSheet.getRange(rowIndex, 8).setValue(data.lugar);
-    if (data.objetivos !== undefined) minSheet.getRange(rowIndex, 9).setValue(data.objetivos);
+    if (data.nombreReunion !== undefined) minSheet.getRange(rowIndex, 4).setValue(data.nombreReunion);
+    if (data.fecha !== undefined) minSheet.getRange(rowIndex, 5).setValue(data.fecha);
+    if (data.lugar !== undefined) minSheet.getRange(rowIndex, 6).setValue(data.lugar);
+    if (data.objetivos !== undefined) minSheet.getRange(rowIndex, 7).setValue(data.objetivos);
 
-    // Reemplazar Asistencia si se reenvía
+    // Reemplazar Asistencia
     if (Array.isArray(data.asistencia)) {
       eliminarRegistrosHijo(HOJAS.ASISTENCIA, 2, folio);
       const astSheet = ss.getSheetByName(HOJAS.ASISTENCIA);
       data.asistencia.forEach(ast => {
         const idAst = generarIDUnico(HOJAS.ASISTENCIA, 'AST');
-        astSheet.appendRow([idAst, folio, ast.nombre || '', ast.dependenciaArea || '', ast.cargo || '']);
+        astSheet.appendRow([
+          idAst,
+          folio,
+          ast.nombre || '',
+          ast.cargo || '',
+          ast.correo || '',
+          ast.asistio ? 'Sí' : 'No'
+        ]);
       });
     }
 
-    // Reemplazar Orden del Día si se reenvía
+    // Reemplazar Orden del Día
     if (Array.isArray(data.ordenDelDia)) {
       eliminarRegistrosHijo(HOJAS.ORDEN_DEL_DIA, 2, folio);
       const oddSheet = ss.getSheetByName(HOJAS.ORDEN_DEL_DIA);
@@ -746,6 +758,140 @@ function eliminarRegistrosHijo(nombreHoja, colFolioIndex, folioMinuta) {
       sheet.deleteRow(i + 1);
     }
   }
+}
+
+// --- ENVIAR MINUTA POR CORREO (PDF) ---
+function enviarMinutaPorCorreo(folio) {
+  validarSesion();
+  const ss = getSpreadsheet();
+  const det = obtenerMinuta(folio);
+  if (!det || !det.minuta) {
+    throw new Error('No se encontró la minuta especificada.');
+  }
+
+  const m = det.minuta;
+  const asistencia = det.asistencia || [];
+  const ordenDelDia = det.ordenDelDia || [];
+  const acuerdos = det.acuerdos || [];
+
+  // Obtener correos de los asistentes
+  const correosSet = new Set();
+  asistencia.forEach(a => {
+    if (a.Correo && String(a.Correo).includes('@')) {
+      correosSet.add(String(a.Correo).trim());
+    }
+  });
+
+  if (correosSet.size === 0) {
+    throw new Error('No hay asistentes con correo registrado en esta minuta.');
+  }
+
+  const destinatariosStr = Array.from(correosSet).join(', ');
+
+  // Generar HTML para el PDF de la minuta
+  let htmlAsistientes = '';
+  asistencia.forEach(a => {
+    htmlAsistientes += `<tr>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Nombre}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Cargo}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Correo}</td>
+      <td style="padding: 6px; border: 1px solid #ccc; text-align: center;">${a.Asistio || 'Sí'}</td>
+    </tr>`;
+  });
+
+  let htmlODD = '';
+  ordenDelDia.forEach(o => {
+    htmlODD += `<tr>
+      <td style="padding: 6px; border: 1px solid #ccc; text-align: center;">${o.Número_Punto}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${o.Descripción_Punto}</td>
+    </tr>`;
+  });
+
+  let htmlAcuerdos = '';
+  acuerdos.forEach(a => {
+    htmlAcuerdos += `<tr>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.ID_Acuerdo}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Tipo}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Descripción_Acuerdo}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Subdirección_Asignada}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${a.Responsables}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${formatDateShort(a.Fecha_Límite)}</td>
+    </tr>`;
+  });
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #333; margin: 20px; }
+        h2 { color: #2b4c7e; border-bottom: 2px solid #2b4c7e; padding-bottom: 5px; }
+        h4 { color: #2b4c7e; margin-top: 20px; margin-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+        th { background-color: #f2f2f2; color: #333; padding: 6px; border: 1px solid #ccc; text-align: left; }
+        .info-table td { padding: 4px 8px; }
+      </style>
+    </head>
+    <body>
+      <h2>Minuta de Reunión: ${m.Folio}</h2>
+      <table class="info-table" style="margin-bottom: 15px;">
+        <tr><td><strong>Nombre de Reunión:</strong> ${m.Nombre_Reunión}</td><td><strong>Etapa:</strong> ${m.Etapa}</td></tr>
+        <tr><td><strong>Fecha:</strong> ${m.Fecha}</td><td><strong>Lugar:</strong> ${m.Lugar}</td></tr>
+        <tr><td colspan="2"><strong>Objetivos:</strong> ${m.Objetivos || 'N/A'}</td></tr>
+      </table>
+
+      <h4>1. Lista de Asistencia</h4>
+      <table>
+        <thead>
+          <tr><th>Nombre</th><th>Cargo</th><th>Correo</th><th>Asistió</th></tr>
+        </thead>
+        <tbody>
+          ${htmlAsistientes || '<tr><td colspan="4">Sin asistentes registrados</td></tr>'}
+        </tbody>
+      </table>
+
+      <h4>2. Orden del Día</h4>
+      <table>
+        <thead>
+          <tr><th style="width: 80px;">Punto</th><th>Descripción</th></tr>
+        </thead>
+        <tbody>
+          ${htmlODD || '<tr><td colspan="2">Sin puntos del orden del día</td></tr>'}
+        </tbody>
+      </table>
+
+      <h4>3. Acuerdos Derivados</h4>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Tipo</th><th>Descripción</th><th>Subdirección</th><th>Responsables</th><th>Fecha Límite</th></tr>
+        </thead>
+        <tbody>
+          ${htmlAcuerdos || '<tr><td colspan="6">Sin acuerdos derivados</td></tr>'}
+        </tbody>
+      </table>
+
+      <br><br>
+      <div style="font-size: 10px; color: #777; text-align: center;">
+        Generado por el Sistema de Acuerdos de Dirección — H. Ayuntamiento de Mérida
+      </div>
+    </body>
+    </html>
+  `;
+
+  const pdfBlob = Utilities.newBlob(htmlBody, 'text/html', `Minuta_${m.Folio}.html`).getAs('application/pdf').setName(`Minuta_${m.Folio}.pdf`);
+
+  const asunto = `Minuta de Reunión – ${m.Folio} – ${m.Nombre_Reunión}`;
+  const cuerpoTexto = `Estimado(a),\n\nAdjunto encontrará la Minuta de Reunión ${m.Folio} ("${m.Nombre_Reunión}") en formato PDF para su consulta y archivo.\n\nAtentamente,\nSistema de Acuerdos de Dirección`;
+
+  MailApp.sendEmail({
+    to: destinatariosStr,
+    subject: asunto,
+    body: cuerpoTexto,
+    attachments: [pdfBlob]
+  });
+
+  return { success: true, destinatarios: destinatariosStr, message: `Minuta ${m.Folio} enviada exitosamente a: ${destinatariosStr}` };
 }
 
 // --- ACUERDOS ---
@@ -895,6 +1041,100 @@ function enviarNotificacionAcuerdo(idAcuerdo) {
   return enviarNotificacionAcuerdoInterno(idAcuerdo, ss, false);
 }
 
+function enviarRecordatorioManualAcuerdo(idAcuerdo) {
+  validarSesion();
+  const ss = getSpreadsheet();
+  const acuerdos = getSheetData(HOJAS.ACUERDOS);
+  const acuerdo = acuerdos.find(a => String(a.ID_Acuerdo).trim() === String(idAcuerdo).trim());
+  if (!acuerdo) throw new Error('Acuerdo no encontrado.');
+
+  const usuarios = getSheetData(HOJAS.USUARIOS);
+  const subAsignada = String(acuerdo.Subdirección_Asignada).trim();
+
+  const correosSet = new Set();
+
+  // Correo de la Subdirección / usuarios activos asignados
+  usuarios.forEach(u => {
+    if (String(u.Subdirección).trim() === subAsignada &&
+        (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
+      correosSet.add(String(u.Correo).trim());
+    }
+  });
+
+  // Agregar responsables
+  if (acuerdo.Responsables) {
+    const listResp = String(acuerdo.Responsables).split(',').map(s => s.trim());
+    listResp.forEach(r => {
+      if (r.includes('@')) correosSet.add(r);
+    });
+  }
+
+  const idLog = generarIDUnico(HOJAS.LOG_NOTIFICACIONES, 'LOG');
+  const logSheet = ss.getSheetByName(HOJAS.LOG_NOTIFICACIONES);
+  const now = formatDate(new Date());
+  const asunto = `⚠️ RECORDATORIO DE ACUERDO: ${acuerdo.ID_Acuerdo} – [${acuerdo.Prioridad}]`;
+
+  if (correosSet.size === 0) {
+    logSheet.appendRow([
+      idLog,
+      idAcuerdo,
+      'SIN_DESTINATARIOS',
+      asunto,
+      now,
+      'Recordatorio Fallido: No hay usuarios activos en la subdirección asignada'
+    ]);
+    throw new Error('No hay usuarios activos registrados en la subdirección asignada como responsables.');
+  }
+
+  const destinatariosStr = Array.from(correosSet).join(', ');
+  const cuerpo = `
+⚠️ RECORDATORIO MANUAL DE SEGUIMIENTO DE ACUERDO
+
+• ID Acuerdo: ${acuerdo.ID_Acuerdo}
+• Folio Minuta: ${acuerdo.Folio_Minuta || 'Individual'}
+• Descripción: ${acuerdo.Descripción_Acuerdo}
+• Subdirección Asignada: ${acuerdo.Subdirección_Asignada}
+• Responsables: ${acuerdo.Responsables}
+• Prioridad: ${acuerdo.Prioridad}
+• Estatus Actual: ${acuerdo.Estatus}
+• Fecha Límite: ${formatDateShort(acuerdo.Fecha_Límite)}
+
+Estimada Subdirección Responsable, se le solicita atentamente revisar el avance de este acuerdo.
+
+Atentamente,
+Sistema de Acuerdos de Dirección
+  `.trim();
+
+  try {
+    MailApp.sendEmail({
+      to: destinatariosStr,
+      subject: asunto,
+      body: cuerpo
+    });
+
+    logSheet.appendRow([
+      idLog,
+      idAcuerdo,
+      destinatariosStr,
+      asunto,
+      now,
+      'Recordatorio Enviado'
+    ]);
+
+    return { success: true, message: `Recordatorio enviado a la subdirección responsable (${destinatariosStr}).` };
+  } catch (err) {
+    logSheet.appendRow([
+      idLog,
+      idAcuerdo,
+      destinatariosStr,
+      asunto,
+      now,
+      `Recordatorio Fallido: ${err.message}`
+    ]);
+    throw new Error(`Error al enviar recordatorio: ${err.message}`);
+  }
+}
+
 function enviarNotificacionAcuerdoInterno(idAcuerdo, ss, esActualizacion = false) {
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
   const acuerdo = acuerdos.find(a => String(a.ID_Acuerdo).trim() === String(idAcuerdo).trim());
@@ -903,7 +1143,6 @@ function enviarNotificacionAcuerdoInterno(idAcuerdo, ss, esActualizacion = false
   const usuarios = getSheetData(HOJAS.USUARIOS);
   const subAsignada = String(acuerdo.Subdirección_Asignada).trim();
 
-  // Usuarios activos en la subdirección
   const usuariosDestino = usuarios.filter(u =>
     String(u.Subdirección).trim() === subAsignada &&
     (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')
@@ -911,7 +1150,6 @@ function enviarNotificacionAcuerdoInterno(idAcuerdo, ss, esActualizacion = false
 
   const correosDestinoSet = new Set(usuariosDestino.map(u => String(u.Correo).trim()));
 
-  // Agregar también a responsables si son emails válidos
   if (acuerdo.Responsables) {
     const listResp = String(acuerdo.Responsables).split(',').map(s => s.trim());
     listResp.forEach(r => {
@@ -1022,13 +1260,11 @@ function procesarRecordatorios() {
     const diffMs = fLimite.getTime() - hoyDate.getTime();
     const diffDias = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-    // Verificar si aplica envío (Vence hoy: diffDias === 0, Próximo a vencer: diffDias > 0 && diffDias <= 3)
     let esVenceHoy = diffDias === 0;
     let esProximoVencer = diffDias > 0 && diffDias <= 3;
 
     if (!esVenceHoy && !esProximoVencer) return;
 
-    // Verificar si ya se envió recordatorio HOY para este mismo acuerdo
     const yaNotificadoHoy = logs.some(l => {
       const esMismoAcuerdo = String(l.ID_Acuerdo).trim() === String(acuerdo.ID_Acuerdo).trim();
       const fechaEnvioStr = formatDateShort(l.Fecha_Envío);
@@ -1038,7 +1274,6 @@ function procesarRecordatorios() {
 
     if (yaNotificadoHoy) return;
 
-    // Recopilar destinatarios
     const correosSet = new Set();
     if (acuerdo.Creado_Por && acuerdo.Creado_Por.includes('@')) {
       correosSet.add(String(acuerdo.Creado_Por).trim());
@@ -1135,7 +1370,6 @@ function listarUsuarios() {
   if (sesion.rol === ROLES.ADMINISTRADOR) {
     return usuarios;
   }
-  // Operador / Lector solo ven su propio registro
   return usuarios.filter(u => String(u.Correo).trim().toLowerCase() === sesion.email.toLowerCase());
 }
 
@@ -1166,14 +1400,12 @@ function guardarUsuario(data) {
     }
 
     if (rowIndex !== -1) {
-      // Editar
       sheet.getRange(rowIndex, 2).setValue(data.nombre || '');
       sheet.getRange(rowIndex, 3).setValue(data.rol || ROLES.OPERADOR);
       sheet.getRange(rowIndex, 4).setValue(data.subdireccion || '');
       sheet.getRange(rowIndex, 5).setValue(data.activo || 'Sí');
       return { success: true, message: 'Usuario actualizado correctamente.' };
     } else {
-      // Crear
       sheet.appendRow([
         data.correo.trim(),
         data.nombre || '',
@@ -1223,7 +1455,15 @@ function obtenerCatalogos() {
   const catData = getSheetData(HOJAS.CATALOGOS);
   const result = {
     Dependencia: [],
-    Subdirección: [],
+    Subdirección: [
+      'Dirección de Administración',
+      'Subdirección de Administración y de Proveeduría',
+      'Subdirección de Servicios Internos',
+      'Subdirección de Recursos Humanos',
+      'Subdirección de Mejora Regulatoria',
+      'Subdirección de Patrimonio Municipal',
+      'Subdirección de Ventanilla Única'
+    ],
     Etapa: [],
     Prioridad: [],
     Estatus: []
