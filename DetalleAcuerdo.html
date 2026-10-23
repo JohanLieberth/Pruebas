@@ -8,7 +8,7 @@
       <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2"></i>Detalle de Acuerdo <span id="det-acuerdo-id-title" class="text-primary"></span></h3>
     </div>
     <div id="det-acuerdo-acciones-header" class="d-flex gap-2">
-      <!-- Botones de edición/enviar recordatorio -->
+      <!-- Botones de edición/enviar recordatorio/cambiar estatus -->
     </div>
   </div>
 
@@ -130,6 +130,31 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cambiar Estatus para Operador -->
+<div class="modal fade" id="modalEstatusAcuerdo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-custom text-white">
+        <h5 class="modal-title fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Cambiar Estatus del Acuerdo</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="form-estatus-acuerdo" onsubmit="event.preventDefault(); guardarCambioEstatusModal();">
+        <div class="modal-body">
+          <input type="hidden" id="modal-estatus-id-acuerdo">
+          <div class="mb-3">
+            <label for="modal-estatus-select" class="form-label fw-semibold">Seleccionar Nuevo Estatus *</label>
+            <select class="form-select" id="modal-estatus-select" required></select>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Actualizar Estatus</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

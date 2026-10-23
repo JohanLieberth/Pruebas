@@ -363,13 +363,16 @@ function esInvolucradoString(cadenaMultivalor, email) {
 // A. PROYECTOS
 function listarProyectos() {
   const sesion = validarSesion();
-  const proyectos = getSheetData(HOJAS.PROYECTOS);
+  if (sesion.rol === ROLES.OPERADOR) {
+    return []; // El rol Operador no tiene acceso al módulo de Proyectos
+  }
 
+  const proyectos = getSheetData(HOJAS.PROYECTOS);
   if (sesion.rol === ROLES.ADMINISTRADOR) {
     return proyectos;
   }
 
-  // Operador / Lector
+  // Lector
   const minutas = getSheetData(HOJAS.MINUTAS);
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
 
@@ -420,6 +423,10 @@ function listarProyectos() {
 // B. MINUTAS
 function listarMinutas(filtros) {
   const sesion = validarSesion();
+  if (sesion.rol === ROLES.OPERADOR) {
+    return []; // El rol Operador no tiene acceso al módulo de Minutas
+  }
+
   let minutas = getSheetData(HOJAS.MINUTAS);
   const asistencia = getSheetData(HOJAS.ASISTENCIA);
 
@@ -462,6 +469,10 @@ function listarMinutas(filtros) {
 
 function obtenerMinuta(folio) {
   const sesion = validarSesion();
+  if (sesion.rol === ROLES.OPERADOR) {
+    throw new Error('Acceso no permitido para el rol Operador.');
+  }
+
   const minutas = listarMinutas();
   const minuta = minutas.find(m => String(m.Folio).trim() === String(folio).trim());
   if (!minuta) return null;
@@ -568,8 +579,8 @@ function obtenerAcuerdo(idAcuerdo) {
 // --- PROYECTOS ---
 function crearProyecto(data) {
   const sesion = validarSesion();
-  if (sesion.rol === ROLES.LECTOR) {
-    throw new Error('No tiene permisos para crear proyectos.');
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('Acción no permitida para su rol.');
   }
 
   const lock = LockService.getScriptLock();
@@ -598,8 +609,8 @@ function crearProyecto(data) {
 
 function actualizarProyecto(idProyecto, data) {
   const sesion = validarSesion();
-  if (sesion.rol === ROLES.LECTOR) {
-    throw new Error('No tiene permisos para modificar proyectos.');
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('Acción no permitida para su rol.');
   }
 
   const lock = LockService.getScriptLock();
@@ -634,8 +645,8 @@ function actualizarProyecto(idProyecto, data) {
 // --- MINUTAS Y SUS COMPONENTES ---
 function crearMinuta(data) {
   const sesion = validarSesion();
-  if (sesion.rol === ROLES.LECTOR) {
-    throw new Error('No tiene permisos para crear minutas.');
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('Acción no permitida para su rol.');
   }
 
   const lock = LockService.getScriptLock();
@@ -689,8 +700,8 @@ function crearMinuta(data) {
 
 function actualizarMinuta(folio, data) {
   const sesion = validarSesion();
-  if (sesion.rol === ROLES.LECTOR) {
-    throw new Error('No tiene permisos para modificar minutas.');
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('Acción no permitida para su rol.');
   }
 
   const lock = LockService.getScriptLock();
@@ -788,7 +799,11 @@ function eliminarRegistrosHijo(nombreHoja, colFolioIndex, folioMinuta) {
 
 // --- ENVIAR MINUTA POR CORREO (PDF) ---
 function enviarMinutaPorCorreo(folio) {
-  validarSesion();
+  const sesion = validarSesion();
+  if (sesion.rol === ROLES.OPERADOR) {
+    throw new Error('Acción no permitida para el rol Operador.');
+  }
+
   const ss = getSpreadsheet();
   const det = obtenerMinuta(folio);
   if (!det || !det.minuta) {
@@ -800,7 +815,6 @@ function enviarMinutaPorCorreo(folio) {
   const ordenDelDia = det.ordenDelDia || [];
   const acuerdos = det.acuerdos || [];
 
-  // Filtrar asistentes que efectivamente asistieron ("Sí", true, "1", "VERDADERO") y tienen correo
   const correosSet = new Set();
   asistencia.forEach(a => {
     const asistioVal = a.Asistencia !== undefined ? a.Asistencia : (a.Asistio !== undefined ? a.Asistio : 'Sí');
@@ -817,7 +831,6 @@ function enviarMinutaPorCorreo(folio) {
 
   const destinatariosStr = Array.from(correosSet).join(', ');
 
-  // Generar HTML para el PDF de la minuta
   let htmlAsistientes = '';
   asistencia.forEach(a => {
     const asistioVal = a.Asistencia !== undefined ? a.Asistencia : (a.Asistio !== undefined ? a.Asistio : 'Sí');
@@ -1003,14 +1016,19 @@ function actualizarAcuerdo(idAcuerdo, data) {
       throw new Error('Acuerdo no encontrado.');
     }
 
-    if (data.tipo !== undefined) sheet.getRange(rowIndex, 3).setValue(data.tipo);
-    if (data.descripcionAcuerdo !== undefined) sheet.getRange(rowIndex, 4).setValue(data.descripcionAcuerdo);
-    if (data.prioridad !== undefined) sheet.getRange(rowIndex, 5).setValue(data.prioridad);
-    if (data.solicitantes !== undefined) sheet.getRange(rowIndex, 6).setValue(data.solicitantes);
-    if (data.responsables !== undefined) sheet.getRange(rowIndex, 7).setValue(data.responsables);
-    if (data.fechaLimite !== undefined) sheet.getRange(rowIndex, 8).setValue(data.fechaLimite);
-    if (data.subdireccionAsignada !== undefined) sheet.getRange(rowIndex, 9).setValue(data.subdireccionAsignada);
-    if (data.estatus !== undefined) sheet.getRange(rowIndex, 10).setValue(data.estatus);
+    // Para rol Operador, únicamente se permite modificar el campo estatus
+    if (sesion.rol === ROLES.OPERADOR) {
+      if (data.estatus !== undefined) sheet.getRange(rowIndex, 10).setValue(data.estatus);
+    } else {
+      if (data.tipo !== undefined) sheet.getRange(rowIndex, 3).setValue(data.tipo);
+      if (data.descripcionAcuerdo !== undefined) sheet.getRange(rowIndex, 4).setValue(data.descripcionAcuerdo);
+      if (data.prioridad !== undefined) sheet.getRange(rowIndex, 5).setValue(data.prioridad);
+      if (data.solicitantes !== undefined) sheet.getRange(rowIndex, 6).setValue(data.solicitantes);
+      if (data.responsables !== undefined) sheet.getRange(rowIndex, 7).setValue(data.responsables);
+      if (data.fechaLimite !== undefined) sheet.getRange(rowIndex, 8).setValue(data.fechaLimite);
+      if (data.subdireccionAsignada !== undefined) sheet.getRange(rowIndex, 9).setValue(data.subdireccionAsignada);
+      if (data.estatus !== undefined) sheet.getRange(rowIndex, 10).setValue(data.estatus);
+    }
 
     // Actualizar Fecha_Modificación
     const now = formatDate(new Date());

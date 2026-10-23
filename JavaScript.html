@@ -139,6 +139,7 @@
   function aplicarPermisosRolUI() {
     const rol = CURRENT_USER.rol;
 
+    // Administrador: Ve todos los módulos
     const elementosAdmin = document.querySelectorAll('.sol-admin-only, #nav-item-usuarios, #nav-item-catalogos');
     elementosAdmin.forEach(el => {
       if (rol === 'Administrador') {
@@ -148,6 +149,19 @@
       }
     });
 
+    // Módulos visibles por rol
+    const navProyectos = document.getElementById('nav-item-proyectos');
+    const navMinutas = document.getElementById('nav-item-minutas');
+
+    if (rol === 'Operador') {
+      if (navProyectos) navProyectos.classList.add('d-none');
+      if (navMinutas) navMinutas.classList.add('d-none');
+    } else {
+      if (navProyectos) navProyectos.classList.remove('d-none');
+      if (navMinutas) navMinutas.classList.remove('d-none');
+    }
+
+    // Elementos para Operador / Admin (e.g., comentarios, crear acuerdos)
     const elementosOperadorAdmin = document.querySelectorAll('.sol-operador-admin, .sol-creador-admin');
     elementosOperadorAdmin.forEach(el => {
       if (rol === 'Lector') {
@@ -162,6 +176,13 @@
   // NAVEGACIÓN Y VISTAS
   // ==========================================
   function navegarA(vistaId, parametro = null) {
+    if (CURRENT_USER && CURRENT_USER.rol === 'Operador') {
+      if (vistaId === 'proyectos' || vistaId === 'minutas' || vistaId === 'usuarios' || vistaId === 'catalogos') {
+        mostrarToast('El rol Operador únicamente tiene acceso a Dashboard y Acuerdos.', true);
+        vistaId = 'acuerdos';
+      }
+    }
+
     const vistas = document.querySelectorAll('.app-view');
     vistas.forEach(v => v.classList.add('d-none'));
 
@@ -226,6 +247,7 @@
     poblarSelect('filtro-acuerdo-subdireccion', GLOBAL_CATALOGOS.Subdirección, '-- Todas --');
 
     poblarSelect('usuario-subdireccion', GLOBAL_CATALOGOS.Subdirección);
+    poblarSelect('modal-estatus-select', GLOBAL_CATALOGOS.Estatus);
   }
 
   function poblarSelect(elemId, opcionesArray, defaultText = null) {
@@ -367,7 +389,7 @@
         <td class="small">${p.Fecha_Creación}</td>
         <td class="small">${p.Creado_Por}</td>
         <td class="text-end">
-          ${CURRENT_USER.rol !== 'Lector' ? `
+          ${CURRENT_USER.rol === 'Administrador' ? `
             <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarProyecto('${p.ID_Proyecto}')" title="Editar">
               <i class="bi bi-pencil"></i>
             </button>
@@ -496,7 +518,7 @@
           <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="verDetalleMinutaModal('${m.Folio}')" title="Ver Detalle">
             <i class="bi bi-eye"></i>
           </button>
-          ${CURRENT_USER.rol !== 'Lector' ? `
+          ${CURRENT_USER.rol === 'Administrador' ? `
             <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarMinuta('${m.Folio}')" title="Editar">
               <i class="bi bi-pencil"></i>
             </button>
@@ -754,7 +776,7 @@
 
         document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
         det.asistencia.forEach(a => {
-          const asistioBool = (a.Asistio === 'Sí' || a.Asistio === 'SI' || a.Asistio === true || a.Asistio === '1');
+          const asistioBool = (a.Asistencia === 'Sí' || a.Asistencia === 'SI' || a.Asistencia === true || a.Asistencia === '1');
           agregarFilaAsistenciaPredeterminada(a.Nombre, a.Cargo, a.Correo, asistioBool);
         });
 
@@ -844,15 +866,51 @@
           <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="navegarA('detalle-acuerdo', '${a.ID_Acuerdo}')" title="Ver Detalle">
             <i class="bi bi-eye"></i>
           </button>
-          ${CURRENT_USER.rol !== 'Lector' ? `
+          ${CURRENT_USER.rol === 'Operador' ? `
+            <button class="btn btn-outline-warning btn-sm rounded-circle" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}')" title="Cambiar Estatus">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+          ` : (CURRENT_USER.rol !== 'Lector' ? `
             <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')" title="Editar">
               <i class="bi bi-pencil"></i>
             </button>
-          ` : ''}
+          ` : '')}
         </td>
       `;
       tbody.appendChild(tr);
     });
+  }
+
+  function abrirModalCambiarEstatusOperador(idAcuerdo, estatusActual) {
+    document.getElementById('modal-estatus-id-acuerdo').value = idAcuerdo;
+    document.getElementById('modal-estatus-select').value = estatusActual;
+    const modal = new bootstrap.Modal(document.getElementById('modalEstatusAcuerdo'));
+    modal.show();
+  }
+
+  function guardarCambioEstatusModal() {
+    const idA = document.getElementById('modal-estatus-id-acuerdo').value;
+    const nuevoEstatus = document.getElementById('modal-estatus-select').value;
+
+    showSpinner('Actualizando estatus del acuerdo...');
+    const modalEl = document.getElementById('modalEstatusAcuerdo');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (bsModal) bsModal.hide();
+        mostrarToast(res.message);
+        cargarAcuerdos();
+        if (ACUERDO_ACTUAL_DETALLE_ID === idA) {
+          cargarDetalleAcuerdo(idA);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al actualizar estatus', true);
+      })
+      .actualizarAcuerdo(idA, { estatus: nuevoEstatus });
   }
 
   function filtrarAcuerdos() {
@@ -885,11 +943,23 @@
     document.getElementById('acuerdo-id').value = '';
     document.getElementById('acuerdo-origen').value = 'Individual';
     document.getElementById('acuerdo-folio-minuta').value = '';
+    document.getElementById('acuerdo-subdireccion').value = CURRENT_USER.subdireccion;
     document.getElementById('acuerdo-fecha-limite').value = new Date().toISOString().split('T')[0];
+
+    // Para operador, solo campos editables habilitados
+    desbloquearCamposFormAcuerdo();
 
     document.getElementById('modalAcuerdoTitle').innerHTML = '<i class="bi bi-check2-square me-2"></i>Nuevo Acuerdo Individual';
     const modal = new bootstrap.Modal(document.getElementById('modalAcuerdo'));
     modal.show();
+  }
+
+  function desbloquearCamposFormAcuerdo() {
+    const fields = ['acuerdo-tipo', 'acuerdo-prioridad', 'acuerdo-descripcion', 'acuerdo-solicitantes', 'acuerdo-responsables', 'acuerdo-fecha-limite', 'acuerdo-subdireccion'];
+    fields.forEach(fId => {
+      const el = document.getElementById(fId);
+      if (el) el.removeAttribute('disabled');
+    });
   }
 
   function abrirModalEditarAcuerdo(idAcuerdo) {
@@ -907,6 +977,16 @@
     document.getElementById('acuerdo-fecha-limite').value = a.Fecha_Límite;
     document.getElementById('acuerdo-subdireccion').value = a.Subdirección_Asignada;
     document.getElementById('acuerdo-estatus').value = a.Estatus;
+
+    if (CURRENT_USER.rol === 'Operador') {
+      const fields = ['acuerdo-tipo', 'acuerdo-prioridad', 'acuerdo-descripcion', 'acuerdo-solicitantes', 'acuerdo-responsables', 'acuerdo-fecha-limite', 'acuerdo-subdireccion'];
+      fields.forEach(fId => {
+        const el = document.getElementById(fId);
+        if (el) el.setAttribute('disabled', 'disabled');
+      });
+    } else {
+      desbloquearCamposFormAcuerdo();
+    }
 
     document.getElementById('modalAcuerdoTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Acuerdo ${a.ID_Acuerdo}`;
     const modal = new bootstrap.Modal(document.getElementById('modalAcuerdo'));
@@ -1010,7 +1090,13 @@
             <i class="bi bi-bell me-1"></i> Enviar Recordatorio
           </button>
         `;
-        if (CURRENT_USER.rol !== 'Lector') {
+        if (CURRENT_USER.rol === 'Operador') {
+          htmlBtns += `
+            <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}')">
+              <i class="bi bi-arrow-repeat me-1"></i> Cambiar Estatus
+            </button>
+          `;
+        } else if (CURRENT_USER.rol === 'Administrador') {
           htmlBtns += `
             <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')">
               <i class="bi bi-pencil me-1"></i> Editar Acuerdo
