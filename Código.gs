@@ -1051,6 +1051,31 @@ function asociarUidCliente(email, uid, auth) {
   return { success: true, message: "UID NFC registrado correctamente." };
 }
 
+function obtenerPuntosCliente(email) {
+  if (!email) return { success: false, saldoPuntos: 0, historial: [] };
+  const cleanEmail = email.toString().trim().toLowerCase();
+
+  const nfcSheet = getSheet("Puntos_NFC");
+  const nfcData = nfcSheet.getDataRange().getValues();
+
+  for (let i = 1; i < nfcData.length; i++) {
+    if (nfcData[i][0].toString().trim().toLowerCase() === cleanEmail) {
+      const saldo = parseFloat(nfcData[i][2]) || 0;
+      let historial = [];
+      try { historial = JSON.parse(nfcData[i][3]); } catch (e) { historial = []; }
+
+      return {
+        success: true,
+        email: cleanEmail,
+        saldoPuntos: saldo,
+        historial: historial
+      };
+    }
+  }
+
+  return { success: true, email: cleanEmail, saldoPuntos: 0, historial: [] };
+}
+
 function obtenerClientePorUid(uid, auth) {
   const authRes = checkAuth(auth);
   if (!authRes.authorized) return { success: false, message: "No autorizado" };

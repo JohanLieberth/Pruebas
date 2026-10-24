@@ -27,10 +27,24 @@
     <div class="container">
       <div id="alertPlaceholder"></div>
 
-      <div class="row mb-4">
-        <div class="col">
+      <div class="row mb-4 align-items-center g-3">
+        <div class="col-md-8">
           <h2 id="userName">Hola</h2>
-          <p class="text-muted">Aquí puedes ver el historial de tus equipos en nuestro taller.</p>
+          <p class="text-muted mb-0">Aquí puedes ver el historial de tus equipos y el estatus de tus servicios en nuestro taller.</p>
+        </div>
+        <!-- Punto 2: Visualización de Puntos Acumulados -->
+        <div class="col-md-4 text-md-end">
+          <div class="card border-warning bg-light shadow-sm d-inline-block text-start p-3 w-100" style="max-width: 320px;">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <span class="text-uppercase small text-muted fw-bold d-block">Mis Puntos Acumulados</span>
+                <h3 class="mb-0 text-warning fw-bold"><i class="fas fa-coins me-1"></i><span id="userPointsDisplay">0.0</span> <small class="fs-6 text-dark">pts</small></h3>
+              </div>
+              <div class="fs-2 text-warning opacity-75">
+                <i class="fas fa-gem"></i>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -41,14 +55,17 @@
 
     <!-- Details Modal -->
     <div class="modal fade" id="detailsModal" tabindex="-1">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Detalle del Servicio</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title"><i class="fas fa-receipt me-2"></i>Detalle del Servicio</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body" id="detailsBody">
             <!-- Content -->
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
@@ -70,6 +87,8 @@
         currentUser = JSON.parse(userStr);
         document.getElementById('userName').innerText = 'Hola, ' + currentUser.nombre;
         detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+
+        cargarMisPuntos();
         cargarMisServicios();
       });
 
@@ -84,6 +103,17 @@
             }
           })
           .getConfig();
+      }
+
+      function cargarMisPuntos() {
+        google.script.run
+          .withFailureHandler(function(err) { console.error('Error al cargar puntos:', err); })
+          .withSuccessHandler(function(res) {
+            if (res && res.success) {
+              document.getElementById('userPointsDisplay').innerText = parseFloat(res.saldoPuntos || 0).toFixed(1);
+            }
+          })
+          .obtenerPuntosCliente(currentUser.email);
       }
 
       function cargarMisServicios() {
@@ -107,12 +137,12 @@
               col.className = 'col-md-6 col-lg-4';
 
               const card = document.createElement('div');
-              card.className = 'card h-100';
+              card.className = 'card h-100 shadow-sm';
               const body = document.createElement('div');
               body.className = 'card-body';
 
               const headerDiv = document.createElement('div');
-              headerDiv.className = 'd-flex justify-content-between mb-2';
+              headerDiv.className = 'd-flex justify-content-between align-items-center mb-2';
               const folioSpan = document.createElement('span');
               folioSpan.className = 'fw-bold text-primary';
               folioSpan.textContent = s.Folio;
@@ -122,12 +152,22 @@
               headerDiv.appendChild(statusDiv);
 
               const title = document.createElement('h5');
-              title.className = 'card-title';
+              title.className = 'card-title text-truncate';
               title.textContent = s["Dispositivo a recibir"];
 
               const date = document.createElement('p');
-              date.className = 'card-text small text-muted mb-1';
-              date.textContent = s["Fecha de recepción"];
+              date.className = 'card-text small text-muted mb-2';
+              date.textContent = 'Recepción: ' + s["Fecha de recepción"];
+
+              // Desglose rápido si tiene múltiples dispositivos
+              const dispList = s.dispositivos || [];
+              let multiInfo = '';
+              if (dispList.length > 1) {
+                const entregados = dispList.filter(d => d.estatus === 'Entregado').length;
+                multiInfo = `<div class="alert alert-light border py-1 px-2 small mb-2 text-primary fw-bold">
+                  <i class="fas fa-boxes me-1"></i>${dispList.length} Equipos (${entregados} entregados)
+                </div>`;
+              }
 
               const total = document.createElement('p');
               total.className = 'card-text fw-bold text-success mb-3';
@@ -145,6 +185,11 @@
               body.appendChild(headerDiv);
               body.appendChild(title);
               body.appendChild(date);
+              if (multiInfo) {
+                const divMulti = document.createElement('div');
+                divMulti.innerHTML = multiInfo;
+                body.appendChild(divMulti);
+              }
               body.appendChild(total);
               body.appendChild(btnDiv);
               card.appendChild(body);
@@ -155,32 +200,92 @@
           .obtenerServicios({ rol: 'cliente', correo: currentUser.email });
       }
 
+      // Punto 1: Desglose por dispositivo en el estatus de servicios
       function verDetalle(s) {
         const body = document.getElementById('detailsBody');
         body.innerHTML = '';
 
-        const sections = [
-          { label: 'Falla reportada:', value: s["Descripción de la falla"] },
-          { label: 'Estado del equipo:', value: s["Estado del equipo"] },
-          { label: 'Solución / Notas:', value: s["Solución aplicada (admin)"] || 'Pendiente de revisión' },
-          { label: 'Fecha Estimada de Entrega:', value: s["Fecha de entrega (admin)"] || 'Por confirmar' },
-          { label: 'Total:', value: '$' + (s["Total ($)"] || '0.00'), class: 'fs-5 fw-bold text-success' }
-        ];
+        const dispList = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos : [{
+          dispositivo: s["Dispositivo a recibir"],
+          falla: s["Descripción de la falla"],
+          estadoEquipo: s["Estado del equipo"],
+          fotos: [],
+          estatus: s["Estatus (admin)"] || "Pendiente",
+          costo: s["Total ($)"] || 0
+        }];
 
-        sections.forEach(sec => {
-          const div = document.createElement('div');
-          div.className = 'mb-3';
-          const label = document.createElement('label');
-          label.className = 'fw-bold small text-uppercase text-muted';
-          label.textContent = sec.label;
-          const p = document.createElement('p');
-          if (sec.class) p.className = sec.class;
-          p.textContent = sec.value;
-          div.appendChild(label);
-          div.appendChild(p);
-          body.appendChild(div);
-        });
+        let html = '';
 
+        if (dispList.length > 1) {
+          // Desglose individual para múltiples dispositivos
+          html += `
+            <div class="alert alert-info py-2 small mb-3">
+              <i class="fas fa-info-circle me-1"></i>Esta orden cuenta con <strong>${dispList.length} dispositivos</strong>. A continuación se muestra el estatus particular de cada uno:
+            </div>
+            <div class="card mb-3 bg-light border">
+              <div class="card-body py-2">
+                <div class="row small">
+                  <div class="col-6"><strong>Folio:</strong> ${s.Folio}</div>
+                  <div class="col-6 text-end"><strong>Fecha Estimada Entrega:</strong> ${s["Fecha de entrega (admin)"] || 'Por confirmar'}</div>
+                </div>
+              </div>
+            </div>
+          `;
+
+          dispList.forEach((disp, idx) => {
+            html += `
+              <div class="card mb-3 border shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                  <strong class="text-primary"><i class="fas fa-gamepad me-2"></i>Dispositivo #${idx + 1}: ${disp.dispositivo}</strong>
+                  <div>${formatStatus(disp.estatus || s["Estatus (admin)"] || 'Pendiente')}</div>
+                </div>
+                <div class="card-body py-3">
+                  <p class="mb-1"><strong>Falla reportada:</strong> ${disp.falla || 'N/A'}</p>
+                  <p class="mb-1"><strong>Estado físico del equipo:</strong> ${disp.estadoEquipo || 'N/A'}</p>
+                  <p class="mb-0 text-success fw-bold">Costo del equipo: $${parseFloat(disp.costo || 0).toFixed(2)}</p>
+                </div>
+              </div>
+            `;
+          });
+
+          html += `
+            <div class="mb-2">
+              <label class="fw-bold small text-uppercase text-muted">Solución / Notas Internas:</label>
+              <p class="mb-2">${s["Solución aplicada (admin)"] || 'Pendiente de revisión'}</p>
+            </div>
+            <div class="border-top pt-2 text-end">
+              <span class="fs-5 fw-bold text-success">Total Orden: $${s["Total ($)"] || '0.00'}</span>
+            </div>
+          `;
+
+        } else {
+          // Si solo tiene un dispositivo, mantener la vista actual sin cambios
+          const sections = [
+            { label: 'Falla reportada:', value: s["Descripción de la falla"] },
+            { label: 'Estado del equipo:', value: s["Estado del equipo"] },
+            { label: 'Solución / Notas:', value: s["Solución aplicada (admin)"] || 'Pendiente de revisión' },
+            { label: 'Fecha Estimada de Entrega:', value: s["Fecha de entrega (admin)"] || 'Por confirmar' },
+            { label: 'Total:', value: '$' + (s["Total ($)"] || '0.00'), class: 'fs-5 fw-bold text-success' }
+          ];
+
+          sections.forEach(sec => {
+            const div = document.createElement('div');
+            div.className = 'mb-3';
+            const label = document.createElement('label');
+            label.className = 'fw-bold small text-uppercase text-muted';
+            label.textContent = sec.label;
+            const p = document.createElement('p');
+            if (sec.class) p.className = sec.class;
+            p.textContent = sec.value;
+            div.appendChild(label);
+            div.appendChild(p);
+            body.appendChild(div);
+          });
+          detailsModal.show();
+          return;
+        }
+
+        body.innerHTML = html;
         detailsModal.show();
       }
 
