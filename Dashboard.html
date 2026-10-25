@@ -1,0 +1,126 @@
+<!-- DASHBOARD.HTML -->
+<div id="view-dashboard" class="app-view d-none">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-1"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard de Acuerdos</h3>
+      <p class="text-muted small mb-0">Resumen operativo e indicadores clave de seguimiento</p>
+    </div>
+    <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="cargarDashboard();">
+      <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+    </button>
+  </div>
+
+  <!-- KPIs Numéricos -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-primary">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Proyectos</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-proyectos">0</div>
+          </div>
+          <i class="bi bi-folder2-open kpi-icon text-primary"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-info">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Minutas</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-minutas">0</div>
+          </div>
+          <i class="bi bi-journal-text kpi-icon text-info"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-secondary">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Acuerdos</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-acuerdos">0</div>
+          </div>
+          <i class="bi bi-list-check kpi-icon text-secondary"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-warning">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Pendientes</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-pendientes">0</div>
+          </div>
+          <i class="bi bi-clock-history kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-danger">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Por Vencer</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-por-vencer">0</div>
+          </div>
+          <i class="bi bi-exclamation-triangle kpi-icon text-danger"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-success">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Cumplidos</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-cumplidos">0</div>
+          </div>
+          <i class="bi bi-check-circle kpi-icon text-success"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desglose por Subdirección y Estado -->
+  <div class="row g-4">
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-white fw-bold border-bottom">
+          <i class="bi bi-diagram-3 me-2 text-primary"></i>Acuerdos por Subdirección
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="tabla-kpi-subdirecciones">
+              <thead>
+                <tr>
+                  <th>Subdirección</th>
+                  <th class="text-end">Total Acuerdos</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Inyectado por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-white fw-bold border-bottom">
+          <i class="bi bi-bell me-2 text-primary"></i>Próximos Vencimientos (Atención Prioritaria)
+        </div>
+        <div class="card-body">
+          <div id="contenedor-alertas-vencimiento" class="list-group list-group-flush">
+            <!-- Inyectado por JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

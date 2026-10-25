@@ -1,0 +1,221 @@
+<!-- MINUTAS.HTML -->
+<div id="view-minutas" class="app-view d-none">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-1"><i class="bi bi-journal-text text-primary me-2"></i>Gestión de Minutas</h3>
+      <p class="text-muted small mb-0">Control y registro de minutas de reuniones institucionales</p>
+    </div>
+    <button class="btn btn-primary-custom rounded-pill px-3 sol-creador-admin" onclick="abrirModalNuevaMinuta();">
+      <i class="bi bi-plus-lg me-1"></i> Nueva Minuta
+    </button>
+  </div>
+
+  <!-- Filtros de Minutas -->
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label small fw-semibold">Buscar por texto</label>
+          <input type="text" class="form-control form-control-sm" id="filtro-minuta-busqueda" placeholder="Folio, reunión, lugar..." onkeyup="filtrarMinutas();">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small fw-semibold">Etapa</label>
+          <select class="form-select form-select-sm" id="filtro-minuta-etapa" onchange="filtrarMinutas();">
+            <option value="">-- Todas las etapas --</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-4 d-flex align-items-end">
+          <button class="btn btn-outline-secondary btn-sm w-100" onclick="limpiarFiltrosMinuta();">
+            <i class="bi bi-x-circle me-1"></i> Limpiar Filtros
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla Minutas -->
+  <div class="card border-0 shadow-sm rounded-3">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla-minutas">
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Nombre de Reunión</th>
+              <th>Etapa</th>
+              <th>Fecha</th>
+              <th>Lugar</th>
+              <th>Creado Por</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Inyectado por JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Formulario Minuta (Pestañas) -->
+<div class="modal fade" id="modalMinuta" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-custom text-white">
+        <h5 class="modal-title fw-bold" id="modalMinutaTitle"><i class="bi bi-journal-plus me-2"></i>Nueva Minuta de Reunión</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body p-0">
+        <!-- Pestañas (Tabs) -->
+        <ul class="nav nav-tabs nav-fill bg-light border-bottom px-3 pt-2" id="minutaTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-semibold" id="tab-datos-tab" data-bs-toggle="tab" data-bs-target="#tab-datos" type="button" role="tab">
+              <i class="bi bi-info-circle me-1"></i>1. Datos Generales
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold" id="tab-asistencia-tab" data-bs-toggle="tab" data-bs-target="#tab-asistencia" type="button" role="tab">
+              <i class="bi bi-people me-1"></i>2. Asistencia
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold" id="tab-odd-tab" data-bs-toggle="tab" data-bs-target="#tab-odd" type="button" role="tab">
+              <i class="bi bi-list-ol me-1"></i>3. Orden del Día
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold" id="tab-acuerdos-tab" data-bs-toggle="tab" data-bs-target="#tab-acuerdos" type="button" role="tab">
+              <i class="bi bi-check2-square me-1"></i>4. Acuerdos Derivados
+            </button>
+          </li>
+        </ul>
+
+        <form id="form-minuta" onsubmit="event.preventDefault(); guardarMinuta();">
+          <div class="tab-content p-4" id="minutaTabContent">
+
+            <!-- Pestaña 1: Datos Generales -->
+            <div class="tab-pane fade show active" id="tab-datos" role="tabpanel">
+              <input type="hidden" id="minuta-folio">
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <label for="minuta-proyecto" class="form-label fw-semibold">Proyecto Vinculado</label>
+                  <select class="form-select" id="minuta-proyecto">
+                    <option value="">-- Sin Proyecto (Opcional) --</option>
+                  </select>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="minuta-nombre" class="form-label fw-semibold">Nombre de la Reunión *</label>
+                  <input type="text" class="form-control" id="minuta-nombre" required placeholder="Ej. Reunión de Seguimiento Q1">
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="minuta-etapa" class="form-label fw-semibold">Etapa *</label>
+                  <select class="form-select" id="minuta-etapa" required></select>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="minuta-fecha" class="form-label fw-semibold">Fecha de la Reunión *</label>
+                  <input type="date" class="form-control" id="minuta-fecha" required>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="minuta-lugar" class="form-label fw-semibold">Lugar / Sede *</label>
+                  <input type="text" class="form-control" id="minuta-lugar" placeholder="Ej. Sala B / Vía Teams" required>
+                </div>
+                <div class="col-12">
+                  <label for="minuta-objetivos" class="form-label fw-semibold">Objetivos de la Reunión</label>
+                  <textarea class="form-control" id="minuta-objetivos" rows="3" placeholder="Puntos principales acordados a tratar..."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pestaña 2: Asistencia -->
+            <div class="tab-pane fade" id="tab-asistencia" role="tabpanel">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold m-0"><i class="bi bi-people me-2 text-primary"></i>Lista de Asistentes</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="agregarFilaAsistenciaManualmente();">
+                  <i class="bi bi-plus-circle me-1"></i> Agregar Asistente Adicional
+                </button>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle" id="tabla-form-asistencia">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 70px;" class="text-center">Asistió</th>
+                      <th>Nombre Completo</th>
+                      <th>Cargo</th>
+                      <th>Correo Electrónico</th>
+                      <th style="width: 50px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Inyectado por JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pestaña 3: Orden del Día -->
+            <div class="tab-pane fade" id="tab-odd" role="tabpanel">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold m-0"><i class="bi bi-list-ol me-2 text-primary"></i>Puntos del Orden del Día</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="agregarFilaODD();">
+                  <i class="bi bi-plus-circle me-1"></i> Agregar Punto
+                </button>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle" id="tabla-form-odd">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 100px;">No. Punto</th>
+                      <th>Descripción del Punto</th>
+                      <th style="width: 50px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Inyectado por JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pestaña 4: Acuerdos Derivados -->
+            <div class="tab-pane fade" id="tab-acuerdos" role="tabpanel">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold m-0"><i class="bi bi-check2-square me-2 text-primary"></i>Acuerdos Capturados en la Reunión</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="agregarFilaAcuerdoMinuta();">
+                  <i class="bi bi-plus-circle me-1"></i> Agregar Acuerdo
+                </button>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle" id="tabla-form-acuerdos">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 120px;">Tipo</th>
+                      <th>Descripción del Acuerdo</th>
+                      <th style="width: 100px;">Prioridad</th>
+                      <th>Solicitantes</th>
+                      <th>Responsables</th>
+                      <th style="width: 130px;">Fecha Límite</th>
+                      <th>Subdirección</th>
+                      <th style="width: 50px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Inyectado por JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="modal-footer bg-light p-3">
+            <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Guardar Minuta Completa</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
