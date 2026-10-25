@@ -1,0 +1,1321 @@
+<script>
+  // App State Container
+  window.AppState = {
+    token: null,
+    user: null,
+    currentView: 'login',
+    lotes: [],
+    subdirecciones: [],
+    preguntas: [],
+    seguimiento: [],
+    activeLoteID: null,
+    importRecords: []
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initApp();
+  });
+
+  function initApp() {
+    // Check saved session token in localStorage
+    var savedToken = localStorage.getItem('cm_session_token');
+    var savedUser = localStorage.getItem('cm_session_user');
+
+    if (savedToken && savedUser) {
+      try {
+        AppState.token = savedToken;
+        AppState.user = JSON.parse(savedUser);
+        setupUserInterface();
+        navigateTo('dashboard');
+        return;
+      } catch(e) {
+        localStorage.removeItem('cm_session_token');
+        localStorage.removeItem('cm_session_user');
+      }
+    }
+
+    showView('login-view');
+    hideLoader();
+  }
+
+  function showLoader() {
+    document.getElementById('global-loader').classList.remove('hidden');
+  }
+
+  function hideLoader() {
+    document.getElementById('global-loader').classList.add('hidden');
+  }
+
+  function setupUserInterface() {
+    if (!AppState.user) return;
+
+    document.getElementById('nav-user-name').innerText = AppState.user.nombre + ' (' + AppState.user.rol + ')';
+
+    // Show/Hide role specific sidebar menu items
+    var adminMenus = document.querySelectorAll('.menu-admin-only');
+    var opMenus = document.querySelectorAll('.menu-op-only');
+
+    if (AppState.user.rol === 'administrador') {
+      adminMenus.forEach(function(el) { el.classList.remove('hidden'); });
+      opMenus.forEach(function(el) { el.classList.add('hidden'); });
+    } else {
+      adminMenus.forEach(function(el) { el.classList.add('hidden'); });
+      opMenus.forEach(function(el) { el.classList.remove('hidden'); });
+    }
+
+    document.getElementById('app-main-layout').classList.remove('hidden');
+    document.getElementById('login-view').classList.add('hidden');
+  }
+
+  // Navigation Handler
+  function navigateTo(viewName) {
+    window.AppState.currentView = viewName;
+
+    // Update sidebar active link
+    var links = document.querySelectorAll('#sidebar-wrapper .list-group-item');
+    links.forEach(function(link) {
+      if (link.getAttribute('onclick') && link.getAttribute('onclick').indexOf(viewName) !== -1) {
+        link.classList.add('active');
+      } else {
+        link.classList.remove('active');
+      }
+    });
+
+    var views = ['dashboard-view', 'lotes-view', 'asignaciones-view', 'subdirecciones-view', 'usuarios-view', 'seguimiento-view', 'mis-preguntas-view'];
+    views.forEach(function(v) {
+      var el = document.getElementById(v);
+      if (el) el.classList.add('hidden');
+    });
+
+    showLoader();
+
+    if (viewName === 'dashboard') {
+      loadDashboardData();
+    } else if (viewName === 'lotes') {
+      loadLotesData();
+    } else if (viewName === 'asignaciones') {
+      loadAsignacionesData();
+    } else if (viewName === 'subdirecciones') {
+      loadSubdireccionesData();
+    } else if (viewName === 'usuarios') {
+      loadUsuariosData();
+    } else if (viewName === 'seguimiento') {
+      loadSeguimientoData();
+    } else if (viewName === 'mis-preguntas') {
+      loadMisPreguntasData();
+    }
+  }
+
+  function showView(viewId) {
+    var views = ['login-view', 'dashboard-view', 'lotes-view', 'asignaciones-view', 'subdirecciones-view', 'usuarios-view', 'seguimiento-view', 'mis-preguntas-view'];
+    views.forEach(function(v) {
+      var el = document.getElementById(v);
+      if (el) {
+        if (v === viewId) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      }
+    });
+  }
+
+  // Auth Operations
+  function handleLogin(e) {
+    if (e) e.preventDefault();
+    var email = document.getElementById('login-email').value;
+    var password = document.getElementById('login-password').value;
+
+    if (!email || !password) {
+      alert('Por favor ingrese correo y contraseña.');
+      return;
+    }
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          AppState.token = res.token;
+          AppState.user = res.usuario;
+          localStorage.setItem('cm_session_token', res.token);
+          localStorage.setItem('cm_session_user', JSON.stringify(res.usuario));
+          setupUserInterface();
+          navigateTo('dashboard');
+        } else {
+          alert(res.message || 'Error de inicio de sesión');
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error en el servidor: ' + err.message);
+      })
+      .login(email, password);
+  }
+
+  function handleLogout() {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoader();
+        localStorage.removeItem('cm_session_token');
+        localStorage.removeItem('cm_session_user');
+        AppState.token = null;
+        AppState.user = null;
+        document.getElementById('app-main-layout').classList.add('hidden');
+        showView('login-view');
+      })
+      .withFailureHandler(function() {
+        hideLoader();
+        localStorage.removeItem('cm_session_token');
+        localStorage.removeItem('cm_session_user');
+        AppState.token = null;
+        AppState.user = null;
+        document.getElementById('app-main-layout').classList.add('hidden');
+        showView('login-view');
+      })
+      .logout(AppState.token);
+  }
+
+  // Dashboard Loader
+  function loadDashboardData() {
+    document.getElementById('dashboard-view').classList.remove('hidden');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          renderDashboard(res.data);
+        } else {
+          alert('Error al cargar dashboard: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error de servidor: ' + err.message);
+      })
+      .obtenerMetricasDashboard(AppState.token, AppState.activeLoteID);
+  }
+
+  function renderDashboard(data) {
+    document.getElementById('stat-total-preguntas').innerText = data.totalPreguntas || 0;
+    document.getElementById('stat-respondidas').innerText = data.respondidas || 0;
+    document.getElementById('stat-pendientes').innerText = data.pendientes || 0;
+    document.getElementById('stat-aceptadas').innerText = data.aceptadas || 0;
+
+    var generalProgress = document.getElementById('stat-avance-bar');
+    if (generalProgress) {
+      generalProgress.style.width = (data.porcentajeGeneral || 0) + '%';
+      generalProgress.innerText = (data.porcentajeGeneral || 0) + '%';
+    }
+
+    // Render Subdirectorates Progress Table
+    var subBody = document.getElementById('dashboard-sub-tbody');
+    if (subBody) {
+      subBody.innerHTML = '';
+      if (!data.avanceSubdirecciones || data.avanceSubdirecciones.length === 0) {
+        subBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin datos de asignación</td></tr>';
+      } else {
+        data.avanceSubdirecciones.forEach(function(item) {
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + item.nombre + '</td>' +
+            '<td>' + item.respondidas + ' / ' + item.total + '</td>' +
+            '<td>' + item.aceptadas + '</td>' +
+            '<td>' +
+              '<div class="progress" style="height: 20px;">' +
+                '<div class="progress-bar bg-success" role="progressbar" style="width: ' + item.porcentaje + '%;">' + item.porcentaje + '%</div>' +
+              '</div>' +
+            '</td>';
+          subBody.appendChild(tr);
+        });
+      }
+    }
+
+    // Render Risk Chart
+    renderRiskChart(data.distribucionRiesgo);
+  }
+
+  var riskChartInstance = null;
+  function renderRiskChart(riskData) {
+    var ctx = document.getElementById('riskChart');
+    if (!ctx) return;
+
+    if (riskChartInstance) {
+      riskChartInstance.destroy();
+    }
+
+    var labels = ['Alto', 'Medio', 'Bajo', 'No Aplica'];
+    var counts = [
+      riskData['Alto'] || 0,
+      riskData['Medio'] || 0,
+      riskData['Bajo'] || 0,
+      riskData['No Aplica'] || 0
+    ];
+
+    riskChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: counts,
+          backgroundColor: ['#e53e3e', '#dd6b20', '#38a169', '#718096']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+  }
+
+  // Lotes & Preguntas Module
+  function loadLotesData() {
+    document.getElementById('lotes-view').classList.remove('hidden');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          AppState.lotes = res.data;
+          renderLotesTable(res.data);
+          populateLoteSelects(res.data);
+        } else {
+          alert('Error al cargar lotes: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error de servidor: ' + err.message);
+      })
+      .obtenerLotes(AppState.token);
+  }
+
+  function renderLotesTable(lotes) {
+    var tbody = document.getElementById('lotes-tbody');
+    tbody.innerHTML = '';
+    if (lotes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay lotes de preguntas registrados</td></tr>';
+      return;
+    }
+
+    lotes.forEach(function(l) {
+      var tr = document.createElement('tr');
+      var badge = l.Activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>';
+      tr.innerHTML = '<td><strong>' + l.LoteID + '</strong></td>' +
+        '<td>' + l.NombreLote + '</td>' +
+        '<td>' + (l.Descripcion || '-') + '</td>' +
+        '<td><span class="badge bg-info text-dark">' + l.TotalPreguntas + ' preguntas</span></td>' +
+        '<td>' + badge + '</td>' +
+        '<td>' +
+          '<button class="btn btn-sm btn-outline-primary me-1" onclick="verPreguntasLote(\'' + l.LoteID + '\')"><i class="bi bi-eye"></i> Preguntas</button>' +
+          '<button class="btn btn-sm btn-outline-warning me-1" onclick="abrirModalEditarLote(\'' + l.LoteID + '\')"><i class="bi bi-pencil"></i></button>' +
+          '<button class="btn btn-sm btn-outline-secondary" onclick="toggleEstadoLote(\'' + l.LoteID + '\', ' + (!l.Activo) + ')">' + (l.Activo ? 'Desactivar' : 'Activar') + '</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function populateLoteSelects(lotes) {
+    var selects = ['select-lote-filtro-preguntas', 'select-lote-importacion', 'select-lote-asignacion', 'select-lote-seguimiento'];
+    selects.forEach(function(sId) {
+      var sel = document.getElementById(sId);
+      if (sel) {
+        sel.innerHTML = '<option value="">-- Seleccionar Lote --</option>';
+        lotes.forEach(function(l) {
+          sel.innerHTML += '<option value="' + l.LoteID + '">' + l.LoteID + ' - ' + l.NombreLote + '</option>';
+        });
+      }
+    });
+  }
+
+  function abrirModalNuevoLote() {
+    document.getElementById('form-lote').reset();
+    document.getElementById('lote-id-hidden').value = '';
+    document.getElementById('modalLoteLabel').innerText = 'Nuevo Lote de Preguntas';
+    var modal = new bootstrap.Modal(document.getElementById('modalLote'));
+    modal.show();
+  }
+
+  function abrirModalEditarLote(loteID) {
+    var target = AppState.lotes.find(function(l) { return l.LoteID === loteID; });
+    if (!target) return;
+
+    document.getElementById('lote-id-hidden').value = target.LoteID;
+    document.getElementById('lote-nombre').value = target.NombreLote;
+    document.getElementById('lote-descripcion').value = target.Descripcion || '';
+    document.getElementById('lote-activo').checked = target.Activo;
+    document.getElementById('modalLoteLabel').innerText = 'Editar Lote ' + target.LoteID;
+
+    var modal = new bootstrap.Modal(document.getElementById('modalLote'));
+    modal.show();
+  }
+
+  function guardarLoteForm(e) {
+    if (e) e.preventDefault();
+    var loteData = {
+      loteID: document.getElementById('lote-id-hidden').value,
+      nombreLote: document.getElementById('lote-nombre').value,
+      descripcion: document.getElementById('lote-descripcion').value,
+      activo: document.getElementById('lote-activo').checked
+    };
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          var modalEl = document.getElementById('modalLote');
+          var modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          loadLotesData();
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error en servidor: ' + err.message);
+      })
+      .guardarLote(AppState.token, loteData);
+  }
+
+  function toggleEstadoLote(loteID, activo) {
+    if (!confirm('¿Confirma cambiar el estado de este lote?')) return;
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) loadLotesData();
+        else alert('Error: ' + res.message);
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .cambiarEstadoLote(AppState.token, loteID, activo);
+  }
+
+  function verPreguntasLote(loteID) {
+    document.getElementById('select-lote-filtro-preguntas').value = loteID;
+    cargarPreguntasPorLote(loteID);
+  }
+
+  function cargarPreguntasPorLote(loteID) {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          AppState.preguntas = res.data;
+          renderPreguntasTable(res.data);
+        } else {
+          alert('Error al cargar preguntas: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .obtenerPreguntasPorLote(AppState.token, loteID);
+  }
+
+  function renderPreguntasTable(preguntas) {
+    var tbody = document.getElementById('preguntas-tbody');
+    tbody.innerHTML = '';
+    if (preguntas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No se encontraron preguntas en el lote seleccionado</td></tr>';
+      return;
+    }
+
+    preguntas.forEach(function(p) {
+      var tr = document.createElement('tr');
+      var badge = p.Activa ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>';
+      tr.innerHTML = '<td><strong>' + p.QuestionID + '</strong></td>' +
+        '<td>' + p.No + '</td>' +
+        '<td><span class="badge bg-light text-dark border">' + p.Categoria + '</span></td>' +
+        '<td>' + p.Subcategoria + '</td>' +
+        '<td>' + p.Pregunta + '</td>' +
+        '<td><small class="text-muted">' + (p.FundamentoLegal || 'N/A') + '</small></td>' +
+        '<td>' + badge + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function abrirModalImportarPreguntas() {
+    var loteSel = document.getElementById('select-lote-filtro-preguntas').value;
+    if (loteSel) {
+      document.getElementById('select-lote-importacion').value = loteSel;
+    }
+    document.getElementById('import-csv-text').value = '';
+    volverAInputImportacion();
+    var modal = new bootstrap.Modal(document.getElementById('modalImportarPreguntas'));
+    modal.show();
+  }
+
+  function volverAInputImportacion() {
+    document.getElementById('import-step-input').classList.remove('hidden');
+    document.getElementById('import-step-preview').classList.add('hidden');
+    document.getElementById('btn-confirmar-importacion').classList.add('hidden');
+  }
+
+  function normalizarTexto(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/[\r\n\t]+/g, ' ')  // Replace tabs and newlines with space
+      .replace(/\s+/g, ' ')        // Collapse multiple spaces
+      .trim();                      // Trim leading/trailing whitespace
+  }
+
+  function evaluarDetallesFormato(original, normalizado) {
+    var issues = [];
+    if (original !== normalizado) {
+      if (/^\s+|\s+$/.test(original)) issues.push('Espacios al inicio/final');
+      if (/\s{2,}/.test(original)) issues.push('Dobles espacios');
+      if (/[\r\n]/.test(original)) issues.push('Saltos de línea innecesarios');
+      if (/\t/.test(original)) issues.push('Tabuladores en texto');
+    }
+    return issues;
+  }
+
+  function analizarYMostrarVistaPreviaImportacion() {
+    var loteID = document.getElementById('select-lote-importacion').value;
+    var rawText = document.getElementById('import-csv-text').value;
+
+    if (!loteID) {
+      alert('Debe seleccionar el lote de destino.');
+      return;
+    }
+
+    if (!rawText || rawText.trim() === '') {
+      alert('Debe pegar o proporcionar las filas para la importación.');
+      return;
+    }
+
+    var lines = rawText.trim().split('\n');
+    AppState.importRecords = [];
+    var totalIssues = 0;
+
+    lines.forEach(function(line, idx) {
+      if (!line.trim()) return;
+      var parts = line.split('\t');
+      if (parts.length < 3) parts = line.split(',');
+
+      if (parts.length >= 3) {
+        var rawNo = parts[0] || (idx + 1);
+        var rawCat = parts[1] || '';
+        var rawSub = parts[2] || '';
+        var rawPreg = parts[3] || parts[0] || '';
+        var rawFund = parts[4] || '';
+
+        var normNo = normalizarTexto(rawNo);
+        var normCat = normalizarTexto(rawCat);
+        var normSub = normalizarTexto(rawSub);
+        var normPreg = normalizarTexto(rawPreg);
+        var normFund = normalizarTexto(rawFund);
+
+        var recordIssues = []
+          .concat(evaluarDetallesFormato(rawNo, normNo))
+          .concat(evaluarDetallesFormato(rawCat, normCat))
+          .concat(evaluarDetallesFormato(rawSub, normSub))
+          .concat(evaluarDetallesFormato(rawPreg, normPreg))
+          .concat(evaluarDetallesFormato(rawFund, normFund));
+
+        // Deduplicate issues
+        recordIssues = recordIssues.filter(function(item, pos) { return recordIssues.indexOf(item) == pos; });
+        if (recordIssues.length > 0) totalIssues++;
+
+        AppState.importRecords.push({
+          idx: idx,
+          no: rawNo,
+          categoria: rawCat,
+          subcategoria: rawSub,
+          pregunta: rawPreg,
+          fundamentoLegal: rawFund,
+          issues: recordIssues
+        });
+      }
+    });
+
+    if (AppState.importRecords.length === 0) {
+      alert('No se pudieron interpretar registros válidos.');
+      return;
+    }
+
+    renderImportPreviewTable(totalIssues);
+  }
+
+  function renderImportPreviewTable(totalIssues) {
+    var tbody = document.getElementById('import-preview-tbody');
+    tbody.innerHTML = '';
+
+    var alertEl = document.getElementById('import-issues-alert');
+    var countEl = document.getElementById('import-issues-count');
+
+    if (totalIssues > 0) {
+      alertEl.className = 'alert alert-warning mb-3';
+      countEl.innerText = 'Se detectaron detalles de formato (espacios, saltos de línea) en ' + totalIssues + ' registro(s).';
+    } else {
+      alertEl.className = 'alert alert-success mb-3';
+      countEl.innerText = 'Todos los registros tienen un formato limpio y correcto.';
+    }
+
+    AppState.importRecords.forEach(function(rec, index) {
+      var tr = document.createElement('tr');
+      var statusBadge = rec.issues.length > 0
+        ? '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> ' + rec.issues.join(', ') + '</span>'
+        : '<span class="badge bg-success"><i class="bi bi-check-lg"></i> Correcto</span>';
+
+      tr.innerHTML = '<td><input type="text" class="form-control form-control-sm" id="imp-no-' + index + '" value="' + rec.no + '" onchange="actualizarRecordImportManual(' + index + ')"></td>' +
+        '<td><input type="text" class="form-control form-control-sm" id="imp-cat-' + index + '" value="' + rec.categoria + '" onchange="actualizarRecordImportManual(' + index + ')"></td>' +
+        '<td><input type="text" class="form-control form-control-sm" id="imp-sub-' + index + '" value="' + rec.subcategoria + '" onchange="actualizarRecordImportManual(' + index + ')"></td>' +
+        '<td><textarea class="form-control form-control-sm" id="imp-preg-' + index + '" rows="2" onchange="actualizarRecordImportManual(' + index + ')">' + rec.pregunta + '</textarea></td>' +
+        '<td><input type="text" class="form-control form-control-sm" id="imp-fund-' + index + '" value="' + rec.fundamentoLegal + '" onchange="actualizarRecordImportManual(' + index + ')"></td>' +
+        '<td>' + statusBadge + '</td>';
+
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('import-step-input').classList.add('hidden');
+    document.getElementById('import-step-preview').classList.remove('hidden');
+    document.getElementById('btn-confirmar-importacion').classList.remove('hidden');
+  }
+
+  function actualizarRecordImportManual(index) {
+    if (!AppState.importRecords[index]) return;
+    AppState.importRecords[index].no = document.getElementById('imp-no-' + index).value;
+    AppState.importRecords[index].categoria = document.getElementById('imp-cat-' + index).value;
+    AppState.importRecords[index].subcategoria = document.getElementById('imp-sub-' + index).value;
+    AppState.importRecords[index].pregunta = document.getElementById('imp-preg-' + index).value;
+    AppState.importRecords[index].fundamentoLegal = document.getElementById('imp-fund-' + index).value;
+  }
+
+  function aplicarLimpiezaAutomaticaImportacion() {
+    var issuesCount = 0;
+    AppState.importRecords.forEach(function(rec, index) {
+      rec.no = normalizarTexto(rec.no);
+      rec.categoria = normalizarTexto(rec.categoria);
+      rec.subcategoria = normalizarTexto(rec.subcategoria);
+      rec.pregunta = normalizarTexto(rec.pregunta);
+      rec.fundamentoLegal = normalizarTexto(rec.fundamentoLegal);
+      rec.issues = [];
+    });
+
+    renderImportPreviewTable(0);
+  }
+
+  function procesarImportacionPreguntas() {
+    var loteID = document.getElementById('select-lote-importacion').value;
+
+    if (!loteID) {
+      alert('Debe seleccionar el lote de destino.');
+      return;
+    }
+
+    // Sync input values before sending
+    AppState.importRecords.forEach(function(rec, index) {
+      var noEl = document.getElementById('imp-no-' + index);
+      if (noEl) {
+        rec.no = noEl.value;
+        rec.categoria = document.getElementById('imp-cat-' + index).value;
+        rec.subcategoria = document.getElementById('imp-sub-' + index).value;
+        rec.pregunta = document.getElementById('imp-preg-' + index).value;
+        rec.fundamentoLegal = document.getElementById('imp-fund-' + index).value;
+      }
+    });
+
+    if (!AppState.importRecords || AppState.importRecords.length === 0) {
+      alert('No hay registros para importar.');
+      return;
+    }
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          alert(res.message);
+          var modalEl = document.getElementById('modalImportarPreguntas');
+          var modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          cargarPreguntasPorLote(loteID);
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .importarPreguntas(AppState.token, loteID, AppState.importRecords);
+  }
+
+  // Asignaciones Module
+  function loadAsignacionesData() {
+    document.getElementById('asignaciones-view').classList.remove('hidden');
+    showLoader();
+
+    // First ensure subdirecciones and lotes are loaded
+    google.script.run
+      .withSuccessHandler(function(subRes) {
+        if (subRes.success) {
+          AppState.subdirecciones = subRes.data;
+          renderSubdireccionesCheckboxes(subRes.data);
+        }
+
+        google.script.run
+          .withSuccessHandler(function(loteRes) {
+            hideLoader();
+            if (loteRes.success) {
+              AppState.lotes = loteRes.data;
+              populateLoteSelects(loteRes.data);
+            }
+          })
+          .obtenerLotes(AppState.token);
+      })
+      .obtenerSubdirecciones(AppState.token);
+  }
+
+  function renderSubdireccionesCheckboxes(subdirecciones) {
+    var container = document.getElementById('checkboxes-subdirecciones');
+    container.innerHTML = '';
+    subdirecciones.forEach(function(s) {
+      if (!s.Activa) return;
+      var div = document.createElement('div');
+      div.className = 'form-check col-md-6 mb-2';
+      div.innerHTML = '<input class="form-check-input check-subdireccion" type="checkbox" value="' + s.SubdireccionID + '" id="sub_chk_' + s.SubdireccionID + '">' +
+        '<label class="form-check-label" for="sub_chk_' + s.SubdireccionID + '">' + s.Nombre + '</label>';
+      container.appendChild(div);
+    });
+  }
+
+  function onSelectLoteAsignacionChange() {
+    var loteID = document.getElementById('select-lote-asignacion').value;
+    if (!loteID) return;
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          renderPreguntasAsignacionList(res.data);
+        } else {
+          alert('Error al cargar preguntas: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .obtenerPreguntasConAsignacionesPorLote(AppState.token, loteID);
+  }
+
+  function renderPreguntasAsignacionList(preguntas) {
+    var tbody = document.getElementById('asig-preguntas-tbody');
+    tbody.innerHTML = '';
+    if (preguntas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay preguntas registradas para este lote</td></tr>';
+      return;
+    }
+
+    preguntas.forEach(function(p) {
+      var tr = document.createElement('tr');
+      var badgeSub = p.SubdireccionesAsignadas !== 'Sin asignar'
+        ? '<span class="badge bg-info text-dark">' + p.SubdireccionesAsignadas + '</span>'
+        : '<span class="badge bg-light text-muted border">Sin asignar</span>';
+
+      tr.innerHTML = '<td><input type="checkbox" class="form-check-input check-pregunta-asig" value="' + p.QuestionID + '"></td>' +
+        '<td><strong>' + p.QuestionID + '</strong></td>' +
+        '<td>' + p.Categoria + '</td>' +
+        '<td>' + p.Subcategoria + '</td>' +
+        '<td>' + p.Pregunta + '</td>' +
+        '<td>' + badgeSub + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function toggleSelectAllPreguntas(master) {
+    var checkboxes = document.querySelectorAll('.check-pregunta-asig');
+    checkboxes.forEach(function(cb) { cb.checked = master.checked; });
+  }
+
+  function ejecutarAsignacionMasiva() {
+    var loteID = document.getElementById('select-lote-asignacion').value;
+    if (!loteID) {
+      alert('Por favor seleccione un lote de preguntas.');
+      return;
+    }
+
+    var selectedQuestions = [];
+    document.querySelectorAll('.check-pregunta-asig:checked').forEach(function(cb) {
+      selectedQuestions.push(cb.value);
+    });
+
+    var selectedSubdirecciones = [];
+    document.querySelectorAll('.check-subdireccion:checked').forEach(function(cb) {
+      selectedSubdirecciones.push(cb.value);
+    });
+
+    if (selectedQuestions.length === 0) {
+      alert('Debe seleccionar al menos una pregunta.');
+      return;
+    }
+
+    if (selectedSubdirecciones.length === 0) {
+      alert('Debe seleccionar al menos una subdirección.');
+      return;
+    }
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          alert(res.message);
+          onSelectLoteAsignacionChange();
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error en servidor: ' + err.message);
+      })
+      .asignarPreguntasMasivas(AppState.token, loteID, selectedQuestions, selectedSubdirecciones);
+  }
+
+  // Subdirecciones Module
+  function loadSubdireccionesData() {
+    document.getElementById('subdirecciones-view').classList.remove('hidden');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          AppState.subdirecciones = res.data;
+          renderSubdireccionesTable(res.data);
+        } else {
+          alert('Error al obtener subdirecciones: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .obtenerSubdirecciones(AppState.token);
+  }
+
+  function renderSubdireccionesTable(list) {
+    var tbody = document.getElementById('subdirecciones-tbody');
+    tbody.innerHTML = '';
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay subdirecciones registradas</td></tr>';
+      return;
+    }
+
+    list.forEach(function(s) {
+      var tr = document.createElement('tr');
+      var badge = s.Activa ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>';
+      tr.innerHTML = '<td><strong>' + s.SubdireccionID + '</strong></td>' +
+        '<td>' + s.Nombre + '</td>' +
+        '<td>' + badge + '</td>' +
+        '<td>' +
+          '<button class="btn btn-sm btn-outline-warning me-1" onclick="abrirModalEditarSub(\'' + s.SubdireccionID + '\')"><i class="bi bi-pencil"></i></button>' +
+          '<button class="btn btn-sm btn-outline-secondary" onclick="toggleEstadoSub(\'' + s.SubdireccionID + '\', ' + (!s.Activa) + ')">' + (s.Activa ? 'Desactivar' : 'Activar') + '</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function abrirModalNuevaSub() {
+    document.getElementById('form-subdireccion').reset();
+    document.getElementById('sub-id-hidden').value = '';
+    document.getElementById('modalSubLabel').innerText = 'Nueva Subdirección';
+    var modal = new bootstrap.Modal(document.getElementById('modalSubdireccion'));
+    modal.show();
+  }
+
+  function abrirModalEditarSub(subID) {
+    var target = AppState.subdirecciones.find(function(s) { return s.SubdireccionID === subID; });
+    if (!target) return;
+
+    document.getElementById('sub-id-hidden').value = target.SubdireccionID;
+    document.getElementById('sub-nombre').value = target.Nombre;
+    document.getElementById('sub-activa').checked = target.Activa;
+    document.getElementById('modalSubLabel').innerText = 'Editar Subdirección';
+
+    var modal = new bootstrap.Modal(document.getElementById('modalSubdireccion'));
+    modal.show();
+  }
+
+  function guardarSubdireccionForm(e) {
+    if (e) e.preventDefault();
+    var subData = {
+      subdireccionID: document.getElementById('sub-id-hidden').value,
+      nombre: document.getElementById('sub-nombre').value,
+      activa: document.getElementById('sub-activa').checked
+    };
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          var modalEl = document.getElementById('modalSubdireccion');
+          var modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          loadSubdireccionesData();
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .guardarSubdireccion(AppState.token, subData);
+  }
+
+  function toggleEstadoSub(subID, activa) {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) loadSubdireccionesData();
+        else alert('Error: ' + res.message);
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .cambiarEstadoSubdireccion(AppState.token, subID, activa);
+  }
+
+  // Usuarios Module
+  function loadUsuariosData() {
+    document.getElementById('usuarios-view').classList.remove('hidden');
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(subRes) {
+        if (subRes.success) {
+          AppState.subdirecciones = subRes.data;
+          populateSubdireccionesSelectUser(subRes.data);
+        }
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            hideLoader();
+            if (res.success) {
+              renderUsuariosTable(res.data);
+            } else {
+              alert('Error al cargar usuarios: ' + res.message);
+            }
+          })
+          .obtenerUsuarios(AppState.token);
+      })
+      .obtenerSubdirecciones(AppState.token);
+  }
+
+  function populateSubdireccionesSelectUser(list) {
+    var sel = document.getElementById('user-subdireccion');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Seleccionar Subdirección --</option>';
+    list.forEach(function(s) {
+      if (s.Activa) sel.innerHTML += '<option value="' + s.SubdireccionID + '">' + s.Nombre + '</option>';
+    });
+  }
+
+  function renderUsuariosTable(users) {
+    var tbody = document.getElementById('usuarios-tbody');
+    tbody.innerHTML = '';
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay usuarios registrados</td></tr>';
+      return;
+    }
+
+    users.forEach(function(u) {
+      var tr = document.createElement('tr');
+      var badge = u.Activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>';
+      var rolBadge = u.Rol === 'administrador' ? '<span class="badge bg-danger">Administrador</span>' : '<span class="badge bg-info text-dark">Operativo</span>';
+
+      tr.innerHTML = '<td><strong>' + u.UsuarioID + '</strong></td>' +
+        '<td>' + u.Nombre + '<br><small class="text-muted">' + u.Email + '</small></td>' +
+        '<td>' + rolBadge + '</td>' +
+        '<td>' + (u.NombreSubdireccion || 'N/A') + '</td>' +
+        '<td>' + badge + '</td>' +
+        '<td>' +
+          '<button class="btn btn-sm btn-outline-warning me-1" onclick="abrirModalEditarUsuario(\'' + u.UsuarioID + '\')"><i class="bi bi-pencil"></i></button>' +
+          '<button class="btn btn-sm btn-outline-secondary" onclick="toggleEstadoUsuario(\'' + u.UsuarioID + '\', ' + (!u.Activo) + ')">' + (u.Activo ? 'Desactivar' : 'Activar') + '</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function abrirModalNuevoUsuario() {
+    document.getElementById('form-usuario').reset();
+    document.getElementById('user-id-hidden').value = '';
+    document.getElementById('modalUserLabel').innerText = 'Nuevo Usuario';
+    var modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function abrirModalEditarUsuario(userID) {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          var target = res.data.find(function(u) { return u.UsuarioID === userID; });
+          if (!target) return;
+
+          document.getElementById('user-id-hidden').value = target.UsuarioID;
+          document.getElementById('user-nombre').value = target.Nombre;
+          document.getElementById('user-email').value = target.Email;
+          document.getElementById('user-rol').value = target.Rol;
+          document.getElementById('user-subdireccion').value = target.SubdireccionID || '';
+          document.getElementById('user-activo').checked = target.Activo;
+          document.getElementById('user-password').value = '';
+          document.getElementById('modalUserLabel').innerText = 'Editar Usuario ' + target.UsuarioID;
+
+          var modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+          modal.show();
+        }
+      })
+      .obtenerUsuarios(AppState.token);
+  }
+
+  function guardarUsuarioForm(e) {
+    if (e) e.preventDefault();
+    var userData = {
+      usuarioID: document.getElementById('user-id-hidden').value,
+      nombre: document.getElementById('user-nombre').value,
+      email: document.getElementById('user-email').value,
+      password: document.getElementById('user-password').value,
+      rol: document.getElementById('user-rol').value,
+      subdireccionID: document.getElementById('user-subdireccion').value,
+      activo: document.getElementById('user-activo').checked
+    };
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          var modalEl = document.getElementById('modalUsuario');
+          var modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          loadUsuariosData();
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .guardarUsuario(AppState.token, userData);
+  }
+
+  function toggleEstadoUsuario(userID, activo) {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) loadUsuariosData();
+        else alert('Error: ' + res.message);
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .cambiarEstadoUsuario(AppState.token, userID, activo);
+  }
+
+  // Seguimiento y Revisión Module
+  function loadSeguimientoData() {
+    document.getElementById('seguimiento-view').classList.remove('hidden');
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(loteRes) {
+        if (loteRes.success) {
+          populateLoteSelects(loteRes.data);
+        }
+
+        var loteID = document.getElementById('select-lote-seguimiento').value;
+        google.script.run
+          .withSuccessHandler(function(res) {
+            hideLoader();
+            if (res.success) {
+              AppState.seguimiento = res.data;
+              renderSeguimientoTable(res.data);
+            } else {
+              alert('Error al cargar seguimiento: ' + res.message);
+            }
+          })
+          .obtenerSeguimientoRespuestas(AppState.token, loteID);
+      })
+      .obtenerLotes(AppState.token);
+  }
+
+  function renderSeguimientoTable(list) {
+    var tbody = document.getElementById('seguimiento-tbody');
+    tbody.innerHTML = '';
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No se encontraron respuestas registradas</td></tr>';
+      return;
+    }
+
+    list.forEach(function(item) {
+      var tr = document.createElement('tr');
+
+      var estadoClass = 'badge-pendiente';
+      if (item.EstadoRevision === 'Enviada' || item.EstadoRevision === 'En revisión') estadoClass = 'badge-enviada';
+      else if (item.EstadoRevision === 'Observada') estadoClass = 'badge-observada';
+      else if (item.EstadoRevision === 'Aceptada') estadoClass = 'badge-aceptada';
+
+      var riesgoClass = 'badge-na';
+      if (item.NivelRiesgo === 'Alto') riesgoClass = 'badge-alto';
+      else if (item.NivelRiesgo === 'Medio') riesgoClass = 'badge-medio';
+      else if (item.NivelRiesgo === 'Bajo') riesgoClass = 'badge-bajo';
+
+      var docLink = item.EvidenciaDocumental ? '<a href="' + item.EvidenciaDocumental + '" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-paperclip"></i> Ver Documento</a>' : '<span class="text-muted">Sin archivo</span>';
+
+      tr.innerHTML = '<td><strong>' + item.QuestionID + '</strong></td>' +
+        '<td>' + item.NombreSubdireccion + '</td>' +
+        '<td><div style="max-height:80px; overflow-y:auto;">' + item.Pregunta + '</div></td>' +
+        '<td>' + (item.Respuesta || 'Sin responder') + '</td>' +
+        '<td><div style="max-height:60px; overflow-y:auto;"><small>' + (item.EvidenciaTextual || '-') + '</small></div></td>' +
+        '<td>' + docLink + '</td>' +
+        '<td><span class="badge ' + riesgoClass + '">' + item.NivelRiesgo + '</span></td>' +
+        '<td><small>' + item.UsuarioQueRespondio + '</small></td>' +
+        '<td><span class="badge ' + estadoClass + '">' + item.EstadoRevision + '</span></td>' +
+        '<td>' +
+          '<button class="btn btn-sm btn-outline-success me-1" onclick="abrirModalRevision(\'' + item.QuestionID + '\', \'' + item.SubdireccionID + '\', \'Aceptada\')"><i class="bi bi-check-circle"></i> Aceptar</button>' +
+          '<button class="btn btn-sm btn-outline-danger" onclick="abrirModalRevision(\'' + item.QuestionID + '\', \'' + item.SubdireccionID + '\', \'Observada\')"><i class="bi bi-exclamation-circle"></i> Observar</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function descargarSeguimientoExcel() {
+    var loteID = document.getElementById('select-lote-seguimiento').value;
+    showLoader();
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success && res.exportUrl) {
+          window.open(res.exportUrl, '_blank');
+        } else {
+          alert('Error al generar Excel: ' + (res.message || 'Error desconocido'));
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error en servidor al exportar Excel: ' + err.message);
+      })
+      .exportarSeguimientoExcel(AppState.token, loteID);
+  }
+
+  function abrirModalRevision(questionID, subdireccionID, estadoTarget) {
+    document.getElementById('rev-question-id').value = questionID;
+    document.getElementById('rev-subdireccion-id').value = subdireccionID;
+    document.getElementById('rev-estado-target').value = estadoTarget;
+    document.getElementById('rev-observacion').value = '';
+    document.getElementById('modalRevisionLabel').innerText = 'Revisión de Respuesta - ' + estadoTarget;
+
+    var modal = new bootstrap.Modal(document.getElementById('modalRevision'));
+    modal.show();
+  }
+
+  function guardarRevisionAdmin(e) {
+    if (e) e.preventDefault();
+    var revData = {
+      questionID: document.getElementById('rev-question-id').value,
+      subdireccionID: document.getElementById('rev-subdireccion-id').value,
+      estado: document.getElementById('rev-estado-target').value,
+      observacionAdmin: document.getElementById('rev-observacion').value
+    };
+
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          var modalEl = document.getElementById('modalRevision');
+          var modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          loadSeguimientoData();
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .revisarRespuestaAdmin(AppState.token, revData);
+  }
+
+  // Operativo User Module
+  function loadMisPreguntasData() {
+    document.getElementById('mis-preguntas-view').classList.remove('hidden');
+    showLoader();
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          renderMisPreguntasCards(res.data);
+        } else {
+          alert('Error al cargar asignaciones: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error: ' + err.message);
+      })
+      .obtenerPreguntasOperativo(AppState.token);
+  }
+
+  function renderMisPreguntasCards(preguntas) {
+    var container = document.getElementById('mis-preguntas-container');
+    container.innerHTML = '';
+
+    if (preguntas.length === 0) {
+      container.innerHTML = '<div class="alert alert-info">No tiene preguntas asignadas actualmente.</div>';
+      return;
+    }
+
+    preguntas.forEach(function(p) {
+      var card = document.createElement('div');
+      card.className = 'card card-custom mb-4';
+
+      var adminObsCallout = p.ObservacionAdmin ? '<div class="alert alert-warning mt-2 mb-2"><strong>Observación de Administrador:</strong> ' + p.ObservacionAdmin + '</div>' : '';
+
+      var docLink = p.EvidenciaDocumental ? '<p class="mb-1"><i class="bi bi-file-earmark-check text-success"></i> Documento adjunto: <a href="' + p.EvidenciaDocumental + '" target="_blank">Ver Archivo</a></p>' : '';
+
+      card.innerHTML = '<div class="card-header d-flex justify-content-between align-items-center bg-light">' +
+          '<div><strong>No. ' + p.No + ' (' + p.QuestionID + ')</strong> - <span class="badge bg-secondary">' + p.Categoria + '</span> / <span class="badge bg-dark">' + p.Subcategoria + '</span></div>' +
+          '<div><span class="badge badge-enviada">' + p.EstadoRevision + '</span></div>' +
+        '</div>' +
+        '<div class="card-body">' +
+          '<h5 class="card-title">' + p.Pregunta + '</h5>' +
+          '<p class="card-text text-muted"><small><strong>Fundamento Legal:</strong> ' + (p.FundamentoLegal || 'N/A') + '</small></p>' +
+          adminObsCallout +
+          '<hr>' +
+          '<form id="form-resp-' + p.QuestionID + '">' +
+            '<div class="row g-3">' +
+              '<div class="col-md-4">' +
+                '<label class="form-label font-weight-bold">Respuesta *</label>' +
+                '<select class="form-select" id="op-resp-' + p.QuestionID + '" onchange="actualizarCalculoRiesgoAuto(\'' + p.QuestionID + '\')">' +
+                  '<option value="">-- Seleccionar --</option>' +
+                  '<option value="Sí" ' + (p.Respuesta === 'Sí' ? 'selected' : '') + '>Sí</option>' +
+                  '<option value="Parcial" ' + (p.Respuesta === 'Parcial' ? 'selected' : '') + '>Parcial</option>' +
+                  '<option value="No" ' + (p.Respuesta === 'No' ? 'selected' : '') + '>No</option>' +
+                  '<option value="No Aplica" ' + (p.Respuesta === 'No Aplica' ? 'selected' : '') + '>No Aplica</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="col-md-4">' +
+                '<label class="form-label">Nivel de Riesgo Residual (Calculado)</label>' +
+                '<input type="text" class="form-control" id="op-riesgo-' + p.QuestionID + '" value="' + (p.NivelRiesgo || 'No Aplica') + '" readonly>' +
+              '</div>' +
+              '<div class="col-md-4">' +
+                '<label class="form-label">Evidencia Documental (Cargar Archivo)</label>' +
+                '<input type="file" class="form-control" id="op-file-' + p.QuestionID + '">' +
+                '<input type="hidden" id="op-file-url-' + p.QuestionID + '" value="' + (p.EvidenciaDocumental || '') + '">' +
+                docLink +
+              '</div>' +
+              '<div class="col-md-12">' +
+                '<label class="form-label">Evidencia Textual</label>' +
+                '<textarea class="form-control" id="op-textual-' + p.QuestionID + '" rows="3" placeholder="Describa a detalle la evidencia que respalda la respuesta...">' + (p.EvidenciaTextual || '') + '</textarea>' +
+              '</div>' +
+              '<div class="col-md-12">' +
+                '<label class="form-label">Observaciones</label>' +
+                '<textarea class="form-control" id="op-obs-' + p.QuestionID + '" rows="2" placeholder="Observaciones o notas adicionales opcionales...">' + (p.Observaciones || '') + '</textarea>' +
+              '</div>' +
+            '</div>' +
+            '<div class="mt-3 text-end">' +
+              '<button type="button" class="btn btn-outline-secondary me-2" onclick="guardarRespuestaOperativoAccion(\'' + p.QuestionID + '\', true)"><i class="bi bi-save"></i> Guardar Borrador</button>' +
+              '<button type="button" class="btn btn-primary" onclick="guardarRespuestaOperativoAccion(\'' + p.QuestionID + '\', false)"><i class="bi bi-send"></i> Enviar Respuesta Final</button>' +
+            '</div>' +
+          '</form>' +
+        '</div>';
+      container.appendChild(card);
+    });
+  }
+
+  function actualizarCalculoRiesgoAuto(qId) {
+    var val = document.getElementById('op-resp-' + qId).value;
+    var targetField = document.getElementById('op-riesgo-' + qId);
+
+    if (val === 'Sí') targetField.value = 'Bajo';
+    else if (val === 'Parcial') targetField.value = 'Medio';
+    else if (val === 'No') targetField.value = 'Alto';
+    else targetField.value = 'No Aplica';
+  }
+
+  function guardarRespuestaOperativoAccion(qId, esBorrador) {
+    var respVal = document.getElementById('op-resp-' + qId).value;
+    var textVal = document.getElementById('op-textual-' + qId).value;
+    var obsVal = document.getElementById('op-obs-' + qId).value;
+    var fileInput = document.getElementById('op-file-' + qId);
+    var existingFileUrl = document.getElementById('op-file-url-' + qId).value;
+
+    if (!esBorrador && !respVal) {
+      alert('Debe seleccionar una respuesta antes de realizar el envío definitivo.');
+      return;
+    }
+
+    // Process file upload if file is chosen
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      var file = fileInput.files[0];
+      var reader = new FileReader();
+
+      showLoader();
+      reader.onload = function(e) {
+        var base64Data = e.target.result.split(',')[1];
+
+        google.script.run
+          .withSuccessHandler(function(uploadRes) {
+            if (uploadRes.success) {
+              enviarPayloadRespuesta(qId, respVal, textVal, obsVal, uploadRes.url, esBorrador);
+            } else {
+              hideLoader();
+              alert('Error al subir evidencia a Drive: ' + uploadRes.message);
+            }
+          })
+          .withFailureHandler(function(err) {
+            hideLoader();
+            alert('Error en subida de archivo: ' + err.message);
+          })
+          .guardarArchivoDrive(base64Data, file.name, file.type);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      showLoader();
+      enviarPayloadRespuesta(qId, respVal, textVal, obsVal, existingFileUrl, esBorrador);
+    }
+  }
+
+  function enviarPayloadRespuesta(qId, respVal, textVal, obsVal, fileUrl, esBorrador) {
+    var payload = {
+      questionID: qId,
+      respuesta: respVal,
+      evidenciaTextual: textVal,
+      evidenciaDocumental: fileUrl,
+      observaciones: obsVal,
+      esBorrador: esBorrador
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideLoader();
+        if (res.success) {
+          alert(res.message);
+          loadMisPreguntasData();
+        } else {
+          alert('Error: ' + res.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideLoader();
+        alert('Error en servidor: ' + err.message);
+      })
+      .guardarRespuestaOperativo(AppState.token, payload);
+  }
+</script>

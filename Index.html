@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Control Machete - Auditorías Control Interno</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <!-- Global Loader Overlay -->
+  <div id="global-loader" class="hidden">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+  </div>
+
+  <!-- Login Screen -->
+  <div id="login-view" class="container">
+    <div class="login-container">
+      <div class="card card-custom p-4">
+        <div class="text-center mb-4">
+          <i class="bi bi-shield-check text-primary" style="font-size: 3rem;"></i>
+          <h3 class="mt-2 fw-bold text-primary">Control Machete</h3>
+          <p class="text-muted small">Gestión y Respuesta de Auditorías de Control Interno</p>
+        </div>
+        <form onsubmit="handleLogin(event)">
+          <div class="mb-3">
+            <label for="login-email" class="form-label">Correo Electrónico</label>
+            <input type="email" class="form-control" id="login-email" placeholder="usuario@machete.gob.mx" required>
+          </div>
+          <div class="mb-3">
+            <label for="login-password" class="form-label">Contraseña</label>
+            <input type="password" class="form-control" id="login-password" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 py-2">Iniciar Sesión</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Single Page Application Layout -->
+  <div id="app-main-layout" class="d-flex hidden">
+
+    <!-- Sidebar -->
+    <div id="sidebar-wrapper">
+      <div class="sidebar-heading text-center">
+        <i class="bi bi-shield-lock-fill me-2"></i> Control Machete
+      </div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item" onclick="navigateTo('dashboard')">
+          <i class="bi bi-speedometer2 me-2"></i> Dashboard
+        </a>
+        <a class="list-group-item menu-admin-only hidden" onclick="navigateTo('lotes')">
+          <i class="bi bi-journal-text me-2"></i> Lotes y Preguntas
+        </a>
+        <a class="list-group-item menu-admin-only hidden" onclick="navigateTo('asignaciones')">
+          <i class="bi bi-diagram-3 me-2"></i> Asignaciones
+        </a>
+        <a class="list-group-item menu-admin-only hidden" onclick="navigateTo('subdirecciones')">
+          <i class="bi bi-building me-2"></i> Subdirecciones
+        </a>
+        <a class="list-group-item menu-admin-only hidden" onclick="navigateTo('usuarios')">
+          <i class="bi bi-people me-2"></i> Usuarios
+        </a>
+        <a class="list-group-item menu-admin-only hidden" onclick="navigateTo('seguimiento')">
+          <i class="bi bi-check2-square me-2"></i> Seguimiento y Revisión
+        </a>
+        <a class="list-group-item menu-op-only hidden" onclick="navigateTo('mis-preguntas')">
+          <i class="bi bi-card-checklist me-2"></i> Mis Preguntas Asignadas
+        </a>
+      </div>
+    </div>
+
+    <!-- Page Content Wrapper -->
+    <div id="page-content-wrapper" class="flex-grow-1">
+
+      <!-- Top Navbar -->
+      <nav class="navbar navbar-expand-lg top-navbar px-4">
+        <div class="container-fluid p-0">
+          <span class="navbar-brand text-secondary fw-bold">Auditoría de Control Interno</span>
+          <div class="d-flex align-items-center ms-auto">
+            <span id="nav-user-name" class="me-3 fw-semibold text-dark"></span>
+            <button class="btn btn-outline-danger btn-sm" onclick="handleLogout()">
+              <i class="bi bi-box-arrow-right me-1"></i> Salir
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Main Container Views -->
+      <div class="container-fluid p-4">
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard-view" class="hidden">
+          <h4 class="mb-4 text-primary fw-bold"><i class="bi bi-speedometer2 me-2"></i> Avance General de Auditoría</h4>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="card card-custom p-3 text-center border-start border-primary border-4">
+                <span class="text-muted small">Total Preguntas</span>
+                <h2 id="stat-total-preguntas" class="fw-bold my-1 text-primary">0</h2>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card card-custom p-3 text-center border-start border-info border-4">
+                <span class="text-muted small">Respondidas</span>
+                <h2 id="stat-respondidas" class="fw-bold my-1 text-info">0</h2>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card card-custom p-3 text-center border-start border-warning border-4">
+                <span class="text-muted small">Pendientes</span>
+                <h2 id="stat-pendientes" class="fw-bold my-1 text-warning">0</h2>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card card-custom p-3 text-center border-start border-success border-4">
+                <span class="text-muted small">Aceptadas</span>
+                <h2 id="stat-aceptadas" class="fw-bold my-1 text-success">0</h2>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-custom p-4 mb-4">
+            <h6 class="fw-bold text-secondary mb-2">Porcentaje de Avance General</h6>
+            <div class="progress" style="height: 25px;">
+              <div id="stat-avance-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;">0%</div>
+            </div>
+          </div>
+
+          <div class="row g-4">
+            <div class="col-md-7">
+              <div class="card card-custom p-4">
+                <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-bar-chart-steps me-2"></i> Avance por Subdirección Responsable</h6>
+                <div class="table-responsive">
+                  <table class="table table-custom align-middle">
+                    <thead>
+                      <tr>
+                        <th>Subdirección</th>
+                        <th>Respondidas / Total</th>
+                        <th>Aceptadas</th>
+                        <th>Avance %</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dashboard-sub-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-5">
+              <div class="card card-custom p-4 text-center">
+                <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-pie-chart me-2"></i> Distribución por Nivel de Riesgo Residual</h6>
+                <div style="max-width: 300px; margin: 0 auto;">
+                  <canvas id="riskChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOTES Y PREGUNTAS VIEW -->
+        <div id="lotes-view" class="hidden">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-primary fw-bold m-0"><i class="bi bi-journal-text me-2"></i> Lotes y Preguntas</h4>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevoLote()"><i class="bi bi-plus-lg me-1"></i> Crear Lote</button>
+          </div>
+
+          <div class="card card-custom p-3 mb-4">
+            <h6 class="fw-bold text-secondary">Lotes de Preguntas Registrados</h6>
+            <div class="table-responsive">
+              <table class="table table-custom align-middle">
+                <thead>
+                  <tr>
+                    <th>LoteID</th>
+                    <th>Nombre del Lote</th>
+                    <th>Descripción</th>
+                    <th>Preguntas</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="lotes-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card card-custom p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex align-items-center">
+                <h6 class="fw-bold text-secondary m-0 me-3">Preguntas del Lote:</h6>
+                <select id="select-lote-filtro-preguntas" class="form-select form-select-sm" style="width: 250px;" onchange="cargarPreguntasPorLote(this.value)">
+                  <option value="">-- Seleccionar Lote --</option>
+                </select>
+              </div>
+              <button class="btn btn-outline-success btn-sm" onclick="abrirModalImportarPreguntas()"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Importar Preguntas (CSV/Excel)</button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-custom align-middle">
+                <thead>
+                  <tr>
+                    <th>QuestionID</th>
+                    <th>No.</th>
+                    <th>Categoría (Componente)</th>
+                    <th>Subcategoría (Principio)</th>
+                    <th>Pregunta</th>
+                    <th>Fundamento Legal</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="preguntas-tbody">
+                  <tr><td colspan="7" class="text-center text-muted">Seleccione un lote para visualizar sus preguntas</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ASIGNACIONES VIEW -->
+        <div id="asignaciones-view" class="hidden">
+          <h4 class="text-primary fw-bold mb-3"><i class="bi bi-diagram-3 me-2"></i> Asignación de Preguntas a Subdirecciones</h4>
+
+          <div class="card card-custom p-4 mb-4">
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">1. Seleccionar Lote de Preguntas</label>
+                <select id="select-lote-asignacion" class="form-select" onchange="onSelectLoteAsignacionChange()">
+                  <option value="">-- Seleccionar Lote --</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">2. Seleccionar Subdirección(es) Destino</label>
+              <div id="checkboxes-subdirecciones" class="row border rounded p-3 bg-light m-0"></div>
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label fw-bold m-0">3. Seleccionar Preguntas del Lote</label>
+                <div>
+                  <input type="checkbox" class="form-check-input" id="chk-all-preguntas" onchange="toggleSelectAllPreguntas(this)">
+                  <label for="chk-all-preguntas" class="form-check-label small ms-1">Seleccionar Todas</label>
+                </div>
+              </div>
+
+              <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>ID</th>
+                      <th>Categoría</th>
+                      <th>Subcategoría</th>
+                      <th>Pregunta</th>
+                      <th>Subdirección(es) Asignada(s)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="asig-preguntas-tbody">
+                    <tr><td colspan="6" class="text-center text-muted">Seleccione un lote para listar preguntas</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="ejecutarAsignacionMasiva()"><i class="bi bi-check-all me-1"></i> Asignar Preguntas Seleccionadas</button>
+          </div>
+        </div>
+
+        <!-- SUBDIRECCIONES VIEW -->
+        <div id="subdirecciones-view" class="hidden">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-primary fw-bold m-0"><i class="bi bi-building me-2"></i> Catálogo de Subdirecciones Responsables</h4>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaSub()"><i class="bi bi-plus-lg me-1"></i> Agregar Subdirección</button>
+          </div>
+
+          <div class="card card-custom p-3">
+            <div class="table-responsive">
+              <table class="table table-custom align-middle">
+                <thead>
+                  <tr>
+                    <th>SubdireccionID</th>
+                    <th>Nombre de la Subdirección</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="subdirecciones-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- USUARIOS VIEW -->
+        <div id="usuarios-view" class="hidden">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-primary fw-bold m-0"><i class="bi bi-people me-2"></i> Gestión de Usuarios y Permisos</h4>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevoUsuario()"><i class="bi bi-person-plus me-1"></i> Nuevo Usuario</button>
+          </div>
+
+          <div class="card card-custom p-3">
+            <div class="table-responsive">
+              <table class="table table-custom align-middle">
+                <thead>
+                  <tr>
+                    <th>UsuarioID</th>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Subdirección Asignada</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="usuarios-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEGUIMIENTO Y REVISIÓN VIEW -->
+        <div id="seguimiento-view" class="hidden">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-primary fw-bold m-0"><i class="bi bi-check2-square me-2"></i> Seguimiento y Revisión de Auditoría</h4>
+            <button class="btn btn-outline-success btn-sm" onclick="descargarSeguimientoExcel()"><i class="bi bi-file-earmark-excel me-1"></i> Descargar Excel (.xlsx)</button>
+          </div>
+
+          <div class="card card-custom p-3 mb-3">
+            <div class="row g-2 align-items-center">
+              <div class="col-md-4">
+                <label class="form-label small font-weight-bold">Filtrar por Lote:</label>
+                <select id="select-lote-seguimiento" class="form-select form-select-sm" onchange="loadSeguimientoData()">
+                  <option value="">-- Todos los Lotes --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-custom p-3">
+            <div class="table-responsive">
+              <table class="table table-custom align-middle">
+                <thead>
+                  <tr>
+                    <th>QuestionID</th>
+                    <th>Subdirección</th>
+                    <th style="min-width: 200px;">Pregunta</th>
+                    <th>Respuesta</th>
+                    <th>Evidencia Textual</th>
+                    <th>Evidencia Documental</th>
+                    <th>Nivel Riesgo</th>
+                    <th>Respondido Por</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="seguimiento-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- MIS PREGUNTAS ASIGNADAS VIEW -->
+        <div id="mis-preguntas-view" class="hidden">
+          <h4 class="text-primary fw-bold mb-3"><i class="bi bi-card-checklist me-2"></i> Preguntas Asignadas a mi Subdirección</h4>
+          <div id="mis-preguntas-container"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+
+  <!-- Modal Lote -->
+  <div class="modal fade" id="modalLote" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form onsubmit="guardarLoteForm(event)" id="form-lote">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalLoteLabel">Lote de Preguntas</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="lote-id-hidden">
+            <div class="mb-3">
+              <label class="form-label">Nombre del Lote *</label>
+              <input type="text" class="form-control" id="lote-nombre" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descripción</label>
+              <textarea class="form-control" id="lote-descripcion" rows="3"></textarea>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="lote-activo" checked>
+              <label class="form-check-label" for="lote-activo">Lote Activo</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Lote</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Importar Preguntas -->
+  <div class="modal fade" id="modalImportarPreguntas" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-file-earmark-spreadsheet me-2"></i> Importar y Validar Preguntas</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Seleccionar Lote de Destino *</label>
+            <select id="select-lote-importacion" class="form-select" required>
+              <option value="">-- Seleccionar Lote --</option>
+            </select>
+          </div>
+
+          <!-- Step 1: Input text -->
+          <div id="import-step-input">
+            <div class="mb-3">
+              <label class="form-label">Pegar datos en formato Tabulado / CSV (Columnas: No. | Categoría | Subcategoría | Pregunta | Fundamento Legal):</label>
+              <textarea id="import-csv-text" class="form-control" rows="8" placeholder="1	Ambiente de Control	Normas	¿Pregunta de ejemplo?	Ley Art. 10"></textarea>
+            </div>
+            <div class="text-end">
+              <button type="button" class="btn btn-primary" onclick="analizarYMostrarVistaPreviaImportacion()"><i class="bi bi-search me-1"></i> Validar e Inspeccionar Registros</button>
+            </div>
+          </div>
+
+          <!-- Step 2: Verification Preview & Manual Correction -->
+          <div id="import-step-preview" class="hidden">
+            <div id="import-issues-alert" class="alert alert-warning mb-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                  <span id="import-issues-count">Se detectaron detalles de formato.</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark border-dark" onclick="aplicarLimpiezaAutomaticaImportacion()">
+                  <i class="bi bi-magic me-1"></i> Aplicar Limpieza Automática
+                </button>
+              </div>
+            </div>
+
+            <p class="text-muted small mb-2">Revise y edite manualmente los registros antes de confirmar la importación definitiva:</p>
+
+            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+              <table class="table table-sm table-bordered align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 70px;">No.</th>
+                    <th style="width: 150px;">Categoría</th>
+                    <th style="width: 150px;">Subcategoría</th>
+                    <th>Pregunta</th>
+                    <th style="width: 180px;">Fundamento Legal</th>
+                    <th style="width: 120px;">Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="import-preview-tbody"></tbody>
+              </table>
+            </div>
+
+            <div class="mt-3 text-start">
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="volverAInputImportacion()"><i class="bi bi-arrow-left me-1"></i> Volver a pegar datos</button>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success hidden" id="btn-confirmar-importacion" onclick="procesarImportacionPreguntas()"><i class="bi bi-check-circle me-1"></i> Confirmar y Guardar Preguntas</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Subdirección -->
+  <div class="modal fade" id="modalSubdireccion" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form onsubmit="guardarSubdireccionForm(event)" id="form-subdireccion">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalSubLabel">Subdirección</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="sub-id-hidden">
+            <div class="mb-3">
+              <label class="form-label">Nombre de la Subdirección *</label>
+              <input type="text" class="form-control" id="sub-nombre" required>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="sub-activa" checked>
+              <label class="form-check-label" for="sub-activa">Subdirección Activa</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Usuario -->
+  <div class="modal fade" id="modalUsuario" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form onsubmit="guardarUsuarioForm(event)" id="form-usuario">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalUserLabel">Usuario</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="user-id-hidden">
+            <div class="mb-3">
+              <label class="form-label">Nombre Completo *</label>
+              <input type="text" class="form-control" id="user-nombre" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Correo Electrónico *</label>
+              <input type="email" class="form-control" id="user-email" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Contraseña</label>
+              <input type="password" class="form-control" id="user-password" placeholder="Solo ingrese si va a crear o cambiar contraseña">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Rol *</label>
+              <select class="form-select" id="user-rol" required>
+                <option value="operativo">Operativo</option>
+                <option value="administrador">Administrador</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Subdirección Asignada (para rol operativo)</label>
+              <select class="form-select" id="user-subdireccion">
+                <option value="">-- Seleccionar Subdirección --</option>
+              </select>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="user-activo" checked>
+              <label class="form-check-label" for="user-activo">Usuario Activo</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Usuario</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Revisión Admin -->
+  <div class="modal fade" id="modalRevision" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form onsubmit="guardarRevisionAdmin(event)">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalRevisionLabel">Revisión de Respuesta</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="rev-question-id">
+            <input type="hidden" id="rev-subdireccion-id">
+            <input type="hidden" id="rev-estado-target">
+            <div class="mb-3">
+              <label class="form-label">Observaciones del Administrador</label>
+              <textarea class="form-control" id="rev-observacion" rows="4" placeholder="Ingrese comentarios u observaciones para el usuario operativo..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Confirmar Revisión</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
