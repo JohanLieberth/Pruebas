@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { background-color: white; font-family: Arial, Helvetica, sans-serif; padding: 0; margin: 0; color: #000; }
+
+      .ticket {
+        width: 55mm;
+        margin: 0;
+        padding: 2.5mm;
+        font-size: 8.5pt;
+        line-height: 1.3;
+      }
+
+      .ticket-short {
+        width: 48mm;
+        min-height: 25mm;
+        margin: 0 0 4mm 0;
+        padding: 2mm;
+        font-size: 8pt;
+        border: 1px solid #000;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        line-height: 1.15;
+        page-break-after: always;
+      }
+
+      .folio-big { font-size: 13pt; font-weight: 900; margin: 3px 0; text-align: center; border: 1px solid #000; padding: 2px; }
+      .logo-print { max-width: 85%; height: auto; display: block; margin: 0 auto 6px auto; filter: grayscale(100%) contrast(200%); }
+      .disclaimer-small { font-size: 7.5pt; color: #000; margin-top: 8px; border-top: 1.5px solid #000; padding-top: 6px; font-weight: bold; text-align: left; line-height: 1.15; word-wrap: break-word; overflow-wrap: break-word; }
+
+      .field-label { font-weight: bold; text-transform: uppercase; font-size: 7.5pt; }
+
+      hr { border: 0; border-top: 1.5px dashed #000; margin: 6px 0; }
+
+      @media print {
+        .no-print { display: none; }
+        body { width: auto; }
+        @page { margin: 0; }
+        .ticket-short { page-break-after: always; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="no-print text-center mb-4">
+      <button type="button" class="btn btn-primary" onclick="window.print()">Imprimir Ahora</button>
+      <button type="button" class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+    </div>
+
+    <? if (data.servicio) { ?>
+      <? const config = getConfig(); ?>
+      <?
+        let dispositivos = [];
+        if (data.servicio.dispositivos && Array.isArray(data.servicio.dispositivos) && data.servicio.dispositivos.length > 0) {
+          dispositivos = data.servicio.dispositivos;
+        } else {
+          dispositivos = [{
+            dispositivo: data.servicio["Dispositivo a recibir"] || "Equipo",
+            falla: data.servicio["Descripción de la falla"] || "N/A",
+            estadoEquipo: data.servicio["Estado del equipo"] || "N/A"
+          }];
+        }
+      ?>
+
+      <? if (data.tipo === 'corto') { ?>
+        <? dispositivos.forEach(function(disp, idx) { ?>
+          <div class="ticket-short">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+               <? if (config["Logo Pequeño"]) { ?>
+                 <img src="<?= config["Logo Pequeño"] ?>" style="height: 16px; filter: grayscale(100%);">
+               <? } ?>
+               <strong style="font-size: 10pt;"><?= data.servicio.Folio ?></strong>
+            </div>
+            <div style="font-weight: 900; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-bottom: 1px solid #000; padding-bottom: 1px; margin-bottom: 2px;">
+              <?= data.servicio.Nombre ?>
+            </div>
+            <div style="font-size: 7.5pt; margin-bottom: 2px;"><strong>Fecha/Hora:</strong> <?= data.servicio["Fecha de recepción"] ?></div>
+            <div style="font-size: 8pt; margin-bottom: 2px;"><strong>Equipo:</strong> <?= disp.dispositivo ?></div>
+            <div style="font-size: 7.5pt;"><strong>Falla:</strong> <?= disp.falla ?></div>
+          </div>
+        <? }); ?>
+
+      <? } else { ?>
+        <div class="ticket">
+          <div style="text-align: center; margin-bottom: 8px;">
+            <? if (config["Logo Pequeño"]) { ?>
+              <img src="<?= config["Logo Pequeño"] ?>" class="logo-print">
+            <? } else { ?>
+              <h4 style="margin:0; font-weight: bold;">BitFix</h4>
+            <? } ?>
+          </div>
+
+          <div class="folio-big"><?= data.servicio.Folio ?></div>
+          <div style="text-align: center; font-weight: bold; margin-bottom: 4px; font-size: 8pt;"><?= data.servicio["Fecha de recepción"] ?></div>
+
+          <hr>
+
+          <div class="field-label">Cliente:</div>
+          <div style="font-weight: 900; font-size: 9.5pt;"><?= data.servicio.Nombre ?></div>
+          <div>Tel: <strong><?= data.servicio["Teléfono"] ?></strong></div>
+
+          <hr>
+
+          <? dispositivos.forEach(function(disp, idx) { ?>
+            <div style="margin-bottom: 6px;">
+              <div><strong>Equipo:</strong> <?= disp.dispositivo ?></div>
+              <div><strong>Falla:</strong> <?= disp.falla ?></div>
+            </div>
+            <? if (idx < dispositivos.length - 1) { ?>
+              <div style="border-top: 1px solid #ddd; margin: 4px 0;"></div>
+            <? } ?>
+          <? }); ?>
+
+          <hr>
+
+          <div class="disclaimer-small">
+            <?= getDisclaimer() ?>
+          </div>
+        </div>
+      <? } ?>
+    <? } else { ?>
+      <div class="alert alert-danger">Servicio no encontrado.</div>
+    <? } ?>
+
+    <script>
+      // window.print();
+    </script>
+  </body>
+</html>

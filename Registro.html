@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <div class="container py-4">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row justify-content-center">
+        <div class="col-md-9">
+          <div class="card" id="formCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h4 class="mb-0">Registro de Servicio Técnico</h4>
+              <a href="<?= getScriptUrl() ?>?page=admin" class="btn btn-sm btn-outline-light text-black" style="color: #000 !important;"><i class="fas fa-home" style="color: #000 !important;"></i></a>
+            </div>
+            <div class="card-body">
+              <form id="registroForm">
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label" for="telInput">Teléfono (10 dígitos) *</label>
+                    <input type="tel" name="telefono" id="telInput" class="form-control" pattern="[0-9]{10}" required onblur="autoCompletar()">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="nombreInput">Nombre del Cliente o Taller *</label>
+                    <input type="text" name="nombre" id="nombreInput" class="form-control" placeholder="Nombre completo del cliente o taller" required>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label" for="emailInput">Correo Electrónico *</label>
+                  <input type="email" name="correo" id="emailInput" class="form-control" required>
+                </div>
+
+                <!-- Punto 1: Casilla Taller/Tercero -->
+                <div class="card bg-light mb-4 border">
+                  <div class="card-body">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="esTallerCheck" onchange="toggleTallerCampos()">
+                      <label class="form-check-label fw-bold" for="esTallerCheck">
+                        ¿El equipo pertenece a un taller/tercero?
+                      </label>
+                    </div>
+
+                    <div id="tallerCamposContainer" class="mt-3" style="display: none;">
+                      <p class="small text-muted mb-2"><i class="fas fa-info-circle me-1"></i>Especifique los nombres de los responsables autorizados.</p>
+                      <div class="mb-2">
+                        <label class="form-label small fw-bold" for="respMain">Nombre del responsable *</label>
+                        <input type="text" id="respMain" class="form-control form-control-sm taller-input" placeholder="Responsable principal" disabled>
+                      </div>
+                      <div class="row g-2">
+                        <div class="col-md-4">
+                          <label class="form-label small text-muted" for="respAdd1">Responsable adicional 1</label>
+                          <input type="text" id="respAdd1" class="form-control form-control-sm taller-input" placeholder="Opcional" disabled>
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small text-muted" for="respAdd2">Responsable adicional 2</label>
+                          <input type="text" id="respAdd2" class="form-control form-control-sm taller-input" placeholder="Opcional" disabled>
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small text-muted" for="respAdd3">Responsable adicional 3</label>
+                          <input type="text" id="respAdd3" class="form-control form-control-sm taller-input" placeholder="Opcional" disabled>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dispositivos Múltiples con Costo Individual -->
+                <div class="mb-4">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0 text-primary"><i class="fas fa-laptop-house me-2"></i>Dispositivos a Recibir</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarDispositivo()">
+                      <i class="fas fa-plus me-1"></i>Agregar otro dispositivo
+                    </button>
+                  </div>
+
+                  <div id="dispositivosContainer">
+                    <!-- Dynamic devices loaded here -->
+                  </div>
+                </div>
+
+                <div class="row mb-4">
+                  <div class="col-md-4">
+                    <label class="form-label" for="anticipoInput">Anticipo ($)</label>
+                    <input type="number" name="anticipo" id="anticipoInput" class="form-control" step="0.01">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="abonoInput">Abono ($)</label>
+                    <input type="number" name="abono" id="abonoInput" class="form-control" step="0.01">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-bold text-success" for="pagoTotalInput">Pago Total Acumulado ($) *</label>
+                    <input type="number" name="pagoTotal" id="pagoTotalInput" class="form-control bg-light fw-bold" step="0.01" readonly placeholder="Suma automática de dispositivos">
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                   <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="recoleccionCheck" required>
+                      <label class="form-check-label small" for="recoleccionCheck">
+                        <b>Aviso de recolección:</b> <?= getDisclaimer() ?>
+                      </label>
+                   </div>
+                </div>
+
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <label class="form-label" for="garantiaSelect">¿Tiene garantía?</label>
+                    <select name="garantia" id="garantiaSelect" class="form-select" onchange="toggleGarantiaFecha(this.value)">
+                       <option value="No">No</option>
+                       <option value="Sí">Sí</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6" id="venceGarantiaCol" style="display: none;">
+                    <label class="form-label" for="venceGarantiaInput">Fecha de Vencimiento</label>
+                    <input type="date" name="venceGarantia" id="venceGarantiaInput" class="form-control">
+                  </div>
+                </div>
+
+                <div class="d-grid">
+                  <button type="submit" class="btn btn-primary btn-lg">Registrar Servicio</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div id="successCard" class="card text-center d-none">
+            <div class="card-body py-5">
+              <i class="fas fa-check-circle fa-5x text-success mb-4"></i>
+              <h2 class="mb-3">¡Registro Exitoso!</h2>
+              <p class="lead mb-4">El folio generado es:</p>
+              <h1 class="display-3 fw-bold text-primary mb-4" id="folioDisplay">BF-00000</h1>
+              <p class="mb-5 text-muted">Se ha enviado un correo de confirmación al cliente.</p>
+
+              <div class="d-flex justify-content-center gap-3">
+                <button type="button" class="btn btn-outline-dark" onclick="imprimirTicket('completo')">
+                  <i class="fas fa-print me-2"></i>Ticket Cliente
+                </button>
+                <button type="button" class="btn btn-outline-dark" onclick="imprimirTicket('corto')">
+                  <i class="fas fa-tag me-2"></i>Etiqueta
+                </button>
+              </div>
+              <div class="mt-4">
+                <a href="<?= getScriptUrl() ?>?page=registro" class="btn btn-link">Registrar otro equipo</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <?!= include('JS'); ?>
+    <script>
+      let currentFolio = '';
+      let dispositivoCount = 0;
+      const dispositivosFotos = {}; // deviceId -> array of base64 strings
+
+      window.addEventListener('load', function() {
+        agregarDispositivo(); // Add initial device
+      });
+
+      function toggleTallerCampos() {
+        const isChecked = document.getElementById('esTallerCheck').checked;
+        const container = document.getElementById('tallerCamposContainer');
+        container.style.display = isChecked ? 'block' : 'none';
+
+        const inputs = container.querySelectorAll('.taller-input');
+        inputs.forEach((input, idx) => {
+          input.disabled = !isChecked;
+          if (isChecked && idx === 0) {
+            input.setAttribute('required', 'required');
+          } else {
+            input.removeAttribute('required');
+          }
+          if (!isChecked) {
+            input.value = '';
+          }
+        });
+      }
+
+      function agregarDispositivo() {
+        dispositivoCount++;
+        const id = 'device_' + dispositivoCount;
+        dispositivosFotos[id] = [];
+
+        const container = document.getElementById('dispositivosContainer');
+        const card = document.createElement('div');
+        card.className = 'card mb-3 border device-block';
+        card.id = id;
+
+        const isFirst = container.children.length === 0;
+
+        card.innerHTML = `
+          <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+            <strong class="device-title"><i class="fas fa-gamepad me-1"></i> Dispositivo #${container.children.length + 1}</strong>
+            ${!isFirst ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDispositivo('${id}')"><i class="fas fa-trash me-1"></i>Eliminar</button>` : ''}
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-md-8">
+                <label class="form-label" for="${id}_dispositivo">Dispositivo a recibir *</label>
+                <input type="text" id="${id}_dispositivo" class="form-control device-field-dispositivo" placeholder="Ej: PS5, Joycon Izquierdo, Nintendo Switch..." required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-bold text-success" for="${id}_costo">Costo Estimado ($) *</label>
+                <input type="number" step="0.01" min="0" id="${id}_costo" class="form-control device-field-costo" placeholder="0.00" oninput="calcularTotalAcumulado()" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="${id}_falla">Descripción de la falla *</label>
+              <textarea id="${id}_falla" class="form-control device-field-falla" rows="2" placeholder="Describa el problema reportado" required></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="${id}_estado">Estado físico del equipo *</label>
+              <input type="text" id="${id}_estado" class="form-control device-field-estado" placeholder="Ej: Rayado, le falta un tornillo, tapa suelta..." required>
+            </div>
+            <div>
+              <label class="form-label" for="${id}_fotos">Fotos del equipo (Máx 3)</label>
+              <input type="file" id="${id}_fotos" class="form-control device-field-fotos" accept="image/*" multiple onchange="validarFotosDispositivo('${id}', this)">
+              <div id="${id}_preview" class="mt-2 d-flex gap-2 flex-wrap"></div>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+        actualizarTitulosDispositivos();
+        calcularTotalAcumulado();
+      }
+
+      function eliminarDispositivo(id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.remove();
+          delete dispositivosFotos[id];
+          actualizarTitulosDispositivos();
+          calcularTotalAcumulado();
+        }
+      }
+
+      function actualizarTitulosDispositivos() {
+        const blocks = document.querySelectorAll('.device-block');
+        blocks.forEach((block, idx) => {
+          const title = block.querySelector('.device-title');
+          if (title) {
+            title.innerHTML = `<i class="fas fa-gamepad me-1"></i> Dispositivo #${idx + 1}`;
+          }
+        });
+      }
+
+      function calcularTotalAcumulado() {
+        let total = 0;
+        const costoInputs = document.querySelectorAll('.device-field-costo');
+        costoInputs.forEach(input => {
+          const val = parseFloat(input.value) || 0;
+          total += val;
+        });
+        document.getElementById('pagoTotalInput').value = total > 0 ? total.toFixed(2) : '0.00';
+      }
+
+      function validarFotosDispositivo(deviceId, input) {
+        dispositivosFotos[deviceId] = [];
+        const preview = document.getElementById(deviceId + '_preview');
+        preview.innerHTML = '';
+
+        if (input.files.length > 3) {
+          showAlert('Máximo 3 fotos permitidas por dispositivo.', 'warning');
+          input.value = '';
+          return;
+        }
+
+        Array.from(input.files).forEach(file => {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const maxDim = 800;
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+              dispositivosFotos[deviceId].push(compressedBase64);
+
+              const previewImg = document.createElement('img');
+              previewImg.src = compressedBase64;
+              previewImg.style.height = '80px';
+              previewImg.className = 'rounded border shadow-sm';
+              preview.appendChild(previewImg);
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function toggleGarantiaFecha(val) {
+        document.getElementById('venceGarantiaCol').style.display = (val === 'Sí') ? 'block' : 'none';
+      }
+
+      function autoCompletar() {
+        const tel = document.getElementById('telInput').value;
+        if (tel.length === 10) {
+          google.script.run
+            .withSuccessHandler(function(cliente) {
+              if (cliente) {
+                document.getElementById('nombreInput').value = cliente.nombre;
+                document.getElementById('emailInput').value = cliente.correo;
+                showAlert('Datos de cliente recuperados automáticamente.', 'info');
+              }
+            })
+            .buscarClientePorTelefono(tel);
+        }
+      }
+
+      document.getElementById('registroForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const esTaller = document.getElementById('esTallerCheck').checked;
+        const responsables = [];
+        if (esTaller) {
+          ['respMain', 'respAdd1', 'respAdd2', 'respAdd3'].forEach(id => {
+            const val = document.getElementById(id).value.trim();
+            if (val) responsables.push(val);
+          });
+          if (responsables.length === 0) {
+            showAlert('Si marca que el equipo pertenece a un taller/tercero, debe ingresar al menos el nombre del responsable principal.', 'warning');
+            return;
+          }
+        }
+
+        const deviceBlocks = document.querySelectorAll('.device-block');
+        if (deviceBlocks.length === 0) {
+          showAlert('Debe agregar al menos un dispositivo.', 'warning');
+          return;
+        }
+
+        const dispositivos = [];
+        let allFotos = [];
+
+        for (let block of deviceBlocks) {
+          const id = block.id;
+          const dispVal = block.querySelector('.device-field-dispositivo').value.trim();
+          const fallaVal = block.querySelector('.device-field-falla').value.trim();
+          const estadoVal = block.querySelector('.device-field-estado').value.trim();
+          const costoVal = parseFloat(block.querySelector('.device-field-costo').value) || 0;
+          const fotosVal = dispositivosFotos[id] || [];
+
+          if (!dispVal || !fallaVal || !estadoVal) {
+            showAlert('Complete todos los campos obligatorios para cada dispositivo.', 'warning');
+            return;
+          }
+
+          dispositivos.push({
+            dispositivo: dispVal,
+            falla: fallaVal,
+            estadoEquipo: estadoVal,
+            costo: costoVal,
+            fotos: fotosVal,
+            estatus: 'Pendiente'
+          });
+
+          allFotos = allFotos.concat(fotosVal);
+        }
+
+        showLoading(true);
+
+        const formData = {
+          nombre: document.getElementById('nombreInput').value,
+          telefono: document.getElementById('telInput').value,
+          correo: document.getElementById('emailInput').value,
+          esTaller: esTaller,
+          responsables: responsables,
+          dispositivos: dispositivos,
+          dispositivo: dispositivos[0].dispositivo,
+          falla: dispositivos[0].falla,
+          estadoEquipo: dispositivos[0].estadoEquipo,
+          fotos: allFotos,
+          anticipo: document.getElementById('anticipoInput').value,
+          abono: document.getElementById('abonoInput').value,
+          pagoTotal: document.getElementById('pagoTotalInput').value,
+          garantia: document.getElementById('garantiaSelect').value,
+          venceGarantia: document.getElementById('venceGarantiaInput').value
+        };
+
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(result) {
+            showLoading(false);
+            if (result && result.success) {
+              currentFolio = result.folio;
+              document.getElementById('folioDisplay').innerText = result.folio;
+              document.getElementById('formCard').classList.add('d-none');
+              document.getElementById('successCard').classList.remove('d-none');
+              window.scrollTo(0,0);
+            } else {
+              showAlert('Error al registrar: ' + (result ? result.message : 'Respuesta inválida'));
+            }
+          })
+          .registrarServicio(formData);
+      });
+
+      function imprimirTicket(tipo) {
+        const url = '<?= getScriptUrl() ?>?page=imprimir&folio=' + currentFolio + '&tipo=' + tipo;
+        window.open(url, '_blank');
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg mb-4">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="<?= getScriptUrl() ?>">
+          <img id="headerLogo" src="" alt="Logo" style="height: 40px; margin-right: 10px; display: none;">
+          <span id="systemName">Mis Servicios</span>
+        </a>
+        <div class="ms-auto d-flex align-items-center">
+          <a href="<?= getScriptUrl() ?>" class="btn btn-outline-light btn-sm me-2">Inicio</a>
+          <button type="button" class="btn btn-outline-light btn-sm" onclick="logout()">Cerrar Sesión</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row mb-4 align-items-center g-3">
+        <div class="col-md-8">
+          <h2 id="userName">Hola</h2>
+          <p class="text-muted mb-0">Aquí puedes ver el historial de tus equipos y el estatus de tus servicios en nuestro taller.</p>
+        </div>
+        <!-- Punto 2: Visualización de Puntos Acumulados -->
+        <div class="col-md-4 text-md-end">
+          <div class="card border-warning bg-light shadow-sm d-inline-block text-start p-3 w-100" style="max-width: 320px;">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <span class="text-uppercase small text-muted fw-bold d-block">Mis Puntos Acumulados</span>
+                <h3 class="mb-0 text-warning fw-bold"><i class="fas fa-coins me-1"></i><span id="userPointsDisplay">0.0</span> <small class="fs-6 text-dark">pts</small></h3>
+              </div>
+              <div class="fs-2 text-warning opacity-75">
+                <i class="fas fa-gem"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4" id="servicesGrid">
+        <!-- Loaded via JS -->
+      </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title"><i class="fas fa-receipt me-2"></i>Detalle del Servicio</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="detailsBody">
+            <!-- Content -->
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?!= include('JS'); ?>
+    <script>
+      let currentUser;
+      let detailsModal;
+
+      window.addEventListener('load', function() {
+        cargarConfig();
+        const userStr = sessionStorage.getItem('user');
+        if (!userStr) {
+          window.top.location.href = '<?= getScriptUrl() ?>?page=login';
+          return;
+        }
+        currentUser = JSON.parse(userStr);
+        document.getElementById('userName').innerText = 'Hola, ' + currentUser.nombre;
+        detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+
+        cargarMisPuntos();
+        cargarMisServicios();
+      });
+
+      function cargarConfig() {
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(config) {
+            if (config["Logo Pequeño"]) {
+              document.getElementById('headerLogo').src = config["Logo Pequeño"];
+              document.getElementById('headerLogo').style.display = 'inline-block';
+              document.getElementById('systemName').style.display = 'none';
+            }
+          })
+          .getConfig();
+      }
+
+      function cargarMisPuntos() {
+        google.script.run
+          .withFailureHandler(function(err) { console.error('Error al cargar puntos:', err); })
+          .withSuccessHandler(function(res) {
+            if (res && res.success) {
+              document.getElementById('userPointsDisplay').innerText = parseFloat(res.saldoPuntos || 0).toFixed(1);
+            }
+          })
+          .obtenerPuntosCliente(currentUser.email);
+      }
+
+      function cargarMisServicios() {
+        showLoading(true);
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(servicios) {
+            showLoading(false);
+            const grid = document.getElementById('servicesGrid');
+            grid.innerHTML = '';
+
+            servicios = servicios.filter(s => s["Correo electrónico"] === currentUser.email);
+
+            if (servicios.length === 0) {
+              grid.innerHTML = '<div class="col-12 text-center py-5"><i class="fas fa-box-open fa-3x text-muted mb-3"></i><p>No tienes servicios registrados con este correo.</p></div>';
+              return;
+            }
+
+            servicios.forEach(s => {
+              const col = document.createElement('div');
+              col.className = 'col-md-6 col-lg-4';
+
+              const card = document.createElement('div');
+              card.className = 'card h-100 shadow-sm';
+              const body = document.createElement('div');
+              body.className = 'card-body';
+
+              const headerDiv = document.createElement('div');
+              headerDiv.className = 'd-flex justify-content-between align-items-center mb-2';
+              const folioSpan = document.createElement('span');
+              folioSpan.className = 'fw-bold text-primary';
+              folioSpan.textContent = s.Folio;
+              headerDiv.appendChild(folioSpan);
+              const statusDiv = document.createElement('div');
+              statusDiv.innerHTML = formatStatus(s["Estatus (admin)"]);
+              headerDiv.appendChild(statusDiv);
+
+              const title = document.createElement('h5');
+              title.className = 'card-title text-truncate';
+              title.textContent = s["Dispositivo a recibir"];
+
+              const date = document.createElement('p');
+              date.className = 'card-text small text-muted mb-2';
+              date.textContent = 'Recepción: ' + s["Fecha de recepción"];
+
+              // Desglose rápido si tiene múltiples dispositivos
+              const dispList = s.dispositivos || [];
+              let multiInfo = '';
+              if (dispList.length > 1) {
+                const entregados = dispList.filter(d => d.estatus === 'Entregado').length;
+                multiInfo = `<div class="alert alert-light border py-1 px-2 small mb-2 text-primary fw-bold">
+                  <i class="fas fa-boxes me-1"></i>${dispList.length} Equipos (${entregados} entregados)
+                </div>`;
+              }
+
+              const total = document.createElement('p');
+              total.className = 'card-text fw-bold text-success mb-3';
+              total.textContent = 'Total: $' + (s["Total ($)"] || '0.00');
+
+              const btnDiv = document.createElement('div');
+              btnDiv.className = 'd-grid';
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'btn btn-outline-primary btn-sm';
+              btn.textContent = 'Ver detalles';
+              btn.onclick = function() { verDetalle(s); };
+              btnDiv.appendChild(btn);
+
+              body.appendChild(headerDiv);
+              body.appendChild(title);
+              body.appendChild(date);
+              if (multiInfo) {
+                const divMulti = document.createElement('div');
+                divMulti.innerHTML = multiInfo;
+                body.appendChild(divMulti);
+              }
+              body.appendChild(total);
+              body.appendChild(btnDiv);
+              card.appendChild(body);
+              col.appendChild(card);
+              grid.appendChild(col);
+            });
+          })
+          .obtenerServicios({ rol: 'cliente', correo: currentUser.email });
+      }
+
+      // Punto 1: Desglose por dispositivo en el estatus de servicios
+      function verDetalle(s) {
+        const body = document.getElementById('detailsBody');
+        body.innerHTML = '';
+
+        const dispList = (s.dispositivos && s.dispositivos.length > 0) ? s.dispositivos : [{
+          dispositivo: s["Dispositivo a recibir"],
+          falla: s["Descripción de la falla"],
+          estadoEquipo: s["Estado del equipo"],
+          fotos: [],
+          estatus: s["Estatus (admin)"] || "Pendiente",
+          costo: s["Total ($)"] || 0
+        }];
+
+        let html = '';
+
+        if (dispList.length > 1) {
+          // Desglose individual para múltiples dispositivos
+          html += `
+            <div class="alert alert-info py-2 small mb-3">
+              <i class="fas fa-info-circle me-1"></i>Esta orden cuenta con <strong>${dispList.length} dispositivos</strong>. A continuación se muestra el estatus particular de cada uno:
+            </div>
+            <div class="card mb-3 bg-light border">
+              <div class="card-body py-2">
+                <div class="row small">
+                  <div class="col-6"><strong>Folio:</strong> ${s.Folio}</div>
+                  <div class="col-6 text-end"><strong>Fecha Estimada Entrega:</strong> ${s["Fecha de entrega (admin)"] || 'Por confirmar'}</div>
+                </div>
+              </div>
+            </div>
+          `;
+
+          dispList.forEach((disp, idx) => {
+            html += `
+              <div class="card mb-3 border shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                  <strong class="text-primary"><i class="fas fa-gamepad me-2"></i>Dispositivo #${idx + 1}: ${disp.dispositivo}</strong>
+                  <div>${formatStatus(disp.estatus || s["Estatus (admin)"] || 'Pendiente')}</div>
+                </div>
+                <div class="card-body py-3">
+                  <p class="mb-1"><strong>Falla reportada:</strong> ${disp.falla || 'N/A'}</p>
+                  <p class="mb-1"><strong>Estado físico del equipo:</strong> ${disp.estadoEquipo || 'N/A'}</p>
+                  <p class="mb-0 text-success fw-bold">Costo del equipo: $${parseFloat(disp.costo || 0).toFixed(2)}</p>
+                </div>
+              </div>
+            `;
+          });
+
+          html += `
+            <div class="mb-2">
+              <label class="fw-bold small text-uppercase text-muted">Solución / Notas Internas:</label>
+              <p class="mb-2">${s["Solución aplicada (admin)"] || 'Pendiente de revisión'}</p>
+            </div>
+            <div class="border-top pt-2 text-end">
+              <span class="fs-5 fw-bold text-success">Total Orden: $${s["Total ($)"] || '0.00'}</span>
+            </div>
+          `;
+
+        } else {
+          // Si solo tiene un dispositivo, mantener la vista actual sin cambios
+          const sections = [
+            { label: 'Falla reportada:', value: s["Descripción de la falla"] },
+            { label: 'Estado del equipo:', value: s["Estado del equipo"] },
+            { label: 'Solución / Notas:', value: s["Solución aplicada (admin)"] || 'Pendiente de revisión' },
+            { label: 'Fecha Estimada de Entrega:', value: s["Fecha de entrega (admin)"] || 'Por confirmar' },
+            { label: 'Total:', value: '$' + (s["Total ($)"] || '0.00'), class: 'fs-5 fw-bold text-success' }
+          ];
+
+          sections.forEach(sec => {
+            const div = document.createElement('div');
+            div.className = 'mb-3';
+            const label = document.createElement('label');
+            label.className = 'fw-bold small text-uppercase text-muted';
+            label.textContent = sec.label;
+            const p = document.createElement('p');
+            if (sec.class) p.className = sec.class;
+            p.textContent = sec.value;
+            div.appendChild(label);
+            div.appendChild(p);
+            body.appendChild(div);
+          });
+          detailsModal.show();
+          return;
+        }
+
+        body.innerHTML = html;
+        detailsModal.show();
+      }
+
+    </script>
+  </body>
+</html>

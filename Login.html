@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?!= include('CSS'); ?>
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <div class="container py-5">
+      <div id="alertPlaceholder"></div>
+
+      <div class="row justify-content-center">
+        <div class="col-md-4">
+          <div class="text-center mb-4">
+            <i class="fas fa-gamepad fa-4x text-primary mb-3"></i>
+            <h3>Acceso al Sistema</h3>
+          </div>
+          <div class="card">
+            <div class="card-body p-4">
+              <form id="loginForm">
+                <div class="mb-3">
+                  <label class="form-label">Correo Electrónico</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                    <input type="email" name="correo" class="form-control" required>
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <label class="form-label">Contraseña</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                    <input type="password" name="pass" class="form-control" required>
+                  </div>
+                </div>
+                <div class="d-grid mb-3">
+                  <button type="submit" class="btn btn-primary btn-lg">Iniciar Sesión</button>
+                </div>
+                <div class="text-center mb-2">
+                  <button type="button" onclick="recuperarPass()" class="btn btn-link btn-sm text-muted text-decoration-none">¿Olvidaste tu contraseña?</button>
+                </div>
+                <div class="text-center">
+                   <hr>
+                   <p class="small mb-2">¿Eres cliente nuevo?</p>
+                   <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#registroClienteModal">Regístrate aquí</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Registro Cliente Modal -->
+          <div class="modal fade" id="registroClienteModal" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Registro de Cliente</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <form id="registroClienteForm">
+                    <div class="mb-3">
+                      <label class="form-label">Nombre Completo</label>
+                      <input type="text" name="nombre" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Correo Electrónico</label>
+                      <input type="email" name="email" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Teléfono</label>
+                      <input type="tel" name="telefono" class="form-control" pattern="[0-9]{10}" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Contraseña</label>
+                      <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-primary">Crear Cuenta</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 text-center">
+            <a href="<?= getScriptUrl() ?>" class="btn btn-link text-decoration-none">
+              <i class="fas fa-arrow-left me-1"></i> Volver al inicio
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?!= include('JS'); ?>
+    <script>
+      document.getElementById('registroClienteForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showLoading(true);
+        const datos = {
+          nombre: this.nombre.value,
+          email: this.email.value,
+          telefono: this.telefono.value,
+          password: this.password.value
+        };
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(res) {
+            showLoading(false);
+            if (res.success) {
+              bootstrap.Modal.getInstance(document.getElementById('registroClienteModal')).hide();
+              showAlert('Registro exitoso. Ahora puedes iniciar sesión.', 'success');
+            } else {
+              showAlert(res.message);
+            }
+          })
+          .registrarUsuarioCliente(datos);
+      });
+
+      document.getElementById('loginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showLoading(true);
+
+        const correo = this.correo.value;
+        const pass = this.pass.value;
+
+        google.script.run
+          .withFailureHandler(handleGlobalError)
+          .withSuccessHandler(function(result) {
+            showLoading(false);
+            if (result.success) {
+              // Store user in sessionStorage for MVP session management
+              sessionStorage.setItem('user', JSON.stringify(result.user));
+
+              if (result.user.rol === 'Administrador' || result.user.rol === 'Supervisor') {
+                window.top.location.href = '<?= getScriptUrl() ?>?page=admin';
+              } else {
+                window.top.location.href = '<?= getScriptUrl() ?>?page=panelCliente';
+              }
+            } else {
+              showAlert(result.message);
+            }
+          })
+          .withFailureHandler(function(err) {
+            showLoading(false);
+            showAlert('Error de conexión: ' + err.message);
+          })
+          .validarLogin(correo, pass);
+      });
+
+      function recuperarPass() {
+        const correo = document.querySelector('input[name="correo"]').value;
+        if (!correo) {
+          showAlert('Ingresa tu correo primero');
+          return;
+        }
+        showAlert('Funcionalidad MVP: Por favor contacta al administrador para resetear tu contraseña.', 'info');
+      }
+    </script>
+  </body>
+</html>
