@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Registrar Minuta</title>
+  <?!= include('Estilos'); ?>
+  <style>
+    .section-header {
+      border-bottom: 2px solid #1A237E;
+      padding-bottom: 5px;
+      margin-bottom: 15px;
+      color: #1A237E;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="fw-bold text-primary mb-0"><i class="bi bi-file-earmark-text-fill me-2"></i>Registro de Minuta de Reunión</h4>
+      <span class="badge bg-primary fs-6" id="badgeFolio">Folio: Generando...</span>
+    </div>
+
+    <form id="formMinuta" onsubmit="guardarMinutaSubmit(event)">
+      <!-- Seccion A: Datos Generales -->
+      <div class="card card-custom mb-4">
+        <div class="card-header card-header-custom">
+          <i class="bi bi-info-circle-fill me-2"></i>a) Datos Generales de la Reunión
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Proyecto <span class="text-danger">*</span></label>
+              <select class="form-select" id="min_proyecto" required>
+                <option value="">-- Seleccione Proyecto --</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Nombre de la Reunión <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="min_nombre" required placeholder="Ej. Reunión de Seguimiento Semanal">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Etapa</label>
+              <select class="form-select" id="min_etapa">
+                <option value="">-- Seleccione Etapa --</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Dependencia</label>
+              <select class="form-select" id="min_dependencia">
+                <option value="">-- Seleccione Dependencia --</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Subdirección</label>
+              <select class="form-select" id="min_subdireccion">
+                <option value="">-- Seleccione Subdirección --</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold">Fecha <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="min_fecha" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold">Lugar</label>
+              <input type="text" class="form-control" id="min_lugar" placeholder="Ej. Sala de Juntas 1">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Objetivos de la Reunión</label>
+              <textarea class="form-control" id="min_objetivos" rows="2" placeholder="Describa brevemente los objetivos principales..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seccion B: Lista de Asistencia -->
+      <div class="card card-custom mb-4">
+        <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-people-fill me-2"></i>b) Lista de Asistencia</span>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarFilaAsistencia()">
+            <i class="bi bi-plus-circle me-1"></i>+ Agregar asistente
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-bordered mb-0 align-middle" id="tablaAsistencia">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 35%;">Nombre <span class="text-danger">*</span></th>
+                  <th style="width: 30%;">Dependencia o Área</th>
+                  <th style="width: 25%;">Cargo</th>
+                  <th style="width: 10%;" class="text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyAsistencia">
+                <!-- Filas dinámicas -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seccion C: Orden del Dia -->
+      <div class="card card-custom mb-4">
+        <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-list-task me-2"></i>c) Orden del Día</span>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarFilaPunto()">
+            <i class="bi bi-plus-circle me-1"></i>+ Agregar punto
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-bordered mb-0 align-middle" id="tablaOrden">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 10%;" class="text-center">No.</th>
+                  <th>Descripción del Punto</th>
+                  <th style="width: 10%;" class="text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyOrden">
+                <!-- Filas dinámicas -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seccion D: Acciones y Acuerdos -->
+      <div class="card card-custom mb-4">
+        <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-check2-square me-2"></i>d) Acciones y Acuerdos</span>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarCardAcuerdo()">
+            <i class="bi bi-plus-circle me-1"></i>+ Agregar acuerdo
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="containerAcuerdos">
+            <!-- Cards dinamicas de acuerdos -->
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mb-4">
+        <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-custom px-4"><i class="bi bi-save me-1"></i>Guardar Minuta</button>
+      </div>
+    </form>
+  </div>
+
+  <?!= include('Scripts'); ?>
+
+  <script>
+    let catalogos = {};
+    let proyectosList = [];
+    let folioGenerado = '';
+    let contadorAcuerdos = 0;
+
+    function initMinuta() {
+      document.getElementById('min_fecha').valueAsDate = new Date();
+      cargarCatalogosYProyectos();
+      agregarFilaAsistencia();
+      agregarFilaPunto();
+      agregarCardAcuerdo();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initMinuta);
+    } else {
+      initMinuta();
+    }
+
+    function cargarCatalogosYProyectos() {
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          res = res || {};
+          catalogos = res.catalogos || {};
+          proyectosList = res.proyectos || [];
+          poblarOpciones();
+          generarFolio();
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          console.warn("Error al inicializar datos de minuta: " + (err ? err.message : "Desconocido"));
+          catalogos = {};
+          proyectosList = [];
+          poblarOpciones();
+          generarFolio();
+        })
+        .obtenerDatosMinutaIniciales();
+    }
+
+    function poblarOpciones() {
+      const selectProj = document.getElementById('min_proyecto');
+      selectProj.innerHTML = '<option value="">-- Seleccione Proyecto --</option>';
+      proyectosList.forEach(p => {
+        if (p.Estatus === 'Activo') {
+          selectProj.innerHTML += `<option value="${p.ID_Proyecto}">${escapeHtml(p.Nombre_Proyecto)}</option>`;
+        }
+      });
+
+      poblarSelectCatalogos('min_etapa', catalogos.Etapa);
+      poblarSelectCatalogos('min_dependencia', catalogos.Dependencia);
+      poblarSelectCatalogos('min_subdireccion', catalogos.Subdirección);
+    }
+
+    function poblarSelectCatalogos(elementId, items) {
+      const select = document.getElementById(elementId);
+      if (!select || !items) return;
+      select.innerHTML = `<option value="">-- Seleccione --</option>`;
+      items.forEach(item => {
+        select.innerHTML += `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`;
+      });
+    }
+
+    function generarFolio() {
+      google.script.run
+        .withSuccessHandler(folio => {
+          toggleSpinner(false);
+          folioGenerado = folio;
+          document.getElementById('badgeFolio').innerText = 'Folio: ' + folio;
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          document.getElementById('badgeFolio').innerText = 'Folio: Error';
+        })
+        .generarFolioMinuta();
+    }
+
+    // --- ASISTENCIA DINAMICA ---
+    function agregarFilaAsistencia() {
+      const tbody = document.getElementById('tbodyAsistencia');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" class="form-control form-control-sm ast-nombre" required placeholder="Nombre completo" oninput="actualizarOpcionesAsistentes()"></td>
+        <td><input type="text" class="form-control form-control-sm ast-area" placeholder="Dirección / Área"></td>
+        <td><input type="text" class="form-control form-control-sm ast-cargo" placeholder="Cargo"></td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarFila(this); actualizarOpcionesAsistentes();">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    // --- ORDEN DEL DIA DINAMICO ---
+    function agregarFilaPunto() {
+      const tbody = document.getElementById('tbodyOrden');
+      const count = tbody.children.length + 1;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center fw-bold punto-num">${count}</td>
+        <td><textarea class="form-control form-control-sm punto-desc" rows="2" required placeholder="Descripción del punto a tratar..."></textarea></td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarFilaPunto(this)">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function eliminarFilaPunto(btn) {
+      eliminarFila(btn);
+      reordenarPuntos();
+    }
+
+    function reordenarPuntos() {
+      const filas = document.querySelectorAll('#tbodyOrden tr');
+      filas.forEach((tr, idx) => {
+        const numTd = tr.querySelector('.punto-num');
+        if (numTd) numTd.innerText = idx + 1;
+      });
+    }
+
+    function eliminarFila(btn) {
+      const tr = btn.closest('tr');
+      if (tr) tr.remove();
+    }
+
+    // --- ACCIONES Y ACUERDOS DINAMICOS ---
+    function agregarCardAcuerdo() {
+      contadorAcuerdos++;
+      const container = document.getElementById('containerAcuerdos');
+      const idCard = `acuerdo_card_${contadorAcuerdos}`;
+
+      let opcionesSubdir = '<option value="">-- Sin Asignar --</option>';
+      if (catalogos.Subdirección) {
+        catalogos.Subdirección.forEach(s => {
+          opcionesSubdir += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+        });
+      }
+
+      const card = document.createElement('div');
+      card.className = 'card border mb-3 acuerdo-item';
+      card.id = idCard;
+      card.innerHTML = `
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <span class="fw-bold text-secondary">Acuerdo #${contadorAcuerdos}</span>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="document.getElementById('${idCard}').remove()">
+            <i class="bi bi-trash"></i> Eliminar
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm ac-tipo" required onchange="toggleFechaLimite(this)">
+                <option value="Acuerdo">Acuerdo</option>
+                <option value="Informativo">Informativo</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Prioridad</label>
+              <select class="form-select form-select-sm ac-prioridad">
+                <option value="Alta">Alta</option>
+                <option value="Media" selected>Media</option>
+                <option value="Baja">Baja</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Fecha Límite</label>
+              <input type="date" class="form-control form-control-sm ac-fecha-limite">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Subdirección Asignada</label>
+              <select class="form-select form-select-sm ac-subdireccion">
+                ${opcionesSubdir}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Descripción del Acuerdo <span class="text-danger">*</span></label>
+              <textarea class="form-control form-control-sm ac-descripcion" rows="2" required placeholder="Escriba el detalle del acuerdo o punto informativo..."></textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Solicitante(s)</label>
+              <select class="form-select form-select-sm ac-solicitantes" multiple style="height: 90px;">
+                <!-- Opciones desde Asistencia -->
+              </select>
+              <span class="form-text">Mantén presionado Ctrl / Cmd para seleccionar varios</span>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Responsable(s)</label>
+              <select class="form-select form-select-sm ac-responsables" multiple style="height: 90px;">
+                <!-- Opciones desde Asistencia -->
+              </select>
+              <span class="form-text">Mantén presionado Ctrl / Cmd para seleccionar varios</span>
+            </div>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+      actualizarOpcionesAsistentesCard(card);
+    }
+
+    function toggleFechaLimite(selectTipo) {
+      const card = selectTipo.closest('.acuerdo-item');
+      const inputFecha = card.querySelector('.ac-fecha-limite');
+      if (selectTipo.value === 'Informativo') {
+        inputFecha.value = '';
+        inputFecha.disabled = true;
+      } else {
+        inputFecha.disabled = false;
+      }
+    }
+
+    function actualizarOpcionesAsistentes() {
+      const cards = document.querySelectorAll('.acuerdo-item');
+      cards.forEach(card => actualizarOpcionesAsistentesCard(card));
+    }
+
+    function actualizarOpcionesAsistentesCard(card) {
+      const nombres = Array.from(document.querySelectorAll('.ast-nombre'))
+        .map(i => i.value.trim())
+        .filter(n => n.length > 0);
+
+      const selSolicitantes = card.querySelector('.ac-solicitantes');
+      const selResponsables = card.querySelector('.ac-responsables');
+
+      const selectedSol = Array.from(selSolicitantes.selectedOptions).map(o => o.value);
+      const selectedResp = Array.from(selResponsables.selectedOptions).map(o => o.value);
+
+      selSolicitantes.innerHTML = '';
+      selResponsables.innerHTML = '';
+
+      nombres.forEach(nombre => {
+        selSolicitantes.innerHTML += `<option value="${escapeHtml(nombre)}" ${selectedSol.includes(nombre) ? 'selected' : ''}>${escapeHtml(nombre)}</option>`;
+        selResponsables.innerHTML += `<option value="${escapeHtml(nombre)}" ${selectedResp.includes(nombre) ? 'selected' : ''}>${escapeHtml(nombre)}</option>`;
+      });
+    }
+
+    function guardarMinutaSubmit(e) {
+      e.preventDefault();
+
+      // Recopilar Asistencia
+      const asistencia = [];
+      document.querySelectorAll('#tbodyAsistencia tr').forEach(tr => {
+        const nom = tr.querySelector('.ast-nombre').value.trim();
+        if (nom) {
+          asistencia.push({
+            Nombre: nom,
+            Dependencia_Area: tr.querySelector('.ast-area').value.trim(),
+            Cargo: tr.querySelector('.ast-cargo').value.trim()
+          });
+        }
+      });
+
+      // Recopilar Orden del Día
+      const ordenDelDia = [];
+      document.querySelectorAll('#tbodyOrden tr').forEach(tr => {
+        const desc = tr.querySelector('.punto-desc').value.trim();
+        if (desc) {
+          ordenDelDia.push({ Descripción_Punto: desc });
+        }
+      });
+
+      // Recopilar Acuerdos
+      const acuerdos = [];
+      document.querySelectorAll('.acuerdo-item').forEach(card => {
+        const tipo = card.querySelector('.ac-tipo').value;
+        const desc = card.querySelector('.ac-descripcion').value.trim();
+        const fechaLim = card.querySelector('.ac-fecha-limite').value;
+
+        if (tipo === 'Acuerdo' && !fechaLim) {
+          mostrarAlerta("Para los acuerdos de tipo 'Acuerdo', la fecha límite es obligatoria.", "warning");
+          throw new Error("Fecha límite requerida.");
+        }
+
+        const solicitantes = Array.from(card.querySelector('.ac-solicitantes').selectedOptions).map(o => o.value);
+        const responsables = Array.from(card.querySelector('.ac-responsables').selectedOptions).map(o => o.value);
+
+        if (desc) {
+          acuerdos.push({
+            Tipo: tipo,
+            Descripción_Acuerdo: desc,
+            Prioridad: card.querySelector('.ac-prioridad').value,
+            Fecha_Límite: tipo === 'Acuerdo' ? fechaLim : '',
+            Subdirección_Asignada: card.querySelector('.ac-subdireccion').value,
+            Solicitantes: solicitantes,
+            Responsables: responsables
+          });
+        }
+      });
+
+      const payload = {
+        datosGenerales: {
+          Folio: folioGenerado,
+          ID_Proyecto: document.getElementById('min_proyecto').value,
+          Nombre_Reunión: document.getElementById('min_nombre').value,
+          Etapa: document.getElementById('min_etapa').value,
+          Dependencia: document.getElementById('min_dependencia').value,
+          Subdirección: document.getElementById('min_subdireccion').value,
+          Fecha: document.getElementById('min_fecha').value,
+          Lugar: document.getElementById('min_lugar').value,
+          Objetivos: document.getElementById('min_objetivos').value
+        },
+        asistencia: asistencia,
+        ordenDelDia: ordenDelDia,
+        acuerdos: acuerdos
+      };
+
+      toggleSpinner(true);
+      google.script.run
+        .withSuccessHandler(res => {
+          toggleSpinner(false);
+          mostrarAlerta(res.mensaje, "success");
+          setTimeout(() => {
+            if (window.top !== window.self) {
+              google.script.host.close();
+            } else {
+              window.location.reload();
+            }
+          }, 2000);
+        })
+        .withFailureHandler(err => {
+          toggleSpinner(false);
+          mostrarAlerta("Error al guardar minuta: " + err.message, "danger");
+        })
+        .guardarMinuta(payload);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Panel del Administrador - Seguimiento de Reuniones</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  <!-- Navbar Institutional Admin -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-institutional sticky-top mb-3">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="#">
+        <i class="bi bi-shield-check me-2 fs-4"></i>
+        <span>Sistema de Seguimiento de Reuniones</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" id="nav-dashboard" href="#" onclick="switchTab('dashboard')">
+              <i class="bi bi-speedometer2 me-1"></i>Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-proyectos" href="#" onclick="switchTab('proyectos')">
+              <i class="bi bi-folder me-1"></i>Proyectos
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-minuta" href="#" onclick="switchTab('minuta')">
+              <i class="bi bi-file-earmark-text me-1"></i>Nueva Minuta
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-acuerdo-ind" href="#" onclick="switchTab('acuerdo-ind')">
+              <i class="bi bi-lightning-charge me-1"></i>Acuerdo Ind.
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="nav-usuarios" href="#" onclick="switchTab('usuarios')">
+              <i class="bi bi-people me-1"></i>Usuarios
+            </a>
+          </li>
+        </ul>
+        <div class="d-flex align-items-center text-white">
+          <span class="me-3"><i class="bi bi-person-circle me-1"></i><?= userEmail ?></span>
+          <span class="badge bg-warning text-dark fw-bold">Administrador</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Dynamic Content Container -->
+  <div class="container-fluid px-4" id="viewContainer">
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <div class="mt-2 text-muted">Cargando módulo...</div>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      switchTab('dashboard');
+    });
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.navbar-nav .nav-link').forEach(el => el.classList.remove('active'));
+      const activeNav = document.getElementById('nav-' + tabName);
+      if (activeNav) activeNav.classList.add('active');
+
+      const container = document.getElementById('viewContainer');
+      container.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Cargando datos...</div>
+        </div>
+      `;
+
+      let fileName = 'Dashboard';
+      if (tabName === 'proyectos' || tabName === 'Proyectos') fileName = 'Proyectos';
+      else if (tabName === 'minuta' || tabName === 'Minuta') fileName = 'Minuta';
+      else if (tabName === 'acuerdo-ind' || tabName === 'AcuerdoIndividual') fileName = 'AcuerdoIndividual';
+      else if (tabName === 'usuarios' || tabName === 'Usuarios') fileName = 'Usuarios';
+      else if (tabName === 'dashboard' || tabName === 'Dashboard') fileName = 'Dashboard';
+
+      google.script.run
+        .withSuccessHandler(html => {
+          container.innerHTML = html;
+          // Re-ejecutar scripts incrustados en la vista dinamica
+          const scripts = container.querySelectorAll('script');
+          scripts.forEach(script => {
+            const newScript = document.createElement('script');
+            if (script.src) newScript.src = script.src;
+            else newScript.textContent = script.textContent;
+            document.body.appendChild(newScript).parentNode.removeChild(newScript);
+          });
+        })
+        .withFailureHandler(err => {
+          container.innerHTML = `<div class="alert alert-danger m-4">Error al cargar vista: ${err.message}</div>`;
+        })
+        .include(fileName);
+    }
+  </script>
+</body>
+</html>

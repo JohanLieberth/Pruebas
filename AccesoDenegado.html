@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Acceso Denegado</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body class="d-flex align-items-center justify-content-center vh-100 bg-light">
+  <div class="card shadow-lg p-4 text-center" style="max-width: 500px;">
+    <div class="mb-3 text-danger">
+      <i class="bi bi-shield-lock-fill" style="font-size: 4rem;"></i>
+    </div>
+    <h3 class="fw-bold text-dark">Acceso Restringido</h3>
+    <p class="text-muted mt-2">
+      El correo <strong><?= userEmail ?></strong> no se encuentra registrado ni habilitado en el sistema de seguimiento.
+    </p>
+    <hr>
+    <p class="small text-muted">
+      Contacta al Administrador del sistema para solicitar la activación de tu cuenta.
+    </p>
+  </div>
+</body>
+</html>
