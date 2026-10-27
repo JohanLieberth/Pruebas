@@ -18,7 +18,7 @@
           <form id="form-catalogo" onsubmit="event.preventDefault(); guardarCatalogoItemModal();">
             <div class="mb-3">
               <label for="catalogo-tipo" class="form-label fw-semibold">Tipo de Catálogo *</label>
-              <select class="form-select" id="catalogo-tipo" required>
+              <select class="form-select" id="catalogo-tipo" required onchange="toggleCatalogoPadreField();">
                 <option value="Dependencia">Dependencia</option>
                 <option value="Subdirección">Subdirección</option>
                 <option value="Jefatura">Jefatura / Departamento</option>
@@ -31,6 +31,14 @@
             <div class="mb-3">
               <label for="catalogo-valor" class="form-label fw-semibold">Valor / Descripción *</label>
               <input type="text" class="form-control" id="catalogo-valor" required placeholder="Ej. Departamento de Mantenimiento">
+            </div>
+
+            <!-- Campo Padre para relación jerárquica (Jefatura -> Subdirección) -->
+            <div class="mb-3 d-none" id="contenedor-catalogo-padre">
+              <label for="catalogo-padre" class="form-label fw-semibold">Subdirección Padre (Jerarquía)</label>
+              <select class="form-select" id="catalogo-padre">
+                <option value="">-- Seleccionar Subdirección Padre --</option>
+              </select>
             </div>
 
             <button type="submit" class="btn btn-primary-custom w-100 rounded-pill py-2">
@@ -63,6 +71,7 @@
                 <tr>
                   <th>Tipo</th>
                   <th>Valor Registrado</th>
+                  <th>Depende de (Padre)</th>
                   <th class="text-end">Acción</th>
                 </tr>
               </thead>

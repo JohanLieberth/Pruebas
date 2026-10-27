@@ -15,15 +15,11 @@
       'Subdirección de Patrimonio Municipal',
       'Subdirección de Ventanilla Única'
     ],
-    Jefatura: [
-      'Departamento de Compras',
-      'Departamento de Servicios Generales',
-      'Departamento de Nóminas',
-      'Departamento de Optimización Regulatoria'
-    ],
+    Jefatura: [],
     Etapa: [],
     Prioridad: [],
-    Estatus: []
+    Estatus: [],
+    Organigrama: []
   };
   let GLOBAL_PROYECTOS = [];
   let GLOBAL_MINUTAS = [];
@@ -157,7 +153,6 @@
   function aplicarPermisosRolUI() {
     const rol = CURRENT_USER.rol;
 
-    // Administrador: Ve todos los módulos
     const elementosAdmin = document.querySelectorAll('.sol-admin-only, #nav-item-usuarios, #nav-item-catalogos');
     elementosAdmin.forEach(el => {
       if (rol === 'Administrador') {
@@ -248,7 +243,7 @@
   }
 
   // ==========================================
-  // CATÁLOGOS GLOBALES
+  // CATÁLOGOS GLOBALES Y ORGANIGRAMA
   // ==========================================
   function cargarCatalogosGlobales(callback) {
     google.script.run
@@ -259,6 +254,14 @@
         if (callback) callback();
       })
       .obtenerCatalogos();
+  }
+
+  function obtenerJefaturasDependientesDeSubdireccion(subdireccionNombre) {
+    if (!subdireccionNombre || !GLOBAL_CATALOGOS.Organigrama) return [];
+    const subNorm = subdireccionNombre.trim().toLowerCase();
+    return GLOBAL_CATALOGOS.Organigrama
+      .filter(item => item.subdireccion && item.subdireccion.trim().toLowerCase() === subNorm)
+      .map(item => item.jefatura);
   }
 
   function poblarDropdowns() {
@@ -275,43 +278,62 @@
     poblarSelect('usuario-subdireccion', GLOBAL_CATALOGOS.Subdirección);
     poblarSelect('usuario-jefatura', GLOBAL_CATALOGOS.Jefatura, '-- Ninguna (N/A) --');
     poblarSelect('modal-estatus-select', GLOBAL_CATALOGOS.Estatus);
+
+    poblarSelect('catalogo-padre', GLOBAL_CATALOGOS.Subdirección, '-- Seleccionar Subdirección Padre --');
+  }
+
+  function toggleCatalogoPadreField() {
+    const tipo = document.getElementById('catalogo-tipo').value;
+    const contPadre = document.getElementById('contenedor-catalogo-padre');
+    if (tipo === 'Jefatura') {
+      contPadre.classList.remove('d-none');
+    } else {
+      contPadre.classList.add('d-none');
+    }
   }
 
   function poblarCheckboxesSubdireccionesJefaturas() {
-    // Checkboxes Subdirecciones Modal
     const contSub = document.getElementById('contenedor-check-subdirecciones');
-    if (contSub) {
-      contSub.innerHTML = '';
-      (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
-        const div = document.createElement('div');
-        div.className = 'form-check form-check-inline me-3 mb-1';
-        div.innerHTML = `
-          <input class="form-check-input chk-subdireccion" type="checkbox" value="${sub}" id="sub-chk-${sub.replace(/\s+/g, '-')}">
-          <label class="form-check-label small" for="sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
-        `;
-        contSub.appendChild(div);
-      });
-    }
+    const seccionFormSub = document.getElementById('seccion-form-subdirecciones');
 
-    // Checkboxes Jefaturas Modal
-    const contJef = document.getElementById('contenedor-check-jefaturas');
-    const contJefModalOp = document.getElementById('modal-operador-check-jefaturas');
-    const itemsJef = GLOBAL_CATALOGOS.Jefatura || [];
-
-    [contJef, contJefModalOp].forEach(container => {
-      if (container) {
-        container.innerHTML = '';
-        itemsJef.forEach(jef => {
+    // UI para Administrador: Solo ve selector de Subdirecciones
+    if (CURRENT_USER && CURRENT_USER.rol === 'Administrador') {
+      if (seccionFormSub) seccionFormSub.classList.remove('d-none');
+      if (contSub) {
+        contSub.innerHTML = '';
+        (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
           const div = document.createElement('div');
           div.className = 'form-check form-check-inline me-3 mb-1';
           div.innerHTML = `
-            <input class="form-check-input chk-jefatura" type="checkbox" value="${jef}" id="jef-chk-${jef.replace(/\s+/g, '-')}">
-            <label class="form-check-label small" for="jef-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
+            <input class="form-check-input chk-subdireccion" type="checkbox" value="${sub}" id="sub-chk-${sub.replace(/\s+/g, '-')}">
+            <label class="form-check-label small" for="sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
           `;
-          container.appendChild(div);
+          contSub.appendChild(div);
         });
       }
-    });
+    } else {
+      if (seccionFormSub) seccionFormSub.classList.add('d-none');
+    }
+
+    // Modal Operador: Checkboxes Jefaturas dependientes exclusivamente de su subdirección
+    const contJefModalOp = document.getElementById('modal-operador-check-jefaturas');
+    if (contJefModalOp && CURRENT_USER && CURRENT_USER.subdireccion) {
+      contJefModalOp.innerHTML = '';
+      const jefsPermitidas = obtenerJefaturasDependientesDeSubdireccion(CURRENT_USER.subdireccion);
+      if (jefsPermitidas.length === 0) {
+        contJefModalOp.innerHTML = '<span class="text-muted small">No hay jefaturas registradas bajo su subdirección.</span>';
+      } else {
+        jefsPermitidas.forEach(jef => {
+          const div = document.createElement('div');
+          div.className = 'form-check form-check-inline me-3 mb-1';
+          div.innerHTML = `
+            <input class="form-check-input chk-jefatura" type="checkbox" value="${jef}" id="jef-op-chk-${jef.replace(/\s+/g, '-')}">
+            <label class="form-check-label small" for="jef-op-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
+          `;
+          contJefModalOp.appendChild(div);
+        });
+      }
+    }
   }
 
   function poblarSelect(elemId, opcionesArray, defaultText = null) {
@@ -368,7 +390,6 @@
 
         cargarAlertasDashboard();
 
-        // Renderizar sección exclusiva de Administrador si aplica
         if (CURRENT_USER.rol === 'Administrador') {
           document.getElementById('seccion-admin-dashboard').classList.remove('d-none');
           cargarAdminDashboardMetricas();
@@ -428,7 +449,6 @@
         document.getElementById('admin-kpi-cerrados').innerText = admKpis.totalCerradosGeneral;
         document.getElementById('admin-kpi-totales').innerText = admKpis.totalAcuerdosGeneral;
 
-        // Tabla Productividad por Responsable
         const tbodyProd = document.querySelector('#tabla-admin-productividad tbody');
         tbodyProd.innerHTML = '';
         if (!admKpis.tablaProductividad || admKpis.tablaProductividad.length === 0) {
@@ -448,7 +468,6 @@
           });
         }
 
-        // Tabla Acuerdos Atendidos por Mes
         const tbodyMes = document.querySelector('#tabla-admin-mes tbody');
         tbodyMes.innerHTML = '';
         const mesEntries = Object.entries(admKpis.atendidosPorMes || {});
@@ -778,7 +797,6 @@
     const resp = acuObj ? acuObj.Responsables : CURRENT_USER.email;
     const fLim = acuObj ? acuObj.Fecha_Límite : new Date().toISOString().split('T')[0];
     const subSel = acuObj ? (acuObj.Subdirección_Asignada || '') : GLOBAL_CATALOGOS.Subdirección[0];
-    const jefSel = acuObj ? (acuObj.Jefaturas_Asignadas || '') : '';
 
     let projOptionsHTML = '<option value="">-- Sin Proyecto --</option>';
     (GLOBAL_PROYECTOS || []).forEach(p => {
@@ -805,7 +823,6 @@
       <td><input type="text" class="form-control form-control-sm acu-resp" value="${resp}" placeholder="Responsables" required></td>
       <td><input type="date" class="form-control form-control-sm acu-flim" value="${fLim}" required></td>
       <td><input type="text" class="form-control form-control-sm acu-sub" value="${subSel}" placeholder="Subdirecciones (separadas por coma)" required></td>
-      <td><input type="text" class="form-control form-control-sm acu-jef" value="${jefSel}" placeholder="Jefaturas (separadas por coma)"></td>
       <td class="text-center">
         <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
       </td>
@@ -852,7 +869,7 @@
           responsables: row.querySelector('.acu-resp').value.trim(),
           fechaLimite: row.querySelector('.acu-flim').value,
           subdireccionAsignada: row.querySelector('.acu-sub').value.trim(),
-          jefaturasAsignadas: row.querySelector('.acu-jef').value.trim(),
+          jefaturasAsignadas: '',
           estatus: 'Pendiente'
         });
       }
@@ -1036,6 +1053,7 @@
     const contOpJef = document.getElementById('seccion-operador-jefaturas');
     if (CURRENT_USER.rol === 'Operador') {
       if (contOpJef) contOpJef.classList.remove('d-none');
+      poblarCheckboxesSubdireccionesJefaturas();
       const jefsArray = String(jefaturasActuales || '').split(',').map(s => s.trim());
       document.querySelectorAll('#modal-operador-check-jefaturas .chk-jefatura').forEach(chk => {
         chk.checked = jefsArray.includes(chk.value);
@@ -1118,14 +1136,13 @@
     document.getElementById('acuerdo-folio-minuta').value = '';
     document.getElementById('acuerdo-fecha-limite').value = new Date().toISOString().split('T')[0];
 
-    // Marcar subdirección por defecto del usuario
-    const userSub = CURRENT_USER.subdireccion;
-    document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
-      chk.checked = (chk.value === userSub);
-    });
-    document.querySelectorAll('#contenedor-check-jefaturas .chk-jefatura').forEach(chk => {
-      chk.checked = false;
-    });
+    poblarCheckboxesSubdireccionesJefaturas();
+
+    if (CURRENT_USER.rol === 'Administrador') {
+      document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
+        chk.checked = false;
+      });
+    }
 
     desbloquearCamposFormAcuerdo();
 
@@ -1158,16 +1175,11 @@
     document.getElementById('acuerdo-fecha-limite').value = a.Fecha_Límite;
     document.getElementById('acuerdo-estatus').value = a.Estatus;
 
-    // Checkboxes Subdirecciones
+    poblarCheckboxesSubdireccionesJefaturas();
+
     const subsArray = String(a.Subdirección_Asignada || '').split(',').map(s => s.trim());
     document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
       chk.checked = subsArray.includes(chk.value);
-    });
-
-    // Checkboxes Jefaturas
-    const jefsArray = String(a.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
-    document.querySelectorAll('#contenedor-check-jefaturas .chk-jefatura').forEach(chk => {
-      chk.checked = jefsArray.includes(chk.value);
     });
 
     desbloquearCamposFormAcuerdo();
@@ -1185,11 +1197,6 @@
       selectedSubs.push(chk.value);
     });
 
-    const selectedJefs = [];
-    document.querySelectorAll('#contenedor-check-jefaturas .chk-jefatura:checked').forEach(chk => {
-      selectedJefs.push(chk.value);
-    });
-
     const data = {
       origen: document.getElementById('acuerdo-origen').value,
       folioMinuta: document.getElementById('acuerdo-folio-minuta').value,
@@ -1201,7 +1208,6 @@
       responsables: document.getElementById('acuerdo-responsables').value,
       fechaLimite: document.getElementById('acuerdo-fecha-limite').value,
       subdireccionAsignada: selectedSubs,
-      jefaturasAsignadas: selectedJefs,
       estatus: document.getElementById('acuerdo-estatus').value
     };
 
@@ -1536,16 +1542,23 @@
     const filtroTipo = document.getElementById('filtro-catalogo-tipo').value;
 
     let itemsTotal = [];
+    const catData = GLOBAL_CATALOGOS.Organigrama || [];
+
     for (const [tipo, valores] of Object.entries(GLOBAL_CATALOGOS)) {
-      if (!filtroTipo || filtroTipo === tipo) {
+      if (tipo !== 'Organigrama' && (!filtroTipo || filtroTipo === tipo)) {
         valores.forEach(v => {
-          itemsTotal.push({ tipo, valor: v });
+          let padreStr = '-';
+          if (tipo === 'Jefatura') {
+            const org = catData.find(o => o.jefatura === v);
+            if (org && org.subdireccion) padreStr = org.subdireccion;
+          }
+          itemsTotal.push({ tipo, valor: v, padre: padreStr });
         });
       }
     }
 
     if (itemsTotal.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No hay items registrados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No hay items registrados</td></tr>';
       return;
     }
 
@@ -1554,6 +1567,7 @@
       tr.innerHTML = `
         <td><span class="badge bg-light text-dark border">${item.tipo}</span></td>
         <td class="fw-medium">${item.valor}</td>
+        <td class="small text-muted">${item.padre}</td>
         <td class="text-end">
           <button class="btn btn-outline-danger btn-sm rounded-circle" onclick="eliminarCatalogoItemModal('${item.tipo}', '${item.valor}')" title="Eliminar">
             <i class="bi bi-trash"></i>
@@ -1567,12 +1581,14 @@
   function guardarCatalogoItemModal() {
     const tipo = document.getElementById('catalogo-tipo').value;
     const valor = document.getElementById('catalogo-valor').value;
+    const padre = document.getElementById('catalogo-padre').value;
 
     showSpinner('Guardando ítem en el catálogo...');
     google.script.run
       .withSuccessHandler(function(res) {
         hideSpinner();
         document.getElementById('catalogo-valor').value = '';
+        document.getElementById('catalogo-padre').value = '';
         mostrarToast(res.message);
         cargarCatalogosVista();
       })
@@ -1580,7 +1596,7 @@
         hideSpinner();
         mostrarToast(err.message || 'Error al guardar catálogo', true);
       })
-      .guardarCatalogoItem(tipo, valor);
+      .guardarCatalogoItem(tipo, valor, padre);
   }
 
   function eliminarCatalogoItemModal(tipo, valor) {

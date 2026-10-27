@@ -80,7 +80,7 @@
   </div>
 </div>
 
-<!-- Modal Acuerdo Individual / Edición -->
+<!-- Modal Acuerdo Individual / Edición (Admin / Operador) -->
 <div class="modal fade" id="modalAcuerdo" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content border-0 shadow">
@@ -126,27 +126,19 @@
               <label for="acuerdo-responsables" class="form-label fw-semibold">Responsables (Separados por coma) *</label>
               <input type="text" class="form-control" id="acuerdo-responsables" required placeholder="ej. correo2@merida.gob.mx, Maria Lopez">
             </div>
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-6">
               <label for="acuerdo-fecha-limite" class="form-label fw-semibold">Fecha Límite *</label>
               <input type="date" class="form-control" id="acuerdo-fecha-limite" required>
             </div>
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-6">
               <label for="acuerdo-estatus" class="form-label fw-semibold">Estatus *</label>
               <select class="form-select" id="acuerdo-estatus" required></select>
             </div>
 
-            <!-- Múltiples Subdirecciones Responsables -->
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-semibold d-block">Subdirección(es) Responsable(s) *</label>
+            <!-- Múltiples Subdirecciones Responsables (Solo visible para Administrador) -->
+            <div class="col-12" id="seccion-form-subdirecciones">
+              <label class="form-label fw-semibold d-block">Subdirección(es) Asignada(s) *</label>
               <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-subdirecciones">
-                <!-- Checkboxes inyectados por JS -->
-              </div>
-            </div>
-
-            <!-- Múltiples Jefaturas / Departamentos Responsables -->
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-semibold d-block">Jefatura(s) / Departamento(s) Responsables</label>
-              <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-jefaturas">
                 <!-- Checkboxes inyectados por JS -->
               </div>
             </div>

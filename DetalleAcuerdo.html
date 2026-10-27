@@ -159,11 +159,12 @@
             <select class="form-select" id="modal-estatus-select" required></select>
           </div>
 
-          <!-- Asignación de Jefaturas por parte de Subdirección (Operador) -->
+          <!-- Asignación de Jefaturas dependientes de su propia Subdirección (Operador) -->
           <div class="mb-3" id="seccion-operador-jefaturas">
             <label class="form-label fw-semibold">Asignar Jefatura(s) / Departamento(s) Responsable(s)</label>
+            <p class="text-muted small mb-2">Mostrando únicamente las jefaturas dependientes de su subdirección.</p>
             <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="modal-operador-check-jefaturas">
-              <!-- Checkboxes inyectados por JS -->
+              <!-- Checkboxes inyectados dinámicamente según la subdirección del operador -->
             </div>
           </div>
         </div>

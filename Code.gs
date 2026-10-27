@@ -28,7 +28,7 @@ const ENCABEZADOS = {
   [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Dependencia_Area', 'Cargo', 'Correo Electrónico', 'Asistencia'],
   [HOJAS.ORDEN_DEL_DIA]: ['ID_Punto', 'Folio_Minuta', 'Número_Punto', 'Descripción_Punto'],
   [HOJAS.ACUERDOS]: ['ID_Acuerdo', 'Folio_Minuta', 'Tipo', 'Descripción_Acuerdo', 'Prioridad', 'Solicitantes', 'Responsables', 'Fecha_Límite', 'Subdirección_Asignada', 'Estatus', 'Origen', 'Creado_Por', 'Fecha_Creación', 'Fecha_Modificación', 'ID_Proyecto', 'Jefaturas_Asignadas'],
-  [HOJAS.CATALOGOS]: ['Tipo', 'Valor'],
+  [HOJAS.CATALOGOS]: ['Tipo', 'Valor', 'Padre'],
   [HOJAS.LOG_NOTIFICACIONES]: ['ID_Log', 'ID_Acuerdo', 'Correo_Destino', 'Asunto', 'Fecha_Envío', 'Estatus_Envío'],
   [HOJAS.COMENTARIOS_SEGUIMIENTO]: ['ID_Comentario', 'ID_Acuerdo', 'Usuario', 'Fecha_Hora', 'Comentario'],
   [HOJAS.USUARIOS]: ['Correo', 'Nombre', 'Rol', 'Subdirección', 'Activo', 'Jefatura_Departamento']
@@ -49,6 +49,57 @@ const ASISTENTES_PREDETERMINADOS = [
   { nombre: 'Mtra. Ana Carolina Hidalgo Ortiz', cargo: 'Subdirectora de Mejora Regulatoria', correo: 'ana.hidalgo@merida.gob.mx' },
   { nombre: 'Licda. María Cecilia Ruiz del Hoyo Cervera, Mtra.', cargo: 'Encargada de la Subdirección de Patrimonio Municipal', correo: 'maria.ruizdelhoyo@merida.gob.mx' },
   { nombre: 'Lic. Joaquín Gustavo Chan Espinosa', cargo: 'Subdirector de Ventanillas Únicas', correo: 'joaquin.chane@merida.gob.mx' }
+];
+
+const ORGANIGRAMA_COMPLETO = [
+  // Subdirecciones y Jefatura directa de Dirección
+  ['Subdirección', 'Jefa Despacho Administración', 'Dirección de Administración'],
+  ['Subdirección', 'Subdirección de Administración y de Proveeduría', 'Dirección de Administración'],
+  ['Subdirección', 'Subdirección de Servicios Internos', 'Dirección de Administración'],
+  ['Subdirección', 'Subdirección de Recursos Humanos', 'Dirección de Administración'],
+  ['Subdirección', 'Subdirección de Mejora Regulatoria', 'Dirección de Administración'],
+  ['Subdirección', 'Subdirección de Patrimonio Municipal', 'Dirección de Administración'],
+  ['Subdirección', 'Subdirección de Ventanilla Única', 'Dirección de Administración'],
+
+  // Jefaturas dependientes de Subdirección de Administración y de Proveeduría
+  ['Jefatura', 'Jefa de Almacén', 'Subdirección de Administración y de Proveeduría'],
+  ['Jefatura', 'Jefe de Concursos Electrónicos', 'Subdirección de Administración y de Proveeduría'],
+  ['Jefatura', 'Jefa Administrativa', 'Subdirección de Administración y de Proveeduría'],
+  ['Jefatura', 'Jefa de Licitaciones', 'Subdirección de Administración y de Proveeduría'],
+  ['Jefatura', 'Jefa de Contratación de Servicios', 'Subdirección de Administración y de Proveeduría'],
+  ['Jefatura', 'Jefe de Seguimiento a Servicios', 'Subdirección de Administración y de Proveeduría'],
+  ['Jefatura', 'Jefe de Atención y Control Interno', 'Subdirección de Administración y de Proveeduría'],
+
+  // Jefaturas dependientes de Subdirección de Servicios Internos
+  ['Jefatura', 'Jefa del Despacho del Subdirector', 'Subdirección de Servicios Internos'],
+  ['Jefatura', 'Jefe de Conservación', 'Subdirección de Servicios Internos'],
+  ['Jefatura', 'Jefa de Administración Interna', 'Subdirección de Servicios Internos'],
+  ['Jefatura', 'Jefa Jurídico', 'Subdirección de Servicios Internos'],
+  ['Jefatura', 'Jefa de Central de Mantenimiento Vehicular', 'Subdirección de Servicios Internos'],
+
+  // Jefaturas dependientes de Subdirección de Recursos Humanos
+  ['Jefatura', 'Jefa de Despacho de la Subdirección', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Jefa de Desarrollo Humano y Capacitación', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Jefa de Selección e Ingreso', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Jefa de Prestaciones', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Jefe de Servicios Médicos Administrativos', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Jefe de Central de Nóminas', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Jefa de Relaciones Laborales', 'Subdirección de Recursos Humanos'],
+  ['Jefatura', 'Encargado del departamento de Jubilados y Pensionados', 'Subdirección de Recursos Humanos'],
+
+  // Jefaturas dependientes de Subdirección de Mejora Regulatoria
+  ['Jefatura', 'Jefe de Despacho de la Subdirección', 'Subdirección de Mejora Regulatoria'],
+  ['Jefatura', 'Jefa de Calidad y Mejora Continua', 'Subdirección de Mejora Regulatoria'],
+  ['Jefatura', 'Jefe de Proyectos de Innovación', 'Subdirección de Mejora Regulatoria'],
+  ['Jefatura', 'Jefa de Mejora Regulatoria', 'Subdirección de Mejora Regulatoria'],
+
+  // Jefaturas dependientes de Subdirección de Patrimonio Municipal
+  ['Jefatura', 'Jefe de Control y Regularización de Inmuebles', 'Subdirección de Patrimonio Municipal'],
+  ['Jefatura', 'Encargado del Departamento Control de Inventarios y Requisición Tipo mantenimiento', 'Subdirección de Patrimonio Municipal'],
+  ['Jefatura', 'Departamento de Seguimiento a Contratos', 'Subdirección de Patrimonio Municipal'],
+
+  // Jefaturas dependientes de Subdirección de Ventanilla Única
+  ['Jefatura', 'Jefa de Control Interno', 'Subdirección de Ventanilla Única']
 ];
 
 // ==========================================
@@ -83,39 +134,7 @@ function setup() {
   });
 
   // 2. Cargar catálogos iniciales
-  const catSheet = ss.getSheetByName(HOJAS.CATALOGOS);
-  if (catSheet.getLastRow() <= 1) {
-    const catalogosIniciales = [
-      ['Dependencia', 'Dirección de Administración'],
-      ['Dependencia', 'Dirección de Tecnologías'],
-      ['Dependencia', 'Dirección de Gobernación'],
-      ['Dependencia', 'Dirección de Obras Públicas'],
-      ['Dependencia', 'Dirección de Servicios Públicos'],
-      ['Subdirección', 'Dirección de Administración'],
-      ['Subdirección', 'Subdirección de Administración y de Proveeduría'],
-      ['Subdirección', 'Subdirección de Servicios Internos'],
-      ['Subdirección', 'Subdirección de Recursos Humanos'],
-      ['Subdirección', 'Subdirección de Mejora Regulatoria'],
-      ['Subdirección', 'Subdirección de Patrimonio Municipal'],
-      ['Subdirección', 'Subdirección de Ventanilla Única'],
-      ['Jefatura', 'Departamento de Compras'],
-      ['Jefatura', 'Departamento de Servicios Generales'],
-      ['Jefatura', 'Departamento de Nóminas'],
-      ['Jefatura', 'Departamento de Optimización Regulatoria'],
-      ['Etapa', 'Planeación'],
-      ['Etapa', 'Ejecución'],
-      ['Etapa', 'Seguimiento'],
-      ['Etapa', 'Cierre'],
-      ['Prioridad', 'Alta'],
-      ['Prioridad', 'Media'],
-      ['Prioridad', 'Baja'],
-      ['Estatus', 'Pendiente'],
-      ['Estatus', 'En Proceso'],
-      ['Estatus', 'Cumplido'],
-      ['Estatus', 'Cancelado']
-    ];
-    catSheet.getRange(2, 1, catalogosIniciales.length, 2).setValues(catalogosIniciales);
-  }
+  poblarCatalogosOrganigrama(ss);
 
   // 3. Cargar usuarios iniciales
   const usrSheet = ss.getSheetByName(HOJAS.USUARIOS);
@@ -124,7 +143,7 @@ function setup() {
       ['sakurazukamori21@gmail.com', 'Lalo', 'Administrador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
       ['mariana.gaber@merida.gob.mx', 'Mariana Gaber Fernández Montilla', 'Administrador', 'Dirección de Administración', 'Sí', ''],
       ['ana.hidalgo@merida.gob.mx', 'Ana Carolina Hidalgo Ortiz', 'Operador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
-      ['jefe.compras@merida.gob.mx', 'Carlos Jefe Compras', 'Jefatura', 'Subdirección de Administración y de Proveeduría', 'Sí', 'Departamento de Compras']
+      ['jefe.compras@merida.gob.mx', 'Carlos Jefe Compras', 'Jefatura', 'Subdirección de Administración y de Proveeduría', 'Sí', 'Jefa de Licitaciones']
     ];
     usrSheet.getRange(2, 1, usuariosIniciales.length, 6).setValues(usuariosIniciales);
   }
@@ -132,7 +151,53 @@ function setup() {
   // 4. Instalar trigger diario para recordatorios
   instalarTriggerRecordatorios();
 
-  return 'Setup completado exitosamente con hojas, catálogos, usuarios y trigger diario.';
+  return 'Setup completado exitosamente con organigrama jerárquico, catálogos, usuarios y trigger diario.';
+}
+
+function poblarCatalogosOrganigrama(ss) {
+  const catSheet = ss.getSheetByName(HOJAS.CATALOGOS);
+  const rows = catSheet.getLastRow() > 1 ? catSheet.getRange(2, 1, catSheet.getLastRow() - 1, catSheet.getLastColumn()).getValues() : [];
+
+  const catalogosExistentes = new Set(rows.map(r => `${String(r[0]).trim()}|${String(r[1]).trim()}`));
+
+  const nuevosRegistros = [];
+
+  const basicos = [
+    ['Dependencia', 'Dirección de Administración', ''],
+    ['Dependencia', 'Dirección de Tecnologías', ''],
+    ['Dependencia', 'Dirección de Gobernación', ''],
+    ['Etapa', 'Planeación', ''],
+    ['Etapa', 'Ejecución', ''],
+    ['Etapa', 'Seguimiento', ''],
+    ['Etapa', 'Cierre', ''],
+    ['Prioridad', 'Alta', ''],
+    ['Prioridad', 'Media', ''],
+    ['Prioridad', 'Baja', ''],
+    ['Estatus', 'Pendiente', ''],
+    ['Estatus', 'En Proceso', ''],
+    ['Estatus', 'Cumplido', ''],
+    ['Estatus', 'Cancelado', '']
+  ];
+
+  basicos.forEach(b => {
+    const key = `${b[0]}|${b[1]}`;
+    if (!catalogosExistentes.has(key)) {
+      nuevosRegistros.push(b);
+      catalogosExistentes.add(key);
+    }
+  });
+
+  ORGANIGRAMA_COMPLETO.forEach(item => {
+    const key = `${item[0]}|${item[1]}`;
+    if (!catalogosExistentes.has(key)) {
+      nuevosRegistros.push([item[0], item[1], item[2]]);
+      catalogosExistentes.add(key);
+    }
+  });
+
+  if (nuevosRegistros.length > 0) {
+    catSheet.getRange(catSheet.getLastRow() + 1, 1, nuevosRegistros.length, 3).setValues(nuevosRegistros);
+  }
 }
 
 function instalarTriggerRecordatorios() {
@@ -393,7 +458,6 @@ function listarProyectos() {
     return proyectos;
   }
 
-  // Lector / Jefatura
   const minutas = getSheetData(HOJAS.MINUTAS);
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
 
@@ -984,6 +1048,22 @@ function crearAcuerdo(data) {
   }
 }
 
+function obtenerJefaturasPermitidasParaSubdirecciones(subdireccionesCadena) {
+  if (!subdireccionesCadena) return [];
+  const subsArray = String(subdireccionesCadena).split(',').map(s => s.trim().toLowerCase());
+  const catData = getSheetData(HOJAS.CATALOGOS);
+  const jefs = [];
+  catData.forEach(item => {
+    if (String(item.Tipo).trim() === 'Jefatura') {
+      const padreNorm = String(item.Padre || '').trim().toLowerCase();
+      if (subsArray.includes(padreNorm)) {
+        jefs.push(String(item.Valor).trim());
+      }
+    }
+  });
+  return jefs;
+}
+
 function crearAcuerdoInterno(data, sesion, ss) {
   const acuSheet = ss.getSheetByName(HOJAS.ACUERDOS);
   const origen = data.origen === 'Minuta' ? 'Minuta' : 'Individual';
@@ -991,8 +1071,19 @@ function crearAcuerdoInterno(data, sesion, ss) {
   const idAcuerdo = generarIDUnico(HOJAS.ACUERDOS, prefijo);
   const now = formatDate(new Date());
 
-  const subAsignadaStr = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada.join(', ') : (data.subdireccionAsignada || sesion.subdireccion || '');
-  const jefAsignadasStr = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas.join(', ') : (data.jefaturasAsignadas || '');
+  let subAsignadaStr = '';
+  let jefAsignadasStr = '';
+
+  if (sesion.rol === ROLES.ADMINISTRADOR) {
+    subAsignadaStr = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada.join(', ') : (data.subdireccionAsignada || '');
+    jefAsignadasStr = ''; // Administrador asigna subdirecciones únicamente
+  } else if (sesion.rol === ROLES.OPERADOR) {
+    subAsignadaStr = sesion.subdireccion || '';
+    const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(sesion.subdireccion);
+    const jefsRecibidas = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas : (data.jefaturasAsignadas ? String(data.jefaturasAsignadas).split(',').map(s => s.trim()) : []);
+    const jefsValidas = jefsRecibidas.filter(j => jefsPermitidas.includes(j));
+    jefAsignadasStr = jefsValidas.join(', ');
+  }
 
   const headers = acuSheet.getLastColumn() > 0 ? acuSheet.getRange(1, 1, 1, acuSheet.getLastColumn()).getValues()[0] : ENCABEZADOS[HOJAS.ACUERDOS];
 
@@ -1065,13 +1156,15 @@ function actualizarAcuerdo(idAcuerdo, data) {
     if (sesion.rol === ROLES.OPERADOR) {
       if (data.estatus !== undefined) setColValue('Estatus', data.estatus);
       if (data.jefaturasAsignadas !== undefined) {
-        const jefStr = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas.join(', ') : data.jefaturasAsignadas;
-        setColValue('Jefaturas_Asignadas', jefStr);
+        const subActual = sheet.getRange(rowIndex, headers.indexOf('Subdirección_Asignada') + 1).getValue();
+        const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(subActual || sesion.subdireccion);
+        const jefsRecibidas = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas : (data.jefaturasAsignadas ? String(data.jefaturasAsignadas).split(',').map(s => s.trim()) : []);
+        const jefsValidas = jefsRecibidas.filter(j => jefsPermitidas.includes(j));
+        setColValue('Jefaturas_Asignadas', jefsValidas.join(', '));
       }
     } else if (sesion.rol === ROLES.JEFATURA) {
       if (data.estatus !== undefined) setColValue('Estatus', data.estatus);
-    } else {
-      // Administrador
+    } else if (sesion.rol === ROLES.ADMINISTRADOR) {
       if (data.tipo !== undefined) setColValue('Tipo', data.tipo);
       if (data.descripcionAcuerdo !== undefined) setColValue('Descripción_Acuerdo', data.descripcionAcuerdo);
       if (data.prioridad !== undefined) setColValue('Prioridad', data.prioridad);
@@ -1574,40 +1667,34 @@ function obtenerCatalogos() {
   const catData = getSheetData(HOJAS.CATALOGOS);
   const result = {
     Dependencia: [],
-    Subdirección: [
-      'Dirección de Administración',
-      'Subdirección de Administración y de Proveeduría',
-      'Subdirección de Servicios Internos',
-      'Subdirección de Recursos Humanos',
-      'Subdirección de Mejora Regulatoria',
-      'Subdirección de Patrimonio Municipal',
-      'Subdirección de Ventanilla Única'
-    ],
-    Jefatura: [
-      'Departamento de Compras',
-      'Departamento de Servicios Generales',
-      'Departamento de Nóminas',
-      'Departamento de Optimización Regulatoria'
-    ],
+    Subdirección: [],
+    Jefatura: [],
     Etapa: [],
     Prioridad: [],
-    Estatus: []
+    Estatus: [],
+    Organigrama: []
   };
 
   catData.forEach(item => {
     const tipo = String(item.Tipo).trim();
     const valor = String(item.Valor).trim();
+    const padre = String(item.Padre || '').trim();
+
     if (result[tipo] && valor) {
       if (!result[tipo].includes(valor)) {
         result[tipo].push(valor);
       }
+    }
+
+    if (tipo === 'Jefatura' && valor) {
+      result.Organigrama.push({ jefatura: valor, subdireccion: padre });
     }
   });
 
   return result;
 }
 
-function guardarCatalogoItem(tipo, valor) {
+function guardarCatalogoItem(tipo, valor, padre = '') {
   const sesion = validarSesion();
   if (sesion.rol !== ROLES.ADMINISTRADOR) {
     throw new Error('Solo los Administradores pueden modificar catálogos.');
@@ -1631,7 +1718,7 @@ function guardarCatalogoItem(tipo, valor) {
       }
     }
 
-    sheet.appendRow([tipo, valor.trim()]);
+    sheet.appendRow([tipo, valor.trim(), padre ? padre.trim() : '']);
     return { success: true, message: 'Item agregado al catálogo.' };
   } finally {
     lock.releaseLock();
@@ -1745,7 +1832,6 @@ function obtenerKPIsAdminDashboard() {
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
   const usuarios = getSheetData(HOJAS.USUARIOS);
 
-  // 1. Productividad por responsable & Carga actual & Eficiencia
   const respStats = {};
 
   acuerdos.forEach(a => {
@@ -1769,7 +1855,6 @@ function obtenerKPIsAdminDashboard() {
       if (est === 'Cumplido') {
         respStats[r].cerrados++;
 
-        // Calcular tiempo de cumplimiento
         if (a.Fecha_Creación && a.Fecha_Modificación) {
           const fCrea = new Date(a.Fecha_Creación);
           const fMod = new Date(a.Fecha_Modificación);
@@ -1798,7 +1883,6 @@ function obtenerKPIsAdminDashboard() {
     };
   });
 
-  // 2. Acuerdos atendidos por mes (Cumplidos)
   const atendidosPorMes = {};
   acuerdos.forEach(a => {
     if (String(a.Estatus).trim() === 'Cumplido') {
@@ -1806,7 +1890,7 @@ function obtenerKPIsAdminDashboard() {
       if (fechaRef) {
         let mesClave = 'S/F';
         if (typeof fechaRef === 'string') {
-          mesClave = fechaRef.substring(0, 7); // yyyy-MM
+          mesClave = fechaRef.substring(0, 7);
         } else if (fechaRef instanceof Date) {
           mesClave = formatDateShort(fechaRef).substring(0, 7);
         }
@@ -1815,7 +1899,6 @@ function obtenerKPIsAdminDashboard() {
     }
   });
 
-  // 3. Eficiencia General
   const totalCerradosGeneral = acuerdos.filter(a => String(a.Estatus).trim() === 'Cumplido').length;
   const eficienciaGeneral = acuerdos.length > 0 ? Math.round((totalCerradosGeneral / acuerdos.length) * 100) : 0;
 
