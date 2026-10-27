@@ -27,16 +27,17 @@ const ENCABEZADOS = {
   [HOJAS.MINUTAS]: ['Folio', 'ID_Proyecto', 'Etapa', 'Nombre_Reunión', 'Fecha', 'Lugar', 'Objetivos', 'Creado_Por', 'Fecha_Creación'],
   [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Dependencia_Area', 'Cargo', 'Correo Electrónico', 'Asistencia'],
   [HOJAS.ORDEN_DEL_DIA]: ['ID_Punto', 'Folio_Minuta', 'Número_Punto', 'Descripción_Punto'],
-  [HOJAS.ACUERDOS]: ['ID_Acuerdo', 'Folio_Minuta', 'Tipo', 'Descripción_Acuerdo', 'Prioridad', 'Solicitantes', 'Responsables', 'Fecha_Límite', 'Subdirección_Asignada', 'Estatus', 'Origen', 'Creado_Por', 'Fecha_Creación', 'Fecha_Modificación'],
+  [HOJAS.ACUERDOS]: ['ID_Acuerdo', 'Folio_Minuta', 'Tipo', 'Descripción_Acuerdo', 'Prioridad', 'Solicitantes', 'Responsables', 'Fecha_Límite', 'Subdirección_Asignada', 'Estatus', 'Origen', 'Creado_Por', 'Fecha_Creación', 'Fecha_Modificación', 'ID_Proyecto', 'Jefaturas_Asignadas'],
   [HOJAS.CATALOGOS]: ['Tipo', 'Valor'],
   [HOJAS.LOG_NOTIFICACIONES]: ['ID_Log', 'ID_Acuerdo', 'Correo_Destino', 'Asunto', 'Fecha_Envío', 'Estatus_Envío'],
   [HOJAS.COMENTARIOS_SEGUIMIENTO]: ['ID_Comentario', 'ID_Acuerdo', 'Usuario', 'Fecha_Hora', 'Comentario'],
-  [HOJAS.USUARIOS]: ['Correo', 'Nombre', 'Rol', 'Subdirección', 'Activo']
+  [HOJAS.USUARIOS]: ['Correo', 'Nombre', 'Rol', 'Subdirección', 'Activo', 'Jefatura_Departamento']
 };
 
 const ROLES = {
   ADMINISTRADOR: 'Administrador',
   OPERADOR: 'Operador',
+  JEFATURA: 'Jefatura',
   LECTOR: 'Lector'
 };
 
@@ -69,6 +70,14 @@ function setup() {
         sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
         sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#E0E0E0');
         sheet.setFrozenRows(1);
+      } else {
+        const currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+        headers.forEach((h) => {
+          if (!currentHeaders.includes(h)) {
+            const nextCol = sheet.getLastColumn() + 1;
+            sheet.getRange(1, nextCol).setValue(h).setFontWeight('bold').setBackground('#E0E0E0');
+          }
+        });
       }
     }
   });
@@ -89,6 +98,10 @@ function setup() {
       ['Subdirección', 'Subdirección de Mejora Regulatoria'],
       ['Subdirección', 'Subdirección de Patrimonio Municipal'],
       ['Subdirección', 'Subdirección de Ventanilla Única'],
+      ['Jefatura', 'Departamento de Compras'],
+      ['Jefatura', 'Departamento de Servicios Generales'],
+      ['Jefatura', 'Departamento de Nóminas'],
+      ['Jefatura', 'Departamento de Optimización Regulatoria'],
       ['Etapa', 'Planeación'],
       ['Etapa', 'Ejecución'],
       ['Etapa', 'Seguimiento'],
@@ -108,11 +121,12 @@ function setup() {
   const usrSheet = ss.getSheetByName(HOJAS.USUARIOS);
   if (usrSheet.getLastRow() <= 1) {
     const usuariosIniciales = [
-      ['sakurazukamori21@gmail.com', 'Lalo', 'Administrador', 'Subdirección de Mejora Regulatoria', 'Sí'],
-      ['mariana.gaber@merida.gob.mx', 'Mariana Gaber Fernández Montilla', 'Administrador', 'Dirección de Administración', 'Sí'],
-      ['ana.hidalgo@merida.gob.mx', 'Ana Carolina Hidalgo Ortiz', 'Operador', 'Subdirección de Mejora Regulatoria', 'Sí']
+      ['sakurazukamori21@gmail.com', 'Lalo', 'Administrador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
+      ['mariana.gaber@merida.gob.mx', 'Mariana Gaber Fernández Montilla', 'Administrador', 'Dirección de Administración', 'Sí', ''],
+      ['ana.hidalgo@merida.gob.mx', 'Ana Carolina Hidalgo Ortiz', 'Operador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
+      ['jefe.compras@merida.gob.mx', 'Carlos Jefe Compras', 'Jefatura', 'Subdirección de Administración y de Proveeduría', 'Sí', 'Departamento de Compras']
     ];
-    usrSheet.getRange(2, 1, usuariosIniciales.length, 5).setValues(usuariosIniciales);
+    usrSheet.getRange(2, 1, usuariosIniciales.length, 6).setValues(usuariosIniciales);
   }
 
   // 4. Instalar trigger diario para recordatorios
@@ -281,6 +295,7 @@ function login(email) {
     nombre: String(user.Nombre).trim(),
     rol: String(user.Rol).trim(),
     subdireccion: String(user.Subdirección).trim(),
+    jefaturaDepartamento: String(user.Jefatura_Departamento || '').trim(),
     loginTime: new Date().getTime()
   };
 
@@ -289,7 +304,7 @@ function login(email) {
 
   const cache = CacheService.getUserCache();
   if (cache) {
-    cache.put('CURRENT_USER', JSON.stringify(sesionObj), 21600); // 6 horas
+    cache.put('CURRENT_USER', JSON.stringify(sesionObj), 21600);
   }
 
   return sesionObj;
@@ -360,11 +375,17 @@ function esInvolucradoString(cadenaMultivalor, email) {
   return list.includes(String(email).toLowerCase());
 }
 
+function esInvolucradoMultiVal(cadenaMultivalor, valorBuscado) {
+  if (!cadenaMultivalor || !valorBuscado) return false;
+  const list = String(cadenaMultivalor).toLowerCase().split(',').map(s => s.trim());
+  return list.includes(String(valorBuscado).toLowerCase().trim());
+}
+
 // A. PROYECTOS
 function listarProyectos() {
   const sesion = validarSesion();
   if (sesion.rol === ROLES.OPERADOR) {
-    return []; // El rol Operador no tiene acceso al módulo de Proyectos
+    return [];
   }
 
   const proyectos = getSheetData(HOJAS.PROYECTOS);
@@ -372,7 +393,7 @@ function listarProyectos() {
     return proyectos;
   }
 
-  // Lector
+  // Lector / Jefatura
   const minutas = getSheetData(HOJAS.MINUTAS);
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
 
@@ -400,16 +421,15 @@ function listarProyectos() {
 
   const idsProyectosConAcuerdo = new Set();
   acuerdos.forEach(a => {
-    const subMatch = String(a.Subdirección_Asignada).trim() === sesion.subdireccion;
+    const subMatch = esInvolucradoMultiVal(a.Subdirección_Asignada, sesion.subdireccion);
+    const jefMatch = sesion.jefaturaDepartamento ? esInvolucradoMultiVal(a.Jefaturas_Asignadas, sesion.jefaturaDepartamento) : false;
     const creadorMatch = String(a.Creado_Por).trim().toLowerCase() === sesion.email.toLowerCase();
     const respMatch = esInvolucradoString(a.Responsables, sesion.email);
     const solMatch = esInvolucradoString(a.Solicitantes, sesion.email);
 
-    if (subMatch || creadorMatch || respMatch || solMatch) {
-      if (a.Folio_Minuta) {
-        const min = minutas.find(m => String(m.Folio).trim() === String(a.Folio_Minuta).trim());
-        if (min) idsProyectosConAcuerdo.add(String(min.ID_Proyecto).trim());
-      }
+    if (subMatch || jefMatch || creadorMatch || respMatch || solMatch) {
+      const projId = a.ID_Proyecto || (a.Folio_Minuta ? minutas.find(m => String(m.Folio).trim() === String(a.Folio_Minuta).trim())?.ID_Proyecto : '');
+      if (projId) idsProyectosConAcuerdo.add(String(projId).trim());
     }
   });
 
@@ -424,7 +444,7 @@ function listarProyectos() {
 function listarMinutas(filtros) {
   const sesion = validarSesion();
   if (sesion.rol === ROLES.OPERADOR) {
-    return []; // El rol Operador no tiene acceso al módulo de Minutas
+    return [];
   }
 
   let minutas = getSheetData(HOJAS.MINUTAS);
@@ -510,9 +530,16 @@ function listarAcuerdos(filtros) {
   const sesion = validarSesion();
   let acuerdos = getSheetData(HOJAS.ACUERDOS);
 
-  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+  if (sesion.rol === ROLES.JEFATURA) {
     acuerdos = acuerdos.filter(a => {
-      const subMatch = String(a.Subdirección_Asignada).trim() === sesion.subdireccion;
+      const jefMatch = sesion.jefaturaDepartamento ? esInvolucradoMultiVal(a.Jefaturas_Asignadas, sesion.jefaturaDepartamento) : false;
+      const respMatch = esInvolucradoString(a.Responsables, sesion.email);
+      const creadorMatch = String(a.Creado_Por).trim().toLowerCase() === sesion.email.toLowerCase();
+      return jefMatch || respMatch || creadorMatch;
+    });
+  } else if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    acuerdos = acuerdos.filter(a => {
+      const subMatch = esInvolucradoMultiVal(a.Subdirección_Asignada, sesion.subdireccion);
       const creadorMatch = String(a.Creado_Por).trim().toLowerCase() === sesion.email.toLowerCase();
       const respMatch = esInvolucradoString(a.Responsables, sesion.email);
       const solMatch = esInvolucradoString(a.Solicitantes, sesion.email);
@@ -528,7 +555,13 @@ function listarAcuerdos(filtros) {
       acuerdos = acuerdos.filter(a => String(a.Prioridad).trim() === String(filtros.prioridad).trim());
     }
     if (filtros.subdireccion) {
-      acuerdos = acuerdos.filter(a => String(a.Subdirección_Asignada).trim() === String(filtros.subdireccion).trim());
+      acuerdos = acuerdos.filter(a => esInvolucradoMultiVal(a.Subdirección_Asignada, filtros.subdireccion));
+    }
+    if (filtros.jefatura) {
+      acuerdos = acuerdos.filter(a => esInvolucradoMultiVal(a.Jefaturas_Asignadas, filtros.jefatura));
+    }
+    if (filtros.idProyecto) {
+      acuerdos = acuerdos.filter(a => String(a.ID_Proyecto).trim() === String(filtros.idProyecto).trim());
     }
     if (filtros.origen) {
       acuerdos = acuerdos.filter(a => String(a.Origen).trim() === String(filtros.origen).trim());
@@ -670,10 +703,8 @@ function crearMinuta(data) {
     ];
     minSheet.appendRow(newMinutaRow);
 
-    // Asistencia
     guardarAsistenciaMinuta(ss, folio, data.asistencia);
 
-    // Orden del Día
     if (Array.isArray(data.ordenDelDia) && data.ordenDelDia.length > 0) {
       const oddSheet = ss.getSheetByName(HOJAS.ORDEN_DEL_DIA);
       data.ordenDelDia.forEach((odd, idx) => {
@@ -683,11 +714,11 @@ function crearMinuta(data) {
       });
     }
 
-    // Acuerdos Derivados
     if (Array.isArray(data.acuerdos) && data.acuerdos.length > 0) {
       data.acuerdos.forEach(acu => {
         acu.folioMinuta = folio;
         acu.origen = 'Minuta';
+        if (!acu.idProyecto) acu.idProyecto = data.idProyecto || '';
         crearAcuerdoInterno(acu, sesion, ss);
       });
     }
@@ -730,13 +761,11 @@ function actualizarMinuta(folio, data) {
     if (data.lugar !== undefined) minSheet.getRange(rowIndex, 6).setValue(data.lugar);
     if (data.objetivos !== undefined) minSheet.getRange(rowIndex, 7).setValue(data.objetivos);
 
-    // Reemplazar Asistencia
     if (Array.isArray(data.asistencia)) {
       eliminarRegistrosHijo(HOJAS.ASISTENCIA, 2, folio);
       guardarAsistenciaMinuta(ss, folio, data.asistencia);
     }
 
-    // Reemplazar Orden del Día
     if (Array.isArray(data.ordenDelDia)) {
       eliminarRegistrosHijo(HOJAS.ORDEN_DEL_DIA, 2, folio);
       const oddSheet = ss.getSheetByName(HOJAS.ORDEN_DEL_DIA);
@@ -800,8 +829,8 @@ function eliminarRegistrosHijo(nombreHoja, colFolioIndex, folioMinuta) {
 // --- ENVIAR MINUTA POR CORREO (PDF) ---
 function enviarMinutaPorCorreo(folio) {
   const sesion = validarSesion();
-  if (sesion.rol === ROLES.OPERADOR) {
-    throw new Error('Acción no permitida para el rol Operador.');
+  if (sesion.rol === ROLES.OPERADOR || sesion.rol === ROLES.JEFATURA) {
+    throw new Error('Acción no permitida para su rol.');
   }
 
   const ss = getSpreadsheet();
@@ -941,7 +970,7 @@ function enviarMinutaPorCorreo(folio) {
 // --- ACUERDOS ---
 function crearAcuerdo(data) {
   const sesion = validarSesion();
-  if (sesion.rol === ROLES.LECTOR) {
+  if (sesion.rol === ROLES.LECTOR || sesion.rol === ROLES.JEFATURA) {
     throw new Error('No tiene permisos para crear acuerdos.');
   }
 
@@ -962,26 +991,35 @@ function crearAcuerdoInterno(data, sesion, ss) {
   const idAcuerdo = generarIDUnico(HOJAS.ACUERDOS, prefijo);
   const now = formatDate(new Date());
 
-  const newRow = [
-    idAcuerdo,
-    origen === 'Minuta' ? (data.folioMinuta || '') : '',
-    data.tipo || 'Acuerdo',
-    data.descripcionAcuerdo || '',
-    data.prioridad || 'Media',
-    data.solicitantes || '',
-    data.responsables || '',
-    data.fechaLimite || formatDateShort(new Date()),
-    data.subdireccionAsignada || sesion.subdireccion,
-    data.estatus || 'Pendiente',
-    origen,
-    sesion.email,
-    now,
-    now
-  ];
+  const subAsignadaStr = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada.join(', ') : (data.subdireccionAsignada || sesion.subdireccion || '');
+  const jefAsignadasStr = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas.join(', ') : (data.jefaturasAsignadas || '');
 
-  acuSheet.appendRow(newRow);
+  const headers = acuSheet.getLastColumn() > 0 ? acuSheet.getRange(1, 1, 1, acuSheet.getLastColumn()).getValues()[0] : ENCABEZADOS[HOJAS.ACUERDOS];
 
-  // Enviar notificación automática por correo
+  const row = [];
+  headers.forEach(h => {
+    const hNorm = String(h).trim().toLowerCase();
+    if (hNorm === 'id_acuerdo') row.push(idAcuerdo);
+    else if (hNorm === 'folio_minuta') row.push(origen === 'Minuta' ? (data.folioMinuta || '') : '');
+    else if (hNorm === 'tipo') row.push(data.tipo || 'Acuerdo');
+    else if (hNorm === 'descripción_acuerdo' || hNorm === 'descripcion_acuerdo') row.push(data.descripcionAcuerdo || '');
+    else if (hNorm === 'prioridad') row.push(data.prioridad || 'Media');
+    else if (hNorm === 'solicitantes') row.push(data.solicitantes || '');
+    else if (hNorm === 'responsables') row.push(data.responsables || '');
+    else if (hNorm === 'fecha_límite' || hNorm === 'fecha_limite') row.push(data.fechaLimite || formatDateShort(new Date()));
+    else if (hNorm === 'subdirección_asignada' || hNorm === 'subdireccion_asignada') row.push(subAsignadaStr);
+    else if (hNorm === 'estatus') row.push(data.estatus || 'Pendiente');
+    else if (hNorm === 'origen') row.push(origen);
+    else if (hNorm === 'creado_por') row.push(sesion.email);
+    else if (hNorm === 'fecha_creación' || hNorm === 'fecha_creacion') row.push(now);
+    else if (hNorm === 'fecha_modificación' || hNorm === 'fecha_modificacion') row.push(now);
+    else if (hNorm === 'id_proyecto') row.push(data.idProyecto || '');
+    else if (hNorm === 'jefaturas_asignadas') row.push(jefAsignadasStr);
+    else row.push('');
+  });
+
+  acuSheet.appendRow(row);
+
   try {
     enviarNotificacionAcuerdoInterno(idAcuerdo, ss);
   } catch (err) {
@@ -1003,6 +1041,7 @@ function actualizarAcuerdo(idAcuerdo, data) {
     const ss = getSpreadsheet();
     const sheet = ss.getSheetByName(HOJAS.ACUERDOS);
     const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(h => String(h).trim());
 
     let rowIndex = -1;
     for (let i = 1; i < rows.length; i++) {
@@ -1016,25 +1055,44 @@ function actualizarAcuerdo(idAcuerdo, data) {
       throw new Error('Acuerdo no encontrado.');
     }
 
-    // Para rol Operador, únicamente se permite modificar el campo estatus
+    const setColValue = (colName, val) => {
+      const idx = headers.indexOf(colName);
+      if (idx !== -1) {
+        sheet.getRange(rowIndex, idx + 1).setValue(val);
+      }
+    };
+
     if (sesion.rol === ROLES.OPERADOR) {
-      if (data.estatus !== undefined) sheet.getRange(rowIndex, 10).setValue(data.estatus);
+      if (data.estatus !== undefined) setColValue('Estatus', data.estatus);
+      if (data.jefaturasAsignadas !== undefined) {
+        const jefStr = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas.join(', ') : data.jefaturasAsignadas;
+        setColValue('Jefaturas_Asignadas', jefStr);
+      }
+    } else if (sesion.rol === ROLES.JEFATURA) {
+      if (data.estatus !== undefined) setColValue('Estatus', data.estatus);
     } else {
-      if (data.tipo !== undefined) sheet.getRange(rowIndex, 3).setValue(data.tipo);
-      if (data.descripcionAcuerdo !== undefined) sheet.getRange(rowIndex, 4).setValue(data.descripcionAcuerdo);
-      if (data.prioridad !== undefined) sheet.getRange(rowIndex, 5).setValue(data.prioridad);
-      if (data.solicitantes !== undefined) sheet.getRange(rowIndex, 6).setValue(data.solicitantes);
-      if (data.responsables !== undefined) sheet.getRange(rowIndex, 7).setValue(data.responsables);
-      if (data.fechaLimite !== undefined) sheet.getRange(rowIndex, 8).setValue(data.fechaLimite);
-      if (data.subdireccionAsignada !== undefined) sheet.getRange(rowIndex, 9).setValue(data.subdireccionAsignada);
-      if (data.estatus !== undefined) sheet.getRange(rowIndex, 10).setValue(data.estatus);
+      // Administrador
+      if (data.tipo !== undefined) setColValue('Tipo', data.tipo);
+      if (data.descripcionAcuerdo !== undefined) setColValue('Descripción_Acuerdo', data.descripcionAcuerdo);
+      if (data.prioridad !== undefined) setColValue('Prioridad', data.prioridad);
+      if (data.solicitantes !== undefined) setColValue('Solicitantes', data.solicitantes);
+      if (data.responsables !== undefined) setColValue('Responsables', data.responsables);
+      if (data.fechaLimite !== undefined) setColValue('Fecha_Límite', data.fechaLimite);
+      if (data.subdireccionAsignada !== undefined) {
+        const subStr = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada.join(', ') : data.subdireccionAsignada;
+        setColValue('Subdirección_Asignada', subStr);
+      }
+      if (data.estatus !== undefined) setColValue('Estatus', data.estatus);
+      if (data.idProyecto !== undefined) setColValue('ID_Proyecto', data.idProyecto);
+      if (data.jefaturasAsignadas !== undefined) {
+        const jefStr = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas.join(', ') : data.jefaturasAsignadas;
+        setColValue('Jefaturas_Asignadas', jefStr);
+      }
     }
 
-    // Actualizar Fecha_Modificación
     const now = formatDate(new Date());
-    sheet.getRange(rowIndex, 14).setValue(now);
+    setColValue('Fecha_Modificación', now);
 
-    // Enviar notificación de actualización
     try {
       enviarNotificacionAcuerdoInterno(idAcuerdo, ss, true);
     } catch (err) {
@@ -1098,13 +1156,15 @@ function enviarRecordatorioManualAcuerdo(idAcuerdo) {
   if (!acuerdo) throw new Error('Acuerdo no encontrado.');
 
   const usuarios = getSheetData(HOJAS.USUARIOS);
-  const subAsignada = String(acuerdo.Subdirección_Asignada).trim();
+  const subAsignadas = String(acuerdo.Subdirección_Asignada || '').split(',').map(s => s.trim());
+  const jefAsignadas = String(acuerdo.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
 
   const correosSet = new Set();
 
   usuarios.forEach(u => {
-    if (String(u.Subdirección).trim() === subAsignada &&
-        (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
+    const matchSub = subAsignadas.includes(String(u.Subdirección).trim());
+    const matchJef = u.Jefatura_Departamento && jefAsignadas.includes(String(u.Jefatura_Departamento).trim());
+    if ((matchSub || matchJef) && (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
       correosSet.add(String(u.Correo).trim());
     }
   });
@@ -1128,9 +1188,9 @@ function enviarRecordatorioManualAcuerdo(idAcuerdo) {
       'SIN_DESTINATARIOS',
       asunto,
       now,
-      'Recordatorio Fallido: No hay usuarios activos en la subdirección asignada'
+      'Recordatorio Fallido: No hay usuarios activos en la subdirección/jefatura asignada'
     ]);
-    throw new Error('No hay usuarios activos registrados en la subdirección asignada como responsables.');
+    throw new Error('No hay usuarios activos registrados en las subdirecciones/jefaturas asignadas como responsables.');
   }
 
   const destinatariosStr = Array.from(correosSet).join(', ');
@@ -1141,12 +1201,13 @@ function enviarRecordatorioManualAcuerdo(idAcuerdo) {
 • Folio Minuta: ${acuerdo.Folio_Minuta || 'Individual'}
 • Descripción: ${acuerdo.Descripción_Acuerdo}
 • Subdirección Asignada: ${acuerdo.Subdirección_Asignada}
+• Jefaturas Asignadas: ${acuerdo.Jefaturas_Asignadas || 'Ninguna'}
 • Responsables: ${acuerdo.Responsables}
 • Prioridad: ${acuerdo.Prioridad}
 • Estatus Actual: ${acuerdo.Estatus}
 • Fecha Límite: ${formatDateShort(acuerdo.Fecha_Límite)}
 
-Estimada Subdirección Responsable, se le solicita atentamente revisar el avance de este acuerdo.
+Estimados responsables, se les solicita atentamente revisar el avance de este acuerdo.
 
 Atentamente,
 Sistema de Acuerdos de Dirección
@@ -1168,7 +1229,7 @@ Sistema de Acuerdos de Dirección
       'Recordatorio Enviado'
     ]);
 
-    return { success: true, message: `Recordatorio enviado a la subdirección responsable (${destinatariosStr}).` };
+    return { success: true, message: `Recordatorio enviado a los responsables (${destinatariosStr}).` };
   } catch (err) {
     logSheet.appendRow([
       idLog,
@@ -1188,12 +1249,14 @@ function enviarNotificacionAcuerdoInterno(idAcuerdo, ss, esActualizacion = false
   if (!acuerdo) return false;
 
   const usuarios = getSheetData(HOJAS.USUARIOS);
-  const subAsignada = String(acuerdo.Subdirección_Asignada).trim();
+  const subAsignadas = String(acuerdo.Subdirección_Asignada || '').split(',').map(s => s.trim());
+  const jefAsignadas = String(acuerdo.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
 
-  const usuariosDestino = usuarios.filter(u =>
-    String(u.Subdirección).trim() === subAsignada &&
-    (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')
-  );
+  const usuariosDestino = usuarios.filter(u => {
+    const matchSub = subAsignadas.includes(String(u.Subdirección).trim());
+    const matchJef = u.Jefatura_Departamento && jefAsignadas.includes(String(u.Jefatura_Departamento).trim());
+    return (matchSub || matchJef) && (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI');
+  });
 
   const correosDestinoSet = new Set(usuariosDestino.map(u => String(u.Correo).trim()));
 
@@ -1219,7 +1282,7 @@ function enviarNotificacionAcuerdoInterno(idAcuerdo, ss, esActualizacion = false
       'SIN_DESTINATARIOS',
       asunto,
       now,
-      'Fallido: No hay usuarios activos en la subdirección'
+      'Fallido: No hay usuarios activos en la subdirección/jefatura'
     ]);
     return { success: false, reason: 'Sin destinatarios activos' };
   }
@@ -1235,7 +1298,8 @@ Se ha ${esActualizacion ? 'actualizado' : 'registrado'} un acuerdo en el Sistema
 • ID / Folio: ${acuerdo.ID_Acuerdo} ${acuerdo.Folio_Minuta ? '(' + acuerdo.Folio_Minuta + ')' : ''}
 • Descripción: ${acuerdo.Descripción_Acuerdo}
 • Prioridad: ${acuerdo.Prioridad}
-• Subdirección Asignada: ${acuerdo.Subdirección_Asignada}
+• Subdirecciones Asignadas: ${acuerdo.Subdirección_Asignada}
+• Jefaturas Asignadas: ${acuerdo.Jefaturas_Asignadas || 'Ninguna'}
 • Estatus: ${acuerdo.Estatus}
 • Fecha Límite: ${formatDateShort(acuerdo.Fecha_Límite)}
 • Responsables: ${acuerdo.Responsables}
@@ -1333,10 +1397,13 @@ function procesarRecordatorios() {
       });
     }
 
-    const subAsignada = String(acuerdo.Subdirección_Asignada).trim();
+    const subAsignadas = String(acuerdo.Subdirección_Asignada || '').split(',').map(s => s.trim());
+    const jefAsignadas = String(acuerdo.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
+
     usuarios.forEach(u => {
-      if (String(u.Subdirección).trim() === subAsignada &&
-          (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
+      const matchSub = subAsignadas.includes(String(u.Subdirección).trim());
+      const matchJef = u.Jefatura_Departamento && jefAsignadas.includes(String(u.Jefatura_Departamento).trim());
+      if ((matchSub || matchJef) && (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
         correosSet.add(String(u.Correo).trim());
       }
     });
@@ -1373,6 +1440,7 @@ function procesarRecordatorios() {
 • Folio Minuta: ${acuerdo.Folio_Minuta || 'Individual'}
 • Descripción: ${acuerdo.Descripción_Acuerdo}
 • Subdirección Asignada: ${acuerdo.Subdirección_Asignada}
+• Jefaturas Asignadas: ${acuerdo.Jefaturas_Asignadas || 'Ninguna'}
 • Estatus Actual: ${acuerdo.Estatus}
 • Fecha Límite: ${formatDateShort(acuerdo.Fecha_Límite)}
 
@@ -1451,6 +1519,9 @@ function guardarUsuario(data) {
       sheet.getRange(rowIndex, 3).setValue(data.rol || ROLES.OPERADOR);
       sheet.getRange(rowIndex, 4).setValue(data.subdireccion || '');
       sheet.getRange(rowIndex, 5).setValue(data.activo || 'Sí');
+      if (sheet.getLastColumn() >= 6) {
+        sheet.getRange(rowIndex, 6).setValue(data.jefaturaDepartamento || '');
+      }
       return { success: true, message: 'Usuario actualizado correctamente.' };
     } else {
       sheet.appendRow([
@@ -1458,7 +1529,8 @@ function guardarUsuario(data) {
         data.nombre || '',
         data.rol || ROLES.OPERADOR,
         data.subdireccion || '',
-        data.activo || 'Sí'
+        data.activo || 'Sí',
+        data.jefaturaDepartamento || ''
       ]);
       return { success: true, message: 'Usuario registrado correctamente.' };
     }
@@ -1510,6 +1582,12 @@ function obtenerCatalogos() {
       'Subdirección de Mejora Regulatoria',
       'Subdirección de Patrimonio Municipal',
       'Subdirección de Ventanilla Única'
+    ],
+    Jefatura: [
+      'Departamento de Compras',
+      'Departamento de Servicios Generales',
+      'Departamento de Nóminas',
+      'Departamento de Optimización Regulatoria'
     ],
     Etapa: [],
     Prioridad: [],
@@ -1617,8 +1695,10 @@ function obtenerKPIsDashboard() {
     else if (est === 'Cumplido') cumplidos++;
     else if (est === 'Cancelado') cancelados++;
 
-    const sub = String(a.Subdirección_Asignada).trim() || 'Sin Asignar';
-    porSubdireccion[sub] = (porSubdireccion[sub] || 0) + 1;
+    const subs = String(a.Subdirección_Asignada || 'Sin Asignar').split(',').map(s => s.trim());
+    subs.forEach(sub => {
+      porSubdireccion[sub] = (porSubdireccion[sub] || 0) + 1;
+    });
 
     if (est === 'Pendiente' || est === 'En Proceso') {
       if (a.Fecha_Límite) {
@@ -1653,5 +1733,97 @@ function obtenerKPIsDashboard() {
     porVencer,
     vencidos,
     porSubdireccion
+  };
+}
+
+function obtenerKPIsAdminDashboard() {
+  const sesion = validarSesion();
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('El Dashboard de Administración es exclusivo para el rol Administrador.');
+  }
+
+  const acuerdos = getSheetData(HOJAS.ACUERDOS);
+  const usuarios = getSheetData(HOJAS.USUARIOS);
+
+  // 1. Productividad por responsable & Carga actual & Eficiencia
+  const respStats = {};
+
+  acuerdos.forEach(a => {
+    const est = String(a.Estatus).trim();
+    const resps = String(a.Responsables || 'Sin Asignar').split(',').map(r => r.trim());
+
+    resps.forEach(r => {
+      if (!r) return;
+      if (!respStats[r]) {
+        respStats[r] = {
+          responsable: r,
+          totalAsignados: 0,
+          cerrados: 0,
+          pendientesEnProceso: 0,
+          tiempoCumplimientoDiasSum: 0,
+          tiempoCumplimientoCount: 0
+        };
+      }
+
+      respStats[r].totalAsignados++;
+      if (est === 'Cumplido') {
+        respStats[r].cerrados++;
+
+        // Calcular tiempo de cumplimiento
+        if (a.Fecha_Creación && a.Fecha_Modificación) {
+          const fCrea = new Date(a.Fecha_Creación);
+          const fMod = new Date(a.Fecha_Modificación);
+          if (!isNaN(fCrea.getTime()) && !isNaN(fMod.getTime()) && fMod >= fCrea) {
+            const diffDias = (fMod.getTime() - fCrea.getTime()) / (1000 * 60 * 60 * 24);
+            respStats[r].tiempoCumplimientoDiasSum += diffDias;
+            respStats[r].tiempoCumplimientoCount++;
+          }
+        }
+      } else if (est === 'Pendiente' || est === 'En Proceso') {
+        respStats[r].pendientesEnProceso++;
+      }
+    });
+  });
+
+  const tablaProductividad = Object.values(respStats).map(st => {
+    const eficiencia = st.totalAsignados > 0 ? Math.round((st.cerrados / st.totalAsignados) * 100) : 0;
+    const tiempoPromedioDias = st.tiempoCumplimientoCount > 0 ? (st.tiempoCumplimientoDiasSum / st.tiempoCumplimientoCount).toFixed(1) : 'N/A';
+    return {
+      responsable: st.responsable,
+      totalAsignados: st.totalAsignados,
+      cerrados: st.cerrados,
+      cargaActual: st.pendientesEnProceso,
+      eficiencia: eficiencia,
+      tiempoPromedioDias: tiempoPromedioDias
+    };
+  });
+
+  // 2. Acuerdos atendidos por mes (Cumplidos)
+  const atendidosPorMes = {};
+  acuerdos.forEach(a => {
+    if (String(a.Estatus).trim() === 'Cumplido') {
+      const fechaRef = a.Fecha_Modificación || a.Fecha_Creación;
+      if (fechaRef) {
+        let mesClave = 'S/F';
+        if (typeof fechaRef === 'string') {
+          mesClave = fechaRef.substring(0, 7); // yyyy-MM
+        } else if (fechaRef instanceof Date) {
+          mesClave = formatDateShort(fechaRef).substring(0, 7);
+        }
+        atendidosPorMes[mesClave] = (atendidosPorMes[mesClave] || 0) + 1;
+      }
+    }
+  });
+
+  // 3. Eficiencia General
+  const totalCerradosGeneral = acuerdos.filter(a => String(a.Estatus).trim() === 'Cumplido').length;
+  const eficienciaGeneral = acuerdos.length > 0 ? Math.round((totalCerradosGeneral / acuerdos.length) * 100) : 0;
+
+  return {
+    tablaProductividad,
+    atendidosPorMes,
+    eficienciaGeneral,
+    totalAcuerdosGeneral: acuerdos.length,
+    totalCerradosGeneral
   };
 }

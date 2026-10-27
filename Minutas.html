@@ -100,8 +100,8 @@
               <input type="hidden" id="minuta-folio">
               <div class="row g-3">
                 <div class="col-12 col-md-6">
-                  <label for="minuta-proyecto" class="form-label fw-semibold">Proyecto Vinculado</label>
-                  <select class="form-select" id="minuta-proyecto">
+                  <label for="minuta-proyecto" class="form-label fw-semibold">Proyecto Principal de la Reunión</label>
+                  <select class="form-select" id="minuta-proyecto" onchange="actualizarProyectosPorDefectoAcuerdosMinuta();">
                     <option value="">-- Sin Proyecto (Opcional) --</option>
                   </select>
                 </div>
@@ -190,13 +190,14 @@
                 <table class="table table-bordered table-sm align-middle" id="tabla-form-acuerdos">
                   <thead class="table-light">
                     <tr>
-                      <th style="width: 120px;">Tipo</th>
+                      <th style="width: 110px;">Proyecto</th>
+                      <th style="width: 110px;">Tipo</th>
                       <th>Descripción del Acuerdo</th>
-                      <th style="width: 100px;">Prioridad</th>
-                      <th>Solicitantes</th>
+                      <th style="width: 90px;">Prioridad</th>
                       <th>Responsables</th>
-                      <th style="width: 130px;">Fecha Límite</th>
-                      <th>Subdirección</th>
+                      <th style="width: 120px;">Fecha Límite</th>
+                      <th>Subdirecciones</th>
+                      <th>Jefaturas</th>
                       <th style="width: 50px;"></th>
                     </tr>
                   </thead>

@@ -86,7 +86,7 @@
   </div>
 
   <!-- Desglose por Subdirección y Estado -->
-  <div class="row g-4">
+  <div class="row g-4 mb-4">
     <div class="col-12 col-lg-6">
       <div class="card shadow-sm border-0 rounded-3">
         <div class="card-header bg-white fw-bold border-bottom">
@@ -123,4 +123,90 @@
       </div>
     </div>
   </div>
+
+  <!-- SECCIÓN EXCLUSIVA PARA ADMINISTRADOR -->
+  <div id="seccion-admin-dashboard" class="d-none">
+    <hr class="my-4">
+    <div class="d-flex align-items-center mb-3">
+      <span class="badge bg-danger fs-6 me-2">Administrador</span>
+      <h4 class="fw-bold m-0 text-dark"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Métricas Ejecutivas de Rendimiento</h4>
+    </div>
+
+    <!-- KPIs de Eficiencia General -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-primary">
+          <div class="text-muted small fw-semibold text-uppercase">Eficiencia General (% Cerrados)</div>
+          <div class="fs-2 fw-bold text-primary" id="admin-kpi-eficiencia">0%</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-success">
+          <div class="text-muted small fw-semibold text-uppercase">Acuerdos Cerrados Totales</div>
+          <div class="fs-2 fw-bold text-success" id="admin-kpi-cerrados">0</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-info">
+          <div class="text-muted small fw-semibold text-uppercase">Total de Acuerdos Registrados</div>
+          <div class="fs-2 fw-bold text-info" id="admin-kpi-totales">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <!-- Productividad, Carga Actual y Tiempo Promedio por Responsable -->
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+          <div class="card-header bg-white fw-bold py-3 border-bottom">
+            <i class="bi bi-person-workspace me-2 text-primary"></i>Productividad, Carga Actual y Tiempo Promedio por Responsable
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0" id="tabla-admin-productividad">
+                <thead class="table-light">
+                  <tr>
+                    <th>Responsable</th>
+                    <th class="text-center">Asignados</th>
+                    <th class="text-center">Cerrados</th>
+                    <th class="text-center">Carga Actual</th>
+                    <th class="text-center">Tiempo Prom. (Días)</th>
+                    <th class="text-end">Eficiencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Inyectado por JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acuerdos Atendidos por Mes -->
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm rounded-3">
+          <div class="card-header bg-white fw-bold py-3 border-bottom">
+            <i class="bi bi-calendar-check me-2 text-primary"></i>Acuerdos Atendidos por Mes
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0" id="tabla-admin-mes">
+                <thead class="table-light">
+                  <tr>
+                    <th>Mes (AAAA-MM)</th>
+                    <th class="text-end">Atendidos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Inyectado por JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>

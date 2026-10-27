@@ -14,7 +14,7 @@
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-2">
           <label class="form-label small fw-semibold">Buscar por palabra</label>
           <input type="text" class="form-control form-control-sm" id="filtro-acuerdo-busqueda" placeholder="ID, descripción, persona..." onkeyup="filtrarAcuerdos();">
         </div>
@@ -30,13 +30,19 @@
             <option value="">-- Todas --</option>
           </select>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
           <label class="form-label small fw-semibold">Subdirección</label>
           <select class="form-select form-select-sm" id="filtro-acuerdo-subdireccion" onchange="filtrarAcuerdos();">
             <option value="">-- Todas --</option>
           </select>
         </div>
-        <div class="col-6 col-md-2 d-flex align-items-end">
+        <div class="col-6 col-md-2">
+          <label class="form-label small fw-semibold">Jefatura / Depto</label>
+          <select class="form-select form-select-sm" id="filtro-acuerdo-jefatura" onchange="filtrarAcuerdos();">
+            <option value="">-- Todas --</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-2 d-flex align-items-end">
           <button class="btn btn-outline-secondary btn-sm w-100" onclick="limpiarFiltrosAcuerdo();">
             <i class="bi bi-x-circle me-1"></i> Limpiar Filtros
           </button>
@@ -53,11 +59,12 @@
           <thead>
             <tr>
               <th>ID Acuerdo</th>
+              <th>Proyecto</th>
               <th>Folio / Origen</th>
               <th>Tipo</th>
               <th>Descripción</th>
               <th>Prioridad</th>
-              <th>Subdirección</th>
+              <th>Subdirecciones / Jefaturas</th>
               <th>Responsables</th>
               <th>Fecha Límite</th>
               <th>Estatus</th>
@@ -89,6 +96,12 @@
 
           <div class="row g-3">
             <div class="col-12 col-md-6">
+              <label for="acuerdo-proyecto" class="form-label fw-semibold">Proyecto Vinculado</label>
+              <select class="form-select" id="acuerdo-proyecto">
+                <option value="">-- Sin Proyecto --</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3">
               <label for="acuerdo-tipo" class="form-label fw-semibold">Tipo *</label>
               <select class="form-select" id="acuerdo-tipo" required>
                 <option value="Acuerdo">Acuerdo</option>
@@ -97,7 +110,7 @@
                 <option value="Informativo">Informativo</option>
               </select>
             </div>
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-3">
               <label for="acuerdo-prioridad" class="form-label fw-semibold">Prioridad *</label>
               <select class="form-select" id="acuerdo-prioridad" required></select>
             </div>
@@ -118,13 +131,26 @@
               <input type="date" class="form-control" id="acuerdo-fecha-limite" required>
             </div>
             <div class="col-12 col-md-4">
-              <label for="acuerdo-subdireccion" class="form-label fw-semibold">Subdirección Asignada *</label>
-              <select class="form-select" id="acuerdo-subdireccion" required></select>
-            </div>
-            <div class="col-12 col-md-4">
               <label for="acuerdo-estatus" class="form-label fw-semibold">Estatus *</label>
               <select class="form-select" id="acuerdo-estatus" required></select>
             </div>
+
+            <!-- Múltiples Subdirecciones Responsables -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold d-block">Subdirección(es) Responsable(s) *</label>
+              <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-subdirecciones">
+                <!-- Checkboxes inyectados por JS -->
+              </div>
+            </div>
+
+            <!-- Múltiples Jefaturas / Departamentos Responsables -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold d-block">Jefatura(s) / Departamento(s) Responsables</label>
+              <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-jefaturas">
+                <!-- Checkboxes inyectados por JS -->
+              </div>
+            </div>
+
           </div>
         </div>
         <div class="modal-footer bg-light">

@@ -3,7 +3,7 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="fw-bold mb-1"><i class="bi bi-people text-primary me-2"></i>Gestión de Usuarios</h3>
-      <p class="text-muted small mb-0">Administración de acceso, roles y asignación de subdirecciones</p>
+      <p class="text-muted small mb-0">Administración de acceso, roles y asignación de subdirecciones/jefaturas</p>
     </div>
     <button class="btn btn-primary-custom rounded-pill px-3 sol-admin-only" onclick="abrirModalNuevoUsuario();">
       <i class="bi bi-person-plus me-1"></i> Registrar Usuario
@@ -20,6 +20,7 @@
               <th>Nombre Completo</th>
               <th>Rol</th>
               <th>Subdirección</th>
+              <th>Jefatura / Depto</th>
               <th>Activo</th>
               <th class="text-end sol-admin-only">Acciones</th>
             </tr>
@@ -57,7 +58,8 @@
             <label for="usuario-rol" class="form-label fw-semibold">Rol *</label>
             <select class="form-select" id="usuario-rol" required>
               <option value="Administrador">Administrador</option>
-              <option value="Operador">Operador</option>
+              <option value="Operador">Operador (Subdirección)</option>
+              <option value="Jefatura">Jefatura (Departamento)</option>
               <option value="Lector">Lector</option>
             </select>
           </div>
@@ -65,6 +67,11 @@
           <div class="mb-3">
             <label for="usuario-subdireccion" class="form-label fw-semibold">Subdirección *</label>
             <select class="form-select" id="usuario-subdireccion" required></select>
+          </div>
+
+          <div class="mb-3">
+            <label for="usuario-jefatura" class="form-label fw-semibold">Jefatura / Departamento (Opcional)</label>
+            <select class="form-select" id="usuario-jefatura"></select>
           </div>
 
           <div class="mb-3">

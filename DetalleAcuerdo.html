@@ -27,11 +27,15 @@
           </div>
 
           <div class="row g-3 mb-3">
-            <div class="col-6 col-sm-4">
+            <div class="col-12 col-sm-6">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Proyecto</label>
+              <span id="det-acuerdo-proyecto" class="fw-medium text-primary">-</span>
+            </div>
+            <div class="col-6 col-sm-3">
               <label class="text-muted small fw-semibold text-uppercase d-block">Origen</label>
               <span id="det-acuerdo-origen" class="fw-medium">-</span>
             </div>
-            <div class="col-6 col-sm-4">
+            <div class="col-6 col-sm-3">
               <label class="text-muted small fw-semibold text-uppercase d-block">Folio Minuta</label>
               <span id="det-acuerdo-folio-minuta" class="fw-medium">-</span>
             </div>
@@ -57,8 +61,12 @@
 
           <div class="row g-3">
             <div class="col-12 col-sm-6">
-              <label class="text-muted small fw-semibold text-uppercase d-block">Subdirección Asignada</label>
+              <label class="text-muted small fw-semibold text-uppercase d-block">Subdirecciones Asignadas</label>
               <span id="det-acuerdo-subdireccion" class="fw-medium">-</span>
+            </div>
+            <div class="col-12 col-sm-6">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Jefaturas / Departamentos</label>
+              <span id="det-acuerdo-jefaturas" class="fw-medium text-dark">-</span>
             </div>
             <div class="col-12 col-sm-6">
               <label class="text-muted small fw-semibold text-uppercase d-block">Creado Por</label>
@@ -68,8 +76,8 @@
               <label class="text-muted small fw-semibold text-uppercase d-block">Solicitantes</label>
               <span id="det-acuerdo-solicitantes" class="fw-medium">-</span>
             </div>
-            <div class="col-12 col-sm-6">
-              <label class="text-muted small fw-semibold text-uppercase d-block">Responsables</label>
+            <div class="col-12">
+              <label class="text-muted small fw-semibold text-uppercase d-block">Responsables Personales</label>
               <span id="det-acuerdo-responsables" class="fw-medium text-primary">-</span>
             </div>
           </div>
@@ -134,25 +142,34 @@
   </div>
 </div>
 
-<!-- Modal Cambiar Estatus para Operador -->
+<!-- Modal Cambiar Estatus para Operador / Jefatura -->
 <div class="modal fade" id="modalEstatusAcuerdo" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-primary-custom text-white">
-        <h5 class="modal-title fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Cambiar Estatus del Acuerdo</h5>
+        <h5 class="modal-title fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Gestión de Acuerdo (Estatus / Asignación)</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="form-estatus-acuerdo" onsubmit="event.preventDefault(); guardarCambioEstatusModal();">
         <div class="modal-body">
           <input type="hidden" id="modal-estatus-id-acuerdo">
+
           <div class="mb-3">
-            <label for="modal-estatus-select" class="form-label fw-semibold">Seleccionar Nuevo Estatus *</label>
+            <label for="modal-estatus-select" class="form-label fw-semibold">Estatus del Acuerdo *</label>
             <select class="form-select" id="modal-estatus-select" required></select>
+          </div>
+
+          <!-- Asignación de Jefaturas por parte de Subdirección (Operador) -->
+          <div class="mb-3" id="seccion-operador-jefaturas">
+            <label class="form-label fw-semibold">Asignar Jefatura(s) / Departamento(s) Responsable(s)</label>
+            <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="modal-operador-check-jefaturas">
+              <!-- Checkboxes inyectados por JS -->
+            </div>
           </div>
         </div>
         <div class="modal-footer bg-light">
           <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Actualizar Estatus</button>
+          <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Guardar Cambios</button>
         </div>
       </form>
     </div>
