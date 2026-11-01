@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi Portal de Cliente - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="?p=portal-usuario" class="nav-brand">
+      🎮 <span>PixelFix</span>
+      <span class="tag" id="tagTipoUsuario">Cliente</span>
+    </a>
+    <ul class="nav-menu">
+      <li><span id="navUsuarioNombre" style="color: #cbd5e1; font-size: 0.88rem;">Cargando...</span></li>
+      <li><button onclick="App.logout('?p=login')" class="btn btn-secondary btn-sm" style="color: #ffffff; background: #334155;">Cerrar Sesión</button></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- Alertas -->
+    <div id="alertPortal" style="display: none;"></div>
+
+    <!-- Banner Superior con Puntos -->
+    <div class="stats-grid">
+      <div class="stat-card" style="border-top-color: #6366f1;">
+        <div class="stat-label">🌟 Mis PixelPoints Acumulados</div>
+        <div class="stat-val" id="valPuntos" style="color: #4f46e5;">0 pts</div>
+        <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">Puntos válidos para canje de servicios</div>
+      </div>
+      <div class="stat-card" style="border-top-color: #10b981;">
+        <div class="stat-label">📦 Órdenes Registradas</div>
+        <div class="stat-val" id="valOrdenes" style="color: #059669;">0</div>
+        <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">Total de servicios ingresados</div>
+      </div>
+      <div class="stat-card" style="border-top-color: #0ea5e9;">
+        <div class="stat-label">👥 Responsables Solidarios</div>
+        <div class="stat-val" id="valResponsables" style="color: #0284c7;">0</div>
+        <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">Personas autorizadas</div>
+      </div>
+    </div>
+
+    <!-- Pestañas de Navegación del Portal -->
+    <div style="display: flex; gap: 0.5rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1.5rem; overflow-x: auto;">
+      <button class="btn btn-secondary btn-sm" id="tabBtnOrdenes" onclick="switchTab('ordenes')" style="border-radius: 8px 8px 0 0; background: #ffffff; font-weight: bold; border-bottom: none;">
+        📦 Mis Consolas y Órdenes
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnPuntos" onclick="switchTab('puntos')" style="border-radius: 8px 8px 0 0;">
+        🎁 Catálogo de Puntos y Canjes
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnMovimientos" onclick="switchTab('movimientos')" style="border-radius: 8px 8px 0 0;">
+        📜 Historial de Puntos
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnResponsables" onclick="switchTab('responsables')" style="border-radius: 8px 8px 0 0;">
+        👥 Responsables Autorizados
+      </button>
+    </div>
+
+    <!-- TAB 1: Órdenes y Consolas -->
+    <div id="tabContentOrdenes">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📦 Historial de Órdenes y Reparaciones</h2>
+          <button class="btn btn-secondary btn-sm" onclick="cargarMisOrdenes()">🔄 Actualizar</button>
+        </div>
+
+        <div id="contenedorMisOrdenes">
+          <div style="text-align: center; padding: 2rem; color: #64748b;">
+            <span class="spinner" style="border-top-color: #4f46e5; width: 2rem; height: 2rem;"></span>
+            <p style="margin-top: 0.5rem;">Cargando tus órdenes...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Catálogo de Recompensas -->
+    <div id="tabContentPuntos" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🎁 Catálogo de Recompensas y Canjes</h2>
+        </div>
+        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.25rem;">
+          Tus puntos acumulados pueden canjearse en el mostrador del taller o con tu tarjeta NFC registrada por los siguientes servicios:
+        </p>
+
+        <div id="gridRecompensas" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+          <!-- Inyectado por JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Historial de Movimientos de Puntos -->
+    <div id="tabContentMovimientos" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📜 Movimientos de Puntos PixelPoints</h2>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha/Hora</th>
+                <th>Tipo</th>
+                <th>Puntos</th>
+                <th>Saldo Anterior</th>
+                <th>Saldo Nuevo</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyMovimientosPuntos">
+              <tr><td colspan="6" style="text-align: center;">Cargando movimientos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Responsables Solidarios -->
+    <div id="tabContentResponsables" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">👥 Personas Autorizadas (Responsables Solidarios)</h2>
+          <button class="btn btn-primary btn-sm" onclick="abrirModalResponsable()">+ Agregar Responsable</button>
+        </div>
+        <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 1rem;">
+          Estas personas están autorizadas para preguntar por tus consolas o retirarlas en taller presentando su identificación oficial.
+        </p>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Teléfono</th>
+                <th>Correo</th>
+                <th>Relación</th>
+                <th>Fecha Registro</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyResponsables">
+              <tr><td colspan="5" style="text-align: center;">Cargando responsables...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal para Agregar Responsable Solidario -->
+  <div id="modalResponsable" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Agregar Responsable Autorizado</h3>
+        <button class="modal-close" onclick="cerrarModalResponsable()">&times;</button>
+      </div>
+      <form id="formAgregarResp" onsubmit="guardarResponsable(event)">
+        <div class="form-group">
+          <label for="newRespNombre">Nombre completo *</label>
+          <input type="text" id="newRespNombre" class="input-control" required placeholder="Ej. Carlos Mendoza Gómez">
+        </div>
+        <div class="form-group">
+          <label for="newRespTel">Teléfono *</label>
+          <input type="tel" id="newRespTel" class="input-control" required placeholder="Ej. 5587654321">
+        </div>
+        <div class="form-group">
+          <label for="newRespCorreo">Correo electrónico:</label>
+          <input type="email" id="newRespCorreo" class="input-control" placeholder="carlos@correo.com">
+        </div>
+        <div class="form-group">
+          <label for="newRespRelacion">Relación / Cargo *</label>
+          <input type="text" id="newRespRelacion" class="input-control" required placeholder="Ej. Hermano, Esposa, Empleado...">
+        </div>
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalResponsable()">Cancelar</button>
+          <button type="submit" id="btnGuardarResp" class="btn btn-primary">Guardar Responsable</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer>
+    <p>PixelFix &copy; <?= new Date().getFullYear() ?> - Taller de Consolas</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    var sessionUser = null;
+    var cachedPuntosData = null;
+
+    window.onload = function() {
+      var token = App.getToken();
+      sessionUser = App.getUserData();
+
+      if (!token || !sessionUser) {
+        window.location.href = '?p=login';
+        return;
+      }
+
+      document.getElementById('navUsuarioNombre').innerText = sessionUser.name + ' (' + (sessionUser.email || '') + ')';
+      document.getElementById('tagTipoUsuario').innerText = sessionUser.tipoUsuario || 'Cliente';
+
+      cargarMisOrdenes();
+      cargarMisPuntos();
+      cargarMisResponsables();
+    };
+
+    function switchTab(tab) {
+      ['ordenes', 'puntos', 'movimientos', 'responsables'].forEach(function(t) {
+        var content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
+        var btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (content) content.style.display = (t === tab) ? 'block' : 'none';
+        if (btn) {
+          btn.style.background = (t === tab) ? '#ffffff' : '#f1f5f9';
+          btn.style.fontWeight = (t === tab) ? 'bold' : 'normal';
+        }
+      });
+    }
+
+    function cargarMisOrdenes() {
+      var token = App.getToken();
+      var contenedor = document.getElementById('contenedorMisOrdenes');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            contenedor.innerHTML = '<div class="alert alert-danger">Error: ' + res.error + '</div>';
+            return;
+          }
+
+          var ordenes = res.data || [];
+          document.getElementById('valOrdenes').innerText = ordenes.length;
+
+          if (ordenes.length === 0) {
+            contenedor.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;">No tienes órdenes de servicio registradas aún.</div>';
+            return;
+          }
+
+          var html = '';
+          ordenes.forEach(function(o) {
+            html += '<div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; background: #ffffff;">';
+            html += '  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; margin-bottom: 0.75rem;">';
+            html += '    <div>';
+            html += '      <strong style="color: #4338ca; font-size: 1.15rem;">Orden ' + o.folio + '</strong>';
+            html += '      <span style="font-size: 0.85rem; color: #64748b; margin-left: 0.5rem;">(' + o.fechaCreacion + ')</span>';
+            html += '    </div>';
+            html += '    <div style="display: flex; align-items: center; gap: 0.75rem;">';
+            html += '      <div>' + App.getOrderStatusBadge(o.estadoOrden) + '</div>';
+            html += '    </div>';
+            html += '  </div>';
+
+            html += '  <div style="display: grid; gap: 0.75rem; margin-bottom: 1rem;">';
+            o.dispositivos.forEach(function(d) {
+              var bg = (d.estatus === 'Listo') ? '#f0fdf4' : '#f8fafc';
+              html += '    <div style="border: 1px solid #e2e8f0; background: ' + bg + '; border-radius: 6px; padding: 0.85rem;">';
+              html += '      <div style="display: flex; justify-content: space-between; align-items: flex-start;">';
+              html += '        <div>';
+              html += '          <div style="font-weight: 700; color: #1e293b;">🎮 ' + d.tipoDispositivo + ' - ' + d.marca + ' ' + d.modelo + '</div>';
+              html += '          <div style="font-size: 0.82rem; color: #64748b;">Serie: <code>' + d.numeroSerie + '</code></div>';
+              html += '          <div style="font-size: 0.86rem; color: #475569; margin-top: 4px;">Falla: ' + d.fallaReportada + '</div>';
+              html += '          <div style="font-size: 0.86rem; color: #334155; margin-top: 2px;">Diagnóstico: <em>' + d.diagnostico + '</em></div>';
+              html += '        </div>';
+              html += '        <div style="text-align: right;">';
+              html += '          <div>' + App.getStatusBadge(d.estatus) + '</div>';
+              html += '          <div style="font-weight: 700; font-size: 0.95rem; color: #0f172a; margin-top: 0.4rem;">' + App.formatCurrency(d.costo) + '</div>';
+              if (d.entregadoParcial === 'SI') {
+                html += '          <div style="font-size: 0.75rem; color: #059669; font-weight: 600;">✓ Entregado individualmente</div>';
+              }
+              html += '        </div>';
+              html += '      </div>';
+              html += '    </div>';
+            });
+            html += '  </div>';
+
+            html += '  <div style="display: flex; justify-content: flex-end; gap: 1.5rem; font-size: 0.9rem; border-top: 1px solid #f1f5f9; padding-top: 0.75rem;">';
+            html += '    <div>Total Orden: <strong>' + App.formatCurrency(o.totalEstimado) + '</strong></div>';
+            html += '    <div>Pagado: <strong style="color: #059669;">' + App.formatCurrency(o.totalCobrado) + '</strong></div>';
+            html += '    <div>Saldo Pendiente: <strong style="color: #dc2626;">' + App.formatCurrency(o.saldo) + '</strong></div>';
+            html += '  </div>';
+
+            html += '</div>';
+          });
+
+          contenedor.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          contenedor.innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
+        })
+        .apiObtenerMisOrdenes(token);
+    }
+
+    function cargarMisPuntos() {
+      var token = App.getToken();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) return;
+          var data = res.data;
+          cachedPuntosData = data;
+
+          document.getElementById('valPuntos').innerText = data.puntosActuales + ' pts';
+
+          // Render catálogo de recompensas
+          var grid = document.getElementById('gridRecompensas');
+          var catalogo = data.catalogoRecompensas || [];
+          var htmlCat = '';
+
+          catalogo.forEach(function(r) {
+            var alcanzable = data.puntosActuales >= r.puntosRequeridos;
+            var borderCard = alcanzable ? '#10b981' : '#e2e8f0';
+
+            htmlCat += '<div style="background: #ffffff; border: 2px solid ' + borderCard + '; border-radius: 10px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between;">';
+            htmlCat += '  <div>';
+            htmlCat += '    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">';
+            htmlCat += '      <span style="font-size: 1.25rem;">⭐</span>';
+            htmlCat += '      <span class="badge" style="background: #e0e7ff; color: #3730a3; font-size: 0.85rem;">' + r.puntosRequeridos + ' PUNTOS</span>';
+            htmlCat += '    </div>';
+            htmlCat += '    <h3 style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 0.35rem;">' + r.nombre + '</h3>';
+            htmlCat += '    <p style="font-size: 0.82rem; color: #64748b;">' + r.descripcion + '</p>';
+            htmlCat += '  </div>';
+            htmlCat += '  <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed #e2e8f0; font-size: 0.8rem;">';
+            if (alcanzable) {
+              htmlCat += '    <span style="color: #059669; font-weight: 700;">✓ ¡Tienes puntos suficientes para canjearlo en taller!</span>';
+            } else {
+              var faltan = r.puntosRequeridos - data.puntosActuales;
+              htmlCat += '    <span style="color: #64748b;">Te faltan <strong>' + faltan + ' pts</strong> para esta recompensa.</span>';
+            }
+            htmlCat += '  </div>';
+            htmlCat += '</div>';
+          });
+          grid.innerHTML = htmlCat;
+
+          // Render historial movimientos
+          var tbodyMov = document.getElementById('tbodyMovimientosPuntos');
+          var movs = data.movimientos || [];
+          if (movs.length === 0) {
+            tbodyMov.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No hay movimientos de puntos registrados aún.</td></tr>';
+          } else {
+            var htmlMov = '';
+            movs.forEach(function(m) {
+              var colorPts = m.puntos > 0 ? '#10b981' : '#ef4444';
+              var signo = m.puntos > 0 ? '+' : '';
+              htmlMov += '<tr>';
+              htmlMov += '  <td>' + m.fechaHora + '</td>';
+              htmlMov += '  <td><span class="badge" style="background: #f1f5f9; color: #334155;">' + m.tipoMovimiento + '</span></td>';
+              htmlMov += '  <td style="font-weight: 700; color: ' + colorPts + ';">' + signo + m.puntos + '</td>';
+              htmlMov += '  <td>' + m.saldoAnterior + '</td>';
+              htmlMov += '  <td><strong>' + m.saldoNuevo + '</strong></td>';
+              htmlMov += '  <td>' + m.motivo + '</td>';
+              htmlMov += '</tr>';
+            });
+            tbodyMov.innerHTML = htmlMov;
+          }
+        })
+        .apiObtenerMisPuntos(token);
+    }
+
+    function cargarMisResponsables() {
+      var token = App.getToken();
+      if (!sessionUser) return;
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) return;
+          var resps = res.data || [];
+          document.getElementById('valResponsables').innerText = resps.length;
+
+          var tbody = document.getElementById('tbodyResponsables');
+          if (resps.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #64748b;">No tienes responsables registrados. Agrega uno si deseas que otra persona pueda recoger tus equipos.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          resps.forEach(function(r) {
+            html += '<tr>';
+            html += '  <td><strong>' + r.Nombre + '</strong></td>';
+            html += '  <td>' + (r.Telefono || 'N/A') + '</td>';
+            html += '  <td>' + (r.Correo || 'N/A') + '</td>';
+            html += '  <td><span class="badge" style="background: #e0f2fe; color: #0369a1;">' + r.Relacion + '</span></td>';
+            html += '  <td>' + r.FechaRegistro + '</td>';
+            html += '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .apiObtenerResponsablesDeUsuario(token, sessionUser.userId);
+    }
+
+    function abrirModalResponsable() {
+      document.getElementById('modalResponsable').style.display = 'flex';
+    }
+
+    function cerrarModalResponsable() {
+      document.getElementById('modalResponsable').style.display = 'none';
+      document.getElementById('formAgregarResp').reset();
+    }
+
+    function guardarResponsable(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var btn = document.getElementById('btnGuardarResp');
+      var alertDiv = 'alertPortal';
+
+      var payload = {
+        nombre: document.getElementById('newRespNombre').value.trim(),
+        telefono: document.getElementById('newRespTel').value.trim(),
+        correo: document.getElementById('newRespCorreo').value.trim(),
+        relacion: document.getElementById('newRespRelacion').value.trim()
+      };
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Responsable';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          cerrarModalResponsable();
+          App.showAlert(alertDiv, '✅ Responsable autorizado guardado con éxito.', 'success');
+          cargarMisResponsables();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Responsable';
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiAgregarResponsable(token, payload);
+    }
+  </script>
+</body>
+</html>

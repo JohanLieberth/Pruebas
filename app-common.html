@@ -1,0 +1,146 @@
+<script>
+  /**
+   * app-common.html - Librería común de Frontend para PixelFix
+   */
+
+  var App = {
+    // Almacenamiento local de sesión
+    STORAGE_KEYS: {
+      TOKEN: 'pixelfix_session_token',
+      USER_DATA: 'pixelfix_user_data'
+    },
+
+    saveSession: function(data) {
+      if (!data || !data.token) return;
+      sessionStorage.setItem(App.STORAGE_KEYS.TOKEN, data.token);
+      localStorage.setItem(App.STORAGE_KEYS.TOKEN, data.token);
+      var userPayload = JSON.stringify(data);
+      sessionStorage.setItem(App.STORAGE_KEYS.USER_DATA, userPayload);
+      localStorage.setItem(App.STORAGE_KEYS.USER_DATA, userPayload);
+    },
+
+    getToken: function() {
+      return sessionStorage.getItem(App.STORAGE_KEYS.TOKEN) || localStorage.getItem(App.STORAGE_KEYS.TOKEN) || null;
+    },
+
+    getUserData: function() {
+      var raw = sessionStorage.getItem(App.STORAGE_KEYS.USER_DATA) || localStorage.getItem(App.STORAGE_KEYS.USER_DATA);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    },
+
+    clearSession: function() {
+      sessionStorage.removeItem(App.STORAGE_KEYS.TOKEN);
+      sessionStorage.removeItem(App.STORAGE_KEYS.USER_DATA);
+      localStorage.removeItem(App.STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(App.STORAGE_KEYS.USER_DATA);
+    },
+
+    logout: function(redirectTo) {
+      var token = App.getToken();
+      if (token && typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.apiLogout(token);
+      }
+      App.clearSession();
+      window.location.href = redirectTo || '?p=index';
+    },
+
+    // Notificaciones y alertas dinámicas en contenedores
+    showAlert: function(containerId, message, type) {
+      var el = document.getElementById(containerId);
+      if (!el) return;
+      type = type || 'info'; // 'info', 'success', 'warning', 'danger'
+      el.className = 'alert alert-' + type;
+      el.innerHTML = message;
+      el.style.display = 'flex';
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+
+    hideAlert: function(containerId) {
+      var el = document.getElementById(containerId);
+      if (el) el.style.display = 'none';
+    },
+
+    // Formateador de moneda MXN
+    formatCurrency: function(val) {
+      var n = Number(val) || 0;
+      return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    // Mapeador de etiquetas de estatus con clases CSS
+    getStatusBadge: function(estatus) {
+      var s = String(estatus || 'Pendiente').trim();
+      var cls = 'badge-pendiente';
+      var lower = s.toLowerCase();
+
+      if (lower.indexOf('reparaci') !== -1) cls = 'badge-en-reparacion';
+      else if (lower.indexOf('prueba') !== -1) cls = 'badge-pruebas';
+      else if (lower.indexOf('listo') !== -1) cls = 'badge-listo';
+      else if (lower.indexOf('entregado') !== -1) cls = 'badge-entregado';
+      else if (lower.indexOf('cancelado') !== -1) cls = 'badge-cancelado';
+
+      return '<span class="badge ' + cls + '">' + s + '</span>';
+    },
+
+    getOrderStatusBadge: function(estado) {
+      var s = String(estado || 'Abierta').trim();
+      var cls = 'badge-abierta';
+      var lower = s.toLowerCase();
+
+      if (lower === 'parcial') cls = 'badge-parcial';
+      else if (lower === 'completada') cls = 'badge-completada';
+      else if (lower === 'cancelada') cls = 'badge-cancelado';
+
+      return '<span class="badge ' + cls + '">' + s + '</span>';
+    },
+
+    // Soporte para Web NFC con detección de compatibilidad y fallback
+    isWebNfcSupported: function() {
+      return ('NDEFReader' in window);
+    },
+
+    readNfcTag: function(onSuccess, onError) {
+      if (!App.isWebNfcSupported()) {
+        if (onError) onError('Web NFC no está soportado en este dispositivo o navegador. Utiliza la entrada manual de UID/código.');
+        return;
+      }
+
+      try {
+        var ndef = new NDEFReader();
+        ndef.scan().then(function() {
+          ndef.onreadingerror = function() {
+            if (onError) onError('Error de lectura NFC. No se pudo leer la tarjeta.');
+          };
+          ndef.onreading = function(event) {
+            var serial = event.serialNumber || '';
+            if (serial) {
+              if (onSuccess) onSuccess(serial);
+            } else {
+              // Intentar leer registros
+              var message = event.message;
+              var text = '';
+              for (var i = 0; i < message.records.length; i++) {
+                var record = message.records[i];
+                if (record.recordType === 'text') {
+                  var textDecoder = new TextDecoder(record.encoding || 'utf-8');
+                  text = textDecoder.decode(record.data);
+                  break;
+                }
+              }
+              if (text && onSuccess) onSuccess(text);
+              else if (onError) onError('No se detectó número de serie UID en la tarjeta NFC.');
+            }
+          };
+        }).catch(function(err) {
+          if (onError) onError('Error al iniciar escáner NFC: ' + (err.message || err));
+        });
+      } catch (ex) {
+        if (onError) onError('Error iniciando Web NFC: ' + ex.message);
+      }
+    }
+  };
+</script>

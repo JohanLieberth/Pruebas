@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Registro de Cuenta - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="?p=index" class="nav-brand">
+      🎮 <span>PixelFix</span>
+      <span class="tag">Registro</span>
+    </a>
+    <ul class="nav-menu">
+      <li><a href="?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="?p=consulta" class="nav-link">Consulta</a></li>
+      <li><a href="?p=login" class="nav-link">Iniciar Sesión</a></li>
+      <li><a href="?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content" style="max-width: 680px;">
+    <div class="card">
+      <div class="card-header">
+        <h1 class="card-title">📝 Registro de Cliente / Taller</h1>
+      </div>
+
+      <div class="alert alert-info">
+        💡 <strong>Beneficio:</strong> Al registrarte acumularás puntos de cliente frecuente en cada orden, podrás consultar el historial completo de tus consolas y recibirás un correo de confirmación con tus datos.
+      </div>
+
+      <div id="alertRegistro" style="display: none;"></div>
+
+      <form id="formRegistro" onsubmit="procesarRegistro(event)">
+
+        <div class="form-row">
+          <div class="form-col">
+            <label for="tipoUsuario">Tipo de cuenta *</label>
+            <select id="tipoUsuario" class="input-control" required onchange="adaptarFormularioTipo()">
+              <option value="Normal">Cliente Normal (Particular / Gamer)</option>
+              <option value="Taller">Taller Aliado (Distribuidor / Negocio)</option>
+            </select>
+          </div>
+          <div class="form-col">
+            <label for="nombreCliente" id="lblNombre">Nombre completo *</label>
+            <input type="text" id="nombreCliente" class="input-control" placeholder="Ej. Juan Pérez González" required minlength="3">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label for="correoCliente">Correo electrónico *</label>
+            <input type="email" id="correoCliente" class="input-control" placeholder="tu@correo.com" required>
+            <small style="color: #64748b; font-size: 0.78rem;">Se enviará tu confirmación de registro a este correo.</small>
+          </div>
+          <div class="form-col">
+            <label for="telefonoCliente">Teléfono / WhatsApp *</label>
+            <input type="tel" id="telefonoCliente" class="input-control" placeholder="Ej. 5512345678" required minlength="8">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label for="passwordCliente">Contraseña *</label>
+            <input type="password" id="passwordCliente" class="input-control" placeholder="Mínimo 6 caracteres" required minlength="6">
+            <small style="color: #64748b; font-size: 0.78rem;">Almacenada con cifrado SHA-256 + Salt seguro.</small>
+          </div>
+          <div class="form-col">
+            <label for="passwordConfirm">Confirmar contraseña *</label>
+            <input type="password" id="passwordConfirm" class="input-control" placeholder="Repite tu contraseña" required minlength="6">
+          </div>
+        </div>
+
+        <!-- Sección de Responsable Solidario Opcional -->
+        <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
+          <h3 style="font-size: 1rem; font-weight: 700; color: #334155; margin-bottom: 0.5rem;">
+            👥 Responsable Solidario Autorizado (Opcional)
+          </h3>
+          <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem;">
+            Puedes registrar a un familiar, empleado o socio con autorización para consultar el estatus o recoger tus equipos en taller.
+          </p>
+
+          <div class="form-row">
+            <div class="form-col">
+              <label for="respNombre">Nombre del responsable:</label>
+              <input type="text" id="respNombre" class="input-control" placeholder="Nombre completo">
+            </div>
+            <div class="form-col">
+              <label for="respTelefono">Teléfono del responsable:</label>
+              <input type="tel" id="respTelefono" class="input-control" placeholder="Teléfono de contacto">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-col">
+              <label for="respCorreo">Correo del responsable:</label>
+              <input type="email" id="respCorreo" class="input-control" placeholder="correo@ejemplo.com">
+            </div>
+            <div class="form-col">
+              <label for="respRelacion">Relación / Cargo:</label>
+              <input type="text" id="respRelacion" class="input-control" placeholder="Ej. Hermano, Socio, Encargado...">
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+          <button type="submit" id="btnRegistrar" class="btn btn-primary btn-block" style="padding: 0.75rem; font-size: 1rem;">
+            <span>Crear Cuenta y Activar Puntos</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    <p>PixelFix &copy; <?= new Date().getFullYear() ?> - Taller de Consolas</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    function adaptarFormularioTipo() {
+      var tipo = document.getElementById('tipoUsuario').value;
+      var lbl = document.getElementById('lblNombre');
+      var inp = document.getElementById('nombreCliente');
+      if (tipo === 'Taller') {
+        lbl.innerText = 'Razón Social o Nombre del Taller *';
+        inp.placeholder = 'Ej. Taller Videojuegos Pro S.A.';
+      } else {
+        lbl.innerText = 'Nombre completo *';
+        inp.placeholder = 'Ej. Juan Pérez González';
+      }
+    }
+
+    function procesarRegistro(e) {
+      e.preventDefault();
+      var pass = document.getElementById('passwordCliente').value;
+      var passConf = document.getElementById('passwordConfirm').value;
+      var alertId = 'alertRegistro';
+      var btn = document.getElementById('btnRegistrar');
+
+      if (pass !== passConf) {
+        App.showAlert(alertId, '❌ Las contraseñas no coinciden. Por favor verifícalas.', 'warning');
+        return;
+      }
+
+      var datos = {
+        tipoUsuario: document.getElementById('tipoUsuario').value,
+        nombre: document.getElementById('nombreCliente').value.trim(),
+        correo: document.getElementById('correoCliente').value.trim(),
+        telefono: document.getElementById('telefonoCliente').value.trim(),
+        password: pass
+      };
+
+      var respNombre = document.getElementById('respNombre').value.trim();
+      if (respNombre) {
+        datos.responsable = {
+          nombre: respNombre,
+          telefono: document.getElementById('respTelefono').value.trim(),
+          correo: document.getElementById('respCorreo').value.trim(),
+          relacion: document.getElementById('respRelacion').value.trim()
+        };
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Registrando y enviando confirmación...';
+      App.hideAlert(alertId);
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Crear Cuenta y Activar Puntos</span>';
+
+          if (!res.success) {
+            App.showAlert(alertId, '❌ ' + res.error, 'danger');
+            return;
+          }
+
+          App.saveSession(res.data);
+          App.showAlert(alertId, '✅ ' + res.message + ' Redirigiendo a tu panel...', 'success');
+          setTimeout(function() {
+            window.location.href = '?p=portal-usuario';
+          }, 1200);
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Crear Cuenta y Activar Puntos</span>';
+          App.showAlert(alertId, '❌ Error de comunicación: ' + err.message, 'danger');
+        })
+        .apiRegistrarUsuario(datos);
+    }
+  </script>
+</body>
+</html>

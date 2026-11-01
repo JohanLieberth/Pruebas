@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title><?= appName ?> - Taller de Consolas de Videojuegos</title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <a href="?p=index" class="nav-brand">
+      🎮 <span>PixelFix</span>
+      <span class="tag">Consolas</span>
+    </a>
+    <ul class="nav-menu">
+      <li><a href="?p=consulta" class="nav-link">🔍 Consulta de Estatus</a></li>
+      <li><a href="?p=login" class="nav-link">👤 Portal Clientes</a></li>
+      <li><a href="?p=registro" class="nav-link">📝 Registrarse</a></li>
+      <li><a href="?p=login-admin" class="nav-link" style="color: #93c5fd;">🛠️ Staff / Admin</a></li>
+    </ul>
+  </nav>
+
+  <!-- Contenido Principal -->
+  <main class="main-content">
+
+    <!-- Hero Banner -->
+    <div class="card" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: #ffffff; padding: 2.5rem 1.5rem; text-align: center; border: none;">
+      <h1 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 0.75rem;">Reparación y Mantenimiento de Consolas</h1>
+      <p style="font-size: 1.1rem; color: #c7d2fe; max-width: 700px; margin: 0 auto 1.5rem auto;">
+        Servicio especializado en PlayStation, Xbox, Nintendo Switch, Steam Deck y controles. Diagnóstico profesional, refacciones de alta calidad y garantía por escrito.
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="?p=consulta" class="btn btn-primary" style="background: #4f46e5; padding: 0.75rem 1.5rem; font-size: 1rem;">
+          🔍 Consultar Estatus de mi Consola
+        </a>
+        <a href="?p=registro" class="btn btn-secondary" style="padding: 0.75rem 1.5rem; font-size: 1rem; background: #ffffff; color: #1e1b4b;">
+          🎁 Crear Cuenta y Ganar Puntos
+        </a>
+      </div>
+    </div>
+
+    <!-- Búsqueda Rápida de Estatus -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">🔍 Rastreo Express de Reparación (Sin Registro)</h2>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.25rem;">
+        Ingresa tu número de folio de orden (ejemplo: <code>OS-20250101-0001</code>), tu correo, tu número telefónico o el número de serie de tu consola:
+      </p>
+
+      <form id="formBusquedaExpress" onsubmit="realizarBusquedaExpress(event)">
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <input type="text" id="inputCriterioExpress" class="input-control" style="flex: 1; min-width: 260px;" placeholder="Folio (OS-...), Correo, Teléfono o Número de Serie..." required>
+          <button type="submit" id="btnBuscarExpress" class="btn btn-primary">
+            <span>Rastrear Equipo</span>
+          </button>
+        </div>
+      </form>
+
+      <div id="alertExpress" style="display: none; margin-top: 1.25rem;"></div>
+
+      <div id="contenedorResultadosExpress" style="margin-top: 1.5rem; display: none;">
+        <h3 style="font-size: 1.1rem; margin-bottom: 1rem; color: #334155;">Resultados de tu búsqueda:</h3>
+        <div id="listaResultadosExpress"></div>
+      </div>
+    </div>
+
+    <!-- Puntos y Beneficios -->
+    <div class="stats-grid">
+      <div class="stat-card" style="border-top-color: #6366f1;">
+        <div class="stat-label">🎮 Programa PixelPoints</div>
+        <div class="stat-val" style="font-size: 1.3rem; margin-top: 0.5rem; color: #4338ca;">Acumula Puntos</div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Gana puntos en cada servicio o mantenimiento y canjéalos por reparaciones gratis.</p>
+      </div>
+      <div class="stat-card" style="border-top-color: #0ea5e9;">
+        <div class="stat-label">🤝 Clientes y Talleres</div>
+        <div class="stat-val" style="font-size: 1.3rem; margin-top: 0.5rem; color: #0284c7;">Atención a Talleres</div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Registra tu taller aliado para gestionar lotes multi-consola y responsables solidarios.</p>
+      </div>
+      <div class="stat-card" style="border-top-color: #10b981;">
+        <div class="stat-label">⚡ Multi-Dispositivos</div>
+        <div class="stat-val" style="font-size: 1.3rem; margin-top: 0.5rem; color: #059669;">Entrega Parcial</div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Si dejas varias consolas o controles, retira cada equipo conforme quede listo.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>🎮 <strong>PixelFix</strong> &copy; <?= new Date().getFullYear() ?> - Taller Especializado en Consolas y Controles</p>
+    <p style="font-size: 0.75rem; margin-top: 0.25rem;">Seguridad con SHA-256 + Salt • Plataforma en Google Apps Script & Google Sheets</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    function realizarBusquedaExpress(e) {
+      e.preventDefault();
+      var criterio = document.getElementById('inputCriterioExpress').value.trim();
+      var btn = document.getElementById('btnBuscarExpress');
+      var alertDiv = 'alertExpress';
+      var resCont = document.getElementById('contenedorResultadosExpress');
+      var lista = document.getElementById('listaResultadosExpress');
+
+      if (!criterio) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Buscando...';
+      App.hideAlert(alertDiv);
+      resCont.style.display = 'none';
+      lista.innerHTML = '';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Rastrear Equipo</span>';
+
+          if (!res.success) {
+            App.showAlert(alertDiv, '❌ ' + res.error, 'danger');
+            return;
+          }
+
+          var datos = res.data;
+          if (!datos || datos.length === 0) {
+            App.showAlert(alertDiv, '🔍 No se encontraron órdenes o dispositivos con el criterio: <strong>' + criterio + '</strong>. Verifica el número de folio o teléfono.', 'warning');
+            return;
+          }
+
+          resCont.style.display = 'block';
+          var html = '';
+
+          datos.forEach(function(orden) {
+            html += '<div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; background: #ffffff;">';
+            html += '  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; margin-bottom: 0.75rem;">';
+            html += '    <div><strong style="color: #4338ca; font-size: 1.05rem;">Folio: ' + orden.folio + '</strong> <span style="color: #64748b; font-size: 0.85rem;">(' + orden.fechaCreacion + ')</span></div>';
+            html += '    <div>' + App.getOrderStatusBadge(orden.estadoOrden) + '</div>';
+            html += '  </div>';
+
+            html += '  <p style="font-size: 0.88rem; color: #475569; margin-bottom: 0.75rem;">Cliente: <strong>' + orden.clienteNombreParcial + '...</strong></p>';
+
+            html += '  <div style="display: grid; gap: 0.75rem;">';
+            orden.dispositivos.forEach(function(d) {
+              var bgCallout = d.estaListo ? '#ecfdf5' : '#f8fafc';
+              var borderColor = d.estaListo ? '#10b981' : '#e2e8f0';
+
+              html += '    <div style="background: ' + bgCallout + '; border: 1px solid ' + borderColor + '; border-radius: 6px; padding: 0.85rem;">';
+              html += '      <div style="display: flex; justify-content: space-between; align-items: flex-start;">';
+              html += '        <div>';
+              html += '          <strong style="color: #1e293b;">🎮 ' + d.tipoDispositivo + ' - ' + d.marca + ' ' + d.modelo + '</strong>';
+              html += '          <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">Serie: <code>' + d.numeroSerie + '</code></div>';
+              html += '          <div style="font-size: 0.85rem; color: #475569; margin-top: 4px;">Falla: ' + d.fallaReportada + '</div>';
+              html += '        </div>';
+              html += '        <div style="text-align: right;">' + App.getStatusBadge(d.estatus) + '</div>';
+              html += '      </div>';
+              html += '      <div style="font-size: 0.82rem; margin-top: 0.5rem; padding-top: 0.4rem; border-top: 1px dashed ' + borderColor + '; color: #334155;">';
+              html += '        📢 <strong>' + d.mensajePublico + '</strong> <span style="color: #94a3b8;">(Actualizado: ' + d.fechaHoraEstatus + ')</span>';
+              html += '      </div>';
+              html += '    </div>';
+            });
+            html += '  </div>';
+            html += '</div>';
+          });
+
+          lista.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Rastrear Equipo</span>';
+          App.showAlert(alertDiv, '❌ Error al conectar con el servidor: ' + err.message, 'danger');
+        })
+        .apiConsultarPublica(criterio);
+    }
+  </script>
+</body>
+</html>

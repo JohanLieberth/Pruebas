@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Acceso Staff / Técnico - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body style="background-color: #0f172a;">
+
+  <nav class="navbar" style="background: #1e293b; border-bottom: 1px solid #334155;">
+    <a href="?p=index" class="nav-brand">
+      🎮 <span>PixelFix</span>
+      <span class="tag" style="background: #3b82f6;">Panel Interno</span>
+    </a>
+    <ul class="nav-menu">
+      <li><a href="?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="?p=consulta" class="nav-link">Consulta Pública</a></li>
+      <li><a href="?p=login" class="nav-link">Portal Clientes</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content" style="max-width: 440px; margin-top: 3rem;">
+    <div class="card" style="background: #1e293b; border-color: #334155; color: #f8fafc; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <div style="font-size: 2.8rem; margin-bottom: 0.5rem;">🛠️</div>
+        <h1 style="font-size: 1.4rem; font-weight: 700; color: #ffffff;">Acceso Administrativo y Técnico</h1>
+        <p style="font-size: 0.85rem; color: #94a3b8;">Ingresa con tus credenciales asignadas de taller</p>
+      </div>
+
+      <div id="alertLoginAdmin" style="display: none;"></div>
+
+      <form id="formLoginAdmin" onsubmit="iniciarSesionAdmin(event)">
+        <div class="form-group">
+          <label for="adminEmail" style="color: #cbd5e1;">Correo de Staff:</label>
+          <input type="email" id="adminEmail" class="input-control" placeholder="admin@pixelfix.com" required style="background: #0f172a; border-color: #475569; color: #ffffff;" autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label for="adminPassword" style="color: #cbd5e1;">Contraseña:</label>
+          <input type="password" id="adminPassword" class="input-control" placeholder="••••••••" required style="background: #0f172a; border-color: #475569; color: #ffffff;" autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="btnAdminLogin" class="btn btn-primary btn-block" style="padding: 0.75rem; margin-top: 1.25rem; background: #4f46e5;">
+          <span>Ingresar al Sistema</span>
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <footer style="background: transparent; color: #64748b;">
+    <p>PixelFix Security • Verificación de Roles y Token Criptográfico</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    // Si ya tiene sesión activa de admin o técnico, redirigir
+    (function() {
+      var token = App.getToken();
+      var user = App.getUserData();
+      if (token && user) {
+        if (user.role === 'Administrador') {
+          window.location.href = '?p=portal-admin';
+        } else if (user.role === 'Tecnico') {
+          window.location.href = '?p=portal-tecnico';
+        }
+      }
+    })();
+
+    function iniciarSesionAdmin(e) {
+      e.preventDefault();
+      var email = document.getElementById('adminEmail').value.trim();
+      var password = document.getElementById('adminPassword').value;
+      var btn = document.getElementById('btnAdminLogin');
+      var alertId = 'alertLoginAdmin';
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Verificando credenciales...';
+      App.hideAlert(alertId);
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Ingresar al Sistema</span>';
+
+          if (!res.success) {
+            App.showAlert(alertId, '❌ ' + res.error, 'danger');
+            return;
+          }
+
+          App.saveSession(res.data);
+          App.showAlert(alertId, '✅ ' + res.message + '. Redirigiendo...', 'success');
+
+          setTimeout(function() {
+            if (res.data.role === 'Administrador') {
+              window.location.href = '?p=portal-admin';
+            } else if (res.data.role === 'Tecnico') {
+              window.location.href = '?p=portal-tecnico';
+            } else {
+              window.location.href = '?p=index';
+            }
+          }, 600);
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Ingresar al Sistema</span>';
+          App.showAlert(alertId, '❌ Error al conectar: ' + err.message, 'danger');
+        })
+        .apiLoginAdmin(email, password);
+    }
+  </script>
+</body>
+</html>
