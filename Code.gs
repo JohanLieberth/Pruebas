@@ -240,6 +240,15 @@ function ensureSchema() {
       } catch (ignore) {}
     }
 
+    // Garantizar existencia del administrador principal inicial de forma idempotente
+    try {
+      if (typeof Auth !== 'undefined' && typeof Auth.ensureInitialAdmin === 'function') {
+        Auth.ensureInitialAdmin();
+      }
+    } catch (errAdmin) {
+      Logger.log('ensureSchema: Advertencia asegurando admin inicial: ' + errAdmin.message);
+    }
+
     SpreadsheetApp.flush();
     return {
       success: true,
@@ -337,41 +346,44 @@ function setup() {
     Logger.log('Catálogo de recompensas inicial sembrado');
   }
 
-  // 4. Sembrar Administrador Principal inicial usando ScriptProperties
-  var adminEmail = props.getProperty(CONFIG.PROP_ADMIN_EMAIL) || 'admin@pixelfix.com';
+  // 4. Sembrar Administrador Principal inicial usando ScriptProperties y Auth.ensureInitialAdmin()
+  var adminEmail = props.getProperty(CONFIG.PROP_ADMIN_EMAIL) || 'sakurazukamori21@gmail.com';
   var adminNombre = props.getProperty(CONFIG.PROP_ADMIN_NOMBRE) || 'Administrador Principal';
-  var adminPass = props.getProperty(CONFIG.PROP_ADMIN_PASSWORD) || 'Admin123!';
+  var adminPass = props.getProperty(CONFIG.PROP_ADMIN_PASSWORD) || 'Monster123';
 
-  var adminSheet = ss.getSheetByName(CONFIG.SHEETS.USUARIOS_ADMIN);
-  var adminData = adminSheet.getDataRange().getValues();
-  var adminExiste = false;
-
-  for (var a = 1; a < adminData.length; a++) {
-    if (String(adminData[a][2] || '').trim().toLowerCase() === adminEmail.trim().toLowerCase()) {
-      adminExiste = true;
-      break;
-    }
+  if (typeof Auth !== 'undefined' && typeof Auth.ensureInitialAdmin === 'function') {
+    Auth.ensureInitialAdmin();
   }
 
-  if (!adminExiste) {
-    var salt = Utils.generateSalt(16);
-    var hash = Utils.hashPassword(adminPass, salt);
-    var idAdmin = Utils.generateId('ADM');
-
-    adminSheet.appendRow([
-      idAdmin,
-      adminNombre,
-      adminEmail.trim().toLowerCase(),
-      '5512345678',
-      hash,
-      salt,
-      CONFIG.ROLES.ADMINISTRADOR,
-      'SI',
-      Utils.formatDateTime(),
-      'SetupInicial'
-    ]);
-
-    Logger.log('Administrador sembrado con éxito: ' + adminEmail + ' (Contraseña inicial: ' + adminPass + ')');
+  // Si en ScriptProperties se configuró un correo adicional distinto a sakurazukamori21@gmail.com, sembrarlo también
+  if (adminEmail.toLowerCase() !== 'sakurazukamori21@gmail.com') {
+    var adminSheet = ss.getSheetByName(CONFIG.SHEETS.USUARIOS_ADMIN);
+    var adminData = adminSheet.getDataRange().getValues();
+    var adminExiste = false;
+    for (var a = 1; a < adminData.length; a++) {
+      if (String(adminData[a][2] || '').trim().toLowerCase() === adminEmail.trim().toLowerCase()) {
+        adminExiste = true;
+        break;
+      }
+    }
+    if (!adminExiste) {
+      var salt = Utils.generateSalt(16);
+      var hash = Utils.hashPassword(adminPass, salt);
+      var idAdmin = Utils.generateId('ADM');
+      Utils.appendRecord(CONFIG.SHEETS.USUARIOS_ADMIN, {
+        IDAdmin: idAdmin,
+        Nombre: adminNombre,
+        Correo: adminEmail.trim().toLowerCase(),
+        Telefono: '5512345678',
+        PasswordHash: hash,
+        PasswordSalt: salt,
+        Rol: CONFIG.ROLES.ADMINISTRADOR,
+        Activo: 'SI',
+        FechaCreacion: Utils.formatDateTime(),
+        CreadoPor: 'SetupInicial'
+      });
+      Logger.log('Administrador secundario sembrado: ' + adminEmail);
+    }
   }
 
   // Marcar flag de verificación en cache para evitar re-verificación inmediata en el primer request
