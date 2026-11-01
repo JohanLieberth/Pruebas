@@ -1,7 +1,92 @@
 <script>
   /**
-   * app-common.html - Librería común de Frontend para PixelFix
+   * app-common.html - Librería común de Frontend y protección de postMessage para PixelFix
    */
+
+  /**
+   * Helper único y seguro para sanitizar targetOrigin en window.postMessage
+   * Previene errores 'SyntaxError: Invalid URI' en entornos sandboxed o cross-frame
+   */
+  function safeResolveTargetOrigin(targetOrigin) {
+    if (targetOrigin === '*') return '*';
+
+    // Si es cadena no vacía
+    if (typeof targetOrigin === 'string' && targetOrigin.trim() !== '') {
+      var trimmed = targetOrigin.trim();
+      // Validar si cumple con formato de origen absoluto (http:// o https://)
+      if (/^https?:\/\/[^\/\s]+(?::\d+)?\/?$/i.test(trimmed)) {
+        try {
+          return new URL(trimmed).origin;
+        } catch (e) {
+          // Si falla parseo de URL, continuar al fallback
+        }
+      }
+    }
+
+    // Fallback prioritario: window.location.origin si es un origen HTTP/HTTPS válido
+    try {
+      if (window.location && window.location.origin && window.location.origin !== 'null' && window.location.origin.indexOf('http') === 0) {
+        return window.location.origin;
+      }
+    } catch (eLocation) {}
+
+    // En entornos sandboxed (origin = 'null' o iframe sandboxed de Google Apps Script), usar '*' documentado
+    return '*';
+  }
+
+  /**
+   * Helper global seguro safePostMessage
+   * @param {Window} targetWindow - La ventana o iframe destino (window, window.parent, window.top)
+   * @param {*} data - Los datos a transmitir
+   * @param {string} [targetOrigin] - Origen esperado opcional
+   */
+  function safePostMessage(targetWindow, data, targetOrigin) {
+    if (!targetWindow || typeof targetWindow.postMessage !== 'function') {
+      return false;
+    }
+    var resolvedOrigin = safeResolveTargetOrigin(targetOrigin);
+    try {
+      targetWindow.postMessage(data, resolvedOrigin);
+      return true;
+    } catch (errPost) {
+      // Fallback defensivo a '*' si falló por discrepancia de origen
+      try {
+        targetWindow.postMessage(data, '*');
+        return true;
+      } catch (errFallback) {
+        console.warn('safePostMessage: No se pudo enviar el mensaje:', errFallback.message || errFallback);
+        return false;
+      }
+    }
+  }
+
+  // Interceptar defensivamente llamadas directas a postMessage en window
+  (function installPostMessageInterceptor() {
+    try {
+      var originalWindowPostMessage = window.postMessage;
+      if (typeof originalWindowPostMessage === 'function') {
+        window.postMessage = function(message, targetOrigin, transfer) {
+          var safeOrigin = safeResolveTargetOrigin(targetOrigin);
+          try {
+            if (transfer !== undefined) {
+              return originalWindowPostMessage.call(window, message, safeOrigin, transfer);
+            } else {
+              return originalWindowPostMessage.call(window, message, safeOrigin);
+            }
+          } catch (errCall) {
+            // Reintento con '*' si arrojó Invalid URI
+            try {
+              return originalWindowPostMessage.call(window, message, '*');
+            } catch (errIgnore) {
+              console.warn('window.postMessage interceptor: error evitado:', errIgnore.message);
+            }
+          }
+        };
+      }
+    } catch (errInstall) {
+      console.warn('No se pudo envolver window.postMessage:', errInstall.message);
+    }
+  })();
 
   var App = {
     // Almacenamiento local de sesión
@@ -9,6 +94,8 @@
       TOKEN: 'pixelfix_session_token',
       USER_DATA: 'pixelfix_user_data'
     },
+
+    safePostMessage: safePostMessage,
 
     saveSession: function(data) {
       if (!data || !data.token) return;
