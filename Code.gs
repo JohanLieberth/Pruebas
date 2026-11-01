@@ -3,6 +3,37 @@
  */
 
 /**
+ * Fuente única de verdad para el mapeo ruta (parámetro p) -> nombre de plantilla HTML
+ */
+var PAGES = {
+  'index': 'index',
+  'inicio': 'index',
+  'home': 'index',
+  'consulta': 'consulta-publica',
+  'consulta-publica': 'consulta-publica',
+  'consultapublica': 'consulta-publica',
+  'login': 'login-usuario',
+  'login-usuario': 'login-usuario',
+  'loginusuario': 'login-usuario',
+  'registro': 'registro-usuario',
+  'registro-usuario': 'registro-usuario',
+  'registrousuario': 'registro-usuario',
+  'portal-usuario': 'portal-usuario',
+  'usuario': 'portal-usuario',
+  'portalusuario': 'portal-usuario',
+  'login-admin': 'login-admin',
+  'admin-login': 'login-admin',
+  'loginadmin': 'login-admin',
+  'adminlogin': 'login-admin',
+  'admin': 'portal-admin',
+  'portal-admin': 'portal-admin',
+  'portaladmin': 'portal-admin',
+  'tecnico': 'portal-tecnico',
+  'portal-tecnico': 'portal-tecnico',
+  'portaltecnico': 'portal-tecnico'
+};
+
+/**
  * Manejador principal HTTP GET de la Web App
  */
 function doGet(e) {
@@ -13,51 +44,43 @@ function doGet(e) {
     Logger.log('Advertencia en ensureSchemaOnStartup: ' + errSchema.message);
   }
 
-  var page = (e && e.parameter && e.parameter.p) ? e.parameter.p.toLowerCase() : 'index';
-  var templateName = 'index';
+  var requestedPage = (e && e.parameter && e.parameter.p) ? String(e.parameter.p).trim().toLowerCase() : 'index';
+  var templateName = PAGES[requestedPage];
 
-  switch (page) {
-    case 'consulta':
-    case 'consulta-publica':
-      templateName = 'consulta-publica';
-      break;
-    case 'login':
-    case 'login-usuario':
-      templateName = 'login-usuario';
-      break;
-    case 'registro':
-    case 'registro-usuario':
-      templateName = 'registro-usuario';
-      break;
-    case 'portal-usuario':
-    case 'usuario':
-      templateName = 'portal-usuario';
-      break;
-    case 'login-admin':
-    case 'admin-login':
-      templateName = 'login-admin';
-      break;
-    case 'admin':
-    case 'portal-admin':
-      templateName = 'portal-admin';
-      break;
-    case 'tecnico':
-    case 'portal-tecnico':
-      templateName = 'portal-tecnico';
-      break;
-    default:
-      templateName = 'index';
-      break;
+  // Fallback controlado: si la ruta no existe, renderizar siempre la página de inicio en vez de una pantalla en blanco
+  if (!templateName) {
+    Logger.log('Ruta no reconocida: "' + requestedPage + '". Redirigiendo a vista principal index.');
+    templateName = 'index';
   }
 
-  var template = HtmlService.createTemplateFromFile(templateName);
-  template.pageParam = page;
-  template.appName = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix';
+  try {
+    var template = HtmlService.createTemplateFromFile(templateName);
+    template.pageParam = requestedPage;
+    template.appName = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix';
 
-  return template.evaluate()
-    .setTitle(template.appName)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    // Obtener la URL del servicio Web App de forma segura para navegación
+    var scriptUrl = '';
+    try {
+      scriptUrl = ScriptApp.getService().getUrl();
+    } catch (ignoreUrl) {}
+    template.scriptUrl = scriptUrl;
+
+    return template.evaluate()
+      .setTitle(template.appName)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (renderError) {
+    Logger.log('Error evaluando plantilla "' + templateName + '": ' + renderError.message);
+    // Fallback de emergencia ante cualquier error de plantilla
+    return HtmlService.createHtmlOutput(
+      '<!DOCTYPE html><html><head><base target="_top"><meta charset="UTF-8"><title>PixelFix</title>' +
+      '<style>body{font-family:sans-serif;padding:2rem;text-align:center;background:#f8fafc;color:#1e293b;}' +
+      '.box{max-width:500px;margin:3rem auto;background:#fff;padding:2rem;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 6px rgba(0,0,0,0.05);}' +
+      'a{display:inline-block;margin-top:1rem;padding:0.6rem 1.2rem;background:#4f46e5;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;}' +
+      '</style></head><body><div class="box"><h2>🎮 PixelFix - Taller de Consolas</h2><p>Ocurrió un error al cargar la vista solicitada (' + templateName + ').</p>' +
+      '<a href="?p=index">Regresar al Inicio</a></div></body></html>'
+    ).setTitle('PixelFix - Error');
+  }
 }
 
 /**
@@ -232,7 +255,11 @@ function include(filename) {
  * Retorna la URL pública de la Web App actual para redirecciones y navegación
  */
 function getScriptUrl() {
-  return ScriptApp.getService().getUrl();
+  try {
+    return ScriptApp.getService().getUrl();
+  } catch (e) {
+    return '?p=index';
+  }
 }
 
 /**

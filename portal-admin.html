@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <title>Portal de Administración - <?= appName ?></title>
   <?!= include('styles'); ?>
@@ -492,7 +493,13 @@
       sessionUser = App.getUserData();
 
       if (!token || !sessionUser || sessionUser.role !== 'Administrador') {
-        window.location.href = '?p=login-admin';
+        var alertEl = document.getElementById('alertAdmin');
+        if (alertEl) {
+          App.showAlert('alertAdmin', '⚠️ Acceso restringido. Por favor inicia sesión como Administrador. Redirigiendo...', 'warning');
+        }
+        setTimeout(function() {
+          window.location.href = '?p=login-admin';
+        }, 300);
         return;
       }
 

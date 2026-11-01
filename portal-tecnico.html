@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <title>Portal de Técnico - <?= appName ?></title>
   <?!= include('styles'); ?>
@@ -135,7 +136,9 @@
       sessionUser = App.getUserData();
 
       if (!token || !sessionUser || (sessionUser.role !== 'Tecnico' && sessionUser.role !== 'Administrador')) {
-        window.location.href = '?p=login-admin';
+        setTimeout(function() {
+          window.location.href = '?p=login-admin';
+        }, 300);
         return;
       }
 

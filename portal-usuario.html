@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <title>Mi Portal de Cliente - <?= appName ?></title>
   <?!= include('styles'); ?>
@@ -195,7 +196,13 @@
       sessionUser = App.getUserData();
 
       if (!token || !sessionUser) {
-        window.location.href = '?p=login';
+        var alertEl = document.getElementById('alertPortal');
+        if (alertEl) {
+          App.showAlert('alertPortal', '⚠️ Debes iniciar sesión para consultar tu portal. Redirigiendo...', 'warning');
+        }
+        setTimeout(function() {
+          window.location.href = '?p=login';
+        }, 300);
         return;
       }
 
