@@ -1,11 +1,18 @@
 /**
- * Code.gs - Router principal de vistas, inclusión de plantillas y función setup() de inicialización
+ * Code.gs - Router principal de vistas, inclusión de plantillas, ensureSchema() y función setup()
  */
 
 /**
  * Manejador principal HTTP GET de la Web App
  */
 function doGet(e) {
+  // Asegura el esquema de la base de datos al arrancar de forma controlada (cacheada)
+  try {
+    ensureSchemaOnStartup();
+  } catch (errSchema) {
+    Logger.log('Advertencia en ensureSchemaOnStartup: ' + errSchema.message);
+  }
+
   var page = (e && e.parameter && e.parameter.p) ? e.parameter.p.toLowerCase() : 'index';
   var templateName = 'index';
 
@@ -54,6 +61,153 @@ function doGet(e) {
 }
 
 /**
+ * Trigger al abrir el archivo contenedor de Google Sheets (si está vinculado)
+ */
+function onOpen(e) {
+  try {
+    ensureSchema();
+  } catch (err) {
+    Logger.log('Error en onOpen ejecutando ensureSchema: ' + err.message);
+  }
+}
+
+/**
+ * Verificación en arranque invocada por doGet de forma controlada.
+ * Utiliza CacheService/PropertiesService para evitar correr ensureSchema en cada petición.
+ */
+function ensureSchemaOnStartup() {
+  var cache = CacheService.getScriptCache();
+  var cachedFlag = null;
+  try {
+    cachedFlag = cache.get(CONFIG.SCHEMA_CACHE_KEY);
+  } catch (ignore) {}
+
+  if (!cachedFlag) {
+    var resultado = ensureSchema();
+    if (resultado && resultado.success) {
+      try {
+        cache.put(CONFIG.SCHEMA_CACHE_KEY, 'VERIFIED_' + (new Date().getTime()), CONFIG.SCHEMA_CACHE_TTL_SECONDS);
+      } catch (ignoreCache) {}
+    }
+  }
+}
+
+/**
+ * Alias global para retrocompatibilidad
+ */
+var ESQUEMA_HOJAS = CONFIG.SCHEMA;
+
+/**
+ * Función idempotente que garantiza que el Spreadsheet tenga todas las pestañas y columnas requeridas.
+ * - Abre el Spreadsheet usando ScriptProperties.SHEET_ID sin hardcodear.
+ * - Recorre SCHEMA central.
+ * - Si falta alguna pestaña, la crea con encabezado estilizado y frozen row.
+ * - Si la pestaña existe, agrega únicamente las columnas faltantes al final del encabezado sin alterar datos ni reordenar.
+ * - Formatea únicamente las columnas nuevas.
+ * - Protegida con LockService para evitar condiciones de carrera.
+ * - No borra ni altera datos existentes.
+ */
+function ensureSchema() {
+  return Utils.withScriptLock(function() {
+    var ss = null;
+    try {
+      ss = getDbSpreadsheet();
+    } catch (e) {
+      var msg = 'ensureSchema(): No se pudo conectar al Spreadsheet con ScriptProperties.SHEET_ID: ' + e.message;
+      Logger.log(msg);
+      try {
+        Utils.logAction('ERROR_ENSURE_SCHEMA', msg, 'Sistema');
+      } catch (ignoreLog) {}
+      return { success: false, error: msg };
+    }
+
+    var esquema = CONFIG.SCHEMA;
+    var cambiosRealizados = {
+      pestañasCreadas: [],
+      columnasAgregadas: {}
+    };
+
+    for (var nombreHoja in esquema) {
+      if (esquema.hasOwnProperty(nombreHoja)) {
+        var columnasRequeridas = esquema[nombreHoja];
+        var sheet = ss.getSheetByName(nombreHoja);
+
+        if (!sheet) {
+          // 1. La pestaña no existe: crearla completa con sus encabezados
+          sheet = ss.insertSheet(nombreHoja);
+          sheet.getRange(1, 1, 1, columnasRequeridas.length).setValues([columnasRequeridas]);
+          sheet.getRange(1, 1, 1, columnasRequeridas.length)
+            .setBackground('#4338ca')
+            .setFontColor('#ffffff')
+            .setFontWeight('bold');
+          sheet.setFrozenRows(1);
+          cambiosRealizados.pestañasCreadas.push(nombreHoja);
+          Logger.log('ensureSchema: Pestaña creada -> ' + nombreHoja);
+        } else {
+          // 2. La pestaña existe: auditar columnas existentes en la fila 1
+          var lastCol = sheet.getLastColumn();
+          var existingHeaders = [];
+
+          if (lastCol > 0 && sheet.getLastRow() > 0) {
+            existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
+              return String(h).trim();
+            });
+          }
+
+          var columnasFaltantes = [];
+          for (var c = 0; c < columnasRequeridas.length; c++) {
+            var colName = columnasRequeridas[c];
+            if (existingHeaders.indexOf(colName) === -1) {
+              columnasFaltantes.push(colName);
+            }
+          }
+
+          // Si hay columnas faltantes, agregarlas estrictamente al final
+          if (columnasFaltantes.length > 0) {
+            var startCol = lastCol + 1;
+            // Si la hoja estaba totalmente en blanco
+            if (lastCol === 0) {
+              sheet.getRange(1, 1, 1, columnasFaltantes.length).setValues([columnasFaltantes]);
+              sheet.getRange(1, 1, 1, columnasFaltantes.length)
+                .setBackground('#4338ca')
+                .setFontColor('#ffffff')
+                .setFontWeight('bold');
+              sheet.setFrozenRows(1);
+            } else {
+              // Agregar al final respetando columnas existentes y datos
+              sheet.getRange(1, startCol, 1, columnasFaltantes.length).setValues([columnasFaltantes]);
+              sheet.getRange(1, startCol, 1, columnasFaltantes.length)
+                .setBackground('#4338ca')
+                .setFontColor('#ffffff')
+                .setFontWeight('bold');
+            }
+
+            cambiosRealizados.columnasAgregadas[nombreHoja] = columnasFaltantes;
+            Logger.log('ensureSchema: Columnas agregadas a ' + nombreHoja + ' -> ' + columnasFaltantes.join(', '));
+          }
+        }
+      }
+    }
+
+    // Limpieza de pestaña por defecto vacía si hay otras hojas creadas
+    var defaultSheet = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
+    if (defaultSheet && defaultSheet.getLastRow() <= 1 && ss.getSheets().length > 1) {
+      try {
+        ss.deleteSheet(defaultSheet);
+      } catch (ignore) {}
+    }
+
+    SpreadsheetApp.flush();
+    return {
+      success: true,
+      spreadsheetId: ss.getId(),
+      cambios: cambiosRealizados,
+      message: 'Esquema verificado e inicializado correctamente.'
+    };
+  });
+}
+
+/**
  * Función auxiliar para incluir archivos HTML dentro de otros (CSS, JS compartidos, componentes)
  */
 function include(filename) {
@@ -68,63 +222,9 @@ function getScriptUrl() {
 }
 
 /**
- * Esquema completo de la base de datos Google Sheets
- */
-var ESQUEMA_HOJAS = {
-  Config: ['CLAVE', 'VALOR', 'DESCRIPCION'],
-  Usuarios: [
-    'IDUsuario', 'TipoUsuario', 'NombreORazonSocial', 'Correo', 'Telefono',
-    'PasswordHash', 'PasswordSalt', 'PuntosActuales', 'Activo', 'FechaRegistro',
-    'UltimoAcceso', 'CorreoVerificado', 'Notas'
-  ],
-  ResponsablesSolidarios: [
-    'IDResponsable', 'IDUsuario', 'Nombre', 'Telefono', 'Correo', 'Relacion', 'Activo', 'FechaRegistro'
-  ],
-  UsuariosAdmin: [
-    'IDAdmin', 'Nombre', 'Correo', 'Telefono', 'PasswordHash', 'PasswordSalt', 'Rol', 'Activo', 'FechaCreacion', 'CreadoPor'
-  ],
-  OrdenesServicio: [
-    'IDOrden', 'Folio', 'IDUsuario', 'TipoUsuario', 'NombreCliente', 'CorreoContacto',
-    'TelefonoContacto', 'IDResponsable', 'EstadoOrden', 'Observaciones', 'TotalEstimado',
-    'TotalCobrado', 'Saldo', 'FechaCreacion', 'FechaActualizacion', 'CreadoPor'
-  ],
-  Dispositivos: [
-    'IDDispositivo', 'IDOrden', 'FolioOrden', 'TipoDispositivo', 'Marca', 'Modelo',
-    'NumeroSerie', 'Color', 'Accesorios', 'FallaReportada', 'Diagnostico', 'Estatus',
-    'IDTecnicoAsignado', 'TecnicoAsignado', 'CostoEstimado', 'CostoFinal', 'FechaRecepcion',
-    'FechaHoraEstatus', 'FechaEntrega', 'EntregadoParcial', 'Observaciones'
-  ],
-  HistorialEstatus: [
-    'IDHistorial', 'IDDispositivo', 'IDOrden', 'EstatusAnterior', 'EstatusNuevo',
-    'Comentario', 'UsuarioCambio', 'RolUsuario', 'FechaHora'
-  ],
-  HistorialCostos: [
-    'IDHistorialCosto', 'IDDispositivo', 'CostoAnterior', 'CostoNuevo',
-    'Motivo', 'UsuarioCambio', 'FechaHora'
-  ],
-  PuntosMovimientos: [
-    'IDMovimiento', 'IDUsuario', 'Correo', 'Telefono', 'TipoMovimiento', 'Puntos',
-    'SaldoAnterior', 'SaldoNuevo', 'Motivo', 'IDOrden', 'IDDispositivo', 'UsuarioAdmin', 'FechaHora'
-  ],
-  RecompensasPuntos: [
-    'IDRecompensa', 'Nombre', 'PuntosRequeridos', 'Descripcion', 'Activo', 'Orden'
-  ],
-  EtiquetasNFC: [
-    'IDNFC', 'CodigoNFC', 'IDUsuario', 'Activo', 'FechaAsignacion', 'AsignadoPor'
-  ],
-  CorreosLog: [
-    'IDCorreo', 'Destinatario', 'Asunto', 'Estado', 'FechaHora', 'Error'
-  ],
-  Logs: [
-    'IDLog', 'Accion', 'Detalle', 'Usuario', 'FechaHora'
-  ]
-};
-
-/**
  * Función SETUP obligatoria:
- * Construye todas las pestañas y encabezados si no existen.
+ * Invoca ensureSchema() para garantizar todas las pestañas y encabezados sin duplicar lógica.
  * Siembra el catálogo de recompensas de puntos y el administrador principal usando ScriptProperties.
- * Si no se encuentra SHEET_ID en ScriptProperties, toma el contenedor activo si está vinculado.
  */
 function setup() {
   var props = PropertiesService.getScriptProperties();
@@ -152,48 +252,12 @@ function setup() {
     throw new Error('Error en setup(): Debes configurar la propiedad "SHEET_ID" en ScriptProperties con el ID de tu Google Sheet antes de ejecutar setup().');
   }
 
-  Logger.log('Iniciando inicialización de base de datos en Spreadsheet: ' + ss.getName() + ' (' + ss.getId() + ')');
+  Logger.log('Iniciando setup() en Spreadsheet: ' + ss.getName() + ' (' + ss.getId() + ')');
 
-  // 1. Crear cada hoja y sus encabezados si no existen
-  for (var nombreHoja in ESQUEMA_HOJAS) {
-    if (ESQUEMA_HOJAS.hasOwnProperty(nombreHoja)) {
-      var cols = ESQUEMA_HOJAS[nombreHoja];
-      var sheet = ss.getSheetByName(nombreHoja);
-      if (!sheet) {
-        sheet = ss.insertSheet(nombreHoja);
-        Logger.log('Pestaña creada: ' + nombreHoja);
-      }
-
-      // Validar fila de encabezados
-      var lastCol = sheet.getLastColumn();
-      if (sheet.getLastRow() === 0 || lastCol === 0) {
-        sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
-        sheet.getRange(1, 1, 1, cols.length)
-          .setBackground('#4338ca')
-          .setFontColor('#ffffff')
-          .setFontWeight('bold');
-        sheet.setFrozenRows(1);
-      } else {
-        // Verificar si faltan columnas y añadirlas
-        var existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
-          return String(h).trim();
-        });
-        for (var c = 0; c < cols.length; c++) {
-          if (existingHeaders.indexOf(cols[c]) === -1) {
-            var newColIdx = sheet.getLastColumn() + 1;
-            sheet.getRange(1, newColIdx).setValue(cols[c]);
-          }
-        }
-      }
-    }
-  }
-
-  // Eliminar la 'Hoja 1' o 'Sheet1' por defecto si está vacía
-  var defaultSheet = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
-  if (defaultSheet && defaultSheet.getLastRow() <= 1 && ss.getSheets().length > 1) {
-    try {
-      ss.deleteSheet(defaultSheet);
-    } catch (ignore) {}
+  // 1. Garantizar todas las pestañas y columnas consumiendo la fuente de verdad central
+  var schemaResult = ensureSchema();
+  if (!schemaResult.success) {
+    throw new Error('Fallo al asegurar el esquema: ' + schemaResult.error);
   }
 
   // 2. Poblar configuración general si está vacía
@@ -262,6 +326,12 @@ function setup() {
 
     Logger.log('Administrador sembrado con éxito: ' + adminEmail + ' (Contraseña inicial: ' + adminPass + ')');
   }
+
+  // Marcar flag de verificación en cache para evitar re-verificación inmediata en el primer request
+  try {
+    var cache = CacheService.getScriptCache();
+    cache.put(CONFIG.SCHEMA_CACHE_KEY, 'VERIFIED_' + (new Date().getTime()), CONFIG.SCHEMA_CACHE_TTL_SECONDS);
+  } catch (ignoreCache) {}
 
   Logger.log('Setup completado exitosamente.');
   return {

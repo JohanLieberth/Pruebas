@@ -8,6 +8,8 @@ var CONFIG = {
   VERSION: '1.0.0',
   SESSION_TIMEOUT_SECONDS: 21600, // 6 horas
   LOCK_TIMEOUT_MS: 30000, // 30 segundos
+  SCHEMA_CACHE_KEY: 'SCHEMA_VERIFIED_FLAG',
+  SCHEMA_CACHE_TTL_SECONDS: 21600, // 6 horas entre verificaciones en doGet
 
   // Propiedades de script esperadas
   PROP_SHEET_ID: 'SHEET_ID',
@@ -30,6 +32,57 @@ var CONFIG = {
     ETIQUETAS_NFC: 'EtiquetasNFC',
     CORREOS_LOG: 'CorreosLog',
     LOGS: 'Logs'
+  },
+
+  // Única fuente de verdad del esquema: pestañas y lista exacta de columnas en orden
+  SCHEMA: {
+    Config: ['CLAVE', 'VALOR', 'DESCRIPCION'],
+    Usuarios: [
+      'IDUsuario', 'TipoUsuario', 'NombreORazonSocial', 'Correo', 'Telefono',
+      'PasswordHash', 'PasswordSalt', 'PuntosActuales', 'Activo', 'FechaRegistro',
+      'UltimoAcceso', 'CorreoVerificado', 'Notas'
+    ],
+    ResponsablesSolidarios: [
+      'IDResponsable', 'IDUsuario', 'Nombre', 'Telefono', 'Correo', 'Relacion', 'Activo', 'FechaRegistro'
+    ],
+    UsuariosAdmin: [
+      'IDAdmin', 'Nombre', 'Correo', 'Telefono', 'PasswordHash', 'PasswordSalt', 'Rol', 'Activo', 'FechaCreacion', 'CreadoPor'
+    ],
+    OrdenesServicio: [
+      'IDOrden', 'Folio', 'IDUsuario', 'TipoUsuario', 'NombreCliente', 'CorreoContacto',
+      'TelefonoContacto', 'IDResponsable', 'EstadoOrden', 'Observaciones', 'TotalEstimado',
+      'TotalCobrado', 'Saldo', 'FechaCreacion', 'FechaActualizacion', 'CreadoPor'
+    ],
+    Dispositivos: [
+      'IDDispositivo', 'IDOrden', 'FolioOrden', 'TipoDispositivo', 'Marca', 'Modelo',
+      'NumeroSerie', 'Color', 'Accesorios', 'FallaReportada', 'Diagnostico', 'Estatus',
+      'IDTecnicoAsignado', 'TecnicoAsignado', 'CostoEstimado', 'CostoFinal', 'FechaRecepcion',
+      'FechaHoraEstatus', 'FechaEntrega', 'EntregadoParcial', 'Observaciones'
+    ],
+    HistorialEstatus: [
+      'IDHistorial', 'IDDispositivo', 'IDOrden', 'EstatusAnterior', 'EstatusNuevo',
+      'Comentario', 'UsuarioCambio', 'RolUsuario', 'FechaHora'
+    ],
+    HistorialCostos: [
+      'IDHistorialCosto', 'IDDispositivo', 'CostoAnterior', 'CostoNuevo',
+      'Motivo', 'UsuarioCambio', 'FechaHora'
+    ],
+    PuntosMovimientos: [
+      'IDMovimiento', 'IDUsuario', 'Correo', 'Telefono', 'TipoMovimiento', 'Puntos',
+      'SaldoAnterior', 'SaldoNuevo', 'Motivo', 'IDOrden', 'IDDispositivo', 'UsuarioAdmin', 'FechaHora'
+    ],
+    RecompensasPuntos: [
+      'IDRecompensa', 'Nombre', 'PuntosRequeridos', 'Descripcion', 'Activo', 'Orden'
+    ],
+    EtiquetasNFC: [
+      'IDNFC', 'CodigoNFC', 'IDUsuario', 'Activo', 'FechaAsignacion', 'AsignadoPor'
+    ],
+    CorreosLog: [
+      'IDCorreo', 'Destinatario', 'Asunto', 'Estado', 'FechaHora', 'Error'
+    ],
+    Logs: [
+      'IDLog', 'Accion', 'Detalle', 'Usuario', 'FechaHora'
+    ]
   },
 
   // Roles en el portal administrativo
@@ -85,6 +138,9 @@ var CONFIG = {
     'Control / Mando', 'Fuente de Poder', 'Accesorio / VR'
   ]
 };
+
+// Variable global SCHEMA como alias a CONFIG.SCHEMA para asegurar máxima compatibilidad
+var SCHEMA = CONFIG.SCHEMA;
 
 /**
  * Obtiene el ID del Spreadsheet configurado en ScriptProperties o lanza error descriptivo
