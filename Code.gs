@@ -52,10 +52,10 @@ function doGet(e) {
 
   var template = HtmlService.createTemplateFromFile(templateName);
   template.pageParam = page;
-  template.appName = CONFIG.APP_NAME;
+  template.appName = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix';
 
   return template.evaluate()
-    .setTitle(CONFIG.APP_NAME)
+    .setTitle(template.appName)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -78,24 +78,38 @@ function onOpen(e) {
 function ensureSchemaOnStartup() {
   var cache = CacheService.getScriptCache();
   var cachedFlag = null;
+  var cacheKey = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.SCHEMA_CACHE_KEY) ? CONFIG.SCHEMA_CACHE_KEY : 'SCHEMA_VERIFIED_FLAG';
+  var cacheTtl = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.SCHEMA_CACHE_TTL_SECONDS) ? CONFIG.SCHEMA_CACHE_TTL_SECONDS : 21600;
+
   try {
-    cachedFlag = cache.get(CONFIG.SCHEMA_CACHE_KEY);
+    cachedFlag = cache.get(cacheKey);
   } catch (ignore) {}
 
   if (!cachedFlag) {
     var resultado = ensureSchema();
     if (resultado && resultado.success) {
       try {
-        cache.put(CONFIG.SCHEMA_CACHE_KEY, 'VERIFIED_' + (new Date().getTime()), CONFIG.SCHEMA_CACHE_TTL_SECONDS);
+        cache.put(cacheKey, 'VERIFIED_' + (new Date().getTime()), cacheTtl);
       } catch (ignoreCache) {}
     }
   }
 }
 
 /**
- * Alias global para retrocompatibilidad
+ * Helper seguro para resolver el esquema central sin depender de la secuencia de carga de archivos
  */
-var ESQUEMA_HOJAS = CONFIG.SCHEMA;
+function getEsquemaHojas() {
+  if (typeof getSchema === 'function') {
+    return getSchema();
+  }
+  if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.SCHEMA) {
+    return CONFIG.SCHEMA;
+  }
+  if (typeof SCHEMA !== 'undefined' && SCHEMA) {
+    return SCHEMA;
+  }
+  throw new Error('No se pudo resolver el esquema central.');
+}
 
 /**
  * Función idempotente que garantiza que el Spreadsheet tenga todas las pestañas y columnas requeridas.
@@ -121,7 +135,7 @@ function ensureSchema() {
       return { success: false, error: msg };
     }
 
-    var esquema = CONFIG.SCHEMA;
+    var esquema = getEsquemaHojas();
     var cambiosRealizados = {
       pestañasCreadas: [],
       columnasAgregadas: {}

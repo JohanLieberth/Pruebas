@@ -139,8 +139,21 @@ var CONFIG = {
   ]
 };
 
-// Variable global SCHEMA como alias a CONFIG.SCHEMA para asegurar máxima compatibilidad
+// Variable global SCHEMA como alias seguro y accesible
 var SCHEMA = CONFIG.SCHEMA;
+
+/**
+ * Función helper para obtener el esquema central de forma segura
+ */
+function getSchema() {
+  if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.SCHEMA) {
+    return CONFIG.SCHEMA;
+  }
+  if (typeof SCHEMA !== 'undefined' && SCHEMA) {
+    return SCHEMA;
+  }
+  throw new Error('El esquema central (SCHEMA) no está definido.');
+}
 
 /**
  * Obtiene el ID del Spreadsheet configurado en ScriptProperties o lanza error descriptivo
