@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title>Portal de Técnico - <?= appName ?></title>
@@ -10,7 +11,7 @@
 
   <!-- Navbar de Técnico -->
   <nav class="navbar" style="background: #1e293b;">
-    <a href="?p=portal-tecnico" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=portal-tecnico" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag" style="background: #0ea5e9;">Mesa Técnica</span>
     </a>
@@ -137,7 +138,7 @@
 
       if (!token || !sessionUser || (sessionUser.role !== 'Tecnico' && sessionUser.role !== 'Administrador')) {
         setTimeout(function() {
-          window.location.href = '?p=login-admin';
+          App.navigate('login-admin');
         }, 300);
         return;
       }

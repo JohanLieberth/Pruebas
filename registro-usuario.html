@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title>Registro de Cuenta - <?= appName ?></title>
@@ -9,15 +10,15 @@
 <body>
 
   <nav class="navbar">
-    <a href="?p=index" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag">Registro</span>
     </a>
     <ul class="nav-menu">
-      <li><a href="?p=index" class="nav-link">Inicio</a></li>
-      <li><a href="?p=consulta" class="nav-link">Consulta</a></li>
-      <li><a href="?p=login" class="nav-link">Iniciar Sesión</a></li>
-      <li><a href="?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
+      <li><a href="<?= scriptUrl ?>?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="<?= scriptUrl ?>?p=consulta" class="nav-link">Consulta</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login" class="nav-link">Iniciar Sesión</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
     </ul>
   </nav>
 
@@ -181,7 +182,7 @@
           App.saveSession(res.data);
           App.showAlert(alertId, '✅ ' + res.message + ' Redirigiendo a tu panel...', 'success');
           setTimeout(function() {
-            window.location.href = '?p=portal-usuario';
+            App.navigate('portal-usuario');
           }, 1200);
         })
         .withFailureHandler(function(err) {

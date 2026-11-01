@@ -97,6 +97,31 @@
 
     safePostMessage: safePostMessage,
 
+    /**
+     * Construye una URL de navegación absoluta hacia la Web App o relativa si no está disponible
+     */
+    getUrl: function(page) {
+      var base = (typeof window !== 'undefined' && window.SCRIPT_URL) ? window.SCRIPT_URL : '';
+      if (!base) {
+        return '?p=' + encodeURIComponent(page);
+      }
+      return base + (base.indexOf('?') === -1 ? '?' : '&') + 'p=' + encodeURIComponent(page);
+    },
+
+    /**
+     * Navega a la página solicitada de forma segura en la ventana superior (_top)
+     */
+    navigate: function(page) {
+      var targetUrl = App.getUrl(page);
+      try {
+        if (window.top && window.top.location) {
+          window.top.location.href = targetUrl;
+          return;
+        }
+      } catch (eTop) {}
+      window.location.href = targetUrl;
+    },
+
     saveSession: function(data) {
       if (!data || !data.token) return;
       sessionStorage.setItem(App.STORAGE_KEYS.TOKEN, data.token);
@@ -127,13 +152,13 @@
       localStorage.removeItem(App.STORAGE_KEYS.USER_DATA);
     },
 
-    logout: function(redirectTo) {
+    logout: function(redirectToPage) {
       var token = App.getToken();
       if (token && typeof google !== 'undefined' && google.script && google.script.run) {
         google.script.run.apiLogout(token);
       }
       App.clearSession();
-      window.location.href = redirectTo || '?p=index';
+      App.navigate(redirectToPage || 'index');
     },
 
     // Notificaciones y alertas dinámicas en contenedores

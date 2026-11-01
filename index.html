@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title><?= appName ?> - Taller de Consolas de Videojuegos</title>
@@ -10,15 +11,15 @@
 
   <!-- Navbar -->
   <nav class="navbar">
-    <a href="?p=index" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag">Consolas</span>
     </a>
     <ul class="nav-menu">
-      <li><a href="?p=consulta" class="nav-link">🔍 Consulta de Estatus</a></li>
-      <li><a href="?p=login" class="nav-link">👤 Portal Clientes</a></li>
-      <li><a href="?p=registro" class="nav-link">📝 Registrarse</a></li>
-      <li><a href="?p=login-admin" class="nav-link" style="color: #93c5fd;">🛠️ Staff / Admin</a></li>
+      <li><a href="<?= scriptUrl ?>?p=consulta" class="nav-link">🔍 Consulta de Estatus</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login" class="nav-link">👤 Portal Clientes</a></li>
+      <li><a href="<?= scriptUrl ?>?p=registro" class="nav-link">📝 Registrarse</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login-admin" class="nav-link" style="color: #93c5fd;">🛠️ Staff / Admin</a></li>
     </ul>
   </nav>
 
@@ -32,10 +33,10 @@
         Servicio especializado en PlayStation, Xbox, Nintendo Switch, Steam Deck y controles. Diagnóstico profesional, refacciones de alta calidad y garantía por escrito.
       </p>
       <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-        <a href="?p=consulta" class="btn btn-primary" style="background: #4f46e5; padding: 0.75rem 1.5rem; font-size: 1rem;">
+        <a href="<?= scriptUrl ?>?p=consulta" class="btn btn-primary" style="background: #4f46e5; padding: 0.75rem 1.5rem; font-size: 1rem;">
           🔍 Consultar Estatus de mi Consola
         </a>
-        <a href="?p=registro" class="btn btn-secondary" style="padding: 0.75rem 1.5rem; font-size: 1rem; background: #ffffff; color: #1e1b4b;">
+        <a href="<?= scriptUrl ?>?p=registro" class="btn btn-secondary" style="padding: 0.75rem 1.5rem; font-size: 1rem; background: #ffffff; color: #1e1b4b;">
           🎁 Crear Cuenta y Ganar Puntos
         </a>
       </div>

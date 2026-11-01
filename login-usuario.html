@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title>Acceso Clientes - <?= appName ?></title>
@@ -9,15 +10,15 @@
 <body>
 
   <nav class="navbar">
-    <a href="?p=index" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag">Portal Clientes</span>
     </a>
     <ul class="nav-menu">
-      <li><a href="?p=index" class="nav-link">Inicio</a></li>
-      <li><a href="?p=consulta" class="nav-link">Consulta Pública</a></li>
-      <li><a href="?p=registro" class="nav-link">Registrarse</a></li>
-      <li><a href="?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
+      <li><a href="<?= scriptUrl ?>?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="<?= scriptUrl ?>?p=consulta" class="nav-link">Consulta Pública</a></li>
+      <li><a href="<?= scriptUrl ?>?p=registro" class="nav-link">Registrarse</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
     </ul>
   </nav>
 
@@ -49,7 +50,7 @@
 
       <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.9rem;">
         <p style="color: #64748b;">¿Aún no tienes cuenta registrada?</p>
-        <a href="?p=registro" style="color: var(--primary); font-weight: 600; text-decoration: none;">Crear cuenta nueva con puntos de bienvenida &rarr;</a>
+        <a href="<?= scriptUrl ?>?p=registro" style="color: var(--primary); font-weight: 600; text-decoration: none;">Crear cuenta nueva con puntos de bienvenida &rarr;</a>
       </div>
     </div>
   </main>
@@ -66,7 +67,7 @@
       var token = App.getToken();
       var user = App.getUserData();
       if (token && user && (user.role === 'ClienteNormal' || user.role === 'ClienteTaller')) {
-        window.location.href = '?p=portal-usuario';
+        App.navigate('portal-usuario');
       }
     })();
 
@@ -95,7 +96,7 @@
           App.saveSession(res.data);
           App.showAlert(alertId, '✅ ' + res.message + '. Redirigiendo...', 'success');
           setTimeout(function() {
-            window.location.href = '?p=portal-usuario';
+            App.navigate('portal-usuario');
           }, 600);
         })
         .withFailureHandler(function(err) {

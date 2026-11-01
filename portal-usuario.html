@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title>Mi Portal de Cliente - <?= appName ?></title>
@@ -9,7 +10,7 @@
 <body>
 
   <nav class="navbar">
-    <a href="?p=portal-usuario" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=portal-usuario" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag" id="tagTipoUsuario">Cliente</span>
     </a>
@@ -201,7 +202,7 @@
           App.showAlert('alertPortal', '⚠️ Debes iniciar sesión para consultar tu portal. Redirigiendo...', 'warning');
         }
         setTimeout(function() {
-          window.location.href = '?p=login';
+          App.navigate('login');
         }, 300);
         return;
       }

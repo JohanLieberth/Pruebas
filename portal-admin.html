@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title>Portal de Administración - <?= appName ?></title>
@@ -10,7 +11,7 @@
 
   <!-- Navbar de Administrador -->
   <nav class="navbar" style="background: #0f172a;">
-    <a href="?p=portal-admin" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=portal-admin" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag" style="background: #dc2626;">Administrador</span>
     </a>
@@ -498,7 +499,7 @@
           App.showAlert('alertAdmin', '⚠️ Acceso restringido. Por favor inicia sesión como Administrador. Redirigiendo...', 'warning');
         }
         setTimeout(function() {
-          window.location.href = '?p=login-admin';
+          App.navigate('login-admin');
         }, 300);
         return;
       }

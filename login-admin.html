@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
   <base target="_top">
   <meta charset="UTF-8">
   <title>Acceso Staff / Técnico - <?= appName ?></title>
@@ -9,14 +10,14 @@
 <body style="background-color: #0f172a;">
 
   <nav class="navbar" style="background: #1e293b; border-bottom: 1px solid #334155;">
-    <a href="?p=index" class="nav-brand">
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand">
       🎮 <span>PixelFix</span>
       <span class="tag" style="background: #3b82f6;">Panel Interno</span>
     </a>
     <ul class="nav-menu">
-      <li><a href="?p=index" class="nav-link">Inicio</a></li>
-      <li><a href="?p=consulta" class="nav-link">Consulta Pública</a></li>
-      <li><a href="?p=login" class="nav-link">Portal Clientes</a></li>
+      <li><a href="<?= scriptUrl ?>?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="<?= scriptUrl ?>?p=consulta" class="nav-link">Consulta Pública</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login" class="nav-link">Portal Clientes</a></li>
     </ul>
   </nav>
 
@@ -61,9 +62,9 @@
       var user = App.getUserData();
       if (token && user) {
         if (user.role === 'Administrador') {
-          window.location.href = '?p=portal-admin';
+          App.navigate('portal-admin');
         } else if (user.role === 'Tecnico') {
-          window.location.href = '?p=portal-tecnico';
+          App.navigate('portal-tecnico');
         }
       }
     })();
@@ -94,11 +95,11 @@
 
           setTimeout(function() {
             if (res.data.role === 'Administrador') {
-              window.location.href = '?p=portal-admin';
+              App.navigate('portal-admin');
             } else if (res.data.role === 'Tecnico') {
-              window.location.href = '?p=portal-tecnico';
+              App.navigate('portal-tecnico');
             } else {
-              window.location.href = '?p=index';
+              App.navigate('index');
             }
           }, 600);
         })

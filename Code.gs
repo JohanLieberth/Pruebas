@@ -3,7 +3,7 @@
  */
 
 /**
- * Fuente única de verdad para el mapeo ruta (parámetro p) -> nombre de plantilla HTML
+ * Fuente única de verdad para el mapeo ruta -> nombre de plantilla HTML
  */
 var PAGES = {
   'index': 'index',
@@ -37,49 +37,55 @@ var PAGES = {
  * Manejador principal HTTP GET de la Web App
  */
 function doGet(e) {
-  // Asegura el esquema de la base de datos al arrancar de forma controlada (cacheada)
   try {
-    ensureSchemaOnStartup();
-  } catch (errSchema) {
-    Logger.log('Advertencia en ensureSchemaOnStartup: ' + errSchema.message);
-  }
+    // Asegura el esquema de la base de datos al arrancar de forma controlada (cacheada)
+    try {
+      ensureSchemaOnStartup();
+    } catch (errSchema) {
+      Logger.log('Advertencia en ensureSchemaOnStartup: ' + errSchema.message);
+    }
 
-  var requestedPage = (e && e.parameter && e.parameter.p) ? String(e.parameter.p).trim().toLowerCase() : 'index';
-  var templateName = PAGES[requestedPage];
+    // Aceptar tanto 'p' como 'page' de forma flexible
+    var rawParam = (e && e.parameter) ? (e.parameter.p || e.parameter.page || 'index') : 'index';
+    var requestedPage = String(rawParam).trim().toLowerCase();
+    var templateName = PAGES[requestedPage];
 
-  // Fallback controlado: si la ruta no existe, renderizar siempre la página de inicio en vez de una pantalla en blanco
-  if (!templateName) {
-    Logger.log('Ruta no reconocida: "' + requestedPage + '". Redirigiendo a vista principal index.');
-    templateName = 'index';
-  }
+    // Fallback controlado: si la ruta no existe, renderizar siempre la página de inicio
+    if (!templateName) {
+      Logger.log('Ruta no reconocida: "' + requestedPage + '". Fallback a vista index.');
+      templateName = 'index';
+    }
 
-  try {
+    // Obtener la URL del servicio Web App de forma segura
+    var scriptUrl = '';
+    try {
+      scriptUrl = ScriptApp.getService().getUrl() || '';
+    } catch (ignoreUrl) {
+      scriptUrl = '';
+    }
+
     var template = HtmlService.createTemplateFromFile(templateName);
     template.pageParam = requestedPage;
     template.appName = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix';
-
-    // Obtener la URL del servicio Web App de forma segura para navegación
-    var scriptUrl = '';
-    try {
-      scriptUrl = ScriptApp.getService().getUrl();
-    } catch (ignoreUrl) {}
     template.scriptUrl = scriptUrl;
 
     return template.evaluate()
       .setTitle(template.appName)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  } catch (renderError) {
-    Logger.log('Error evaluando plantilla "' + templateName + '": ' + renderError.message);
-    // Fallback de emergencia ante cualquier error de plantilla
+
+  } catch (fatalError) {
+    Logger.log('Error crítico en doGet: ' + fatalError.message + '\n' + (fatalError.stack || ''));
+    // Fallback controlado para que NUNCA quede una pantalla en blanco
     return HtmlService.createHtmlOutput(
-      '<!DOCTYPE html><html><head><base target="_top"><meta charset="UTF-8"><title>PixelFix</title>' +
+      '<!DOCTYPE html><html><head><base target="_top"><meta charset="UTF-8"><title>PixelFix - Estado</title>' +
       '<style>body{font-family:sans-serif;padding:2rem;text-align:center;background:#f8fafc;color:#1e293b;}' +
-      '.box{max-width:500px;margin:3rem auto;background:#fff;padding:2rem;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 6px rgba(0,0,0,0.05);}' +
-      'a{display:inline-block;margin-top:1rem;padding:0.6rem 1.2rem;background:#4f46e5;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;}' +
-      '</style></head><body><div class="box"><h2>🎮 PixelFix - Taller de Consolas</h2><p>Ocurrió un error al cargar la vista solicitada (' + templateName + ').</p>' +
-      '<a href="?p=index">Regresar al Inicio</a></div></body></html>'
-    ).setTitle('PixelFix - Error');
+      '.box{max-width:520px;margin:3rem auto;background:#fff;padding:2rem;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 6px rgba(0,0,0,0.05);}' +
+      'a{display:inline-block;margin-top:1.25rem;padding:0.6rem 1.25rem;background:#4f46e5;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;}' +
+      '</style></head><body><div class="box"><h2>🎮 PixelFix - Taller de Consolas</h2>' +
+      '<p>La aplicación está iniciando o actualizando sus componentes.</p>' +
+      '<a href="?p=index">Ir a Inicio</a></div></body></html>'
+    ).setTitle('PixelFix');
   }
 }
 

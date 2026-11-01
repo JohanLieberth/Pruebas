@@ -1,8 +1,60 @@
 /**
- * Tests.gs - Funciones de prueba y sembrado de datos de prueba para validar el sistema
+ * Tests.gs - Funciones de prueba, diagnóstico de plantillas y sembrado de datos de prueba
  */
 
 var Tests = {
+
+  /**
+   * Diagnóstico aislado de plantillas (Paso A):
+   * Recorre cada plantilla .html del proyecto y ejecuta createTemplateFromFile().evaluate().getContent()
+   * capturando y registrando el resultado por plantilla (OK / error con stack).
+   */
+  debugRenderAll: function() {
+    var plantillas = [
+      'index',
+      'consulta-publica',
+      'login-usuario',
+      'registro-usuario',
+      'portal-usuario',
+      'login-admin',
+      'portal-admin',
+      'portal-tecnico'
+    ];
+
+    var resultados = {};
+    var erroresDetectados = 0;
+
+    plantillas.forEach(function(nombre) {
+      try {
+        var tmpl = HtmlService.createTemplateFromFile(nombre);
+        tmpl.appName = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix';
+        tmpl.pageParam = nombre;
+        tmpl.scriptUrl = 'https://script.google.com/macros/s/TEST/exec';
+
+        var content = tmpl.evaluate().getContent();
+        resultados[nombre] = {
+          status: 'OK',
+          sizeBytes: content.length
+        };
+        Logger.log('debugRenderAll: OK -> ' + nombre + ' (' + content.length + ' bytes)');
+      } catch (err) {
+        erroresDetectados++;
+        resultados[nombre] = {
+          status: 'ERROR',
+          message: err.message,
+          stack: err.stack || ''
+        };
+        Logger.log('debugRenderAll: ERROR en ' + nombre + ' -> ' + err.message);
+      }
+    });
+
+    return {
+      success: erroresDetectados === 0,
+      totalPlantillas: plantillas.length,
+      errores: erroresDetectados,
+      detalle: resultados
+    };
+  },
 
   /**
    * Ejecuta una serie de pruebas automatizadas en backend
@@ -296,9 +348,6 @@ var Tests = {
           ordIds[String(ordRows[o][0]).trim()] = true;
         }
 
-        // Orden 1: Juan Pérez (2 consolas: una entregada parcial y otra lista -> Parcial)
-        // TotalEstimado: 2050, TotalCobrado: 850, Saldo: 1200, EstadoOrden: Parcial
-        // Orden 2: RetroConsolas (2 consolas pendientes -> Abierta)
         var ordSeeds = [
           {
             IDOrden: idOrden1,
@@ -364,7 +413,6 @@ var Tests = {
         }
 
         var devSeeds = [
-          // Dispositivo 1: Entregado de forma parcial
           {
             IDDispositivo: idDev1,
             IDOrden: idOrden1,
@@ -388,7 +436,6 @@ var Tests = {
             EntregadoParcial: 'SI',
             Observaciones: 'Entregado al cliente con prueba de calibración'
           },
-          // Dispositivo 2: Listo para entrega
           {
             IDDispositivo: idDev2,
             IDOrden: idOrden1,
@@ -412,7 +459,6 @@ var Tests = {
             EntregadoParcial: 'NO',
             Observaciones: 'Superó 2 horas de estrés en Spider-Man 2'
           },
-          // Dispositivo 3: En reparación
           {
             IDDispositivo: idDev3,
             IDOrden: idOrden2,
@@ -436,7 +482,6 @@ var Tests = {
             EntregadoParcial: 'NO',
             Observaciones: 'Esperando conector HDMI original'
           },
-          // Dispositivo 4: Pendiente
           {
             IDDispositivo: idDev4,
             IDOrden: idOrden2,
@@ -608,7 +653,6 @@ var Tests = {
         }
 
         var movSeeds = [
-          // Juan Pérez: Saldo 0 -> +2500 (Asignación) -> -1000 (Canje palanca) -> Saldo 1500
           {
             IDMovimiento: 'TEST_MOV_001',
             IDUsuario: idUserNormal,
@@ -639,7 +683,6 @@ var Tests = {
             UsuarioAdmin: 'admin@pixelfix.com',
             FechaHora: nowStr
           },
-          // Taller RetroConsolas: Saldo 0 -> +3500 (Asignación lote) -> Saldo 3500
           {
             IDMovimiento: 'TEST_MOV_003',
             IDUsuario: idUserTaller,
@@ -797,8 +840,12 @@ var Tests = {
 };
 
 /**
- * Función global expuesta para ejecutar la siembra de datos de prueba desde Apps Script
+ * Funciones globales expuestas para ejecutar desde Apps Script
  */
 function seedTestData() {
   return Tests.seedTestData();
+}
+
+function debugRenderAll() {
+  return Tests.debugRenderAll();
 }
