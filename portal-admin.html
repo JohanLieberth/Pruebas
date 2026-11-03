@@ -1631,8 +1631,8 @@
               '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
 
             var btnToggle = esActivo ?
-              '<button class="btn btn-secondary btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', false)" style="color: #991b1b;">Desactivar</button>' :
-              '<button class="btn btn-success btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', true)">Activar</button>';
+              '<button class="btn btn-secondary btn-sm" onclick="toggleEstadoRecompensa(\'' + r.idRecompensa + '\', false)" style="color: #991b1b;">Desactivar</button>' :
+              '<button class="btn btn-success btn-sm" onclick="toggleEstadoRecompensa(\'' + r.idRecompensa + '\', true)">Activar</button>';
 
             html += '<tr>';
             html += '  <td><code>' + r.idRecompensa + '</code></td>';
@@ -1642,7 +1642,7 @@
             html += '  <td><span style="font-weight: 600; color: #64748b;">#' + r.orden + '</span></td>';
             html += '  <td>' + badgeEstado + '</td>';
             html += '  <td style="white-space: nowrap;">';
-            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarRecompensa(' + JSON.stringify(r.idRecompensa) + ')" style="margin-right: 4px;">✏️ Editar</button>';
+            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarRecompensa(\'' + r.idRecompensa + '\')" style="margin-right: 4px;">✏️ Editar</button>';
             html += btnToggle;
             html += '  </td>';
             html += '</tr>';
