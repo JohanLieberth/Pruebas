@@ -40,6 +40,9 @@
       <button class="btn btn-secondary btn-sm" id="tabBtnStaff" onclick="switchAdminTab('staff')">
         👥 Usuarios y Técnicos
       </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnRecompensas" onclick="switchAdminTab('recompensas')">
+        🎁 Catálogo de Recompensas
+      </button>
     </div>
 
     <!-- SECCIÓN 1: Listado de Órdenes y Dispositivos Asociados -->
@@ -341,6 +344,44 @@
       </div>
     </div>
 
+
+    <!-- SECCIÓN 5: Gestión de Recompensas y Canjes -->
+    <div id="adminSectionRecompensas" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">🎁 Catálogo de Recompensas y Canjes</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">
+              Administra los servicios, mantenimientos y productos disponibles para canje con puntos de cliente frecuente.
+            </p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="cargarRecompensasAdmin()">🔄 Recargar</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaRecompensa()">+ Nueva Recompensa</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Recompensa / Servicio</th>
+                <th>Costo en Puntos</th>
+                <th>Descripción</th>
+                <th>Orden</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRecompensasAdmin">
+              <tr><td colspan="7" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando recompensas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- MODAL: Modificar Costos de Dispositivo (con Auditoría en HistorialCostos) -->
@@ -476,6 +517,49 @@
     </div>
   </div>
 
+
+  <!-- MODAL: Crear / Editar Recompensa de Canje -->
+  <div id="modalRecompensa" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;" id="modalRecompensaTitulo">Nueva Recompensa</h3>
+        <button class="modal-close" onclick="cerrarModalRecompensa()">&times;</button>
+      </div>
+      <form id="formRecompensa" onsubmit="guardarRecompensaAdmin(event)">
+        <input type="hidden" id="recId" value="">
+        <div class="form-group">
+          <label for="recNombre">Nombre del Servicio o Recompensa *</label>
+          <input type="text" id="recNombre" class="input-control" required placeholder="Ej. Limpieza profunda y cambio de pasta térmica" minlength="3">
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label for="recPuntos">Costo en Puntos Requeridos *</label>
+            <input type="number" id="recPuntos" class="input-control" required min="1" step="1" placeholder="Ej. 1000">
+          </div>
+          <div class="form-col">
+            <label for="recOrden">Orden de Visualización:</label>
+            <input type="number" id="recOrden" class="input-control" min="1" step="1" value="1">
+          </div>
+          <div class="form-col">
+            <label for="recActivo">Estado *</label>
+            <select id="recActivo" class="input-control" required>
+              <option value="SI">Activo (Disponible para canje)</option>
+              <option value="NO">Inactivo (Oculto)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="recDescripcion">Descripción detallada del beneficio:</label>
+          <textarea id="recDescripcion" class="input-control" placeholder="Especifica qué incluye este canje, restricciones o modelos participantes..."></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalRecompensa()">Cancelar</button>
+          <button type="submit" id="btnGuardarRecompensa" class="btn btn-primary">Guardar Recompensa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <footer>
     <p>PixelFix &copy; <?= new Date().getFullYear() ?> - Panel de Control Administrativo</p>
   </footer>
@@ -513,17 +597,17 @@
     };
 
     function switchAdminTab(tab) {
-      ['ordenes', 'nueva-orden', 'puntos-nfc', 'staff'].forEach(function(t) {
+      ['ordenes', 'nueva-orden', 'puntos-nfc', 'staff', 'recompensas'].forEach(function(t) {
         var secName = (t === 'nueva-orden') ? 'adminSectionNuevaOrden' :
                       (t === 'puntos-nfc') ? 'adminSectionNfc' :
-                      (t === 'staff') ? 'adminSectionStaff' : 'adminSectionOrdenes';
+                      (t === 'staff') ? 'adminSectionStaff' : (t === 'recompensas') ? 'adminSectionRecompensas' : 'adminSectionOrdenes';
 
         var secEl = document.getElementById(secName);
         if (secEl) secEl.style.display = (t === tab) ? 'block' : 'none';
 
         var btnId = (t === 'nueva-orden') ? 'tabBtnNuevaOrd' :
                     (t === 'puntos-nfc') ? 'tabBtnNfc' :
-                    (t === 'staff') ? 'tabBtnStaff' : 'tabBtnOrd';
+                    (t === 'staff') ? 'tabBtnStaff' : (t === 'recompensas') ? 'tabBtnRecompensas' : 'tabBtnOrd';
         var btnEl = document.getElementById(btnId);
         if (btnEl) {
           btnEl.style.background = (t === tab) ? '#ffffff' : '#f1f5f9';
@@ -532,6 +616,7 @@
       });
 
       if (tab === 'staff') cargarStaffAdmin();
+      if (tab === 'recompensas') cargarRecompensasAdmin();
     }
 
     function cargarTecnicosCombo() {
@@ -1320,6 +1405,152 @@
           cargarTecnicosCombo();
         })
         .apiCambiarEstadoAdmin(token, idAdmin, nuevoEstado);
+    }
+
+    /* ========================================================
+     * GESTIÓN DE RECOMPENSAS Y CANJES (CRUD COMPLETO)
+     * ======================================================== */
+    var listaRecompensasGlobal = [];
+
+    function cargarRecompensasAdmin() {
+      var token = App.getToken();
+      var tbody = document.getElementById('tbodyRecompensasAdmin');
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando recompensas...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            tbody.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            return;
+          }
+
+          listaRecompensasGlobal = res.data || [];
+          if (listaRecompensasGlobal.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No hay recompensas registradas en el catálogo. Haz clic en "+ Nueva Recompensa" para agregar una.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          listaRecompensasGlobal.forEach(function(r) {
+            var esActivo = (String(r.activo).toUpperCase() === 'SI');
+            var badgeEstado = esActivo ?
+              '<span class="badge" style="background: #d1fae5; color: #065f46;">ACTIVO</span>' :
+              '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
+
+            var btnToggle = esActivo ?
+              '<button class="btn btn-secondary btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', false)" style="color: #991b1b;">Desactivar</button>' :
+              '<button class="btn btn-success btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', true)">Activar</button>';
+
+            html += '<tr>';
+            html += '  <td><code>' + r.idRecompensa + '</code></td>';
+            html += '  <td><strong>' + r.nombre + '</strong></td>';
+            html += '  <td><strong style="color: #4f46e5; font-size: 1rem;">' + Number(r.puntosRequeridos).toLocaleString() + ' pts</strong></td>';
+            html += '  <td style="max-width: 250px; font-size: 0.85rem; color: #475569;">' + (r.descripcion || '<em style="color:#94a3b8;">Sin descripción</em>') + '</td>';
+            html += '  <td><span style="font-weight: 600; color: #64748b;">#' + r.orden + '</span></td>';
+            html += '  <td>' + badgeEstado + '</td>';
+            html += '  <td style="white-space: nowrap;">';
+            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarRecompensa(' + JSON.stringify(r.idRecompensa) + ')" style="margin-right: 4px;">✏️ Editar</button>';
+            html += btnToggle;
+            html += '  </td>';
+            html += '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          tbody.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center;">Error al conectar: ' + err.message + '</td></tr>';
+        })
+        .apiListarRecompensasAdmin(token);
+    }
+
+    function abrirModalNuevaRecompensa() {
+      document.getElementById('modalRecompensaTitulo').innerText = 'Nueva Recompensa para Canje';
+      document.getElementById('formRecompensa').reset();
+      document.getElementById('recId').value = '';
+      document.getElementById('recActivo').value = 'SI';
+      document.getElementById('recOrden').value = (listaRecompensasGlobal.length + 1);
+      document.getElementById('modalRecompensa').style.display = 'flex';
+    }
+
+    function abrirModalEditarRecompensa(idRec) {
+      var r = listaRecompensasGlobal.find(function(x) { return x.idRecompensa === idRec; });
+      if (!r) return;
+
+      document.getElementById('modalRecompensaTitulo').innerText = 'Editar Recompensa (' + r.idRecompensa + ')';
+      document.getElementById('recId').value = r.idRecompensa;
+      document.getElementById('recNombre').value = r.nombre;
+      document.getElementById('recPuntos').value = r.puntosRequeridos;
+      document.getElementById('recOrden').value = r.orden || 1;
+      document.getElementById('recActivo').value = r.activo || 'SI';
+      document.getElementById('recDescripcion').value = r.descripcion || '';
+
+      document.getElementById('modalRecompensa').style.display = 'flex';
+    }
+
+    function cerrarModalRecompensa() {
+      document.getElementById('modalRecompensa').style.display = 'none';
+      document.getElementById('formRecompensa').reset();
+    }
+
+    function guardarRecompensaAdmin(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var btn = document.getElementById('btnGuardarRecompensa');
+
+      var payload = {
+        idRecompensa: document.getElementById('recId').value.trim(),
+        nombre: document.getElementById('recNombre').value.trim(),
+        puntosRequeridos: document.getElementById('recPuntos').value,
+        orden: document.getElementById('recOrden').value,
+        activo: document.getElementById('recActivo').value,
+        descripcion: document.getElementById('recDescripcion').value.trim()
+      };
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Recompensa';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          alert('✅ ' + res.message);
+          cerrarModalRecompensa();
+          cargarRecompensasAdmin();
+          cargarCatalogoRecompensasAdmin();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Recompensa';
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiGuardarRecompensa(token, payload);
+    }
+
+    function toggleEstadoRecompensa(idRec, nuevoEstado) {
+      var token = App.getToken();
+      var accionStr = nuevoEstado ? 'activar' : 'desactivar';
+      if (!confirm('¿Deseas ' + accionStr + ' esta recompensa del catálogo?')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          cargarRecompensasAdmin();
+          cargarCatalogoRecompensasAdmin();
+        })
+        .withFailureHandler(function(err) {
+          alert('Error al actualizar estado: ' + err.message);
+        })
+        .apiCambiarEstadoRecompensa(token, idRec, nuevoEstado);
     }
   </script>
 </body>

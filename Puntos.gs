@@ -33,6 +33,127 @@ var Puntos = {
   /**
    * Obtiene el resumen de puntos de un usuario y sus movimientos
    */
+
+  /**
+   * Lista todas las recompensas para el Administrador (activas e inactivas)
+   */
+  listarTodasRecompensasAdmin: function() {
+    var recs = Utils.getAllRecords(CONFIG.SHEETS.RECOMPENSAS_PUNTOS);
+    recs.sort(function(a, b) {
+      var ordA = Number(a.Orden) || 999;
+      var ordB = Number(b.Orden) || 999;
+      if (ordA !== ordB) return ordA - ordB;
+      return (Number(a.PuntosRequeridos) || 0) - (Number(b.PuntosRequeridos) || 0);
+    });
+
+    return recs.map(function(r) {
+      return {
+        idRecompensa: r.IDRecompensa,
+        nombre: r.Nombre,
+        puntosRequeridos: Number(r.PuntosRequeridos) || 0,
+        descripcion: r.Descripcion,
+        activo: String(r.Activo || 'SI').toUpperCase() === 'SI' ? 'SI' : 'NO',
+        orden: Number(r.Orden) || 1
+      };
+    });
+  },
+
+  /**
+   * Guarda o actualiza una recompensa en la base de datos (Persistente en Sheet RecompensasPuntos)
+   * Si viene idRecompensa existente, actualiza; si no, crea una nueva con ID único REC-XXX.
+   */
+  guardarRecompensa: function(datos, session) {
+    if (!datos) throw new Error('Datos de recompensa requeridos');
+
+    var nombre = String(datos.nombre || '').trim();
+    if (!nombre || nombre.length < 3) {
+      throw new Error('El nombre de la recompensa es obligatorio (mínimo 3 caracteres).');
+    }
+
+    var puntos = parseInt(datos.puntosRequeridos, 10);
+    if (isNaN(puntos) || puntos <= 0) {
+      throw new Error('El costo en puntos debe ser un número entero mayor a 0.');
+    }
+
+    var descripcion = String(datos.descripcion || '').trim();
+    var activo = String(datos.activo || 'SI').trim().toUpperCase() === 'SI' ? 'SI' : 'NO';
+    var orden = parseInt(datos.orden, 10);
+    if (isNaN(orden) || orden < 1) orden = 1;
+
+    var idRecompensa = datos.idRecompensa ? String(datos.idRecompensa).trim() : '';
+
+    return Utils.withScriptLock(function() {
+      var sheet = getSheet(CONFIG.SHEETS.RECOMPENSAS_PUNTOS);
+      var recExistente = idRecompensa ? Utils.findRecordBy(CONFIG.SHEETS.RECOMPENSAS_PUNTOS, 'IDRecompensa', idRecompensa) : null;
+
+      if (recExistente) {
+        var updates = {
+          Nombre: nombre,
+          PuntosRequeridos: puntos,
+          Descripcion: descripcion,
+          Activo: activo,
+          Orden: orden
+        };
+        Utils.updateRecordRow(CONFIG.SHEETS.RECOMPENSAS_PUNTOS, recExistente._rowIndex, updates);
+        Utils.logAction('EDITAR_RECOMPENSA', 'Recompensa ' + idRecompensa + ' (' + nombre + ') actualizada por ' + session.email, session.email);
+
+        return Utils.success({
+          idRecompensa: idRecompensa,
+          nombre: nombre,
+          puntosRequeridos: puntos,
+          descripcion: descripcion,
+          activo: activo,
+          orden: orden
+        }, 'Recompensa "' + nombre + '" actualizada con éxito.');
+      } else {
+        var allRecs = Utils.getAllRecords(CONFIG.SHEETS.RECOMPENSAS_PUNTOS);
+        var maxNum = 0;
+        for (var i = 0; i < allRecs.length; i++) {
+          var idStr = String(allRecs[i].IDRecompensa || '').trim();
+          var match = idStr.match(/^REC-(\d+)$/i);
+          if (match) {
+            var n = parseInt(match[1], 10);
+            if (n > maxNum) maxNum = n;
+          }
+        }
+        var nextNum = maxNum + 1;
+        var nuevoId = 'REC-' + ('000' + nextNum).slice(-3);
+
+        var nuevoRegistro = {
+          IDRecompensa: nuevoId,
+          Nombre: nombre,
+          PuntosRequeridos: puntos,
+          Descripcion: descripcion,
+          Activo: activo,
+          Orden: orden
+        };
+
+        Utils.appendRecord(CONFIG.SHEETS.RECOMPENSAS_PUNTOS, nuevoRegistro);
+        Utils.logAction('CREAR_RECOMPENSA', 'Recompensa ' + nuevoId + ' (' + nombre + ') creada por ' + session.email, session.email);
+
+        return Utils.success(nuevoRegistro, 'Nueva recompensa "' + nombre + '" creada con éxito.');
+      }
+    });
+  },
+
+  /**
+   * Cambia el estado Activo (SI / NO) de una recompensa existente
+   */
+  cambiarEstadoRecompensa: function(idRecompensa, nuevoEstadoActivo, session) {
+    if (!idRecompensa) throw new Error('ID de recompensa requerido');
+    var estado = nuevoEstadoActivo ? 'SI' : 'NO';
+
+    return Utils.withScriptLock(function() {
+      var rec = Utils.findRecordBy(CONFIG.SHEETS.RECOMPENSAS_PUNTOS, 'IDRecompensa', idRecompensa);
+      if (!rec) throw new Error('Recompensa no encontrada');
+
+      Utils.updateRecordRow(CONFIG.SHEETS.RECOMPENSAS_PUNTOS, rec._rowIndex, { Activo: estado });
+      Utils.logAction('CAMBIO_ESTADO_RECOMPENSA', 'Recompensa ' + idRecompensa + ' cambiada a ' + estado + ' por ' + session.email, session.email);
+
+      return Utils.success({ idRecompensa: idRecompensa, activo: estado }, 'Estado de la recompensa actualizado a ' + estado);
+    });
+  },
+
   obtenerPuntosYMovimientos: function(idUsuario) {
     if (!idUsuario) throw new Error('ID de usuario requerido');
 
@@ -274,6 +395,34 @@ function apiObtenerCatalogoRecompensas() {
     return Utils.error(e.message);
   }
 }
+
+function apiListarRecompensasAdmin(token) {
+  try {
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    return Utils.success(Puntos.listarTodasRecompensasAdmin());
+  } catch (e) {
+    return Utils.error(e.message);
+  }
+}
+
+function apiGuardarRecompensa(token, datos) {
+  try {
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    return Puntos.guardarRecompensa(datos, session);
+  } catch (e) {
+    return Utils.error(e.message);
+  }
+}
+
+function apiCambiarEstadoRecompensa(token, idRecompensa, nuevoEstadoActivo) {
+  try {
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    return Puntos.cambiarEstadoRecompensa(idRecompensa, nuevoEstadoActivo, session);
+  } catch (e) {
+    return Utils.error(e.message);
+  }
+}
+
 
 function apiObtenerMisPuntos(token) {
   try {
