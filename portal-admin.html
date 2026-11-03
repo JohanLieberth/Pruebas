@@ -79,6 +79,7 @@
                 <th>Orden de Servicio</th>
                 <th>Cliente / Razón Social</th>
                 <th>Teléfono</th>
+                <th>Responsable Solidario</th>
                 <th>Estado</th>
                 <th>Total a Cobrar</th>
                 <th>Cobrado</th>
@@ -89,7 +90,7 @@
               </tr>
             </thead>
             <tbody id="tbodyOrdenesAdmin">
-              <tr><td colspan="10" style="text-align: center;">Cargando órdenes de servicio...</td></tr>
+              <tr><td colspan="11" style="text-align: center;">Cargando órdenes de servicio...</td></tr>
             </tbody>
           </table>
         </div>
@@ -103,6 +104,23 @@
             <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;" id="subtituloDetalleOrden"></div>
           </div>
           <button class="btn btn-secondary btn-sm" onclick="cerrarDetalleOrden()">✕ Cerrar Detalle</button>
+        </div>
+
+        <!-- Tarjeta de Responsable Solidario Asociado a la Orden -->
+        <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">
+              👤 Responsable Solidario Autorizado
+            </div>
+            <div id="infoResponsableOrden" style="font-size: 0.95rem; color: #0f172a; margin-top: 0.25rem;">
+              <span style="color: #64748b; font-style: italic;">Sin responsable solidario registrado</span>
+            </div>
+          </div>
+          <div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="abrirModalModificarResponsable()">
+              ✏️ Modificar Responsable
+            </button>
+          </div>
         </div>
 
         <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.75rem;">
@@ -518,6 +536,63 @@
   </div>
 
 
+  <!-- MODAL: Modificar Responsable Solidario de la Orden -->
+  <div id="modalModificarResponsable" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;" id="modalModificarRespTitulo">Responsable Solidario de la Orden</h3>
+        <button class="modal-close" onclick="cerrarModalModificarResponsable()">&times;</button>
+      </div>
+      <form id="formModificarResponsable" onsubmit="guardarResponsableOrden(event)">
+        <input type="hidden" id="modRespOrdenId" value="">
+
+        <div class="alert alert-info" style="font-size: 0.85rem; margin-bottom: 1rem;">
+          ℹ️ Puedes seleccionar un responsable solidario ya registrado para este cliente, registrar uno nuevo, o dejar la orden sin responsable asignado.
+        </div>
+
+        <div class="form-group">
+          <label for="selectResponsableExistente">Seleccionar Responsable Existente:</label>
+          <select id="selectResponsableExistente" class="input-control" onchange="alCambiarSelectResponsable()">
+            <option value="">-- Sin responsable asignado --</option>
+            <!-- Opciones pobladas dinámicamente -->
+          </select>
+        </div>
+
+        <div style="border-top: 1px dashed #cbd5e1; margin: 1.25rem 0 1rem 0; padding-top: 1rem;">
+          <div style="font-weight: 600; font-size: 0.95rem; color: #334155; margin-bottom: 0.75rem;">
+            O registrar y asociar un nuevo responsable solidario:
+          </div>
+
+          <div class="form-group">
+            <label for="nuevoRespNombre">Nombre Completo:</label>
+            <input type="text" id="nuevoRespNombre" class="input-control" placeholder="Nombre y apellidos del responsable">
+          </div>
+
+          <div class="form-row">
+            <div class="form-col">
+              <label for="nuevoRespTelefono">Teléfono:</label>
+              <input type="tel" id="nuevoRespTelefono" class="input-control" placeholder="Ej. 5512345678">
+            </div>
+            <div class="form-col">
+              <label for="nuevoRespCorreo">Correo electrónico:</label>
+              <input type="email" id="nuevoRespCorreo" class="input-control" placeholder="responsable@correo.com">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="nuevoRespRelacion">Parentesco o Relación:</label>
+            <input type="text" id="nuevoRespRelacion" class="input-control" placeholder="Ej. Hermano, Socio, Empleado, Familiar">
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalModificarResponsable()">Cancelar</button>
+          <button type="submit" id="btnGuardarRespOrden" class="btn btn-primary">Guardar Responsable</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: Crear / Editar Recompensa de Canje -->
   <div id="modalRecompensa" class="modal-overlay">
     <div class="modal-box">
@@ -647,27 +722,35 @@
       var filtroEstado = document.getElementById('filtroEstadoAdmin').value;
       var tbody = document.getElementById('tbodyOrdenesAdmin');
 
-      tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando órdenes...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando órdenes...</td></tr>';
 
       google.script.run
         .withSuccessHandler(function(res) {
           if (!res.success) {
-            tbody.innerHTML = '<tr><td colspan="10" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
             return;
           }
 
           var ordenes = res.data || [];
           if (ordenes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #64748b;">No se encontraron órdenes registradas.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #64748b;">No se encontraron órdenes registradas.</td></tr>';
             return;
           }
 
           var html = '';
           ordenes.forEach(function(o) {
+            var txtResp = '<span style="color: #94a3b8; font-style: italic;">Sin asignar</span>';
+            if (o.nombreResponsable) {
+              txtResp = '<strong style="color: #1e293b;">' + o.nombreResponsable + '</strong>' +
+                (o.telefonoResponsable ? '<br><span style="font-size: 0.75rem; color: #64748b;">Tel: ' + o.telefonoResponsable + '</span>' : '') +
+                (o.relacionResponsable ? '<br><span style="font-size: 0.72rem; color: #4338ca;">(' + o.relacionResponsable + ')</span>' : '');
+            }
+
             html += '<tr>';
             html += '  <td><strong style="color: #4338ca;">' + o.folio + '</strong></td>';
             html += '  <td>' + o.nombreCliente + ' <span style="font-size: 0.75rem; color: #64748b;">(' + o.tipoUsuario + ')</span></td>';
             html += '  <td>' + o.telefonoContacto + '</td>';
+            html += '  <td>' + txtResp + '</td>';
             html += '  <td>' + App.getOrderStatusBadge(o.estadoOrden) + '</td>';
             html += '  <td><strong>' + App.formatCurrency(o.totalEstimado) + '</strong></td>';
             html += '  <td style="color: #059669;">' + App.formatCurrency(o.totalCobrado) + '</td>';
@@ -680,7 +763,7 @@
           tbody.innerHTML = html;
         })
         .withFailureHandler(function(err) {
-          tbody.innerHTML = '<tr><td colspan="10" style="color: red; text-align: center;">Error: ' + err.message + '</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="11" style="color: red; text-align: center;">Error: ' + err.message + '</td></tr>';
         })
         .apiListarOrdenesAdmin(token, filtroTexto, filtroEstado);
     }
@@ -705,6 +788,17 @@
           ordenSeleccionadaActual = data;
           document.getElementById('tituloDetalleOrden').innerText = 'Orden ' + data.orden.folio + ' (' + data.orden.estadoOrden + ')';
           document.getElementById('subtituloDetalleOrden').innerText = 'Cliente: ' + data.orden.nombreCliente + ' | Tel: ' + data.orden.telefonoContacto + ' | Total: ' + App.formatCurrency(data.orden.totalEstimado) + ' | Cobrado: ' + App.formatCurrency(data.orden.totalCobrado) + ' | Saldo: ' + App.formatCurrency(data.orden.saldo);
+
+          // Actualizar bloque de Responsable Solidario
+          var boxResp = document.getElementById('infoResponsableOrden');
+          if (data.orden.nombreResponsable) {
+            boxResp.innerHTML = '<strong>' + data.orden.nombreResponsable + '</strong>' +
+              (data.orden.telefonoResponsable ? ' &bull; Tel: <a href="tel:' + data.orden.telefonoResponsable + '">' + data.orden.telefonoResponsable + '</a>' : '') +
+              (data.orden.correoResponsable ? ' &bull; Correo: ' + data.orden.correoResponsable : '') +
+              (data.orden.relacionResponsable ? ' &bull; <span class="badge" style="background: #e2e8f0; color: #334155;">' + data.orden.relacionResponsable + '</span>' : '');
+          } else {
+            boxResp.innerHTML = '<span style="color: #64748b; font-style: italic;">Sin responsable solidario registrado para esta orden.</span>';
+          }
 
           var devs = data.dispositivos || [];
           if (devs.length === 0) {
@@ -752,6 +846,105 @@
     function cerrarDetalleOrden() {
       document.getElementById('cardDetalleOrden').style.display = 'none';
       ordenSeleccionadaActual = null;
+    }
+
+    /* Modal Modificar Responsable Solidario */
+    function abrirModalModificarResponsable() {
+      if (!ordenSeleccionadaActual) return;
+      var ord = ordenSeleccionadaActual.orden;
+
+      document.getElementById('modRespOrdenId').value = ord.idOrden;
+      document.getElementById('modalModificarRespTitulo').innerText = 'Responsable Solidario - Orden ' + ord.folio;
+
+      // Poblar el combo con los responsables disponibles del cliente
+      var select = document.getElementById('selectResponsableExistente');
+      select.innerHTML = '<option value="">-- Sin responsable asignado --</option>';
+
+      var disps = ordenSeleccionadaActual.responsablesDisponibles || [];
+      disps.forEach(function(r) {
+        var opt = document.createElement('option');
+        opt.value = r.idResponsable;
+        opt.textContent = r.nombre + (r.relacion ? ' (' + r.relacion + ')' : '') + (r.telefono ? ' - ' + r.telefono : '');
+        select.appendChild(opt);
+      });
+
+      // Seleccionar el actual si existe
+      if (ord.idResponsable) {
+        select.value = ord.idResponsable;
+      } else {
+        select.value = '';
+      }
+
+      // Limpiar campos de nuevo responsable
+      document.getElementById('nuevoRespNombre').value = '';
+      document.getElementById('nuevoRespTelefono').value = '';
+      document.getElementById('nuevoRespCorreo').value = '';
+      document.getElementById('nuevoRespRelacion').value = '';
+
+      document.getElementById('modalModificarResponsable').style.display = 'flex';
+    }
+
+    function cerrarModalModificarResponsable() {
+      document.getElementById('modalModificarResponsable').style.display = 'none';
+    }
+
+    function alCambiarSelectResponsable() {
+      var select = document.getElementById('selectResponsableExistente');
+      if (select.value) {
+        document.getElementById('nuevoRespNombre').value = '';
+        document.getElementById('nuevoRespTelefono').value = '';
+        document.getElementById('nuevoRespCorreo').value = '';
+        document.getElementById('nuevoRespRelacion').value = '';
+      }
+    }
+
+    function guardarResponsableOrden(e) {
+      e.preventDefault();
+      if (!ordenSeleccionadaActual) return;
+
+      var token = App.getToken();
+      var idOrden = document.getElementById('modRespOrdenId').value;
+      var idResponsableExistente = document.getElementById('selectResponsableExistente').value;
+
+      var nuevoNombre = document.getElementById('nuevoRespNombre').value.trim();
+      var nuevoObj = null;
+
+      if (nuevoNombre) {
+        nuevoObj = {
+          nombre: nuevoNombre,
+          telefono: document.getElementById('nuevoRespTelefono').value.trim(),
+          correo: document.getElementById('nuevoRespCorreo').value.trim(),
+          relacion: document.getElementById('nuevoRespRelacion').value.trim()
+        };
+      }
+
+      var btn = document.getElementById('btnGuardarRespOrden');
+      btn.disabled = true;
+      btn.innerHTML = 'Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Responsable';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          alert('✅ ' + res.message);
+          cerrarModalModificarResponsable();
+
+          // Refrescar detalle de orden actual y tabla de órdenes
+          verDetalleOrdenAdmin(idOrden);
+          cargarOrdenesAdmin();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Responsable';
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiActualizarResponsableOrden(token, idOrden, idResponsableExistente, nuevoObj);
     }
 
     function ejecutarEntregaParcial(idDispositivo) {

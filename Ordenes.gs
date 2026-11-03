@@ -189,6 +189,14 @@ var Ordenes = {
   listarOrdenesAdmin: function(filtroTexto, estadoFiltro) {
     var ordenes = Utils.getAllRecords(CONFIG.SHEETS.ORDENES_SERVICIO);
     var dispositivos = Utils.getAllRecords(CONFIG.SHEETS.DISPOSITIVOS);
+    var responsables = Utils.getAllRecords(CONFIG.SHEETS.RESPONSABLES_SOLIDARIOS);
+
+    // Mapear responsables por ID
+    var respMap = {};
+    for (var r = 0; r < responsables.length; r++) {
+      var itemResp = responsables[r];
+      respMap[itemResp.IDResponsable] = itemResp;
+    }
 
     // Mapear dispositivos por orden
     var dispPorOrden = {};
@@ -215,10 +223,12 @@ var Ordenes = {
       // Filtro de búsqueda (folio, cliente, teléfono, número de serie de sus dispositivos)
       if (q) {
         var match = false;
+        var respObjForSearch = ord.IDResponsable ? respMap[ord.IDResponsable] : null;
         if (Utils.normalizeText(ord.Folio).indexOf(q) !== -1) match = true;
         if (Utils.normalizeText(ord.NombreCliente).indexOf(q) !== -1) match = true;
         if (Utils.normalizeText(ord.TelefonoContacto).indexOf(q) !== -1) match = true;
         if (Utils.normalizeText(ord.CorreoContacto).indexOf(q) !== -1) match = true;
+        if (respObjForSearch && (Utils.normalizeText(respObjForSearch.Nombre).indexOf(q) !== -1 || Utils.normalizeText(respObjForSearch.Telefono).indexOf(q) !== -1)) match = true;
 
         if (!match) {
           for (var k = 0; k < listaDisp.length; k++) {
@@ -235,6 +245,8 @@ var Ordenes = {
         if (!match) continue;
       }
 
+      var respInfo = ord.IDResponsable ? respMap[ord.IDResponsable] : null;
+
       resultado.push({
         idOrden: ord.IDOrden,
         folio: ord.Folio,
@@ -243,6 +255,11 @@ var Ordenes = {
         nombreCliente: ord.NombreCliente,
         telefonoContacto: ord.TelefonoContacto,
         correoContacto: ord.CorreoContacto,
+        idResponsable: ord.IDResponsable || '',
+        nombreResponsable: respInfo ? respInfo.Nombre : '',
+        telefonoResponsable: respInfo ? respInfo.Telefono : '',
+        correoResponsable: respInfo ? respInfo.Correo : '',
+        relacionResponsable: respInfo ? respInfo.Relacion : '',
         estadoOrden: ord.EstadoOrden,
         totalEstimado: Number(ord.TotalEstimado) || 0,
         totalCobrado: Number(ord.TotalCobrado) || 0,
@@ -274,6 +291,18 @@ var Ordenes = {
       orden = Utils.findRecordBy(CONFIG.SHEETS.ORDENES_SERVICIO, 'Folio', idOrden);
     }
     if (!orden) throw new Error('Orden de servicio no encontrada');
+
+    // Obtener información del responsable solidario si tiene uno asignado
+    var respObj = null;
+    if (orden.IDResponsable) {
+      respObj = Utils.findRecordBy(CONFIG.SHEETS.RESPONSABLES_SOLIDARIOS, 'IDResponsable', orden.IDResponsable);
+    }
+
+    // Obtener todos los responsables registrados para este cliente (para facilitar selección)
+    var responsablesDisponibles = [];
+    if (orden.IDUsuario) {
+      responsablesDisponibles = Usuarios.obtenerResponsablesDeUsuario(orden.IDUsuario);
+    }
 
     var dispositivos = Utils.findAllRecordsBy(CONFIG.SHEETS.DISPOSITIVOS, 'IDOrden', orden.IDOrden);
 
@@ -317,7 +346,11 @@ var Ordenes = {
         nombreCliente: orden.NombreCliente,
         correoContacto: orden.CorreoContacto,
         telefonoContacto: orden.TelefonoContacto,
-        idResponsable: orden.IDResponsable,
+        idResponsable: orden.IDResponsable || '',
+        nombreResponsable: respObj ? respObj.Nombre : '',
+        telefonoResponsable: respObj ? respObj.Telefono : '',
+        correoResponsable: respObj ? respObj.Correo : '',
+        relacionResponsable: respObj ? respObj.Relacion : '',
         estadoOrden: orden.EstadoOrden,
         observaciones: orden.Observaciones,
         totalEstimado: Number(orden.TotalEstimado) || 0,
@@ -327,6 +360,24 @@ var Ordenes = {
         fechaActualizacion: orden.FechaActualizacion,
         creadoPor: orden.CreadoPor
       },
+      responsable: respObj ? {
+        idResponsable: respObj.IDResponsable,
+        idUsuario: respObj.IDUsuario,
+        nombre: respObj.Nombre,
+        telefono: respObj.Telefono,
+        correo: respObj.Correo,
+        relacion: respObj.Relacion,
+        activo: respObj.Activo
+      } : null,
+      responsablesDisponibles: responsablesDisponibles.map(function(r) {
+        return {
+          idResponsable: r.IDResponsable,
+          nombre: r.Nombre,
+          telefono: r.Telefono,
+          correo: r.Correo,
+          relacion: r.Relacion
+        };
+      }),
       dispositivos: dispositivosDetalle
     };
   },
@@ -428,6 +479,72 @@ var Ordenes = {
   /**
    * Obtiene las órdenes completas de un usuario cliente autenticado
    */
+  /**
+   * Modifica o asigna el responsable solidario de una orden existente de forma persistente
+   * @param {string} idOrden
+   * @param {string} idResponsable - ID existente, o vacío si se va a registrar uno nuevo o desvincular
+   * @param {Object} [nuevoResponsableObj] - Opcional si se crea un nuevo responsable para el cliente
+   * @param {Object} [session]
+   */
+  actualizarResponsableOrden: function(idOrden, idResponsable, nuevoResponsableObj, session) {
+    if (!idOrden) throw new Error('ID de orden requerido');
+
+    return Utils.withScriptLock(function() {
+      var orden = Utils.findRecordBy(CONFIG.SHEETS.ORDENES_SERVICIO, 'IDOrden', idOrden);
+      if (!orden) {
+        orden = Utils.findRecordBy(CONFIG.SHEETS.ORDENES_SERVICIO, 'Folio', idOrden);
+      }
+      if (!orden) throw new Error('Orden de servicio no encontrada');
+
+      var respFinalId = idResponsable ? String(idResponsable).trim() : '';
+
+      // Si se envía datos para un nuevo responsable solidario
+      if (nuevoResponsableObj && nuevoResponsableObj.nombre && nuevoResponsableObj.nombre.trim()) {
+        var clienteId = orden.IDUsuario;
+        if (!clienteId) {
+          var clienteExistente = Utils.findRecordBy(CONFIG.SHEETS.USUARIOS, 'Correo', orden.CorreoContacto);
+          clienteId = clienteExistente ? clienteExistente.IDUsuario : Utils.generateId('USR');
+        }
+
+        respFinalId = Usuarios.agregarResponsable(clienteId, {
+          nombre: nuevoResponsableObj.nombre,
+          telefono: nuevoResponsableObj.telefono || orden.TelefonoContacto || '',
+          correo: nuevoResponsableObj.correo || '',
+          relacion: nuevoResponsableObj.relacion || 'Responsable Autorizado'
+        });
+      }
+
+      // Validar que el responsable exista si se especificó un ID
+      var nombreResp = 'Ninguno';
+      if (respFinalId) {
+        var respRecord = Utils.findRecordBy(CONFIG.SHEETS.RESPONSABLES_SOLIDARIOS, 'IDResponsable', respFinalId);
+        if (!respRecord) throw new Error('El responsable solidario seleccionado no existe');
+        nombreResp = respRecord.Nombre;
+      }
+
+      var respAnteriorId = orden.IDResponsable || 'Sin asignar';
+
+      // Actualizar en la hoja de OrdenesServicio
+      Utils.updateRecordRow(CONFIG.SHEETS.ORDENES_SERVICIO, orden._rowIndex, {
+        IDResponsable: respFinalId,
+        FechaActualizacion: Utils.formatDateTime()
+      });
+
+      var adminEmail = session ? session.email : 'Admin';
+      Utils.logAction('ACTUALIZAR_RESPONSABLE_ORDEN',
+        'Orden ' + orden.Folio + ': Responsable modificado de [' + respAnteriorId + '] a [' + respFinalId + ' - ' + nombreResp + ']',
+        adminEmail
+      );
+
+      return Utils.success({
+        idOrden: orden.IDOrden,
+        folio: orden.Folio,
+        idResponsable: respFinalId,
+        nombreResponsable: nombreResp
+      }, 'Responsable solidario de la orden ' + orden.Folio + ' actualizado correctamente.');
+    });
+  },
+
   obtenerOrdenesDeUsuario: function(idUsuario, emailUsuario) {
     var ordenes = Utils.getAllRecords(CONFIG.SHEETS.ORDENES_SERVICIO);
     var dispositivos = Utils.getAllRecords(CONFIG.SHEETS.DISPOSITIVOS);
@@ -477,6 +594,15 @@ function apiCrearOrden(token, payload) {
   try {
     var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
     return Ordenes.crearOrden(payload, session);
+  } catch (e) {
+    return Utils.error(e.message);
+  }
+}
+
+function apiActualizarResponsableOrden(token, idOrden, idResponsable, nuevoResponsableObj) {
+  try {
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    return Ordenes.actualizarResponsableOrden(idOrden, idResponsable, nuevoResponsableObj, session);
   } catch (e) {
     return Utils.error(e.message);
   }
