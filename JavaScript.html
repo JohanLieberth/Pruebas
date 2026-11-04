@@ -256,12 +256,21 @@
       .obtenerCatalogos();
   }
 
-  function obtenerJefaturasDependientesDeSubdireccion(subdireccionNombre) {
-    if (!subdireccionNombre || !GLOBAL_CATALOGOS.Organigrama) return [];
-    const subNorm = subdireccionNombre.trim().toLowerCase();
-    return GLOBAL_CATALOGOS.Organigrama
-      .filter(item => item.subdireccion && item.subdireccion.trim().toLowerCase() === subNorm)
-      .map(item => item.jefatura);
+  function obtenerJefaturasDependientesDeSubdireccion(subdirecciones) {
+    if (!subdirecciones || !GLOBAL_CATALOGOS.Organigrama) return [];
+    const subsArray = (Array.isArray(subdirecciones) ? subdirecciones : String(subdirecciones).split(','))
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    const jefsEncontradas = [];
+    GLOBAL_CATALOGOS.Organigrama.forEach(item => {
+      if (item.subdireccion && subsArray.includes(item.subdireccion.trim().toLowerCase())) {
+        if (!jefsEncontradas.includes(item.jefatura)) {
+          jefsEncontradas.push(item.jefatura);
+        }
+      }
+    });
+    return jefsEncontradas;
   }
 
   function poblarDropdowns() {
@@ -295,44 +304,106 @@
   function poblarCheckboxesSubdireccionesJefaturas() {
     const contSub = document.getElementById('contenedor-check-subdirecciones');
     const seccionFormSub = document.getElementById('seccion-form-subdirecciones');
+    const contJef = document.getElementById('contenedor-check-jefaturas');
+    const seccionFormJef = document.getElementById('seccion-form-jefaturas');
 
-    // UI para Administrador: Solo ve selector de Subdirecciones
-    if (CURRENT_USER && CURRENT_USER.rol === 'Administrador') {
-      if (seccionFormSub) seccionFormSub.classList.remove('d-none');
-      if (contSub) {
-        contSub.innerHTML = '';
-        (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
-          const div = document.createElement('div');
-          div.className = 'form-check form-check-inline me-3 mb-1';
-          div.innerHTML = `
-            <input class="form-check-input chk-subdireccion" type="checkbox" value="${sub}" id="sub-chk-${sub.replace(/\s+/g, '-')}">
-            <label class="form-check-label small" for="sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
-          `;
-          contSub.appendChild(div);
-        });
+    // UI para Formulario de Nuevo Acuerdo Individual / Edición
+    if (CURRENT_USER) {
+      if (CURRENT_USER.rol === 'Administrador' || CURRENT_USER.rol === 'Operador') {
+        if (seccionFormSub) seccionFormSub.classList.remove('d-none');
+        if (seccionFormJef) seccionFormJef.classList.remove('d-none');
+
+        if (contSub) {
+          contSub.innerHTML = '';
+          (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
+            const div = document.createElement('div');
+            div.className = 'form-check form-check-inline me-3 mb-1';
+            div.innerHTML = `
+              <input class="form-check-input chk-subdireccion" type="checkbox" value="${sub}" id="sub-chk-${sub.replace(/\s+/g, '-')}" onchange="actualizarJefaturasFormAcuerdo();">
+              <label class="form-check-label small" for="sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
+            `;
+            contSub.appendChild(div);
+          });
+        }
+        actualizarJefaturasFormAcuerdo();
+      } else {
+        if (seccionFormSub) seccionFormSub.classList.add('d-none');
+        if (seccionFormJef) seccionFormJef.classList.add('d-none');
       }
-    } else {
-      if (seccionFormSub) seccionFormSub.classList.add('d-none');
     }
 
-    // Modal Operador: Checkboxes Jefaturas dependientes exclusivamente de su subdirección
+    // Modal Operador: Checkboxes de Subdirecciones desde el catálogo
+    const contSubModalOp = document.getElementById('modal-operador-check-subdirecciones');
+    if (contSubModalOp && CURRENT_USER && CURRENT_USER.rol === 'Operador') {
+      contSubModalOp.innerHTML = '';
+      (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
+        const div = document.createElement('div');
+        div.className = 'form-check form-check-inline me-3 mb-1';
+        div.innerHTML = `
+          <input class="form-check-input chk-operador-subdireccion" type="checkbox" value="${sub}" id="op-sub-chk-${sub.replace(/\s+/g, '-')}" onchange="actualizarJefaturasModalOperador();">
+          <label class="form-check-label small" for="op-sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
+        `;
+        contSubModalOp.appendChild(div);
+      });
+      actualizarJefaturasModalOperador();
+    }
+  }
+
+  function actualizarJefaturasModalOperador(jefaturasSeleccionadas = []) {
     const contJefModalOp = document.getElementById('modal-operador-check-jefaturas');
-    if (contJefModalOp && CURRENT_USER && CURRENT_USER.subdireccion) {
-      contJefModalOp.innerHTML = '';
-      const jefsPermitidas = obtenerJefaturasDependientesDeSubdireccion(CURRENT_USER.subdireccion);
-      if (jefsPermitidas.length === 0) {
-        contJefModalOp.innerHTML = '<span class="text-muted small">No hay jefaturas registradas bajo su subdirección.</span>';
-      } else {
-        jefsPermitidas.forEach(jef => {
-          const div = document.createElement('div');
-          div.className = 'form-check form-check-inline me-3 mb-1';
-          div.innerHTML = `
-            <input class="form-check-input chk-jefatura" type="checkbox" value="${jef}" id="jef-op-chk-${jef.replace(/\s+/g, '-')}">
-            <label class="form-check-label small" for="jef-op-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
-          `;
-          contJefModalOp.appendChild(div);
-        });
-      }
+    if (!contJefModalOp) return;
+
+    const subsSeleccionadas = [];
+    document.querySelectorAll('#modal-operador-check-subdirecciones .chk-operador-subdireccion:checked').forEach(chk => {
+      subsSeleccionadas.push(chk.value);
+    });
+
+    const subsBase = subsSeleccionadas.length > 0 ? subsSeleccionadas : [CURRENT_USER.subdireccion];
+    const jefsPermitidas = obtenerJefaturasDependientesDeSubdireccion(subsBase);
+
+    contJefModalOp.innerHTML = '';
+    if (jefsPermitidas.length === 0) {
+      contJefModalOp.innerHTML = '<span class="text-muted small">No hay jefaturas registradas bajo las subdirecciones seleccionadas.</span>';
+    } else {
+      jefsPermitidas.forEach(jef => {
+        const div = document.createElement('div');
+        div.className = 'form-check form-check-inline me-3 mb-1';
+        const isChecked = jefaturasSeleccionadas.includes(jef);
+        div.innerHTML = `
+          <input class="form-check-input chk-jefatura" type="checkbox" value="${jef}" id="jef-op-chk-${jef.replace(/\s+/g, '-')}" ${isChecked ? 'checked' : ''}>
+          <label class="form-check-label small" for="jef-op-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
+        `;
+        contJefModalOp.appendChild(div);
+      });
+    }
+  }
+
+  function actualizarJefaturasFormAcuerdo(jefaturasSeleccionadas = []) {
+    const contJef = document.getElementById('contenedor-check-jefaturas');
+    if (!contJef) return;
+
+    const subsSeleccionadas = [];
+    document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion:checked').forEach(chk => {
+      subsSeleccionadas.push(chk.value);
+    });
+
+    const subsBase = subsSeleccionadas.length > 0 ? subsSeleccionadas : (CURRENT_USER.rol === 'Operador' ? [CURRENT_USER.subdireccion] : (GLOBAL_CATALOGOS.Subdirección || []));
+    const jefsPermitidas = obtenerJefaturasDependientesDeSubdireccion(subsBase);
+
+    contJef.innerHTML = '';
+    if (jefsPermitidas.length === 0) {
+      contJef.innerHTML = '<span class="text-muted small">No hay jefaturas registradas para las subdirecciones seleccionadas.</span>';
+    } else {
+      jefsPermitidas.forEach(jef => {
+        const div = document.createElement('div');
+        div.className = 'form-check form-check-inline me-3 mb-1';
+        const isChecked = jefaturasSeleccionadas.includes(jef);
+        div.innerHTML = `
+          <input class="form-check-input chk-form-jefatura" type="checkbox" value="${jef}" id="form-jef-chk-${jef.replace(/\s+/g, '-')}" ${isChecked ? 'checked' : ''}>
+          <label class="form-check-label small" for="form-jef-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
+        `;
+        contJef.appendChild(div);
+      });
     }
   }
 
@@ -1061,7 +1132,7 @@
             <i class="bi bi-eye"></i>
           </button>
           ${(CURRENT_USER.rol === 'Operador' || CURRENT_USER.rol === 'Jefatura') ? `
-            <button class="btn btn-outline-warning btn-sm rounded-circle" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}', '${a.Jefaturas_Asignadas || ''}')" title="Cambiar Estatus / Asignar">
+            <button class="btn btn-outline-warning btn-sm rounded-circle" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}', '${a.Jefaturas_Asignadas || ''}', '${a.Subdirección_Asignada || ''}')" title="Cambiar Estatus / Asignar">
               <i class="bi bi-arrow-repeat"></i>
             </button>
           ` : (CURRENT_USER.rol === 'Administrador' ? `
@@ -1075,20 +1146,37 @@
     });
   }
 
-  function abrirModalCambiarEstatusOperador(idAcuerdo, estatusActual, jefaturasActuales) {
+  function abrirModalCambiarEstatusOperador(idAcuerdo, estatusActual, jefaturasActuales, subdireccionesActuales = '') {
     document.getElementById('modal-estatus-id-acuerdo').value = idAcuerdo;
     document.getElementById('modal-estatus-select').value = estatusActual;
 
-    const contOpJef = document.getElementById('seccion-operador-jefaturas');
+    if (!subdireccionesActuales) {
+      const ac = GLOBAL_ACUERDOS.find(item => item.ID_Acuerdo === idAcuerdo);
+      if (ac) {
+        subdireccionesActuales = ac.Subdirección_Asignada || '';
+        if (!jefaturasActuales) jefaturasActuales = ac.Jefaturas_Asignadas || '';
+      }
+    }
+
+    const secOpSub = document.getElementById('seccion-operador-subdirecciones');
+    const secOpJef = document.getElementById('seccion-operador-jefaturas');
+
     if (CURRENT_USER.rol === 'Operador') {
-      if (contOpJef) contOpJef.classList.remove('d-none');
+      if (secOpSub) secOpSub.classList.remove('d-none');
+      if (secOpJef) secOpJef.classList.remove('d-none');
+
       poblarCheckboxesSubdireccionesJefaturas();
-      const jefsArray = String(jefaturasActuales || '').split(',').map(s => s.trim());
-      document.querySelectorAll('#modal-operador-check-jefaturas .chk-jefatura').forEach(chk => {
-        chk.checked = jefsArray.includes(chk.value);
+
+      const subsArray = String(subdireccionesActuales || CURRENT_USER.subdireccion || '').split(',').map(s => s.trim().toLowerCase());
+      document.querySelectorAll('#modal-operador-check-subdirecciones .chk-operador-subdireccion').forEach(chk => {
+        chk.checked = subsArray.includes(chk.value.trim().toLowerCase());
       });
+
+      const jefsArray = String(jefaturasActuales || '').split(',').map(s => s.trim());
+      actualizarJefaturasModalOperador(jefsArray);
     } else {
-      if (contOpJef) contOpJef.classList.add('d-none');
+      if (secOpSub) secOpSub.classList.add('d-none');
+      if (secOpJef) secOpJef.classList.add('d-none');
     }
 
     const modal = new bootstrap.Modal(document.getElementById('modalEstatusAcuerdo'));
@@ -1102,6 +1190,12 @@
     const data = { estatus: nuevoEstatus };
 
     if (CURRENT_USER.rol === 'Operador') {
+      const selectedSubs = [];
+      document.querySelectorAll('#modal-operador-check-subdirecciones .chk-operador-subdireccion:checked').forEach(chk => {
+        selectedSubs.push(chk.value);
+      });
+      data.subdireccionAsignada = selectedSubs;
+
       const selectedJefs = [];
       document.querySelectorAll('#modal-operador-check-jefaturas .chk-jefatura:checked').forEach(chk => {
         selectedJefs.push(chk.value);
@@ -1171,6 +1265,12 @@
       document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
         chk.checked = false;
       });
+      actualizarJefaturasFormAcuerdo([]);
+    } else if (CURRENT_USER.rol === 'Operador') {
+      document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
+        chk.checked = (chk.value.trim().toLowerCase() === String(CURRENT_USER.subdireccion || '').trim().toLowerCase());
+      });
+      actualizarJefaturasFormAcuerdo([]);
     }
 
     desbloquearCamposFormAcuerdo();
@@ -1206,10 +1306,13 @@
 
     poblarCheckboxesSubdireccionesJefaturas();
 
-    const subsArray = String(a.Subdirección_Asignada || '').split(',').map(s => s.trim());
+    const subsArray = String(a.Subdirección_Asignada || '').split(',').map(s => s.trim().toLowerCase());
     document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
-      chk.checked = subsArray.includes(chk.value);
+      chk.checked = subsArray.includes(chk.value.trim().toLowerCase());
     });
+
+    const jefsArray = String(a.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
+    actualizarJefaturasFormAcuerdo(jefsArray);
 
     desbloquearCamposFormAcuerdo();
 
@@ -1226,6 +1329,11 @@
       selectedSubs.push(chk.value);
     });
 
+    const selectedJefs = [];
+    document.querySelectorAll('#contenedor-check-jefaturas .chk-form-jefatura:checked').forEach(chk => {
+      selectedJefs.push(chk.value);
+    });
+
     const data = {
       origen: document.getElementById('acuerdo-origen').value,
       folioMinuta: document.getElementById('acuerdo-folio-minuta').value,
@@ -1237,6 +1345,7 @@
       responsables: document.getElementById('acuerdo-responsables').value,
       fechaLimite: document.getElementById('acuerdo-fecha-limite').value,
       subdireccionAsignada: selectedSubs,
+      jefaturasAsignadas: selectedJefs,
       estatus: document.getElementById('acuerdo-estatus').value
     };
 
@@ -1319,14 +1428,20 @@
         document.getElementById('det-acuerdo-semaforo').innerHTML = semBadge;
 
         const headerActions = document.getElementById('det-acuerdo-acciones-header');
-        let htmlBtns = `
-          <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="enviarRecordatorioManualUI('${a.ID_Acuerdo}')">
-            <i class="bi bi-bell me-1"></i> Enviar Recordatorio
-          </button>
-        `;
+        let htmlBtns = '';
+
+        // Ocultar botón "Enviar Recordatorio" para el rol Jefatura (y Lector)
+        if (CURRENT_USER.rol !== 'Jefatura' && CURRENT_USER.rol !== 'Lector') {
+          htmlBtns += `
+            <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="enviarRecordatorioManualUI('${a.ID_Acuerdo}')">
+              <i class="bi bi-bell me-1"></i> Enviar Recordatorio
+            </button>
+          `;
+        }
+
         if (CURRENT_USER.rol === 'Operador' || CURRENT_USER.rol === 'Jefatura') {
           htmlBtns += `
-            <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}', '${a.Jefaturas_Asignadas || ''}')">
+            <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}', '${a.Jefaturas_Asignadas || ''}', '${a.Subdirección_Asignada || ''}')">
               <i class="bi bi-arrow-repeat me-1"></i> Cambiar Estatus / Asignar
             </button>
           `;

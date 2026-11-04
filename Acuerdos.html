@@ -135,10 +135,19 @@
               <select class="form-select" id="acuerdo-estatus" required></select>
             </div>
 
-            <!-- Múltiples Subdirecciones Responsables (Solo visible para Administrador) -->
-            <div class="col-12" id="seccion-form-subdirecciones">
+            <!-- Múltiples Subdirecciones Responsables -->
+            <div class="col-12 d-none" id="seccion-form-subdirecciones">
               <label class="form-label fw-semibold d-block">Subdirección(es) Asignada(s) *</label>
               <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-subdirecciones">
+                <!-- Checkboxes inyectados por JS -->
+              </div>
+            </div>
+
+            <!-- Jefaturas / Departamentos Responsables -->
+            <div class="col-12 d-none" id="seccion-form-jefaturas">
+              <label class="form-label fw-semibold d-block">Jefatura(s) / Departamento(s) Responsable(s)</label>
+              <p class="text-muted small mb-1">Jefaturas vinculadas a las subdirecciones seleccionadas según su perfil.</p>
+              <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-jefaturas">
                 <!-- Checkboxes inyectados por JS -->
               </div>
             </div>

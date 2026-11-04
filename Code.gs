@@ -1147,12 +1147,25 @@ function crearAcuerdoInterno(data, sesion, ss) {
   let subAsignadaStr = '';
   let jefAsignadasStr = '';
 
+  const catData = getSheetData(HOJAS.CATALOGOS);
+  const subsValidasCatalogo = catData.filter(c => String(c.Tipo).trim() === 'Subdirección').map(c => String(c.Valor).trim());
+
   if (sesion.rol === ROLES.ADMINISTRADOR) {
-    subAsignadaStr = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada.join(', ') : (data.subdireccionAsignada || '');
-    jefAsignadasStr = '';
+    const subsRecibidas = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada : (data.subdireccionAsignada ? String(data.subdireccionAsignada).split(',').map(s => s.trim()) : []);
+    const subsValidas = subsRecibidas.filter(s => subsValidasCatalogo.includes(s));
+    subAsignadaStr = subsValidas.join(', ');
+
+    const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(subAsignadaStr);
+    const jefsRecibidas = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas : (data.jefaturasAsignadas ? String(data.jefaturasAsignadas).split(',').map(s => s.trim()) : []);
+    const jefsValidas = jefsRecibidas.filter(j => jefsPermitidas.includes(j));
+    jefAsignadasStr = jefsValidas.join(', ');
   } else if (sesion.rol === ROLES.OPERADOR) {
-    subAsignadaStr = sesion.subdireccion || '';
-    const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(sesion.subdireccion);
+    // Operador puede asignar a subdirecciones del catálogo; si no selecciona ninguna, por defecto se usa su subdirección
+    const subsRecibidas = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada : (data.subdireccionAsignada ? String(data.subdireccionAsignada).split(',').map(s => s.trim()) : []);
+    const subsValidas = subsRecibidas.filter(s => subsValidasCatalogo.includes(s));
+    subAsignadaStr = subsValidas.length > 0 ? subsValidas.join(', ') : (sesion.subdireccion || '');
+
+    const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(subAsignadaStr);
     const jefsRecibidas = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas : (data.jefaturasAsignadas ? String(data.jefaturasAsignadas).split(',').map(s => s.trim()) : []);
     const jefsValidas = jefsRecibidas.filter(j => jefsPermitidas.includes(j));
     jefAsignadasStr = jefsValidas.join(', ');
@@ -1227,9 +1240,22 @@ function actualizarAcuerdo(idAcuerdo, data) {
 
     if (sesion.rol === ROLES.OPERADOR) {
       if (data.estatus !== undefined) setColValue('Estatus', data.estatus);
+
+      // Asignación de Subdirección(es) para el rol Operador
+      let subOperadorActual = sheet.getRange(rowIndex, headers.indexOf('Subdirección_Asignada') + 1).getValue();
+      if (data.subdireccionAsignada !== undefined) {
+        const subsRecibidas = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada : (data.subdireccionAsignada ? String(data.subdireccionAsignada).split(',').map(s => s.trim()) : []);
+        const catData = getSheetData(HOJAS.CATALOGOS);
+        const subsValidasCatalogo = catData.filter(c => String(c.Tipo).trim() === 'Subdirección').map(c => String(c.Valor).trim());
+        const subsFinales = subsRecibidas.filter(s => subsValidasCatalogo.includes(s));
+        if (subsFinales.length > 0) {
+          subOperadorActual = subsFinales.join(', ');
+          setColValue('Subdirección_Asignada', subOperadorActual);
+        }
+      }
+
       if (data.jefaturasAsignadas !== undefined) {
-        const subActual = sheet.getRange(rowIndex, headers.indexOf('Subdirección_Asignada') + 1).getValue();
-        const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(subActual || sesion.subdireccion);
+        const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(subOperadorActual || sesion.subdireccion);
         const jefsRecibidas = Array.isArray(data.jefaturasAsignadas) ? data.jefaturasAsignadas : (data.jefaturasAsignadas ? String(data.jefaturasAsignadas).split(',').map(s => s.trim()) : []);
         const jefsValidas = jefsRecibidas.filter(j => jefsPermitidas.includes(j));
         setColValue('Jefaturas_Asignadas', jefsValidas.join(', '));
@@ -1385,7 +1411,11 @@ function agregarComentario(idAcuerdo, comentario) {
 
 // --- ACCIÓN (c): ENVIAR RECORDATORIO MANUAL DESDE DETALLE DE ACUERDO ---
 function enviarRecordatorioManualAcuerdo(idAcuerdo) {
-  validarSesion();
+  const sesion = validarSesion();
+  if (sesion.rol === ROLES.JEFATURA || sesion.rol === ROLES.LECTOR) {
+    throw new Error('No tiene permisos para enviar recordatorios de acuerdos.');
+  }
+
   const ss = getSpreadsheet();
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
   const acuerdo = acuerdos.find(a => String(a.ID_Acuerdo).trim() === String(idAcuerdo).trim());
