@@ -148,10 +148,19 @@ function setup() {
     usrSheet.getRange(2, 1, usuariosIniciales.length, 6).setValues(usuariosIniciales);
   }
 
-  // 4. Instalar trigger diario para recordatorios
-  instalarTriggerRecordatorios();
+  // 4. Recordatorios automáticos en background deshabilitados según instrucción
+  eliminarTriggersRecordatorios();
 
-  return 'Setup completado exitosamente con organigrama jerárquico, catálogos, usuarios y trigger diario.';
+  return 'Setup completado exitosamente con organigrama jerárquico, catálogos y usuarios.';
+}
+
+function eliminarTriggersRecordatorios() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'procesarRecordatorios') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
 }
 
 function poblarCatalogosOrganigrama(ss) {
@@ -176,7 +185,7 @@ function poblarCatalogosOrganigrama(ss) {
     ['Estatus', 'Pendiente', ''],
     ['Estatus', 'En Proceso', ''],
     ['Estatus', 'Cumplido', ''],
-    ['Estatus', 'Cancelado', '']
+    ['Estatus', 'Cancelado']
   ];
 
   basicos.forEach(b => {
@@ -198,20 +207,6 @@ function poblarCatalogosOrganigrama(ss) {
   if (nuevosRegistros.length > 0) {
     catSheet.getRange(catSheet.getLastRow() + 1, 1, nuevosRegistros.length, 3).setValues(nuevosRegistros);
   }
-}
-
-function instalarTriggerRecordatorios() {
-  const triggers = ScriptApp.getProjectTriggers();
-  for (let i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'procesarRecordatorios') {
-      ScriptApp.deleteTrigger(triggers[i]);
-    }
-  }
-  ScriptApp.newTrigger('procesarRecordatorios')
-    .timeBased()
-    .everyDays(1)
-    .atHour(8)
-    .create();
 }
 
 // ==========================================
@@ -840,6 +835,24 @@ function actualizarMinuta(folio, data) {
       });
     }
 
+    // Sincronizar acuerdos derivados si fueron provistos en data
+    if (Array.isArray(data.acuerdos)) {
+      const acuSheet = ss.getSheetByName(HOJAS.ACUERDOS);
+      const existingAcuerdos = getSheetData(HOJAS.ACUERDOS).filter(a => String(a.Folio_Minuta).trim() === String(folio).trim());
+      const existingIds = new Set(existingAcuerdos.map(a => String(a.ID_Acuerdo).trim()));
+
+      data.acuerdos.forEach(acu => {
+        if (acu.idAcuerdo && existingIds.has(String(acu.idAcuerdo).trim())) {
+          actualizarAcuerdo(acu.idAcuerdo, acu);
+        } else {
+          acu.folioMinuta = folio;
+          acu.origen = 'Minuta';
+          if (!acu.idProyecto) acu.idProyecto = data.idProyecto || '';
+          crearAcuerdoInterno(acu, sesion, ss);
+        }
+      });
+    }
+
     return { success: true, message: 'Minuta actualizada correctamente.' };
   } finally {
     lock.releaseLock();
@@ -890,7 +903,61 @@ function eliminarRegistrosHijo(nombreHoja, colFolioIndex, folioMinuta) {
   }
 }
 
-// --- ENVIAR MINUTA POR CORREO (PDF) ---
+// ==========================================
+// CENTRALIZADOR ÚNICO DE ENVÍO DE CORREO
+// ==========================================
+function enviarCorreoCentralizado({ to, subject, body, idAcuerdo = '', attachments = [] }) {
+  const ss = getSpreadsheet();
+  const logSheet = ss.getSheetByName(HOJAS.LOG_NOTIFICACIONES);
+  const idLog = generarIDUnico(HOJAS.LOG_NOTIFICACIONES, 'LOG');
+  const now = formatDate(new Date());
+
+  if (!to || typeof to !== 'string' || !to.trim()) {
+    logSheet.appendRow([
+      idLog,
+      idAcuerdo || 'GENERAL',
+      'SIN_DESTINATARIOS',
+      subject,
+      now,
+      'Fallido: Sin destinatarios especificados'
+    ]);
+    return { success: false, reason: 'Sin destinatarios' };
+  }
+
+  const mailOptions = {
+    to: to.trim(),
+    subject: subject,
+    body: body
+  };
+  if (attachments && attachments.length > 0) {
+    mailOptions.attachments = attachments;
+  }
+
+  try {
+    MailApp.sendEmail(mailOptions);
+    logSheet.appendRow([
+      idLog,
+      idAcuerdo || 'GENERAL',
+      to.trim(),
+      subject,
+      now,
+      'Enviado'
+    ]);
+    return { success: true, destinatarios: to.trim() };
+  } catch (err) {
+    logSheet.appendRow([
+      idLog,
+      idAcuerdo || 'GENERAL',
+      to.trim(),
+      subject,
+      now,
+      `Fallido: ${err.message}`
+    ]);
+    return { success: false, error: err.message };
+  }
+}
+
+// --- ACCIÓN (a): ENVIAR MINUTA POR CORREO (PDF) ---
 function enviarMinutaPorCorreo(folio) {
   const sesion = validarSesion();
   if (sesion.rol === ROLES.OPERADOR || sesion.rol === ROLES.JEFATURA) {
@@ -1021,12 +1088,18 @@ function enviarMinutaPorCorreo(folio) {
   const asunto = `Minuta de Reunión – ${m.Folio} – ${m.Nombre_Reunión}`;
   const cuerpoTexto = `Estimado(a),\n\nAdjunto encontrará la Minuta de Reunión ${m.Folio} ("${m.Nombre_Reunión}") en formato PDF para su consulta y archivo.\n\nAtentamente,\nSistema de Acuerdos de Dirección`;
 
-  MailApp.sendEmail({
+  // Invocar ÚNICAMENTE a través del centralizador
+  const res = enviarCorreoCentralizado({
     to: destinatariosStr,
     subject: asunto,
     body: cuerpoTexto,
+    idAcuerdo: m.Folio,
     attachments: [pdfBlob]
   });
+
+  if (!res.success) {
+    throw new Error(res.error || 'Error al enviar correo de minuta');
+  }
 
   return { success: true, destinatarios: destinatariosStr, message: `Minuta ${m.Folio} enviada exitosamente a asistentes confirmados: ${destinatariosStr}` };
 }
@@ -1076,7 +1149,7 @@ function crearAcuerdoInterno(data, sesion, ss) {
 
   if (sesion.rol === ROLES.ADMINISTRADOR) {
     subAsignadaStr = Array.isArray(data.subdireccionAsignada) ? data.subdireccionAsignada.join(', ') : (data.subdireccionAsignada || '');
-    jefAsignadasStr = ''; // Administrador asigna subdirecciones únicamente
+    jefAsignadasStr = '';
   } else if (sesion.rol === ROLES.OPERADOR) {
     subAsignadaStr = sesion.subdireccion || '';
     const jefsPermitidas = obtenerJefaturasPermitidasParaSubdirecciones(sesion.subdireccion);
@@ -1111,11 +1184,7 @@ function crearAcuerdoInterno(data, sesion, ss) {
 
   acuSheet.appendRow(row);
 
-  try {
-    enviarNotificacionAcuerdoInterno(idAcuerdo, ss);
-  } catch (err) {
-    console.error('Error al enviar notificación:', err);
-  }
+  // NOTA: No se envían correos en creación conforme a la instrucción de restringir a los 3 casos
 
   return { success: true, idAcuerdo: idAcuerdo, message: 'Acuerdo creado correctamente.' };
 }
@@ -1145,6 +1214,9 @@ function actualizarAcuerdo(idAcuerdo, data) {
     if (rowIndex === -1) {
       throw new Error('Acuerdo no encontrado.');
     }
+
+    const estatusIdx = headers.indexOf('Estatus');
+    const estatusAnterior = estatusIdx !== -1 ? String(rows[rowIndex - 1][estatusIdx]).trim() : '';
 
     const setColValue = (colName, val) => {
       const idx = headers.indexOf(colName);
@@ -1186,16 +1258,96 @@ function actualizarAcuerdo(idAcuerdo, data) {
     const now = formatDate(new Date());
     setColValue('Fecha_Modificación', now);
 
-    try {
-      enviarNotificacionAcuerdoInterno(idAcuerdo, ss, true);
-    } catch (err) {
-      console.error('Error en notificación de actualización:', err);
+    // REGISTRO DE CAMBIO DE ESTATUS EN COMENTARIOS_SEGUIMIENTO
+    const estatusNuevo = data.estatus !== undefined ? String(data.estatus).trim() : estatusAnterior;
+    if (estatusNuevo && estatusNuevo !== estatusAnterior) {
+      registrarEventoCambioEstatus(idAcuerdo, estatusAnterior, estatusNuevo, sesion.email, now, ss);
+
+      // ACCIÓN (b): Cuando un acuerdo cambie su estatus a "Cumplido", enviar correo
+      if (estatusNuevo === 'Cumplido') {
+        notificarAcuerdoCumplido(idAcuerdo, ss);
+      }
     }
 
     return { success: true, message: 'Acuerdo actualizado correctamente.' };
   } finally {
     lock.releaseLock();
   }
+}
+
+function registrarEventoCambioEstatus(idAcuerdo, estatusAnterior, estatusNuevo, usuario, fechaHora, ss) {
+  try {
+    const sheetCom = ss.getSheetByName(HOJAS.COMENTARIOS_SEGUIMIENTO);
+    const idCom = generarIDUnico(HOJAS.COMENTARIOS_SEGUIMIENTO, 'COM');
+    const textoEvento = `[EVENTO_ESTATUS] Cambio de estatus: "${estatusAnterior || 'Sin estatus'}" ➔ "${estatusNuevo}"`;
+    sheetCom.appendRow([
+      idCom,
+      idAcuerdo,
+      usuario,
+      fechaHora,
+      textoEvento
+    ]);
+  } catch (err) {
+    console.error('Error al registrar evento de cambio de estatus:', err);
+  }
+}
+
+// --- ACCIÓN (b): Notificar únicamente cuando el estatus cambia a "Cumplido" ---
+function notificarAcuerdoCumplido(idAcuerdo, ss) {
+  const acuerdos = getSheetData(HOJAS.ACUERDOS);
+  const acuerdo = acuerdos.find(a => String(a.ID_Acuerdo).trim() === String(idAcuerdo).trim());
+  if (!acuerdo) return;
+
+  const usuarios = getSheetData(HOJAS.USUARIOS);
+  const subAsignadas = String(acuerdo.Subdirección_Asignada || '').split(',').map(s => s.trim());
+  const jefAsignadas = String(acuerdo.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
+
+  const correosSet = new Set();
+
+  usuarios.forEach(u => {
+    const matchSub = subAsignadas.includes(String(u.Subdirección).trim());
+    const matchJef = u.Jefatura_Departamento && jefAsignadas.includes(String(u.Jefatura_Departamento).trim());
+    if ((matchSub || matchJef) && (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
+      correosSet.add(String(u.Correo).trim());
+    }
+  });
+
+  if (acuerdo.Responsables) {
+    String(acuerdo.Responsables).split(',').map(s => s.trim()).forEach(r => {
+      if (r.includes('@')) correosSet.add(r);
+    });
+  }
+
+  if (acuerdo.Creado_Por && acuerdo.Creado_Por.includes('@')) {
+    correosSet.add(String(acuerdo.Creado_Por).trim());
+  }
+
+  if (correosSet.size === 0) return;
+
+  const destinatariosStr = Array.from(correosSet).join(', ');
+  const asunto = `✅ Acuerdo Cumplido – ${acuerdo.ID_Acuerdo} – [${acuerdo.Prioridad}]`;
+  const cuerpo = `
+Estimado(a) equipo,
+
+El siguiente acuerdo ha sido marcado como CUMPLIDO:
+
+• ID / Folio: ${acuerdo.ID_Acuerdo} ${acuerdo.Folio_Minuta ? '(' + acuerdo.Folio_Minuta + ')' : ''}
+• Descripción: ${acuerdo.Descripción_Acuerdo}
+• Subdirección(es): ${acuerdo.Subdirección_Asignada}
+• Jefatura(s): ${acuerdo.Jefaturas_Asignadas || 'Ninguna'}
+• Responsables: ${acuerdo.Responsables}
+• Fecha de Cierre: ${formatDateShort(new Date())}
+
+Atentamente,
+Sistema de Acuerdos de Dirección
+  `.trim();
+
+  enviarCorreoCentralizado({
+    to: destinatariosStr,
+    subject: asunto,
+    body: cuerpo,
+    idAcuerdo: idAcuerdo
+  });
 }
 
 // --- COMENTARIOS DE SEGUIMIENTO ---
@@ -1231,16 +1383,7 @@ function agregarComentario(idAcuerdo, comentario) {
   }
 }
 
-// ==========================================
-// NOTIFICACIONES Y RECORDATORIOS
-// ==========================================
-
-function enviarNotificacionAcuerdo(idAcuerdo) {
-  validarSesion();
-  const ss = getSpreadsheet();
-  return enviarNotificacionAcuerdoInterno(idAcuerdo, ss, false);
-}
-
+// --- ACCIÓN (c): ENVIAR RECORDATORIO MANUAL DESDE DETALLE DE ACUERDO ---
 function enviarRecordatorioManualAcuerdo(idAcuerdo) {
   validarSesion();
   const ss = getSpreadsheet();
@@ -1269,20 +1412,9 @@ function enviarRecordatorioManualAcuerdo(idAcuerdo) {
     });
   }
 
-  const idLog = generarIDUnico(HOJAS.LOG_NOTIFICACIONES, 'LOG');
-  const logSheet = ss.getSheetByName(HOJAS.LOG_NOTIFICACIONES);
-  const now = formatDate(new Date());
   const asunto = `⚠️ RECORDATORIO DE ACUERDO: ${acuerdo.ID_Acuerdo} – [${acuerdo.Prioridad}]`;
 
   if (correosSet.size === 0) {
-    logSheet.appendRow([
-      idLog,
-      idAcuerdo,
-      'SIN_DESTINATARIOS',
-      asunto,
-      now,
-      'Recordatorio Fallido: No hay usuarios activos en la subdirección/jefatura asignada'
-    ]);
     throw new Error('No hay usuarios activos registrados en las subdirecciones/jefaturas asignadas como responsables.');
   }
 
@@ -1306,266 +1438,19 @@ Atentamente,
 Sistema de Acuerdos de Dirección
   `.trim();
 
-  try {
-    MailApp.sendEmail({
-      to: destinatariosStr,
-      subject: asunto,
-      body: cuerpo
-    });
-
-    logSheet.appendRow([
-      idLog,
-      idAcuerdo,
-      destinatariosStr,
-      asunto,
-      now,
-      'Recordatorio Enviado'
-    ]);
-
-    return { success: true, message: `Recordatorio enviado a los responsables (${destinatariosStr}).` };
-  } catch (err) {
-    logSheet.appendRow([
-      idLog,
-      idAcuerdo,
-      destinatariosStr,
-      asunto,
-      now,
-      `Recordatorio Fallido: ${err.message}`
-    ]);
-    throw new Error(`Error al enviar recordatorio: ${err.message}`);
-  }
-}
-
-function enviarNotificacionAcuerdoInterno(idAcuerdo, ss, esActualizacion = false) {
-  const acuerdos = getSheetData(HOJAS.ACUERDOS);
-  const acuerdo = acuerdos.find(a => String(a.ID_Acuerdo).trim() === String(idAcuerdo).trim());
-  if (!acuerdo) return false;
-
-  const usuarios = getSheetData(HOJAS.USUARIOS);
-  const subAsignadas = String(acuerdo.Subdirección_Asignada || '').split(',').map(s => s.trim());
-  const jefAsignadas = String(acuerdo.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
-
-  const usuariosDestino = usuarios.filter(u => {
-    const matchSub = subAsignadas.includes(String(u.Subdirección).trim());
-    const matchJef = u.Jefatura_Departamento && jefAsignadas.includes(String(u.Jefatura_Departamento).trim());
-    return (matchSub || matchJef) && (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI');
+  // Enviar ÚNICAMENTE a través del centralizador
+  const res = enviarCorreoCentralizado({
+    to: destinatariosStr,
+    subject: asunto,
+    body: cuerpo,
+    idAcuerdo: idAcuerdo
   });
 
-  const correosDestinoSet = new Set(usuariosDestino.map(u => String(u.Correo).trim()));
-
-  if (acuerdo.Responsables) {
-    const listResp = String(acuerdo.Responsables).split(',').map(s => s.trim());
-    listResp.forEach(r => {
-      if (r.includes('@')) correosDestinoSet.add(r);
-    });
+  if (!res.success) {
+    throw new Error(res.error || 'Error al enviar recordatorio');
   }
 
-  const idLog = generarIDUnico(HOJAS.LOG_NOTIFICACIONES, 'LOG');
-  const logSheet = ss.getSheetByName(HOJAS.LOG_NOTIFICACIONES);
-  const now = formatDate(new Date());
-
-  const folioRef = acuerdo.Folio_Minuta ? acuerdo.Folio_Minuta : acuerdo.ID_Acuerdo;
-  const tipoAccion = esActualizacion ? 'Acuerdo actualizado' : 'Nuevo acuerdo asignado';
-  const asunto = `${tipoAccion} – ${folioRef} – [${acuerdo.Prioridad}]`;
-
-  if (correosDestinoSet.size === 0) {
-    logSheet.appendRow([
-      idLog,
-      idAcuerdo,
-      'SIN_DESTINATARIOS',
-      asunto,
-      now,
-      'Fallido: No hay usuarios activos en la subdirección/jefatura'
-    ]);
-    return { success: false, reason: 'Sin destinatarios activos' };
-  }
-
-  const destinatariosArray = Array.from(correosDestinoSet);
-  const destinatariosStr = destinatariosArray.join(', ');
-
-  const cuerpo = `
-Estimado(a) equipo,
-
-Se ha ${esActualizacion ? 'actualizado' : 'registrado'} un acuerdo en el Sistema de Acuerdos de Dirección:
-
-• ID / Folio: ${acuerdo.ID_Acuerdo} ${acuerdo.Folio_Minuta ? '(' + acuerdo.Folio_Minuta + ')' : ''}
-• Descripción: ${acuerdo.Descripción_Acuerdo}
-• Prioridad: ${acuerdo.Prioridad}
-• Subdirecciones Asignadas: ${acuerdo.Subdirección_Asignada}
-• Jefaturas Asignadas: ${acuerdo.Jefaturas_Asignadas || 'Ninguna'}
-• Estatus: ${acuerdo.Estatus}
-• Fecha Límite: ${formatDateShort(acuerdo.Fecha_Límite)}
-• Responsables: ${acuerdo.Responsables}
-
-Por favor ingrese al sistema para dar el seguimiento correspondiente.
-
-Atentamente,
-Sistema de Acuerdos de Dirección
-  `.trim();
-
-  try {
-    MailApp.sendEmail({
-      to: destinatariosStr,
-      subject: asunto,
-      body: cuerpo
-    });
-
-    logSheet.appendRow([
-      idLog,
-      idAcuerdo,
-      destinatariosStr,
-      asunto,
-      now,
-      'Enviado'
-    ]);
-
-    return { success: true, destinatarios: destinatariosStr };
-  } catch (err) {
-    logSheet.appendRow([
-      idLog,
-      idAcuerdo,
-      destinatariosStr,
-      asunto,
-      now,
-      `Fallido: ${err.message}`
-    ]);
-    return { success: false, error: err.message };
-  }
-}
-
-function procesarRecordatorios() {
-  const ss = getSpreadsheet();
-  const acuerdos = getSheetData(HOJAS.ACUERDOS);
-  const usuarios = getSheetData(HOJAS.USUARIOS);
-  const logs = getSheetData(HOJAS.LOG_NOTIFICACIONES);
-  const todayStr = formatDateShort(new Date());
-
-  const hoyDate = new Date();
-  hoyDate.setHours(0, 0, 0, 0);
-
-  acuerdos.forEach(acuerdo => {
-    const estatus = String(acuerdo.Estatus).trim();
-    if (estatus !== 'Pendiente' && estatus !== 'En Proceso') {
-      return;
-    }
-
-    if (!acuerdo.Fecha_Límite) return;
-
-    let fLimite = new Date(acuerdo.Fecha_Límite);
-    if (isNaN(fLimite.getTime())) {
-      const parts = String(acuerdo.Fecha_Límite).split('-');
-      if (parts.length === 3) {
-        fLimite = new Date(parts[0], parts[1] - 1, parts[2]);
-      }
-    }
-    if (isNaN(fLimite.getTime())) return;
-    fLimite.setHours(0, 0, 0, 0);
-
-    const diffMs = fLimite.getTime() - hoyDate.getTime();
-    const diffDias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-    let esVenceHoy = diffDias === 0;
-    let esProximoVencer = diffDias > 0 && diffDias <= 3;
-
-    if (!esVenceHoy && !esProximoVencer) return;
-
-    const yaNotificadoHoy = logs.some(l => {
-      const esMismoAcuerdo = String(l.ID_Acuerdo).trim() === String(acuerdo.ID_Acuerdo).trim();
-      const fechaEnvioStr = formatDateShort(l.Fecha_Envío);
-      const esRecordatorio = String(l.Estatus_Envío).includes('Recordatorio Enviado');
-      return esMismoAcuerdo && fechaEnvioStr === todayStr && esRecordatorio;
-    });
-
-    if (yaNotificadoHoy) return;
-
-    const correosSet = new Set();
-    if (acuerdo.Creado_Por && acuerdo.Creado_Por.includes('@')) {
-      correosSet.add(String(acuerdo.Creado_Por).trim());
-    }
-
-    if (acuerdo.Responsables) {
-      const listResp = String(acuerdo.Responsables).split(',').map(s => s.trim());
-      listResp.forEach(r => {
-        if (r.includes('@')) correosSet.add(r);
-      });
-    }
-
-    const subAsignadas = String(acuerdo.Subdirección_Asignada || '').split(',').map(s => s.trim());
-    const jefAsignadas = String(acuerdo.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
-
-    usuarios.forEach(u => {
-      const matchSub = subAsignadas.includes(String(u.Subdirección).trim());
-      const matchJef = u.Jefatura_Departamento && jefAsignadas.includes(String(u.Jefatura_Departamento).trim());
-      if ((matchSub || matchJef) && (String(u.Activo).trim().toUpperCase() === 'SÍ' || String(u.Activo).trim().toUpperCase() === 'SI')) {
-        correosSet.add(String(u.Correo).trim());
-      }
-    });
-
-    const folioRef = acuerdo.Folio_Minuta ? acuerdo.Folio_Minuta : acuerdo.ID_Acuerdo;
-    let asunto = '';
-    if (esVenceHoy) {
-      asunto = `⚠️ RECORDATORIO: Acuerdo VENCE HOY – ${acuerdo.ID_Acuerdo}`;
-    } else {
-      asunto = `⚠️ RECORDATORIO: Acuerdo PRÓXIMO A VENCER (${diffDias} días) – ${folioRef}`;
-    }
-
-    const logSheet = ss.getSheetByName(HOJAS.LOG_NOTIFICACIONES);
-    const idLog = generarIDUnico(HOJAS.LOG_NOTIFICACIONES, 'LOG');
-    const now = formatDate(new Date());
-
-    if (correosSet.size === 0) {
-      logSheet.appendRow([
-        idLog,
-        acuerdo.ID_Acuerdo,
-        'SIN_DESTINATARIOS',
-        asunto,
-        now,
-        'Recordatorio Enviado (Sin destinatarios)'
-      ]);
-      return;
-    }
-
-    const destStr = Array.from(correosSet).join(', ');
-    const cuerpo = `
-⚠️ RECORDATORIO DE ACUERDO ${esVenceHoy ? 'QUE VENCE HOY' : 'PRÓXIMO A VENCER'}
-
-• ID Acuerdo: ${acuerdo.ID_Acuerdo}
-• Folio Minuta: ${acuerdo.Folio_Minuta || 'Individual'}
-• Descripción: ${acuerdo.Descripción_Acuerdo}
-• Subdirección Asignada: ${acuerdo.Subdirección_Asignada}
-• Jefaturas Asignadas: ${acuerdo.Jefaturas_Asignadas || 'Ninguna'}
-• Estatus Actual: ${acuerdo.Estatus}
-• Fecha Límite: ${formatDateShort(acuerdo.Fecha_Límite)}
-
-Por favor verifique las actividades pendientes para asegurar el cumplimiento.
-    `.trim();
-
-    try {
-      MailApp.sendEmail({
-        to: destStr,
-        subject: asunto,
-        body: cuerpo
-      });
-
-      logSheet.appendRow([
-        idLog,
-        acuerdo.ID_Acuerdo,
-        destStr,
-        asunto,
-        now,
-        'Recordatorio Enviado'
-      ]);
-    } catch (err) {
-      logSheet.appendRow([
-        idLog,
-        acuerdo.ID_Acuerdo,
-        destStr,
-        asunto,
-        now,
-        `Recordatorio Fallido: ${err.message}`
-      ]);
-    }
-  });
+  return { success: true, message: `Recordatorio enviado a los responsables (${destinatariosStr}).` };
 }
 
 // ==========================================
@@ -1830,7 +1715,6 @@ function obtenerKPIsAdminDashboard() {
   }
 
   const acuerdos = getSheetData(HOJAS.ACUERDOS);
-  const usuarios = getSheetData(HOJAS.USUARIOS);
 
   const respStats = {};
 

@@ -796,7 +796,10 @@
     const prio = acuObj ? acuObj.Prioridad : 'Media';
     const resp = acuObj ? acuObj.Responsables : CURRENT_USER.email;
     const fLim = acuObj ? acuObj.Fecha_Límite : new Date().toISOString().split('T')[0];
-    const subSel = acuObj ? (acuObj.Subdirección_Asignada || '') : GLOBAL_CATALOGOS.Subdirección[0];
+
+    // Subdirecciones actuales en array
+    const subSelRaw = acuObj ? (acuObj.Subdirección_Asignada || '') : '';
+    const subSelArray = String(subSelRaw).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
     let projOptionsHTML = '<option value="">-- Sin Proyecto --</option>';
     (GLOBAL_PROYECTOS || []).forEach(p => {
@@ -808,8 +811,26 @@
       prioOptionsHTML += `<option value="${p}" ${p === prio ? 'selected' : ''}>${p}</option>`;
     });
 
+    // Crear lista de checkboxes desplegables o contenedor scrollable para subdirecciones
+    let subChecksHTML = '<div class="acu-sub-container p-1 border rounded bg-white" style="max-height: 105px; overflow-y: auto; font-size: 0.78rem;">';
+    (GLOBAL_CATALOGOS.Subdirección || []).forEach((sub, sIdx) => {
+      const isChecked = subSelArray.includes(sub.toLowerCase().trim());
+      subChecksHTML += `
+        <div class="form-check m-0 py-0 text-truncate" title="${sub}">
+          <input class="form-check-input acu-sub-chk" type="checkbox" value="${sub}" ${isChecked ? 'checked' : ''}>
+          <label class="form-check-label small">${sub}</label>
+        </div>
+      `;
+    });
+    subChecksHTML += '</div>';
+
+    const idAcuStr = acuObj ? (acuObj.ID_Acuerdo || '') : '';
+
     tr.innerHTML = `
-      <td><select class="form-select form-select-sm acu-proyecto">${projOptionsHTML}</select></td>
+      <td>
+        <input type="hidden" class="acu-id-hidden" value="${idAcuStr}">
+        <select class="form-select form-select-sm acu-proyecto">${projOptionsHTML}</select>
+      </td>
       <td>
         <select class="form-select form-select-sm acu-tipo">
           <option value="Acuerdo" ${tipo === 'Acuerdo' ? 'selected' : ''}>Acuerdo</option>
@@ -818,11 +839,11 @@
           <option value="Informativo" ${tipo === 'Informativo' ? 'selected' : ''}>Informativo</option>
         </select>
       </td>
-      <td><textarea class="form-control form-control-sm acu-desc" rows="2" placeholder="Descripción" required>${desc}</textarea></td>
+      <td><textarea class="form-control form-control-sm acu-desc" rows="3" placeholder="Descripción" required>${desc}</textarea></td>
       <td><select class="form-select form-select-sm acu-prio">${prioOptionsHTML}</select></td>
       <td><input type="text" class="form-control form-control-sm acu-resp" value="${resp}" placeholder="Responsables" required></td>
       <td><input type="date" class="form-control form-control-sm acu-flim" value="${fLim}" required></td>
-      <td><input type="text" class="form-control form-control-sm acu-sub" value="${subSel}" placeholder="Subdirecciones (separadas por coma)" required></td>
+      <td>${subChecksHTML}</td>
       <td class="text-center">
         <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
       </td>
@@ -861,14 +882,22 @@
     document.querySelectorAll('#tabla-form-acuerdos tbody tr').forEach(row => {
       const desc = row.querySelector('.acu-desc').value.trim();
       if (desc) {
+        const selectedSubs = [];
+        row.querySelectorAll('.acu-sub-chk:checked').forEach(chk => {
+          selectedSubs.push(chk.value);
+        });
+
+        const idAcuVal = row.querySelector('.acu-id-hidden') ? row.querySelector('.acu-id-hidden').value.trim() : '';
+
         acuerdos.push({
+          idAcuerdo: idAcuVal,
           idProyecto: row.querySelector('.acu-proyecto').value,
           tipo: row.querySelector('.acu-tipo').value,
           descripcionAcuerdo: desc,
           prioridad: row.querySelector('.acu-prio').value,
           responsables: row.querySelector('.acu-resp').value.trim(),
           fechaLimite: row.querySelector('.acu-flim').value,
-          subdireccionAsignada: row.querySelector('.acu-sub').value.trim(),
+          subdireccionAsignada: selectedSubs.join(', '),
           jefaturasAsignadas: '',
           estatus: 'Pendiente'
         });
@@ -1368,18 +1397,38 @@
       return;
     }
 
-    comentarios.reverse().forEach(c => {
+    // Renderizar orden cronológico inverso (los más recientes arriba)
+    const copia = [...comentarios].reverse();
+
+    copia.forEach(c => {
       const item = document.createElement('div');
       item.className = 'timeline-item';
-      item.innerHTML = `
-        <div class="timeline-body">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="fw-bold small text-primary">${c.Usuario}</span>
-            <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+
+      const esEventoEstatus = String(c.Comentario || '').startsWith('[EVENTO_ESTATUS]');
+
+      if (esEventoEstatus) {
+        const textoLimpio = String(c.Comentario).replace('[EVENTO_ESTATUS]', '').trim();
+        item.innerHTML = `
+          <div class="timeline-body p-2 border-start border-4 border-warning bg-light rounded-end">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge bg-warning text-dark"><i class="bi bi-arrow-repeat me-1"></i>Cambio de Estatus</span>
+              <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+            </div>
+            <div class="fw-semibold text-dark fs-7 mt-1">${textoLimpio}</div>
+            <div class="text-muted fs-8 mt-1"><i class="bi bi-person me-1"></i>Modificado por: <strong>${c.Usuario}</strong></div>
           </div>
-          <div class="text-dark fs-7">${c.Comentario}</div>
-        </div>
-      `;
+        `;
+      } else {
+        item.innerHTML = `
+          <div class="timeline-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold small text-primary">${c.Usuario}</span>
+              <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+            </div>
+            <div class="text-dark fs-7">${c.Comentario}</div>
+          </div>
+        `;
+      }
       cont.appendChild(item);
     });
   }
