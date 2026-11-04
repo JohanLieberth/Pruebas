@@ -14,16 +14,20 @@ def calcular_puntuaciones(participantes, factor_bono=0.20):
     for p in participantes:
         peso_ini = p["peso_inicial"]
         cintura_ini = p["cintura_inicial"]
-        peso_fin = p["peso_final"]
-        cintura_fin = p["cintura_final"]
+        peso_fin = p.get("peso_final")
+        cintura_fin = p.get("cintura_final")
         check_ins = p.get("check_ins", [])
+        cinturas_check_ins = p.get("cinturas_check_ins", [])
 
-        pct_peso = ((peso_ini - peso_fin) / peso_ini) * 100.0
-        cm_cintura = cintura_ini - cintura_fin
+        peso_actual = peso_fin if peso_fin is not None else (check_ins[-1] if check_ins else peso_ini)
+        cintura_actual = cintura_fin if cintura_fin is not None else (cinturas_check_ins[-1] if cinturas_check_ins else cintura_ini)
+
+        pct_peso = ((peso_ini - peso_actual) / peso_ini) * 100.0
+        cm_cintura = cintura_ini - cintura_actual
         bono_cintura = cm_cintura * factor_bono
         puntaje_final = pct_peso + bono_cintura
 
-        pct_red_cintura = ((cintura_ini - cintura_fin) / cintura_ini) * 100.0
+        pct_red_cintura = ((cintura_ini - cintura_actual) / cintura_ini) * 100.0
         total_checkins = len(check_ins)
 
         historial_pesos = [peso_ini] + check_ins
@@ -34,6 +38,7 @@ def calcular_puntuaciones(participantes, factor_bono=0.20):
             "puntaje_final": round(puntaje_final, 4),
             "pct_red_cintura": round(pct_red_cintura, 4),
             "pct_peso": round(pct_peso, 4),
+            "cm_cintura_reducidos": round(cm_cintura, 2),
             "total_checkins": total_checkins,
             "std_dev": round(std_dev, 4)
         })
@@ -116,6 +121,21 @@ class TestCompetitionLogic(unittest.TestCase):
         # Case N=5
         m5 = obtener_iconos_osorio(["P1", "P2", "P3", "P4", "P5"])
         self.assertEqual(m5, {2: 1, 3: 2, 4: 3})
+
+    def test_cintura_reducida_with_checkins(self):
+        part = [{
+            "nombre": "Sofia",
+            "peso_inicial": 80.0,
+            "cintura_inicial": 90.0,
+            "peso_final": None,
+            "cintura_final": None,
+            "check_ins": [78.0],
+            "cinturas_check_ins": [85.0]
+        }]
+        res = calcular_puntuaciones(part)
+        self.assertEqual(res[0]["cm_cintura_reducidos"], 5.0)
+        # bono = 5.0 * 0.20 = 1.0; pct_peso = ((80 - 78) / 80)*100 = 2.5; puntaje = 3.5
+        self.assertEqual(res[0]["puntaje_final"], 3.5)
 
 if __name__ == "__main__":
     unittest.main()

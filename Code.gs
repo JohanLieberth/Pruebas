@@ -610,14 +610,22 @@ function calcularClasificacion() {
 
   // Agrupar mediciones por participante
   var medicionesPorParticipante = {};
+  var cinturasPorParticipante = {};
   for (var m = 1; m < dataMed.length; m++) {
     var idPart = String(dataMed[m][1]).trim();
     var pesoMed = Number(dataMed[m][4]);
+    var cinturaMed = Number(dataMed[m][5]);
     if (!medicionesPorParticipante[idPart]) {
       medicionesPorParticipante[idPart] = [];
     }
+    if (!cinturasPorParticipante[idPart]) {
+      cinturasPorParticipante[idPart] = [];
+    }
     if (!isNaN(pesoMed)) {
       medicionesPorParticipante[idPart].push(pesoMed);
+    }
+    if (!isNaN(cinturaMed) && cinturaMed > 0) {
+      cinturasPorParticipante[idPart].push(cinturaMed);
     }
   }
 
@@ -641,6 +649,7 @@ function calcularClasificacion() {
     var cinturaFinalVal = row[idxs.colCinturaFin];
 
     var listaPesosSemana = medicionesPorParticipante[id] || [];
+    var listaCinturasSemana = cinturasPorParticipante[id] || [];
     var totalCheckIns = listaPesosSemana.length;
 
     var pesoActual = (pesoFinalVal !== "" && pesoFinalVal !== null && !isNaN(Number(pesoFinalVal)))
@@ -649,7 +658,7 @@ function calcularClasificacion() {
 
     var cinturaActual = (cinturaFinalVal !== "" && cinturaFinalVal !== null && !isNaN(Number(cinturaFinalVal)))
                         ? Number(cinturaFinalVal)
-                        : cinturaInicial;
+                        : (listaCinturasSemana.length > 0 ? listaCinturasSemana[listaCinturasSemana.length - 1] : cinturaInicial);
 
     var pctPesoPerdido = ((pesoInicial - pesoActual) / pesoInicial) * 100;
     var cmCinturaReducidos = cinturaInicial - cinturaActual;

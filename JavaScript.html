@@ -63,7 +63,7 @@
     if (!numIcons || numIcons <= 0) return '';
     let html = '<span class="osorio-icons-container" title="Cada vez más Osorio">';
     for (let i = 0; i < numIcons; i++) {
-      html += `<img src="${OSORIO_ICON_SRC}" alt="Osorio" width="48" height="48" class="osorio-icon-img">`;
+      html += `<span class="osorio-icon-img" role="img" aria-label="Osorio">${OSORIO_ICON_SRC.trim()}</span>`;
     }
     html += '</span>';
     return html;
