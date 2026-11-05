@@ -3,6 +3,74 @@
  */
 
 var Utils = {
+  /**
+   * Obtiene todos los pares clave-valor de la pestaña Config como objeto
+   */
+  getAllConfigValues: function() {
+    try {
+      var sheet = getSheetSafe(CONFIG.HOJAS.CONFIG);
+      var lr = sheet.getLastRow();
+      var config = {};
+      if (lr > 1) {
+        var vals = sheet.getRange(2, 1, lr - 1, 3).getValues();
+        for (var i = 0; i < vals.length; i++) {
+          var k = String(vals[i][0] || '').trim();
+          var v = String(vals[i][1] != null ? vals[i][1] : '').trim();
+          if (k) {
+            config[k] = v;
+          }
+        }
+      }
+      return config;
+    } catch (e) {
+      Logger.log('Error en getAllConfigValues: ' + e);
+      return {};
+    }
+  },
+
+  /**
+   * Obtiene un valor específico de la hoja Config por su clave
+   */
+  getConfigValue: function(clave, valorPorDefecto) {
+    var all = this.getAllConfigValues();
+    if (all[clave] !== undefined && all[clave] !== '') {
+      return all[clave];
+    }
+    return valorPorDefecto !== undefined ? valorPorDefecto : '';
+  },
+
+  /**
+   * Guarda o actualiza un valor de configuración en la hoja Config
+   */
+  setConfigValue: function(clave, valor, descripcion) {
+    return this.withLock(function() {
+      var sheet = getSheetSafe(CONFIG.HOJAS.CONFIG);
+      var lr = sheet.getLastRow();
+      var claveBuscada = String(clave || '').trim();
+      var filaEncontrada = -1;
+
+      if (lr > 1) {
+        var claves = sheet.getRange(2, 1, lr - 1, 1).getValues();
+        for (var i = 0; i < claves.length; i++) {
+          if (String(claves[i][0] || '').trim() === claveBuscada) {
+            filaEncontrada = i + 2;
+            break;
+          }
+        }
+      }
+
+      if (filaEncontrada > 0) {
+        sheet.getRange(filaEncontrada, 2).setValue(String(valor || ''));
+        if (descripcion) {
+          sheet.getRange(filaEncontrada, 3).setValue(String(descripcion));
+        }
+      } else {
+        sheet.appendRow([claveBuscada, String(valor || ''), String(descripcion || '')]);
+      }
+      return true;
+    });
+  },
+
 
   /**
    * Respuesta estándar exitosa

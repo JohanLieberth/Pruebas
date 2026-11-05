@@ -79,7 +79,6 @@
                 <th>Orden de Servicio</th>
                 <th>Cliente / Razón Social</th>
                 <th>Teléfono</th>
-                <th>Responsable Solidario</th>
                 <th>Estado</th>
                 <th>Total a Cobrar</th>
                 <th>Cobrado</th>
@@ -90,7 +89,7 @@
               </tr>
             </thead>
             <tbody id="tbodyOrdenesAdmin">
-              <tr><td colspan="11" style="text-align: center;">Cargando órdenes de servicio...</td></tr>
+              <tr><td colspan="10" style="text-align: center;">Cargando órdenes de servicio...</td></tr>
             </tbody>
           </table>
         </div>
@@ -103,24 +102,8 @@
             <h2 class="card-title" id="tituloDetalleOrden">Detalle de Dispositivos - Orden</h2>
             <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;" id="subtituloDetalleOrden"></div>
           </div>
+          <button class="btn btn-primary btn-sm" onclick="imprimirTicketOrden(ordenSeleccionadaActual.orden.idOrden)" style="margin-right: 0.5rem;">🖨️ Imprimir Ticket de Servicio</button>
           <button class="btn btn-secondary btn-sm" onclick="cerrarDetalleOrden()">✕ Cerrar Detalle</button>
-        </div>
-
-        <!-- Tarjeta de Responsable Solidario Asociado a la Orden -->
-        <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
-          <div>
-            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">
-              👤 Responsable Solidario Autorizado
-            </div>
-            <div id="infoResponsableOrden" style="font-size: 0.95rem; color: #0f172a; margin-top: 0.25rem;">
-              <span style="color: #64748b; font-style: italic;">Sin responsable solidario registrado</span>
-            </div>
-          </div>
-          <div>
-            <button type="button" class="btn btn-primary btn-sm" onclick="abrirModalModificarResponsable()">
-              ✏️ Modificar Responsable
-            </button>
-          </div>
         </div>
 
         <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.75rem;">
@@ -536,63 +519,6 @@
   </div>
 
 
-  <!-- MODAL: Modificar Responsable Solidario de la Orden -->
-  <div id="modalModificarResponsable" class="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 style="font-size: 1.1rem; font-weight: 700;" id="modalModificarRespTitulo">Responsable Solidario de la Orden</h3>
-        <button class="modal-close" onclick="cerrarModalModificarResponsable()">&times;</button>
-      </div>
-      <form id="formModificarResponsable" onsubmit="guardarResponsableOrden(event)">
-        <input type="hidden" id="modRespOrdenId" value="">
-
-        <div class="alert alert-info" style="font-size: 0.85rem; margin-bottom: 1rem;">
-          ℹ️ Puedes seleccionar un responsable solidario ya registrado para este cliente, registrar uno nuevo, o dejar la orden sin responsable asignado.
-        </div>
-
-        <div class="form-group">
-          <label for="selectResponsableExistente">Seleccionar Responsable Existente:</label>
-          <select id="selectResponsableExistente" class="input-control" onchange="alCambiarSelectResponsable()">
-            <option value="">-- Sin responsable asignado --</option>
-            <!-- Opciones pobladas dinámicamente -->
-          </select>
-        </div>
-
-        <div style="border-top: 1px dashed #cbd5e1; margin: 1.25rem 0 1rem 0; padding-top: 1rem;">
-          <div style="font-weight: 600; font-size: 0.95rem; color: #334155; margin-bottom: 0.75rem;">
-            O registrar y asociar un nuevo responsable solidario:
-          </div>
-
-          <div class="form-group">
-            <label for="nuevoRespNombre">Nombre Completo:</label>
-            <input type="text" id="nuevoRespNombre" class="input-control" placeholder="Nombre y apellidos del responsable">
-          </div>
-
-          <div class="form-row">
-            <div class="form-col">
-              <label for="nuevoRespTelefono">Teléfono:</label>
-              <input type="tel" id="nuevoRespTelefono" class="input-control" placeholder="Ej. 5512345678">
-            </div>
-            <div class="form-col">
-              <label for="nuevoRespCorreo">Correo electrónico:</label>
-              <input type="email" id="nuevoRespCorreo" class="input-control" placeholder="responsable@correo.com">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="nuevoRespRelacion">Parentesco o Relación:</label>
-            <input type="text" id="nuevoRespRelacion" class="input-control" placeholder="Ej. Hermano, Socio, Empleado, Familiar">
-          </div>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
-          <button type="button" class="btn btn-secondary" onclick="cerrarModalModificarResponsable()">Cancelar</button>
-          <button type="submit" id="btnGuardarRespOrden" class="btn btn-primary">Guardar Responsable</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- MODAL: Crear / Editar Recompensa de Canje -->
   <div id="modalRecompensa" class="modal-overlay">
     <div class="modal-box">
@@ -666,6 +592,7 @@
       document.getElementById('adminSessionName').innerText = sessionUser.name + ' (' + sessionUser.email + ')';
 
       cargarOrdenesAdmin();
+      cargarConfiguracionTaller();
       cargarTecnicosCombo();
       cargarCatalogoRecompensasAdmin();
       agregarFilaDispositivo(); // Inicializar 1 fila en nueva orden
@@ -722,48 +649,40 @@
       var filtroEstado = document.getElementById('filtroEstadoAdmin').value;
       var tbody = document.getElementById('tbodyOrdenesAdmin');
 
-      tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando órdenes...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando órdenes...</td></tr>';
 
       google.script.run
         .withSuccessHandler(function(res) {
           if (!res.success) {
-            tbody.innerHTML = '<tr><td colspan="11" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
             return;
           }
 
           var ordenes = res.data || [];
           if (ordenes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #64748b;">No se encontraron órdenes registradas.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #64748b;">No se encontraron órdenes registradas.</td></tr>';
             return;
           }
 
           var html = '';
           ordenes.forEach(function(o) {
-            var txtResp = '<span style="color: #94a3b8; font-style: italic;">Sin asignar</span>';
-            if (o.nombreResponsable) {
-              txtResp = '<strong style="color: #1e293b;">' + o.nombreResponsable + '</strong>' +
-                (o.telefonoResponsable ? '<br><span style="font-size: 0.75rem; color: #64748b;">Tel: ' + o.telefonoResponsable + '</span>' : '') +
-                (o.relacionResponsable ? '<br><span style="font-size: 0.72rem; color: #4338ca;">(' + o.relacionResponsable + ')</span>' : '');
-            }
-
             html += '<tr>';
             html += '  <td><strong style="color: #4338ca;">' + o.folio + '</strong></td>';
             html += '  <td>' + o.nombreCliente + ' <span style="font-size: 0.75rem; color: #64748b;">(' + o.tipoUsuario + ')</span></td>';
             html += '  <td>' + o.telefonoContacto + '</td>';
-            html += '  <td>' + txtResp + '</td>';
             html += '  <td>' + App.getOrderStatusBadge(o.estadoOrden) + '</td>';
             html += '  <td><strong>' + App.formatCurrency(o.totalEstimado) + '</strong></td>';
             html += '  <td style="color: #059669;">' + App.formatCurrency(o.totalCobrado) + '</td>';
             html += '  <td style="color: #dc2626;"><strong>' + App.formatCurrency(o.saldo) + '</strong></td>';
             html += '  <td style="font-size: 0.8rem;">' + o.fechaCreacion + '</td>';
             html += '  <td><span class="badge" style="background: #e0e7ff; color: #3730a3;">' + o.totalDispositivos + ' equipo(s)</span></td>';
-            html += '  <td><button class="btn btn-primary btn-sm" onclick="verDetalleOrdenAdmin(\'' + o.idOrden + '\')">Ver Equipos</button></td>';
+            html += '  <td><button class="btn btn-primary btn-sm" onclick="verDetalleOrdenAdmin(\'' + o.idOrden + '\')">Ver Equipos</button> <button class="btn btn-secondary btn-sm" onclick="imprimirTicketOrden(\'' + o.idOrden + '\')" title="Imprimir Ticket Térmico">🖨️ Ticket</button></td>';
             html += '</tr>';
           });
           tbody.innerHTML = html;
         })
         .withFailureHandler(function(err) {
-          tbody.innerHTML = '<tr><td colspan="11" style="color: red; text-align: center;">Error: ' + err.message + '</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="10" style="color: red; text-align: center;">Error: ' + err.message + '</td></tr>';
         })
         .apiListarOrdenesAdmin(token, filtroTexto, filtroEstado);
     }
@@ -788,17 +707,6 @@
           ordenSeleccionadaActual = data;
           document.getElementById('tituloDetalleOrden').innerText = 'Orden ' + data.orden.folio + ' (' + data.orden.estadoOrden + ')';
           document.getElementById('subtituloDetalleOrden').innerText = 'Cliente: ' + data.orden.nombreCliente + ' | Tel: ' + data.orden.telefonoContacto + ' | Total: ' + App.formatCurrency(data.orden.totalEstimado) + ' | Cobrado: ' + App.formatCurrency(data.orden.totalCobrado) + ' | Saldo: ' + App.formatCurrency(data.orden.saldo);
-
-          // Actualizar bloque de Responsable Solidario
-          var boxResp = document.getElementById('infoResponsableOrden');
-          if (data.orden.nombreResponsable) {
-            boxResp.innerHTML = '<strong>' + data.orden.nombreResponsable + '</strong>' +
-              (data.orden.telefonoResponsable ? ' &bull; Tel: <a href="tel:' + data.orden.telefonoResponsable + '">' + data.orden.telefonoResponsable + '</a>' : '') +
-              (data.orden.correoResponsable ? ' &bull; Correo: ' + data.orden.correoResponsable : '') +
-              (data.orden.relacionResponsable ? ' &bull; <span class="badge" style="background: #e2e8f0; color: #334155;">' + data.orden.relacionResponsable + '</span>' : '');
-          } else {
-            boxResp.innerHTML = '<span style="color: #64748b; font-style: italic;">Sin responsable solidario registrado para esta orden.</span>';
-          }
 
           var devs = data.dispositivos || [];
           if (devs.length === 0) {
@@ -846,105 +754,6 @@
     function cerrarDetalleOrden() {
       document.getElementById('cardDetalleOrden').style.display = 'none';
       ordenSeleccionadaActual = null;
-    }
-
-    /* Modal Modificar Responsable Solidario */
-    function abrirModalModificarResponsable() {
-      if (!ordenSeleccionadaActual) return;
-      var ord = ordenSeleccionadaActual.orden;
-
-      document.getElementById('modRespOrdenId').value = ord.idOrden;
-      document.getElementById('modalModificarRespTitulo').innerText = 'Responsable Solidario - Orden ' + ord.folio;
-
-      // Poblar el combo con los responsables disponibles del cliente
-      var select = document.getElementById('selectResponsableExistente');
-      select.innerHTML = '<option value="">-- Sin responsable asignado --</option>';
-
-      var disps = ordenSeleccionadaActual.responsablesDisponibles || [];
-      disps.forEach(function(r) {
-        var opt = document.createElement('option');
-        opt.value = r.idResponsable;
-        opt.textContent = r.nombre + (r.relacion ? ' (' + r.relacion + ')' : '') + (r.telefono ? ' - ' + r.telefono : '');
-        select.appendChild(opt);
-      });
-
-      // Seleccionar el actual si existe
-      if (ord.idResponsable) {
-        select.value = ord.idResponsable;
-      } else {
-        select.value = '';
-      }
-
-      // Limpiar campos de nuevo responsable
-      document.getElementById('nuevoRespNombre').value = '';
-      document.getElementById('nuevoRespTelefono').value = '';
-      document.getElementById('nuevoRespCorreo').value = '';
-      document.getElementById('nuevoRespRelacion').value = '';
-
-      document.getElementById('modalModificarResponsable').style.display = 'flex';
-    }
-
-    function cerrarModalModificarResponsable() {
-      document.getElementById('modalModificarResponsable').style.display = 'none';
-    }
-
-    function alCambiarSelectResponsable() {
-      var select = document.getElementById('selectResponsableExistente');
-      if (select.value) {
-        document.getElementById('nuevoRespNombre').value = '';
-        document.getElementById('nuevoRespTelefono').value = '';
-        document.getElementById('nuevoRespCorreo').value = '';
-        document.getElementById('nuevoRespRelacion').value = '';
-      }
-    }
-
-    function guardarResponsableOrden(e) {
-      e.preventDefault();
-      if (!ordenSeleccionadaActual) return;
-
-      var token = App.getToken();
-      var idOrden = document.getElementById('modRespOrdenId').value;
-      var idResponsableExistente = document.getElementById('selectResponsableExistente').value;
-
-      var nuevoNombre = document.getElementById('nuevoRespNombre').value.trim();
-      var nuevoObj = null;
-
-      if (nuevoNombre) {
-        nuevoObj = {
-          nombre: nuevoNombre,
-          telefono: document.getElementById('nuevoRespTelefono').value.trim(),
-          correo: document.getElementById('nuevoRespCorreo').value.trim(),
-          relacion: document.getElementById('nuevoRespRelacion').value.trim()
-        };
-      }
-
-      var btn = document.getElementById('btnGuardarRespOrden');
-      btn.disabled = true;
-      btn.innerHTML = 'Guardando...';
-
-      google.script.run
-        .withSuccessHandler(function(res) {
-          btn.disabled = false;
-          btn.innerHTML = 'Guardar Responsable';
-
-          if (!res.success) {
-            alert('Error: ' + res.error);
-            return;
-          }
-
-          alert('✅ ' + res.message);
-          cerrarModalModificarResponsable();
-
-          // Refrescar detalle de orden actual y tabla de órdenes
-          verDetalleOrdenAdmin(idOrden);
-          cargarOrdenesAdmin();
-        })
-        .withFailureHandler(function(err) {
-          btn.disabled = false;
-          btn.innerHTML = 'Guardar Responsable';
-          alert('Error de conexión: ' + err.message);
-        })
-        .apiActualizarResponsableOrden(token, idOrden, idResponsableExistente, nuevoObj);
     }
 
     function ejecutarEntregaParcial(idDispositivo) {
@@ -1310,12 +1119,16 @@
           }
 
           alert('✅ ' + res.message);
+          var nuevaIdOrden = res.data && res.data.idOrden;
           document.getElementById('formNuevaOrden').reset();
           document.getElementById('contenedorFilasDispositivos').innerHTML = '';
           contadorDispositivosNuevaOrden = 0;
           agregarFilaDispositivo();
           switchAdminTab('ordenes');
           cargarOrdenesAdmin();
+          if (nuevaIdOrden && confirm('¿Deseas imprimir el Ticket Térmico de esta orden de servicio ahora?')) {
+            imprimirTicketOrden(nuevaIdOrden);
+          }
         })
         .withFailureHandler(function(err) {
           btn.disabled = false;
@@ -1631,8 +1444,8 @@
               '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
 
             var btnToggle = esActivo ?
-              '<button class="btn btn-secondary btn-sm" onclick="toggleEstadoRecompensa(\'' + r.idRecompensa + '\', false)" style="color: #991b1b;">Desactivar</button>' :
-              '<button class="btn btn-success btn-sm" onclick="toggleEstadoRecompensa(\'' + r.idRecompensa + '\', true)">Activar</button>';
+              '<button class="btn btn-secondary btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', false)" style="color: #991b1b;">Desactivar</button>' :
+              '<button class="btn btn-success btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', true)">Activar</button>';
 
             html += '<tr>';
             html += '  <td><code>' + r.idRecompensa + '</code></td>';
@@ -1642,7 +1455,7 @@
             html += '  <td><span style="font-weight: 600; color: #64748b;">#' + r.orden + '</span></td>';
             html += '  <td>' + badgeEstado + '</td>';
             html += '  <td style="white-space: nowrap;">';
-            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarRecompensa(\'' + r.idRecompensa + '\')" style="margin-right: 4px;">✏️ Editar</button>';
+            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarRecompensa(' + JSON.stringify(r.idRecompensa) + ')" style="margin-right: 4px;">✏️ Editar</button>';
             html += btnToggle;
             html += '  </td>';
             html += '</tr>';
@@ -1745,6 +1558,409 @@
         })
         .apiCambiarEstadoRecompensa(token, idRec, nuevoEstado);
     }
+
+    /* ========================================================
+       SISTEMA DE CONFIGURACIÓN E IMPRESIÓN DE TICKETS/ETIQUETAS
+       ======================================================== */
+    var configuracionTallerActual = {
+      nombreTaller: 'PixelFix - Taller de Consolas',
+      logoUrl: '',
+      videosCarrusel: [],
+      leyendaTicket: 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
+      mostrarLogoTicket: true,
+      mostrarClienteTicket: true,
+      mostrarTelefonoTicket: true,
+      mostrarResponsableTicket: true,
+      mostrarDispositivosTicket: true,
+      mostrarFallasTicket: true,
+      mostrarDiagnosticoTicket: true,
+      mostrarCostosTicket: true
+    };
+
+    function cargarConfiguracionTaller() {
+      var token = App.getToken();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success && res.data) {
+            configuracionTallerActual = Object.assign(configuracionTallerActual, res.data);
+            poblarFormularioConfiguracion();
+            renderizarTablaVideosConfig();
+          }
+        })
+        .withFailureHandler(function(err) {
+          console.warn('Error cargando configuración:', err);
+        })
+        .apiObtenerConfiguracionAdmin(token);
+    }
+
+    function poblarFormularioConfiguracion() {
+      document.getElementById('configNombreTaller').value = configuracionTallerActual.nombreTaller || '';
+      document.getElementById('configLogoUrl').value = configuracionTallerActual.logoUrl || '';
+      document.getElementById('configLeyendaTicket').value = configuracionTallerActual.leyendaTicket || '';
+
+      document.getElementById('chkTicketLogo').checked = configuracionTallerActual.mostrarLogoTicket !== false;
+      document.getElementById('chkTicketCliente').checked = configuracionTallerActual.mostrarClienteTicket !== false;
+      document.getElementById('chkTicketTelefono').checked = configuracionTallerActual.mostrarTelefonoTicket !== false;
+      document.getElementById('chkTicketResponsable').checked = configuracionTallerActual.mostrarResponsableTicket !== false;
+      document.getElementById('chkTicketDispositivos').checked = configuracionTallerActual.mostrarDispositivosTicket !== false;
+      document.getElementById('chkTicketFallas').checked = configuracionTallerActual.mostrarFallasTicket !== false;
+      document.getElementById('chkTicketDiagnostico').checked = configuracionTallerActual.mostrarDiagnosticoTicket !== false;
+      document.getElementById('chkTicketCostos').checked = configuracionTallerActual.mostrarCostosTicket !== false;
+
+      actualizarPreviaLogo();
+    }
+
+    function actualizarPreviaLogo() {
+      var url = document.getElementById('configLogoUrl').value.trim();
+      var img = document.getElementById('imgPreviaLogo');
+      var txt = document.getElementById('txtSinLogo');
+      if (url) {
+        img.src = url;
+        img.style.display = 'block';
+        txt.style.display = 'none';
+      } else {
+        img.src = '';
+        img.style.display = 'none';
+        txt.style.display = 'block';
+      }
+    }
+
+    function guardarConfiguracionSistema(e) {
+      if (e) e.preventDefault();
+      var token = App.getToken();
+      var conf = {
+        nombreTaller: document.getElementById('configNombreTaller').value.trim(),
+        logoUrl: document.getElementById('configLogoUrl').value.trim(),
+        leyendaTicket: document.getElementById('configLeyendaTicket').value.trim(),
+        mostrarLogoTicket: document.getElementById('chkTicketLogo').checked,
+        mostrarClienteTicket: document.getElementById('chkTicketCliente').checked,
+        mostrarTelefonoTicket: document.getElementById('chkTicketTelefono').checked,
+        mostrarResponsableTicket: document.getElementById('chkTicketResponsable').checked,
+        mostrarDispositivosTicket: document.getElementById('chkTicketDispositivos').checked,
+        mostrarFallasTicket: document.getElementById('chkTicketFallas').checked,
+        mostrarDiagnosticoTicket: document.getElementById('chkTicketDiagnostico').checked,
+        mostrarCostosTicket: document.getElementById('chkTicketCostos').checked,
+        videosCarrusel: configuracionTallerActual.videosCarrusel || []
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          configuracionTallerActual = Object.assign(configuracionTallerActual, conf);
+          alert('✅ Configuración guardada correctamente');
+        })
+        .withFailureHandler(function(err) {
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiGuardarConfiguracionAdmin(token, conf);
+    }
+
+    /* Gestión de Videos del Carrusel */
+    function renderizarTablaVideosConfig() {
+      var tbody = document.getElementById('tbodyConfigVideos');
+      var videos = configuracionTallerActual.videosCarrusel || [];
+      if (videos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No hay videos configurados en el carrusel. Haz clic en "+ Agregar Video" para añadir uno.</td></tr>';
+        return;
+      }
+
+      var html = '';
+      videos.forEach(function(v, idx) {
+        var esYT = (v.url || '').indexOf('youtube') !== -1 || (v.url || '').indexOf('youtu.be') !== -1;
+        var badgeTipo = esYT ? '<span class="badge" style="background: #fee2e2; color: #991b1b;">YouTube</span>' : '<span class="badge" style="background: #dbeafe; color: #1e40af;">Video MP4</span>';
+        var badgeActivo = (v.activo !== false && v.activo !== 'NO') ? '<span class="badge" style="background: #d1fae5; color: #065f46;">ACTIVO</span>' : '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
+
+        html += '<tr>';
+        html += '  <td>' + badgeTipo + '</td>';
+        html += '  <td><strong>' + (v.titulo || 'Sin título') + '</strong></td>';
+        html += '  <td><a href="' + v.url + '" target="_blank" style="font-size: 0.8rem; color: #4338ca; max-width: 180px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + v.url + '</a></td>';
+        html += '  <td>' + (v.descripcion || '-') + '</td>';
+        html += '  <td>' + badgeActivo + '</td>';
+        html += '  <td style="white-space: nowrap;">';
+        html += '    <button class="btn btn-secondary btn-sm" onclick="editarVideoCarrusel(' + idx + ')">✏️</button> ';
+        html += '    <button class="btn btn-danger btn-sm" onclick="eliminarVideoCarrusel(' + idx + ')">🗑️</button>';
+        html += '  </td>';
+        html += '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function abrirModalVideoCarrusel() {
+      document.getElementById('videoCarruselIndice').value = '-1';
+      document.getElementById('videoCarruselTitulo').value = '';
+      document.getElementById('videoCarruselUrl').value = '';
+      document.getElementById('videoCarruselDesc').value = '';
+      document.getElementById('videoCarruselActivo').checked = true;
+      document.getElementById('modalVideoTitulo').innerText = 'Nuevo Video del Carrusel';
+      document.getElementById('modalVideoCarrusel').style.display = 'flex';
+    }
+
+    function cerrarModalVideoCarrusel() {
+      document.getElementById('modalVideoCarrusel').style.display = 'none';
+    }
+
+    function editarVideoCarrusel(idx) {
+      var v = configuracionTallerActual.videosCarrusel[idx];
+      if (!v) return;
+      document.getElementById('videoCarruselIndice').value = idx;
+      document.getElementById('videoCarruselTitulo').value = v.titulo || '';
+      document.getElementById('videoCarruselUrl').value = v.url || '';
+      document.getElementById('videoCarruselDesc').value = v.descripcion || '';
+      document.getElementById('videoCarruselActivo').checked = (v.activo !== false && v.activo !== 'NO');
+      document.getElementById('modalVideoTitulo').innerText = 'Editar Video del Carrusel';
+      document.getElementById('modalVideoCarrusel').style.display = 'flex';
+    }
+
+    function guardarVideoCarrusel(e) {
+      e.preventDefault();
+      var idx = parseInt(document.getElementById('videoCarruselIndice').value, 10);
+      var videoObj = {
+        titulo: document.getElementById('videoCarruselTitulo').value.trim(),
+        url: document.getElementById('videoCarruselUrl').value.trim(),
+        descripcion: document.getElementById('videoCarruselDesc').value.trim(),
+        activo: document.getElementById('videoCarruselActivo').checked
+      };
+
+      if (!configuracionTallerActual.videosCarrusel) {
+        configuracionTallerActual.videosCarrusel = [];
+      }
+
+      if (idx >= 0 && idx < configuracionTallerActual.videosCarrusel.length) {
+        configuracionTallerActual.videosCarrusel[idx] = videoObj;
+      } else {
+        configuracionTallerActual.videosCarrusel.push(videoObj);
+      }
+
+      cerrarModalVideoCarrusel();
+      renderizarTablaVideosConfig();
+      guardarConfiguracionSistema();
+    }
+
+    function eliminarVideoCarrusel(idx) {
+      if (!confirm('¿Seguro que deseas eliminar este video del carrusel?')) return;
+      configuracionTallerActual.videosCarrusel.splice(idx, 1);
+      renderizarTablaVideosConfig();
+      guardarConfiguracionSistema();
+    }
+
+    /* Impresión de Tickets y Etiquetas */
+    function imprimirTicketOrden(idOrden) {
+      var ord = null;
+      if (ordenSeleccionadaActual && ordenSeleccionadaActual.orden.idOrden === idOrden) {
+        ord = ordenSeleccionadaActual;
+        construirTicketHTML(ord);
+      } else {
+        var token = App.getToken();
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (!res.success) {
+              alert('Error obteniendo orden: ' + res.error);
+              return;
+            }
+            construirTicketHTML(res.data);
+          })
+          .withFailureHandler(function(err) {
+            alert('Error al consultar datos de la orden: ' + err.message);
+          })
+          .apiObtenerDetalleOrden(token, idOrden);
+      }
+    }
+
+    function construirTicketHTML(data) {
+      var o = data.orden;
+      var devs = data.dispositivos || [];
+      var conf = configuracionTallerActual;
+
+      document.getElementById('modalTicketTitulo').innerText = 'Ticket Térmico - ' + o.folio;
+
+      var logoHTML = (conf.mostrarLogoTicket && conf.logoUrl) ?
+        '<img src="' + conf.logoUrl + '" class="ticket-logo" alt="Logo">' : '';
+
+      var html = '';
+      html += logoHTML;
+      html += '<div class="ticket-header">';
+      html += '  <div class="ticket-title">' + (conf.nombreTaller || 'PixelFix - Taller de Consolas') + '</div>';
+      html += '  <div style="font-size: 10px;">ORDEN DE SERVICIO TÉCNICO</div>';
+      html += '  <div class="ticket-folio">' + o.folio + '</div>';
+      html += '  <div style="font-size: 9.5px;">Fecha: ' + (o.fechaCreacion || '-') + '</div>';
+      html += '</div>';
+
+      html += '<div class="ticket-divider"></div>';
+
+      if (conf.mostrarClienteTicket) {
+        html += '<div class="ticket-row"><span class="ticket-row-title">CLIENTE:</span><span>' + o.nombreCliente + '</span></div>';
+      }
+      if (conf.mostrarTelefonoTicket && o.telefonoContacto) {
+        html += '<div class="ticket-row"><span class="ticket-row-title">TELÉFONO:</span><span>' + o.telefonoContacto + '</span></div>';
+      }
+      if (conf.mostrarResponsableTicket && o.nombreResponsable) {
+        html += '<div class="ticket-row"><span class="ticket-row-title">RESP. SOLIDARIO:</span><span>' + o.nombreResponsable + '</span></div>';
+      }
+
+      html += '<div class="ticket-divider"></div>';
+      html += '<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">EQUIPOS REGISTRADOS (' + devs.length + ')</div>';
+
+      devs.forEach(function(d, i) {
+        html += '<div class="ticket-item">';
+        html += '  <div style="font-weight: bold;">#' + (i + 1) + ' ' + (d.tipoDispositivo || 'Consola') + ' ' + (d.marca || '') + ' ' + (d.modelo || '') + '</div>';
+        if (d.numeroSerie) {
+          html += '  <div style="font-size: 9px; color: #333;">S/N: ' + d.numeroSerie + '</div>';
+        }
+        if (conf.mostrarFallasTicket && d.fallaReportada) {
+          html += '  <div style="font-size: 9.5px;"><strong>FALLA:</strong> ' + d.fallaReportada + '</div>';
+        }
+        if (conf.mostrarDiagnosticoTicket && d.diagnostico) {
+          html += '  <div style="font-size: 9.5px;"><strong>DIAG:</strong> ' + d.diagnostico + '</div>';
+        }
+        if (conf.mostrarCostosTicket) {
+          var costoDev = (d.costoFinal != null && d.costoFinal !== '') ? d.costoFinal : d.costoEstimado;
+          html += '  <div style="text-align: right; font-weight: bold;">Costo: ' + App.formatCurrency(costoDev) + '</div>';
+        }
+        html += '</div>';
+      });
+
+      if (conf.mostrarCostosTicket) {
+        html += '<div class="ticket-divider"></div>';
+        html += '<div class="ticket-row"><span class="ticket-row-title">TOTAL ESTIMADO:</span><span style="font-weight: bold;">' + App.formatCurrency(o.totalEstimado) + '</span></div>';
+        html += '<div class="ticket-row"><span class="ticket-row-title">TOTAL COBRADO:</span><span>' + App.formatCurrency(o.totalCobrado) + '</span></div>';
+        html += '<div class="ticket-row" style="font-size: 12px; font-weight: 900;"><span class="ticket-row-title">SALDO PENDIENTE:</span><span>' + App.formatCurrency(o.saldo) + '</span></div>';
+      }
+
+      html += '<div class="ticket-divider"></div>';
+      html += '<div class="ticket-legal">' + (conf.leyendaTicket || '') + '</div>';
+      html += '<div style="text-align: center; font-size: 9px; margin-top: 6px;">¡Gracias por su preferencia!</div>';
+
+      document.getElementById('contenedorTicketTermico').innerHTML = html;
+      document.getElementById('modalTicketTermico').style.display = 'flex';
+    }
+
+    function cerrarModalTicket() {
+      document.getElementById('modalTicketTermico').style.display = 'none';
+    }
+
+    /* Etiqueta Reducida Individual para Consola */
+    function imprimirEtiquetaConsola(idDispositivo) {
+      if (!ordenSeleccionadaActual) return;
+      var ord = ordenSeleccionadaActual.orden;
+      var dev = (ordenSeleccionadaActual.dispositivos || []).find(function(d) {
+        return d.idDispositivo === idDispositivo;
+      });
+      if (!dev) return;
+
+      var conf = configuracionTallerActual;
+      document.getElementById('modalEtiquetaTitulo').innerText = 'Etiqueta Individual - ' + ord.folio;
+
+      var logoHTML = conf.logoUrl ?
+        '<img src="' + conf.logoUrl + '" class="etiqueta-logo" alt="Logo">' : '';
+
+      var html = '';
+      html += '<div class="etiqueta-header">';
+      html += logoHTML;
+      html += '  <div class="etiqueta-folio">' + ord.folio + '</div>';
+      html += '</div>';
+
+      html += '<div class="etiqueta-campo"><strong>CLIENTE:</strong> ' + ord.nombreCliente + '</div>';
+      html += '<div class="etiqueta-campo"><strong>FECHA/HORA:</strong> ' + (ord.fechaCreacion || '-') + '</div>';
+      html += '<div class="etiqueta-campo"><strong>EQUIPO:</strong> ' + (dev.tipoDispositivo || 'Consola') + ' ' + (dev.marca || '') + ' ' + (dev.modelo || '') + '</div>';
+      html += '<div class="etiqueta-campo"><strong>FALLA:</strong> ' + (dev.fallaReportada || 'Por diagnosticar') + '</div>';
+      html += '<div class="etiqueta-campo"><strong>NÚMERO DE SERIE:</strong> ' + (dev.numeroSerie || 'S/N') + '</div>';
+
+      document.getElementById('contenedorEtiquetaConsola').innerHTML = html;
+      document.getElementById('modalEtiquetaConsola').style.display = 'flex';
+    }
+
+    function cerrarModalEtiqueta() {
+      document.getElementById('modalEtiquetaConsola').style.display = 'none';
+    }
+
+    function imprimirElemento(idElemento) {
+      var contenido = document.getElementById(idElemento).innerHTML;
+      var areaPrint = document.getElementById('impresionAreaPrint');
+      areaPrint.innerHTML = contenido;
+      areaPrint.style.display = 'block';
+      window.print();
+      areaPrint.style.display = 'none';
+    }
+
   </script>
+
+    <!-- MODAL TICKET TÉRMICO CONTINUO -->
+    <div id="modalTicketTermico" class="modal-overlay">
+      <div class="modal-box" style="max-width: 480px;">
+        <div class="modal-header">
+          <h3 id="modalTicketTitulo" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Ticket Térmico</h3>
+          <button type="button" class="modal-close" onclick="cerrarModalTicket()">&times;</button>
+        </div>
+        <div style="background: #f1f5f9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; max-height: 60vh; overflow-y: auto;">
+          <div id="contenedorTicketTermico" class="ticket-termico">
+            <!-- Contenido dinámico del ticket -->
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalTicket()">Cerrar</button>
+          <button type="button" class="btn btn-primary" onclick="imprimirElemento('contenedorTicketTermico')">🖨️ Mandar a Imprimir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL ETIQUETA REDUCIDA INDIVIDUAL -->
+    <div id="modalEtiquetaConsola" class="modal-overlay">
+      <div class="modal-box" style="max-width: 420px;">
+        <div class="modal-header">
+          <h3 id="modalEtiquetaTitulo" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Etiqueta Individual</h3>
+          <button type="button" class="modal-close" onclick="cerrarModalEtiqueta()">&times;</button>
+        </div>
+        <div style="background: #f1f5f9; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; display: flex; justify-content: center;">
+          <div id="contenedorEtiquetaConsola" class="etiqueta-reducida">
+            <!-- Contenido dinámico de la etiqueta -->
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalEtiqueta()">Cerrar</button>
+          <button type="button" class="btn btn-primary" onclick="imprimirElemento('contenedorEtiquetaConsola')">🖨️ Mandar a Imprimir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EDITAR / AGREGAR VIDEO CARRUSEL -->
+    <div id="modalVideoCarrusel" class="modal-overlay">
+      <div class="modal-box" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3 id="modalVideoTitulo" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Video del Carrusel</h3>
+          <button type="button" class="modal-close" onclick="cerrarModalVideoCarrusel()">&times;</button>
+        </div>
+        <form onsubmit="guardarVideoCarrusel(event)">
+          <input type="hidden" id="videoCarruselIndice" value="-1">
+          <div class="form-group">
+            <label>Título del Video *:</label>
+            <input type="text" id="videoCarruselTitulo" class="input-control" placeholder="Ej. Proceso de Limpieza y Pasta Térmica" required>
+          </div>
+          <div class="form-group">
+            <label>Enlace / URL del Video (YouTube o MP4/WebM) *:</label>
+            <input type="url" id="videoCarruselUrl" class="input-control" placeholder="https://www.youtube.com/watch?v=..." required>
+          </div>
+          <div class="form-group">
+            <label>Descripción Breve:</label>
+            <textarea id="videoCarruselDesc" class="input-control" rows="2" placeholder="Explicación breve para clientes..."></textarea>
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="videoCarruselActivo" checked> Video Activo en Carrusel
+            </label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModalVideoCarrusel()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Video</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Elemento oculto para impresión nativa -->
+    <div id="impresionAreaPrint" style="display: none;"></div>
+
 </body>
 </html>

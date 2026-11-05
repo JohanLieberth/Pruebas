@@ -402,3 +402,103 @@ function setup() {
     message: 'Base de datos PixelFix inicializada correctamente con todas sus pestañas, catálogos y administrador.'
   };
 }
+
+
+/**
+ * Obtiene la configuración pública (logo, videos del carrusel, textos)
+ */
+function apiObtenerConfiguracionPublica() {
+  try {
+    var vals = Utils.getAllConfigValues();
+    var videos = [];
+    try {
+      if (vals.VIDEOS_CARRUSEL) {
+        videos = JSON.parse(vals.VIDEOS_CARRUSEL);
+      }
+    } catch (e) {
+      videos = [];
+    }
+    return Utils.responseSuccess({
+      nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
+      logoUrl: vals.LOGO_URL || '',
+      videosCarrusel: videos,
+      leyendaTicket: vals.LEYENDA_TICKET || ''
+    });
+  } catch (err) {
+    return Utils.responseError(err.message);
+  }
+}
+
+/**
+ * Obtiene la configuración completa para el panel administrador
+ */
+function apiObtenerConfiguracionAdmin(token) {
+  try {
+    var admin = Auth.requireAdmin(token);
+    var vals = Utils.getAllConfigValues();
+    var videos = [];
+    try {
+      if (vals.VIDEOS_CARRUSEL) {
+        videos = JSON.parse(vals.VIDEOS_CARRUSEL);
+      }
+    } catch (e) {
+      videos = [];
+    }
+    return Utils.responseSuccess({
+      nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
+      logoUrl: vals.LOGO_URL || '',
+      videosCarrusel: videos,
+      leyendaTicket: vals.LEYENDA_TICKET || 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
+      mostrarLogoTicket: vals.MOSTRAR_LOGO_TICKET !== 'NO',
+      mostrarClienteTicket: vals.MOSTRAR_CLIENTE_TICKET !== 'NO',
+      mostrarTelefonoTicket: vals.MOSTRAR_TELEFONO_TICKET !== 'NO',
+      mostrarResponsableTicket: vals.MOSTRAR_RESPONSABLE_TICKET !== 'NO',
+      mostrarDispositivosTicket: vals.MOSTRAR_DISPOSITIVOS_TICKET !== 'NO',
+      mostrarFallasTicket: vals.MOSTRAR_FALLAS_TICKET !== 'NO',
+      mostrarDiagnosticoTicket: vals.MOSTRAR_DIAGNOSTICO_TICKET !== 'NO',
+      mostrarCostosTicket: vals.MOSTRAR_COSTOS_TICKET !== 'NO'
+    });
+  } catch (err) {
+    return Utils.responseError(err.message);
+  }
+}
+
+/**
+ * Guarda la configuración del taller desde el panel administrador
+ */
+function apiGuardarConfiguracionAdmin(token, config) {
+  try {
+    var admin = Auth.requireAdmin(token);
+    if (!config || typeof config !== 'object') {
+      return Utils.responseError('Parámetros de configuración inválidos');
+    }
+
+    if (config.nombreTaller !== undefined) {
+      Utils.setConfigValue('NOMBRE_TALLER', config.nombreTaller, 'Nombre comercial del taller');
+    }
+    if (config.logoUrl !== undefined) {
+      Utils.setConfigValue('LOGO_URL', config.logoUrl, 'URL o DataURI del logo del taller');
+    }
+    if (config.videosCarrusel !== undefined) {
+      var strVideos = typeof config.videosCarrusel === 'string' ? config.videosCarrusel : JSON.stringify(config.videosCarrusel);
+      Utils.setConfigValue('VIDEOS_CARRUSEL', strVideos, 'Lista de videos JSON para el carrusel de inicio');
+    }
+    if (config.leyendaTicket !== undefined) {
+      Utils.setConfigValue('LEYENDA_TICKET', config.leyendaTicket, 'Texto legal y de garantía al pie del ticket térmico');
+    }
+
+    if (config.mostrarLogoTicket !== undefined) Utils.setConfigValue('MOSTRAR_LOGO_TICKET', config.mostrarLogoTicket ? 'SI' : 'NO', 'Mostrar logo en ticket');
+    if (config.mostrarClienteTicket !== undefined) Utils.setConfigValue('MOSTRAR_CLIENTE_TICKET', config.mostrarClienteTicket ? 'SI' : 'NO', 'Mostrar cliente en ticket');
+    if (config.mostrarTelefonoTicket !== undefined) Utils.setConfigValue('MOSTRAR_TELEFONO_TICKET', config.mostrarTelefonoTicket ? 'SI' : 'NO', 'Mostrar teléfono en ticket');
+    if (config.mostrarResponsableTicket !== undefined) Utils.setConfigValue('MOSTRAR_RESPONSABLE_TICKET', config.mostrarResponsableTicket ? 'SI' : 'NO', 'Mostrar responsable en ticket');
+    if (config.mostrarDispositivosTicket !== undefined) Utils.setConfigValue('MOSTRAR_DISPOSITIVOS_TICKET', config.mostrarDispositivosTicket ? 'SI' : 'NO', 'Mostrar dispositivos en ticket');
+    if (config.mostrarFallasTicket !== undefined) Utils.setConfigValue('MOSTRAR_FALLAS_TICKET', config.mostrarFallasTicket ? 'SI' : 'NO', 'Mostrar fallas en ticket');
+    if (config.mostrarDiagnosticoTicket !== undefined) Utils.setConfigValue('MOSTRAR_DIAGNOSTICO_TICKET', config.mostrarDiagnosticoTicket ? 'SI' : 'NO', 'Mostrar diagnóstico en ticket');
+    if (config.mostrarCostosTicket !== undefined) Utils.setConfigValue('MOSTRAR_COSTOS_TICKET', config.mostrarCostosTicket ? 'SI' : 'NO', 'Mostrar costos en ticket');
+
+    Utils.registrarLog('ACTUALIZAR_CONFIGURACION', 'Configuración del sistema actualizada por ' + admin.nombre, admin.nombre);
+    return Utils.responseSuccess(null, 'Configuración actualizada con éxito');
+  } catch (err) {
+    return Utils.responseError(err.message);
+  }
+}

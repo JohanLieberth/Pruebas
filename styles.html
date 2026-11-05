@@ -446,4 +446,146 @@
       gap: 0;
     }
   }
+
+  /* ========================================================
+     ESTILOS DE IMPRESIÓN: TICKETS TÉRMICOS Y ETIQUETAS
+     ======================================================== */
+  @media print {
+    body * {
+      visibility: hidden !important;
+    }
+    #impresionAreaPrint, #impresionAreaPrint * {
+      visibility: visible !important;
+    }
+    #impresionAreaPrint {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+    }
+    .modal-overlay, .navbar, footer, .btn {
+      display: none !important;
+    }
+  }
+
+  /* Formato Ticket Térmico Continuo (~58mm / 80mm) */
+  .ticket-termico {
+    width: 290px;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 10px 12px;
+    background: #ffffff;
+    color: #000000;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.25;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+
+  .ticket-termico .ticket-logo {
+    display: block;
+    max-width: 90px;
+    max-height: 55px;
+    margin: 0 auto 6px auto;
+    object-fit: contain;
+  }
+
+  .ticket-termico .ticket-header {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .ticket-termico .ticket-title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .ticket-termico .ticket-folio {
+    font-size: 14px;
+    font-weight: 900;
+    margin: 3px 0;
+  }
+
+  .ticket-termico .ticket-divider {
+    border-top: 1px dashed #000000;
+    margin: 6px 0;
+  }
+
+  .ticket-termico .ticket-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+  }
+
+  .ticket-termico .ticket-row-title {
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .ticket-termico .ticket-item {
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 0.5px dotted #666666;
+  }
+
+  .ticket-termico .ticket-legal {
+    font-size: 8.5px;
+    line-height: 1.15;
+    text-align: justify;
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+
+  /* Formato Etiqueta Reducida Individual para Consola */
+  .etiqueta-reducida {
+    width: 240px;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 8px 10px;
+    background: #ffffff;
+    color: #000000;
+    font-family: Arial, sans-serif;
+    font-size: 10.5px;
+    line-height: 1.2;
+    border: 1px solid #000000;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+
+  .etiqueta-reducida .etiqueta-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    border-bottom: 1.5px solid #000000;
+    padding-bottom: 4px;
+    margin-bottom: 5px;
+  }
+
+  .etiqueta-reducida .etiqueta-logo {
+    max-width: 45px;
+    max-height: 30px;
+    object-fit: contain;
+  }
+
+  .etiqueta-reducida .etiqueta-folio {
+    font-size: 11px;
+    font-weight: 900;
+    text-align: right;
+  }
+
+  .etiqueta-reducida .etiqueta-campo {
+    margin-bottom: 2px;
+  }
+
+  .etiqueta-reducida .etiqueta-campo strong {
+    font-weight: 800;
+  }
+
 </style>
