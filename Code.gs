@@ -43,6 +43,7 @@ const ROLES = {
 
 const ASISTENTES_PREDETERMINADOS = [
   { nombre: 'Lic. Mariana Gaber Fernández Montilla', cargo: 'Directora de Administración', correo: 'mariana.gaber@merida.gob.mx' },
+  { nombre: 'C.P. Edith Verónica Aguilar Rivero', cargo: 'Jefa Despacho Administración', correo: 'edith.aguilar@merida.gob.mx' },
   { nombre: 'MTRO. Edgar Miguel Poot Delfino', cargo: 'Subdirector de Administración y Proveeduría', correo: 'edgar.poot@merida.gob.mx' },
   { nombre: 'M.A.D. Eric Gerardo Millet Corona', cargo: 'Subdirector de Servicios Internos', correo: 'eric.millet@merida.gob.mx' },
   { nombre: 'M.D.O. Wendy Leticia Rejón Barrancos', cargo: 'Subdirectora de Recursos Humanos', correo: 'wendy.rejon@merida.gob.mx' },
@@ -1689,6 +1690,7 @@ function obtenerKPIsDashboard() {
   hoyDate.setHours(0, 0, 0, 0);
 
   const porSubdireccion = {};
+  const desglosePorSubdireccion = {};
 
   acuerdos.forEach(a => {
     const est = String(a.Estatus).trim();
@@ -1697,9 +1699,32 @@ function obtenerKPIsDashboard() {
     else if (est === 'Cumplido') cumplidos++;
     else if (est === 'Cancelado') cancelados++;
 
-    const subs = String(a.Subdirección_Asignada || 'Sin Asignar').split(',').map(s => s.trim());
-    subs.forEach(sub => {
+    const subs = String(a.Subdirección_Asignada || 'Sin Asignar').split(',').map(s => s.trim()).filter(Boolean);
+    const subsArray = subs.length > 0 ? subs : ['Sin Asignar'];
+
+    subsArray.forEach(sub => {
       porSubdireccion[sub] = (porSubdireccion[sub] || 0) + 1;
+
+      if (!desglosePorSubdireccion[sub]) {
+        desglosePorSubdireccion[sub] = {
+          subdireccion: sub,
+          total: 0,
+          atendidos: 0,
+          enProceso: 0,
+          pendientes: 0,
+          cancelados: 0
+        };
+      }
+      desglosePorSubdireccion[sub].total++;
+      if (est === 'Cumplido') {
+        desglosePorSubdireccion[sub].atendidos++;
+      } else if (est === 'En Proceso') {
+        desglosePorSubdireccion[sub].enProceso++;
+      } else if (est === 'Pendiente') {
+        desglosePorSubdireccion[sub].pendientes++;
+      } else if (est === 'Cancelado') {
+        desglosePorSubdireccion[sub].cancelados++;
+      }
     });
 
     if (est === 'Pendiente' || est === 'En Proceso') {
@@ -1734,7 +1759,8 @@ function obtenerKPIsDashboard() {
     cancelados,
     porVencer,
     vencidos,
-    porSubdireccion
+    porSubdireccion,
+    desglosePorSubdireccion
   };
 }
 

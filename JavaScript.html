@@ -29,6 +29,7 @@
 
   const ASISTENTES_PREDETERMINADOS_UI = [
     { nombre: 'Lic. Mariana Gaber Fernández Montilla', cargo: 'Directora de Administración', correo: 'mariana.gaber@merida.gob.mx' },
+    { nombre: 'C.P. Edith Verónica Aguilar Rivero', cargo: 'Jefa Despacho Administración', correo: 'edith.aguilar@merida.gob.mx' },
     { nombre: 'MTRO. Edgar Miguel Poot Delfino', cargo: 'Subdirector de Administración y Proveeduría', correo: 'edgar.poot@merida.gob.mx' },
     { nombre: 'M.A.D. Eric Gerardo Millet Corona', cargo: 'Subdirector de Servicios Internos', correo: 'eric.millet@merida.gob.mx' },
     { nombre: 'M.D.O. Wendy Leticia Rejón Barrancos', cargo: 'Subdirectora de Recursos Humanos', correo: 'wendy.rejon@merida.gob.mx' },
@@ -444,20 +445,7 @@
         document.getElementById('kpi-por-vencer').innerText = kpis.porVencer;
         document.getElementById('kpi-cumplidos').innerText = kpis.cumplidos;
 
-        const tbodySub = document.querySelector('#tabla-kpi-subdirecciones tbody');
-        tbodySub.innerHTML = '';
-        if (Object.keys(kpis.porSubdireccion).length === 0) {
-          tbodySub.innerHTML = '<tr><td colspan="2" class="text-center text-muted">No hay datos registrados</td></tr>';
-        } else {
-          for (const [subName, total] of Object.entries(kpis.porSubdireccion)) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td class="fw-semibold">${subName}</td>
-              <td class="text-end fw-bold">${total}</td>
-            `;
-            tbodySub.appendChild(tr);
-          }
-        }
+        renderizarGraficoSubdirecciones(kpis.desglosePorSubdireccion || {});
 
         cargarAlertasDashboard();
 
@@ -473,6 +461,139 @@
         mostrarToast(err.message || 'Error al cargar Dashboard', true);
       })
       .obtenerKPIsDashboard();
+  }
+
+  function renderizarGraficoSubdirecciones(desglose) {
+    const contGrafico = document.getElementById('contenedor-grafico-subdirecciones');
+    const sinDatosEl = document.getElementById('sin-datos-grafico-subdirecciones');
+    const canvas = document.getElementById('chart-subdirecciones');
+
+    if (!contGrafico || !canvas) return;
+
+    const subdirectorates = Object.keys(desglose);
+
+    if (subdirectorates.length === 0) {
+      contGrafico.classList.add('d-none');
+      if (sinDatosEl) sinDatosEl.classList.remove('d-none');
+      if (window.chartSubdireccionesInstance) {
+        window.chartSubdireccionesInstance.destroy();
+        window.chartSubdireccionesInstance = null;
+      }
+      return;
+    }
+
+    contGrafico.classList.remove('d-none');
+    if (sinDatosEl) sinDatosEl.classList.add('d-none');
+
+    const labels = [];
+    const totals = [];
+    const atendidos = [];
+    const enProceso = [];
+
+    subdirectorates.forEach(sub => {
+      labels.push(sub);
+      const d = desglose[sub] || {};
+      totals.push(d.total || 0);
+      atendidos.push(d.atendidos || 0);
+      enProceso.push(d.enProceso || 0);
+    });
+
+    if (window.chartSubdireccionesInstance) {
+      window.chartSubdireccionesInstance.destroy();
+      window.chartSubdireccionesInstance = null;
+    }
+
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js no está disponible en este momento.');
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    window.chartSubdireccionesInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Total de acuerdos',
+            data: totals,
+            backgroundColor: '#2b4c7e',
+            borderColor: '#1f375c',
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: 'Acuerdos atendidos',
+            data: atendidos,
+            backgroundColor: '#198754',
+            borderColor: '#146c43',
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: 'Acuerdos en proceso',
+            data: enProceso,
+            backgroundColor: '#0d6efd',
+            borderColor: '#0a58ca',
+            borderWidth: 1,
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              boxWidth: 12,
+              padding: 12,
+              font: {
+                family: 'Inter',
+                size: 11
+              }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            padding: 10
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: function(val, index) {
+                const label = this.getLabelForValue(val);
+                return label.length > 22 ? label.substring(0, 20) + '...' : label;
+              },
+              font: {
+                family: 'Inter',
+                size: 10
+              }
+            },
+            grid: {
+              display: false
+            }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+              precision: 0,
+              font: {
+                family: 'Inter',
+                size: 10
+              }
+            },
+            grid: {
+              color: '#e9ecef'
+            }
+          }
+        }
+      }
+    });
   }
 
   function cargarAlertasDashboard() {
