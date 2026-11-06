@@ -19,6 +19,7 @@
               <th>ID Proyecto</th>
               <th>Nombre del Proyecto</th>
               <th>Descripción</th>
+              <th>Etapa</th>
               <th>Estatus</th>
               <th>Fecha Creación</th>
               <th>Creado Por</th>
@@ -57,6 +58,11 @@
           </div>
 
           <div class="mb-3">
+            <label for="proyecto-etapa" class="form-label fw-semibold">Etapa</label>
+            <select class="form-select" id="proyecto-etapa"></select>
+          </div>
+
+          <div class="mb-3">
             <label for="proyecto-estatus" class="form-label fw-semibold">Estatus</label>
             <select class="form-select" id="proyecto-estatus">
               <option value="Activo">Activo</option>
@@ -68,6 +74,37 @@
         <div class="modal-footer bg-light">
           <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Modificar Etapa de Proyecto -->
+<div class="modal fade" id="modalCambiarEtapaProyecto" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-custom text-white">
+        <h5 class="modal-title fw-bold"><i class="bi bi-diagram-2 me-2"></i>Modificar Etapa del Proyecto</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="form-cambiar-etapa-proyecto" onsubmit="event.preventDefault(); guardarCambioEtapaProyectoModal();">
+        <div class="modal-body">
+          <input type="hidden" id="cambiar-etapa-proyecto-id">
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold text-muted small text-uppercase">Proyecto</label>
+            <div id="cambiar-etapa-proyecto-nombre" class="fw-bold fs-6 text-primary mb-2"></div>
+          </div>
+
+          <div class="mb-3">
+            <label for="cambiar-etapa-proyecto-select" class="form-label fw-semibold">Nueva Etapa *</label>
+            <select class="form-select" id="cambiar-etapa-proyecto-select" required></select>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Actualizar Etapa</button>
         </div>
       </form>
     </div>

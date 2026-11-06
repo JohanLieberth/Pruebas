@@ -86,7 +86,7 @@
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link fw-semibold" id="tab-acuerdos-tab" data-bs-toggle="tab" data-bs-target="#tab-acuerdos" type="button" role="tab">
+            <button class="nav-link fw-semibold" id="tab-acuerdos-tab" data-bs-toggle="tab" data-bs-target="#tab-acuerdos" type="button" role="tab" onclick="actualizarResponsablesAcuerdosMinuta();">
               <i class="bi bi-check2-square me-1"></i>4. Acuerdos Derivados
             </button>
           </li>
@@ -109,15 +109,11 @@
                   <label for="minuta-nombre" class="form-label fw-semibold">Nombre de la Reunión *</label>
                   <input type="text" class="form-control" id="minuta-nombre" required placeholder="Ej. Reunión de Seguimiento Q1">
                 </div>
-                <div class="col-12 col-md-4">
-                  <label for="minuta-etapa" class="form-label fw-semibold">Etapa *</label>
-                  <select class="form-select" id="minuta-etapa" required></select>
-                </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                   <label for="minuta-fecha" class="form-label fw-semibold">Fecha de la Reunión *</label>
                   <input type="date" class="form-control" id="minuta-fecha" required>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                   <label for="minuta-lugar" class="form-label fw-semibold">Lugar / Sede *</label>
                   <input type="text" class="form-control" id="minuta-lugar" placeholder="Ej. Sala B / Vía Teams" required>
                 </div>
@@ -193,11 +189,11 @@
                       <th style="width: 120px;">Proyecto</th>
                       <th style="width: 110px;">Tipo</th>
                       <th>Descripción del Acuerdo</th>
-                      <th style="width: 90px;">Prioridad</th>
-                      <th>Responsables</th>
+                      <th style="width: 95px;">Prioridad</th>
+                      <th style="width: 210px;">Responsables (de Asistencia)</th>
                       <th style="width: 120px;">Fecha Límite</th>
-                      <th style="width: 220px;">Subdirecciones Asignadas</th>
-                      <th style="width: 50px;"></th>
+                      <th style="width: 210px;">Subdirecciones Asignadas</th>
+                      <th style="width: 45px;"></th>
                     </tr>
                   </thead>
                   <tbody>

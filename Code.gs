@@ -23,7 +23,7 @@ const HOJAS = {
 
 const ENCABEZADOS = {
   [HOJAS.HOJA1]: [],
-  [HOJAS.PROYECTOS]: ['ID_Proyecto', 'Nombre_Proyecto', 'Descripción', 'Estatus', 'Fecha_Creación', 'Creado_Por'],
+  [HOJAS.PROYECTOS]: ['ID_Proyecto', 'Nombre_Proyecto', 'Descripción', 'Estatus', 'Fecha_Creación', 'Creado_Por', 'Etapa'],
   [HOJAS.MINUTAS]: ['Folio', 'ID_Proyecto', 'Etapa', 'Nombre_Reunión', 'Fecha', 'Lugar', 'Objetivos', 'Creado_Por', 'Fecha_Creación'],
   [HOJAS.ASISTENCIA]: ['ID_Asistencia', 'Folio_Minuta', 'Nombre', 'Dependencia_Area', 'Cargo', 'Correo Electrónico', 'Asistencia'],
   [HOJAS.ORDEN_DEL_DIA]: ['ID_Punto', 'Folio_Minuta', 'Número_Punto', 'Descripción_Punto'],
@@ -684,13 +684,20 @@ function crearProyecto(data) {
     const idP = generarIDUnico(HOJAS.PROYECTOS, 'PRY');
     const now = formatDate(new Date());
 
+    const headers = sheet.getLastColumn() > 0 ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim()) : ENCABEZADOS[HOJAS.PROYECTOS];
+    let etapaIdx = headers.indexOf('Etapa');
+    if (etapaIdx === -1) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue('Etapa').setFontWeight('bold').setBackground('#E0E0E0');
+    }
+
     const newRow = [
       idP,
       data.nombreProyecto || '',
       data.descripcion || '',
       data.estatus || 'Activo',
       now,
-      sesion.email
+      sesion.email,
+      data.etapa || 'Planeación'
     ];
 
     sheet.appendRow(newRow);
@@ -712,6 +719,7 @@ function actualizarProyecto(idProyecto, data) {
     const ss = getSpreadsheet();
     const sheet = ss.getSheetByName(HOJAS.PROYECTOS);
     const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(h => String(h).trim());
 
     let rowIndex = -1;
     for (let i = 1; i < rows.length; i++) {
@@ -725,14 +733,43 @@ function actualizarProyecto(idProyecto, data) {
       throw new Error('Proyecto no encontrado.');
     }
 
-    if (data.nombreProyecto !== undefined) sheet.getRange(rowIndex, 2).setValue(data.nombreProyecto);
-    if (data.descripcion !== undefined) sheet.getRange(rowIndex, 3).setValue(data.descripcion);
-    if (data.estatus !== undefined) sheet.getRange(rowIndex, 4).setValue(data.estatus);
+    let etapaIdx = headers.indexOf('Etapa');
+    if (etapaIdx === -1 && data.etapa !== undefined) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue('Etapa').setFontWeight('bold').setBackground('#E0E0E0');
+      etapaIdx = sheet.getLastColumn() - 1;
+    }
+
+    const setColVal = (colName, val) => {
+      let idx = headers.indexOf(colName);
+      if (idx !== -1) {
+        sheet.getRange(rowIndex, idx + 1).setValue(val);
+      }
+    };
+
+    if (data.nombreProyecto !== undefined) setColVal('Nombre_Proyecto', data.nombreProyecto);
+    if (data.descripcion !== undefined) setColVal('Descripción', data.descripcion);
+    if (data.estatus !== undefined) setColVal('Estatus', data.estatus);
+    if (data.etapa !== undefined) {
+      if (etapaIdx !== -1) {
+        sheet.getRange(rowIndex, etapaIdx + 1).setValue(data.etapa);
+      }
+    }
 
     return { success: true, message: 'Proyecto actualizado correctamente.' };
   } finally {
     lock.releaseLock();
   }
+}
+
+function cambiarEtapaProyecto(idProyecto, nuevaEtapa) {
+  const sesion = validarSesion();
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('Solo el Administrador puede modificar la etapa del proyecto.');
+  }
+  if (!nuevaEtapa || !nuevaEtapa.trim()) {
+    throw new Error('Debe especificar una etapa válida.');
+  }
+  return actualizarProyecto(idProyecto, { etapa: nuevaEtapa.trim() });
 }
 
 // --- MINUTAS Y SUS COMPONENTES ---

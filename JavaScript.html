@@ -275,7 +275,6 @@
   }
 
   function poblarDropdowns() {
-    poblarSelect('minuta-etapa', GLOBAL_CATALOGOS.Etapa);
     poblarSelect('filtro-minuta-etapa', GLOBAL_CATALOGOS.Etapa, '-- Todas las etapas --');
 
     poblarSelect('acuerdo-prioridad', GLOBAL_CATALOGOS.Prioridad);
@@ -288,6 +287,9 @@
     poblarSelect('usuario-subdireccion', GLOBAL_CATALOGOS.Subdirección);
     poblarSelect('usuario-jefatura', GLOBAL_CATALOGOS.Jefatura, '-- Ninguna (N/A) --');
     poblarSelect('modal-estatus-select', GLOBAL_CATALOGOS.Estatus);
+
+    poblarSelect('proyecto-etapa', GLOBAL_CATALOGOS.Etapa);
+    poblarSelect('cambiar-etapa-proyecto-select', GLOBAL_CATALOGOS.Etapa);
 
     poblarSelect('catalogo-padre', GLOBAL_CATALOGOS.Subdirección, '-- Seleccionar Subdirección Padre --');
   }
@@ -711,16 +713,21 @@
     proyectos.forEach(p => {
       const tr = document.createElement('tr');
       const badgeClass = p.Estatus === 'Activo' ? 'bg-success' : (p.Estatus === 'Inactivo' ? 'bg-secondary' : 'bg-dark');
+      const etapaActual = p.Etapa || 'Planeación';
 
       tr.innerHTML = `
         <td class="fw-bold">${p.ID_Proyecto}</td>
         <td class="fw-semibold">${p.Nombre_Proyecto}</td>
         <td class="text-muted small">${p.Descripción || '-'}</td>
+        <td><span class="badge bg-light text-primary border">${etapaActual}</span></td>
         <td><span class="badge ${badgeClass} badge-status">${p.Estatus}</span></td>
         <td class="small">${p.Fecha_Creación}</td>
         <td class="small">${p.Creado_Por}</td>
         <td class="text-end">
           ${CURRENT_USER.rol === 'Administrador' ? `
+            <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="abrirModalCambiarEtapaProyecto('${p.ID_Proyecto}', '${etapaActual}')" title="Modificar Etapa">
+              <i class="bi bi-diagram-2"></i>
+            </button>
             <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarProyecto('${p.ID_Proyecto}')" title="Editar">
               <i class="bi bi-pencil"></i>
             </button>
@@ -755,9 +762,44 @@
     });
   }
 
+  function abrirModalCambiarEtapaProyecto(idP, etapaActual) {
+    const p = GLOBAL_PROYECTOS.find(item => item.ID_Proyecto === idP);
+    document.getElementById('cambiar-etapa-proyecto-id').value = idP;
+    document.getElementById('cambiar-etapa-proyecto-nombre').innerText = p ? `${p.ID_Proyecto} — ${p.Nombre_Proyecto}` : idP;
+    poblarSelect('cambiar-etapa-proyecto-select', GLOBAL_CATALOGOS.Etapa);
+    document.getElementById('cambiar-etapa-proyecto-select').value = etapaActual || (GLOBAL_CATALOGOS.Etapa[0] || 'Planeación');
+    const modal = new bootstrap.Modal(document.getElementById('modalCambiarEtapaProyecto'));
+    modal.show();
+  }
+
+  function guardarCambioEtapaProyectoModal() {
+    const idP = document.getElementById('cambiar-etapa-proyecto-id').value;
+    const nuevaEtapa = document.getElementById('cambiar-etapa-proyecto-select').value;
+    if (!idP || !nuevaEtapa) return;
+
+    showSpinner('Actualizando etapa del proyecto...');
+    const modalEl = document.getElementById('modalCambiarEtapaProyecto');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (bsModal) bsModal.hide();
+        mostrarToast(res.message || 'Etapa actualizada');
+        cargarProyectos();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al actualizar etapa', true);
+      })
+      .cambiarEtapaProyecto(idP, nuevaEtapa);
+  }
+
   function abrirModalNuevoProyecto() {
     document.getElementById('form-proyecto').reset();
     document.getElementById('proyecto-id').value = '';
+    poblarSelect('proyecto-etapa', GLOBAL_CATALOGOS.Etapa);
+    document.getElementById('proyecto-etapa').value = GLOBAL_CATALOGOS.Etapa[0] || 'Planeación';
     document.getElementById('modalProyectoTitle').innerHTML = '<i class="bi bi-folder-plus me-2"></i>Nuevo Proyecto';
     const modal = new bootstrap.Modal(document.getElementById('modalProyecto'));
     modal.show();
@@ -770,6 +812,8 @@
     document.getElementById('proyecto-id').value = p.ID_Proyecto;
     document.getElementById('proyecto-nombre').value = p.Nombre_Proyecto;
     document.getElementById('proyecto-descripcion').value = p.Descripción;
+    poblarSelect('proyecto-etapa', GLOBAL_CATALOGOS.Etapa);
+    document.getElementById('proyecto-etapa').value = p.Etapa || 'Planeación';
     document.getElementById('proyecto-estatus').value = p.Estatus;
 
     document.getElementById('modalProyectoTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Editar Proyecto';
@@ -782,6 +826,7 @@
     const data = {
       nombreProyecto: document.getElementById('proyecto-nombre').value,
       descripcion: document.getElementById('proyecto-descripcion').value,
+      etapa: document.getElementById('proyecto-etapa').value,
       estatus: document.getElementById('proyecto-estatus').value
     };
 
@@ -977,6 +1022,82 @@
     tbody.appendChild(tr);
   }
 
+  function obtenerAsistentesMinutaForm() {
+    const asistentes = [];
+    const registrados = new Set();
+    document.querySelectorAll('#tabla-form-asistencia tbody tr').forEach(row => {
+      const nombre = row.querySelector('.ast-nombre') ? row.querySelector('.ast-nombre').value.trim() : '';
+      const correo = row.querySelector('.ast-correo') ? row.querySelector('.ast-correo').value.trim() : '';
+      if (nombre || correo) {
+        const key = (correo || nombre).toLowerCase();
+        if (!registrados.has(key)) {
+          registrados.add(key);
+          asistentes.push({
+            nombre: nombre,
+            correo: correo,
+            identificador: correo || nombre,
+            textoDisplay: correo && nombre && correo !== nombre ? `${nombre} (${correo})` : (nombre || correo)
+          });
+        }
+      }
+    });
+    return asistentes;
+  }
+
+  function generarHTMLCheckboxesResponsables(respuestasSeleccionadas = []) {
+    const asistentes = obtenerAsistentesMinutaForm();
+    const respSelArray = (Array.isArray(respuestasSeleccionadas) ? respuestasSeleccionadas : String(respuestasSeleccionadas).split(','))
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    let html = '<div class="acu-resp-container p-1 border rounded bg-white" style="max-height: 105px; overflow-y: auto; font-size: 0.78rem;">';
+
+    if (asistentes.length === 0) {
+      html += '<span class="text-muted small px-1 d-block">Sin asistentes en lista</span>';
+    } else {
+      asistentes.forEach(ast => {
+        const isChecked = respSelArray.includes(ast.identificador.toLowerCase()) ||
+                          respSelArray.includes(ast.nombre.toLowerCase()) ||
+                          (ast.correo && respSelArray.includes(ast.correo.toLowerCase()));
+        html += `
+          <div class="form-check m-0 py-0 text-truncate" title="${ast.textoDisplay}">
+            <input class="form-check-input acu-resp-chk" type="checkbox" value="${ast.identificador}" ${isChecked ? 'checked' : ''}>
+            <label class="form-check-label small">${ast.textoDisplay}</label>
+          </div>
+        `;
+      });
+    }
+
+    // Conservar responsables históricos que no estén en la lista de asistencia actual
+    const idsAsistentes = new Set(asistentes.map(a => a.identificador.toLowerCase()).concat(asistentes.map(a => a.nombre.toLowerCase())).concat(asistentes.map(a => a.correo.toLowerCase())));
+    respSelArray.forEach(respItem => {
+      if (!idsAsistentes.has(respItem) && respItem) {
+        html += `
+          <div class="form-check m-0 py-0 text-truncate" title="${respItem}">
+            <input class="form-check-input acu-resp-chk" type="checkbox" value="${respItem}" checked>
+            <label class="form-check-label small text-muted">${respItem}</label>
+          </div>
+        `;
+      }
+    });
+
+    html += '</div>';
+    return html;
+  }
+
+  function actualizarResponsablesAcuerdosMinuta() {
+    document.querySelectorAll('#tabla-form-acuerdos tbody tr').forEach(row => {
+      const tdResp = row.querySelector('.col-acu-resp');
+      if (tdResp) {
+        const seleccionados = [];
+        row.querySelectorAll('.acu-resp-chk:checked').forEach(chk => {
+          seleccionados.push(chk.value);
+        });
+        tdResp.innerHTML = generarHTMLCheckboxesResponsables(seleccionados);
+      }
+    });
+  }
+
   function agregarFilaAcuerdoMinuta(acuObj = null) {
     const tbody = document.querySelector('#tabla-form-acuerdos tbody');
     const tr = document.createElement('tr');
@@ -986,7 +1107,7 @@
     const tipo = acuObj ? acuObj.Tipo : 'Acuerdo';
     const desc = acuObj ? acuObj.Descripción_Acuerdo : '';
     const prio = acuObj ? acuObj.Prioridad : 'Media';
-    const resp = acuObj ? acuObj.Responsables : CURRENT_USER.email;
+    const resp = acuObj ? (acuObj.Responsables || '') : '';
     const fLim = acuObj ? acuObj.Fecha_Límite : new Date().toISOString().split('T')[0];
 
     // Subdirecciones actuales en array
@@ -1003,7 +1124,7 @@
       prioOptionsHTML += `<option value="${p}" ${p === prio ? 'selected' : ''}>${p}</option>`;
     });
 
-    // Crear lista de checkboxes desplegables o contenedor scrollable para subdirecciones
+    // Checkboxes para subdirecciones
     let subChecksHTML = '<div class="acu-sub-container p-1 border rounded bg-white" style="max-height: 105px; overflow-y: auto; font-size: 0.78rem;">';
     (GLOBAL_CATALOGOS.Subdirección || []).forEach((sub, sIdx) => {
       const isChecked = subSelArray.includes(sub.toLowerCase().trim());
@@ -1015,6 +1136,9 @@
       `;
     });
     subChecksHTML += '</div>';
+
+    // Checkboxes para responsables desde lista de asistencia
+    const respChecksHTML = generarHTMLCheckboxesResponsables(resp);
 
     const idAcuStr = acuObj ? (acuObj.ID_Acuerdo || '') : '';
 
@@ -1033,7 +1157,7 @@
       </td>
       <td><textarea class="form-control form-control-sm acu-desc" rows="3" placeholder="Descripción" required>${desc}</textarea></td>
       <td><select class="form-select form-select-sm acu-prio">${prioOptionsHTML}</select></td>
-      <td><input type="text" class="form-control form-control-sm acu-resp" value="${resp}" placeholder="Responsables" required></td>
+      <td class="col-acu-resp">${respChecksHTML}</td>
       <td><input type="date" class="form-control form-control-sm acu-flim" value="${fLim}" required></td>
       <td>${subChecksHTML}</td>
       <td class="text-center">
@@ -1079,6 +1203,11 @@
           selectedSubs.push(chk.value);
         });
 
+        const selectedResps = [];
+        row.querySelectorAll('.acu-resp-chk:checked').forEach(chk => {
+          selectedResps.push(chk.value);
+        });
+
         const idAcuVal = row.querySelector('.acu-id-hidden') ? row.querySelector('.acu-id-hidden').value.trim() : '';
 
         acuerdos.push({
@@ -1087,7 +1216,7 @@
           tipo: row.querySelector('.acu-tipo').value,
           descripcionAcuerdo: desc,
           prioridad: row.querySelector('.acu-prio').value,
-          responsables: row.querySelector('.acu-resp').value.trim(),
+          responsables: selectedResps.join(', '),
           fechaLimite: row.querySelector('.acu-flim').value,
           subdireccionAsignada: selectedSubs.join(', '),
           jefaturasAsignadas: '',
@@ -1099,7 +1228,6 @@
     const data = {
       idProyecto: document.getElementById('minuta-proyecto').value,
       nombreReunion: document.getElementById('minuta-nombre').value,
-      etapa: document.getElementById('minuta-etapa').value,
       fecha: document.getElementById('minuta-fecha').value,
       lugar: document.getElementById('minuta-lugar').value,
       objetivos: document.getElementById('minuta-objetivos').value,
@@ -1152,7 +1280,6 @@
         document.getElementById('minuta-folio').value = m.Folio;
         document.getElementById('minuta-proyecto').value = m.ID_Proyecto;
         document.getElementById('minuta-nombre').value = m.Nombre_Reunión;
-        document.getElementById('minuta-etapa').value = m.Etapa;
         document.getElementById('minuta-fecha').value = m.Fecha;
         document.getElementById('minuta-lugar').value = m.Lugar;
         document.getElementById('minuta-objetivos').value = m.Objetivos;
@@ -1202,6 +1329,23 @@
       .listarAcuerdos();
   }
 
+  function formatearSoloFecha(fechaStr) {
+    if (!fechaStr) return '';
+    const str = String(fechaStr).trim();
+    if (str.includes('T')) return str.split('T')[0];
+    if (str.includes(' ')) return str.split(' ')[0];
+    return str;
+  }
+
+  function obtenerBadgeClassEstatus(estatus) {
+    const est = String(estatus || '').trim();
+    if (est === 'Cumplido') return 'bg-success text-white';
+    if (est === 'En Proceso') return 'bg-primary text-white';
+    if (est === 'Pendiente') return 'bg-warning text-dark';
+    if (est === 'Cancelado') return 'bg-dark text-white';
+    return 'bg-secondary text-white';
+  }
+
   function renderizarTablaAcuerdos(acuerdos) {
     const tbody = document.querySelector('#tabla-acuerdos tbody');
     tbody.innerHTML = '';
@@ -1216,10 +1360,11 @@
     acuerdos.forEach(a => {
       const tr = document.createElement('tr');
 
+      const fechaCorta = formatearSoloFecha(a.Fecha_Límite);
       let semaforoClass = '';
       if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
-        if (a.Fecha_Límite < hoyStr) semaforoClass = 'semaforo-vencido';
-        else if (a.Fecha_Límite === hoyStr) semaforoClass = 'semaforo-por-vencer';
+        if (fechaCorta < hoyStr) semaforoClass = 'semaforo-vencido';
+        else if (fechaCorta === hoyStr) semaforoClass = 'semaforo-por-vencer';
         else semaforoClass = 'semaforo-en-tiempo';
       }
       tr.className = semaforoClass;
@@ -1229,12 +1374,7 @@
       else if (a.Prioridad === 'Media') prioBadge = 'bg-warning text-dark';
       else if (a.Prioridad === 'Baja') prioBadge = 'bg-info text-dark';
 
-      let estBadge = 'bg-secondary';
-      if (a.Estatus === 'Cumplido') estBadge = 'bg-success';
-      else if (a.Estatus === 'En Proceso') estBadge = 'bg-primary';
-      else if (a.Estatus === 'Pendiente') estBadge = 'bg-warning text-dark';
-      else if (a.Estatus === 'Cancelado') estBadge = 'bg-dark';
-
+      const estBadge = obtenerBadgeClassEstatus(a.Estatus);
       const descSubJef = `Sub: ${a.Subdirección_Asignada || 'N/A'}${a.Jefaturas_Asignadas ? ' | Jef: ' + a.Jefaturas_Asignadas : ''}`;
 
       tr.innerHTML = `
@@ -1246,7 +1386,7 @@
         <td><span class="badge ${prioBadge}">${a.Prioridad}</span></td>
         <td class="small text-truncate" style="max-width: 160px;" title="${descSubJef}">${descSubJef}</td>
         <td class="small text-truncate" style="max-width: 140px;">${a.Responsables}</td>
-        <td class="small fw-bold">${a.Fecha_Límite}</td>
+        <td class="small fw-bold">${fechaCorta}</td>
         <td><span class="badge ${estBadge}">${a.Estatus}</span></td>
         <td class="text-end">
           <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="navegarA('detalle-acuerdo', '${a.ID_Acuerdo}')" title="Ver Detalle">
@@ -1530,7 +1670,8 @@
         document.getElementById('det-acuerdo-folio-minuta').innerText = a.Folio_Minuta || 'N/A';
         document.getElementById('det-acuerdo-tipo').innerText = a.Tipo;
         document.getElementById('det-acuerdo-prioridad').innerText = a.Prioridad;
-        document.getElementById('det-acuerdo-estatus').innerText = a.Estatus;
+        const estatusBadgeClass = obtenerBadgeClassEstatus(a.Estatus);
+        document.getElementById('det-acuerdo-estatus').innerHTML = `<span class="badge ${estatusBadgeClass}">${a.Estatus || '-'}</span>`;
         document.getElementById('det-acuerdo-fecha-limite').innerText = a.Fecha_Límite;
         document.getElementById('det-acuerdo-subdireccion').innerText = a.Subdirección_Asignada || 'Sin Asignar';
         document.getElementById('det-acuerdo-jefaturas').innerText = a.Jefaturas_Asignadas || 'Ninguna';
