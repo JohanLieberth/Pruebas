@@ -43,6 +43,9 @@
       <button class="btn btn-secondary btn-sm" id="tabBtnRecompensas" onclick="switchAdminTab('recompensas')">
         🎁 Catálogo de Recompensas
       </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnConfig" onclick="switchAdminTab('config')">
+        ⚙️ Configuración
+      </button>
     </div>
 
     <!-- SECCIÓN 1: Listado de Órdenes y Dispositivos Asociados -->
@@ -383,6 +386,145 @@
       </div>
     </div>
 
+    <!-- SECCIÓN 6: Configuración del Taller (Logo, Videos, Impresión de Tickets y Etiquetas) -->
+    <div id="adminSectionConfig" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">⚙️ Configuración del Taller y Personalización</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">
+              Configura el logo, video principal, estructura de impresión de tickets térmicos y etiquetas individuales, y administra los videos del carrusel de inicio.
+            </p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="cargarConfiguracionTaller()">🔄 Recargar</button>
+        </div>
+
+        <form id="formConfiguracionTaller" onsubmit="guardarConfiguracionSistema(event)">
+          <!-- Datos Generales -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.75rem; font-weight: 600;">🏷️ Identidad del Taller</h3>
+            <div class="form-row">
+              <div class="form-col" style="flex: 2;">
+                <div class="form-group">
+                  <label for="configNombreTaller">Nombre Comercial del Taller:</label>
+                  <input type="text" id="configNombreTaller" class="input-control" placeholder="PixelFix - Taller de Consolas">
+                </div>
+                <div class="form-group">
+                  <label for="configLogoUrl">Enlace / URL del Logo (usado en tickets y encabezados):</label>
+                  <input type="url" id="configLogoUrl" class="input-control" placeholder="https://ejemplo.com/logo.png" oninput="actualizarPreviaLogo()">
+                  <small style="color: #64748b; font-size: 0.8rem;">Puedes ingresar una URL directa de imagen (PNG, JPG) o DataURI.</small>
+                </div>
+                <div class="form-group">
+                  <label for="configVideoUrl">Enlace del Video Principal / Tutorial (YouTube o MP4):</label>
+                  <input type="url" id="configVideoUrl" class="input-control" placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+              </div>
+              <div class="form-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 1rem;">
+                <span style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;">Vista Previa del Logo:</span>
+                <img id="imgPreviaLogo" src="" alt="Previa Logo" style="max-width: 140px; max-height: 80px; object-fit: contain; display: none;">
+                <div id="txtSinLogo" style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Sin logo asignado</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estructura de Impresión del Ticket Térmico -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.5rem; font-weight: 600;">🖨️ Estructura de Impresión del Ticket Térmico de Servicio</h3>
+            <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
+              Selecciona qué secciones se incluirán al momento de imprimir el ticket térmico para el cliente:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketLogo" checked> Incluir Logo en Cabecera
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketCliente" checked> Datos del Cliente
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketTelefono" checked> Teléfono de Contacto
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketResponsable" checked> Responsable Solidario
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketDispositivos" checked> Listado de Dispositivos
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketFallas" checked> Fallas Reportadas
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketDiagnostico" checked> Diagnósticos Técnicos
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketCostos" checked> Costos y Totales
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="configLeyendaTicket">Leyenda Legal / Políticas de Garantía al pie del ticket:</label>
+              <textarea id="configLeyendaTicket" class="input-control" rows="3"></textarea>
+            </div>
+          </div>
+
+          <!-- Estructura de Impresión de Etiqueta Individual -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.5rem; font-weight: 600;">🏷️ Estructura de Impresión de Etiqueta Individual por Consola</h3>
+            <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
+              Personaliza los campos visibles en la etiqueta adherible que se coloca a cada consola en taller:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaFolio" checked> Número de Orden de Servicio
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaDispositivo" checked> Dispositivo (Tipo/Marca/Modelo)
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaDiagnostico" checked> Diagnóstico Técnico
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaSerie" checked> Número de Serie
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 2rem;">
+            <button type="submit" class="btn btn-primary">💾 Guardar Configuración General y de Impresión</button>
+          </div>
+        </form>
+
+        <!-- Gestión de Videos del Carrusel de Inicio -->
+        <div style="border-top: 2px solid #e2e8f0; padding-top: 1.5rem;">
+          <div class="card-header" style="padding: 0; margin-bottom: 1rem;">
+            <div>
+              <h3 style="font-size: 1.05rem; color: #1e293b; margin: 0; font-weight: 600;">🎬 Videos del Carrusel en la Página de Inicio</h3>
+              <p style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+                Agrega, edita o elimina videos promocionales o explicativos mostrados en el carrusel público.
+              </p>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalVideoCarrusel()">+ Agregar Video</button>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Título</th>
+                  <th>URL del Video</th>
+                  <th>Descripción</th>
+                  <th>Estatus</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyConfigVideos">
+                <tr><td colspan="6" style="text-align: center; color: #64748b;">No hay videos configurados en el carrusel.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- MODAL: Modificar Costos de Dispositivo (con Auditoría en HistorialCostos) -->
@@ -599,17 +741,21 @@
     };
 
     function switchAdminTab(tab) {
-      ['ordenes', 'nueva-orden', 'puntos-nfc', 'staff', 'recompensas'].forEach(function(t) {
+      ['ordenes', 'nueva-orden', 'puntos-nfc', 'staff', 'recompensas', 'config'].forEach(function(t) {
         var secName = (t === 'nueva-orden') ? 'adminSectionNuevaOrden' :
                       (t === 'puntos-nfc') ? 'adminSectionNfc' :
-                      (t === 'staff') ? 'adminSectionStaff' : (t === 'recompensas') ? 'adminSectionRecompensas' : 'adminSectionOrdenes';
+                      (t === 'staff') ? 'adminSectionStaff' :
+                      (t === 'recompensas') ? 'adminSectionRecompensas' :
+                      (t === 'config') ? 'adminSectionConfig' : 'adminSectionOrdenes';
 
         var secEl = document.getElementById(secName);
         if (secEl) secEl.style.display = (t === tab) ? 'block' : 'none';
 
         var btnId = (t === 'nueva-orden') ? 'tabBtnNuevaOrd' :
                     (t === 'puntos-nfc') ? 'tabBtnNfc' :
-                    (t === 'staff') ? 'tabBtnStaff' : (t === 'recompensas') ? 'tabBtnRecompensas' : 'tabBtnOrd';
+                    (t === 'staff') ? 'tabBtnStaff' :
+                    (t === 'recompensas') ? 'tabBtnRecompensas' :
+                    (t === 'config') ? 'tabBtnConfig' : 'tabBtnOrd';
         var btnEl = document.getElementById(btnId);
         if (btnEl) {
           btnEl.style.background = (t === tab) ? '#ffffff' : '#f1f5f9';
@@ -619,6 +765,7 @@
 
       if (tab === 'staff') cargarStaffAdmin();
       if (tab === 'recompensas') cargarRecompensasAdmin();
+      if (tab === 'config') cargarConfiguracionTaller();
     }
 
     function cargarTecnicosCombo() {
@@ -1566,6 +1713,7 @@
     var configuracionTallerActual = {
       nombreTaller: 'PixelFix - Taller de Consolas',
       logoUrl: '',
+      videoUrl: '',
       videosCarrusel: [],
       leyendaTicket: 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
       mostrarLogoTicket: true,
@@ -1575,7 +1723,11 @@
       mostrarDispositivosTicket: true,
       mostrarFallasTicket: true,
       mostrarDiagnosticoTicket: true,
-      mostrarCostosTicket: true
+      mostrarCostosTicket: true,
+      mostrarFolioEtiqueta: true,
+      mostrarDispositivoEtiqueta: true,
+      mostrarDiagnosticoEtiqueta: true,
+      mostrarSerieEtiqueta: true
     };
 
     function cargarConfiguracionTaller() {
@@ -1595,18 +1747,25 @@
     }
 
     function poblarFormularioConfiguracion() {
-      document.getElementById('configNombreTaller').value = configuracionTallerActual.nombreTaller || '';
-      document.getElementById('configLogoUrl').value = configuracionTallerActual.logoUrl || '';
-      document.getElementById('configLeyendaTicket').value = configuracionTallerActual.leyendaTicket || '';
+      var conf = configuracionTallerActual || {};
+      if (document.getElementById('configNombreTaller')) document.getElementById('configNombreTaller').value = conf.nombreTaller || '';
+      if (document.getElementById('configLogoUrl')) document.getElementById('configLogoUrl').value = conf.logoUrl || '';
+      if (document.getElementById('configVideoUrl')) document.getElementById('configVideoUrl').value = conf.videoUrl || '';
+      if (document.getElementById('configLeyendaTicket')) document.getElementById('configLeyendaTicket').value = conf.leyendaTicket || '';
 
-      document.getElementById('chkTicketLogo').checked = configuracionTallerActual.mostrarLogoTicket !== false;
-      document.getElementById('chkTicketCliente').checked = configuracionTallerActual.mostrarClienteTicket !== false;
-      document.getElementById('chkTicketTelefono').checked = configuracionTallerActual.mostrarTelefonoTicket !== false;
-      document.getElementById('chkTicketResponsable').checked = configuracionTallerActual.mostrarResponsableTicket !== false;
-      document.getElementById('chkTicketDispositivos').checked = configuracionTallerActual.mostrarDispositivosTicket !== false;
-      document.getElementById('chkTicketFallas').checked = configuracionTallerActual.mostrarFallasTicket !== false;
-      document.getElementById('chkTicketDiagnostico').checked = configuracionTallerActual.mostrarDiagnosticoTicket !== false;
-      document.getElementById('chkTicketCostos').checked = configuracionTallerActual.mostrarCostosTicket !== false;
+      if (document.getElementById('chkTicketLogo')) document.getElementById('chkTicketLogo').checked = conf.mostrarLogoTicket !== false;
+      if (document.getElementById('chkTicketCliente')) document.getElementById('chkTicketCliente').checked = conf.mostrarClienteTicket !== false;
+      if (document.getElementById('chkTicketTelefono')) document.getElementById('chkTicketTelefono').checked = conf.mostrarTelefonoTicket !== false;
+      if (document.getElementById('chkTicketResponsable')) document.getElementById('chkTicketResponsable').checked = conf.mostrarResponsableTicket !== false;
+      if (document.getElementById('chkTicketDispositivos')) document.getElementById('chkTicketDispositivos').checked = conf.mostrarDispositivosTicket !== false;
+      if (document.getElementById('chkTicketFallas')) document.getElementById('chkTicketFallas').checked = conf.mostrarFallasTicket !== false;
+      if (document.getElementById('chkTicketDiagnostico')) document.getElementById('chkTicketDiagnostico').checked = conf.mostrarDiagnosticoTicket !== false;
+      if (document.getElementById('chkTicketCostos')) document.getElementById('chkTicketCostos').checked = conf.mostrarCostosTicket !== false;
+
+      if (document.getElementById('chkEtiquetaFolio')) document.getElementById('chkEtiquetaFolio').checked = conf.mostrarFolioEtiqueta !== false;
+      if (document.getElementById('chkEtiquetaDispositivo')) document.getElementById('chkEtiquetaDispositivo').checked = conf.mostrarDispositivoEtiqueta !== false;
+      if (document.getElementById('chkEtiquetaDiagnostico')) document.getElementById('chkEtiquetaDiagnostico').checked = conf.mostrarDiagnosticoEtiqueta !== false;
+      if (document.getElementById('chkEtiquetaSerie')) document.getElementById('chkEtiquetaSerie').checked = conf.mostrarSerieEtiqueta !== false;
 
       actualizarPreviaLogo();
     }
@@ -1630,17 +1789,22 @@
       if (e) e.preventDefault();
       var token = App.getToken();
       var conf = {
-        nombreTaller: document.getElementById('configNombreTaller').value.trim(),
-        logoUrl: document.getElementById('configLogoUrl').value.trim(),
-        leyendaTicket: document.getElementById('configLeyendaTicket').value.trim(),
-        mostrarLogoTicket: document.getElementById('chkTicketLogo').checked,
-        mostrarClienteTicket: document.getElementById('chkTicketCliente').checked,
-        mostrarTelefonoTicket: document.getElementById('chkTicketTelefono').checked,
-        mostrarResponsableTicket: document.getElementById('chkTicketResponsable').checked,
-        mostrarDispositivosTicket: document.getElementById('chkTicketDispositivos').checked,
-        mostrarFallasTicket: document.getElementById('chkTicketFallas').checked,
-        mostrarDiagnosticoTicket: document.getElementById('chkTicketDiagnostico').checked,
-        mostrarCostosTicket: document.getElementById('chkTicketCostos').checked,
+        nombreTaller: (document.getElementById('configNombreTaller') ? document.getElementById('configNombreTaller').value : '').trim(),
+        logoUrl: (document.getElementById('configLogoUrl') ? document.getElementById('configLogoUrl').value : '').trim(),
+        videoUrl: (document.getElementById('configVideoUrl') ? document.getElementById('configVideoUrl').value : '').trim(),
+        leyendaTicket: (document.getElementById('configLeyendaTicket') ? document.getElementById('configLeyendaTicket').value : '').trim(),
+        mostrarLogoTicket: document.getElementById('chkTicketLogo') ? document.getElementById('chkTicketLogo').checked : true,
+        mostrarClienteTicket: document.getElementById('chkTicketCliente') ? document.getElementById('chkTicketCliente').checked : true,
+        mostrarTelefonoTicket: document.getElementById('chkTicketTelefono') ? document.getElementById('chkTicketTelefono').checked : true,
+        mostrarResponsableTicket: document.getElementById('chkTicketResponsable') ? document.getElementById('chkTicketResponsable').checked : true,
+        mostrarDispositivosTicket: document.getElementById('chkTicketDispositivos') ? document.getElementById('chkTicketDispositivos').checked : true,
+        mostrarFallasTicket: document.getElementById('chkTicketFallas') ? document.getElementById('chkTicketFallas').checked : true,
+        mostrarDiagnosticoTicket: document.getElementById('chkTicketDiagnostico') ? document.getElementById('chkTicketDiagnostico').checked : true,
+        mostrarCostosTicket: document.getElementById('chkTicketCostos') ? document.getElementById('chkTicketCostos').checked : true,
+        mostrarFolioEtiqueta: document.getElementById('chkEtiquetaFolio') ? document.getElementById('chkEtiquetaFolio').checked : true,
+        mostrarDispositivoEtiqueta: document.getElementById('chkEtiquetaDispositivo') ? document.getElementById('chkEtiquetaDispositivo').checked : true,
+        mostrarDiagnosticoEtiqueta: document.getElementById('chkEtiquetaDiagnostico') ? document.getElementById('chkEtiquetaDiagnostico').checked : true,
+        mostrarSerieEtiqueta: document.getElementById('chkEtiquetaSerie') ? document.getElementById('chkEtiquetaSerie').checked : true,
         videosCarrusel: configuracionTallerActual.videosCarrusel || []
       };
 
@@ -1857,11 +2021,20 @@
       var diagnosticoTexto = dev.diagnostico || dev.fallaReportada || 'Pendiente de diagnóstico';
       var numSerieTexto = dev.numeroSerie || 'S/N';
 
+      var conf = configuracionTallerActual || {};
       var html = '';
-      html += '<div class="etiqueta-campo"><strong>Número de Orden de Servicio:</strong> ' + ord.folio + '</div>';
-      html += '<div class="etiqueta-campo"><strong>Dispositivo:</strong> ' + nombreDispositivo + '</div>';
-      html += '<div class="etiqueta-campo"><strong>Diagnóstico:</strong> ' + diagnosticoTexto + '</div>';
-      html += '<div class="etiqueta-campo"><strong>Número de Serie:</strong> ' + numSerieTexto + '</div>';
+      if (conf.mostrarFolioEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Número de Orden de Servicio:</strong> ' + ord.folio + '</div>';
+      }
+      if (conf.mostrarDispositivoEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Dispositivo:</strong> ' + nombreDispositivo + '</div>';
+      }
+      if (conf.mostrarDiagnosticoEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Diagnóstico:</strong> ' + diagnosticoTexto + '</div>';
+      }
+      if (conf.mostrarSerieEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Número de Serie:</strong> ' + numSerieTexto + '</div>';
+      }
 
       document.getElementById('contenedorEtiquetaConsola').innerHTML = html;
       document.getElementById('modalEtiquetaConsola').style.display = 'flex';

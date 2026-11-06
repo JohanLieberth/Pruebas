@@ -8,7 +8,7 @@ var Utils = {
    */
   getAllConfigValues: function() {
     try {
-      var sheet = getSheetSafe(CONFIG.HOJAS.CONFIG);
+      var sheet = getSheet(CONFIG.SHEETS.CONFIG);
       var lr = sheet.getLastRow();
       var config = {};
       if (lr > 1) {
@@ -43,8 +43,8 @@ var Utils = {
    * Guarda o actualiza un valor de configuración en la hoja Config
    */
   setConfigValue: function(clave, valor, descripcion) {
-    return this.withLock(function() {
-      var sheet = getSheetSafe(CONFIG.HOJAS.CONFIG);
+    return Utils.withScriptLock(function() {
+      var sheet = getSheet(CONFIG.SHEETS.CONFIG);
       var lr = sheet.getLastRow();
       var claveBuscada = String(clave || '').trim();
       var filaEncontrada = -1;
@@ -67,6 +67,7 @@ var Utils = {
       } else {
         sheet.appendRow([claveBuscada, String(valor || ''), String(descripcion || '')]);
       }
+      SpreadsheetApp.flush();
       return true;
     });
   },

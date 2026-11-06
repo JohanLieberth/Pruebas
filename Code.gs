@@ -405,7 +405,7 @@ function setup() {
 
 
 /**
- * Obtiene la configuración pública (logo, videos del carrusel, textos)
+ * Obtiene la configuración pública (logo, video principal, videos del carrusel, textos)
  */
 function apiObtenerConfiguracionPublica() {
   try {
@@ -418,14 +418,15 @@ function apiObtenerConfiguracionPublica() {
     } catch (e) {
       videos = [];
     }
-    return Utils.responseSuccess({
+    return Utils.success({
       nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
       logoUrl: vals.LOGO_URL || '',
+      videoUrl: vals.VIDEO_URL || '',
       videosCarrusel: videos,
       leyendaTicket: vals.LEYENDA_TICKET || ''
     });
   } catch (err) {
-    return Utils.responseError(err.message);
+    return Utils.error(err.message);
   }
 }
 
@@ -434,7 +435,7 @@ function apiObtenerConfiguracionPublica() {
  */
 function apiObtenerConfiguracionAdmin(token) {
   try {
-    var admin = Auth.requireAdmin(token);
+    var admin = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
     var vals = Utils.getAllConfigValues();
     var videos = [];
     try {
@@ -444,9 +445,10 @@ function apiObtenerConfiguracionAdmin(token) {
     } catch (e) {
       videos = [];
     }
-    return Utils.responseSuccess({
+    return Utils.success({
       nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
       logoUrl: vals.LOGO_URL || '',
+      videoUrl: vals.VIDEO_URL || '',
       videosCarrusel: videos,
       leyendaTicket: vals.LEYENDA_TICKET || 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
       mostrarLogoTicket: vals.MOSTRAR_LOGO_TICKET !== 'NO',
@@ -456,10 +458,15 @@ function apiObtenerConfiguracionAdmin(token) {
       mostrarDispositivosTicket: vals.MOSTRAR_DISPOSITIVOS_TICKET !== 'NO',
       mostrarFallasTicket: vals.MOSTRAR_FALLAS_TICKET !== 'NO',
       mostrarDiagnosticoTicket: vals.MOSTRAR_DIAGNOSTICO_TICKET !== 'NO',
-      mostrarCostosTicket: vals.MOSTRAR_COSTOS_TICKET !== 'NO'
+      mostrarCostosTicket: vals.MOSTRAR_COSTOS_TICKET !== 'NO',
+      // Campos de etiqueta individual
+      mostrarFolioEtiqueta: vals.MOSTRAR_FOLIO_ETIQUETA !== 'NO',
+      mostrarDispositivoEtiqueta: vals.MOSTRAR_DISPOSITIVO_ETIQUETA !== 'NO',
+      mostrarDiagnosticoEtiqueta: vals.MOSTRAR_DIAGNOSTICO_ETIQUETA !== 'NO',
+      mostrarSerieEtiqueta: vals.MOSTRAR_SERIE_ETIQUETA !== 'NO'
     });
   } catch (err) {
-    return Utils.responseError(err.message);
+    return Utils.error(err.message);
   }
 }
 
@@ -468,9 +475,9 @@ function apiObtenerConfiguracionAdmin(token) {
  */
 function apiGuardarConfiguracionAdmin(token, config) {
   try {
-    var admin = Auth.requireAdmin(token);
+    var admin = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
     if (!config || typeof config !== 'object') {
-      return Utils.responseError('Parámetros de configuración inválidos');
+      return Utils.error('Parámetros de configuración inválidos');
     }
 
     if (config.nombreTaller !== undefined) {
@@ -478,6 +485,9 @@ function apiGuardarConfiguracionAdmin(token, config) {
     }
     if (config.logoUrl !== undefined) {
       Utils.setConfigValue('LOGO_URL', config.logoUrl, 'URL o DataURI del logo del taller');
+    }
+    if (config.videoUrl !== undefined) {
+      Utils.setConfigValue('VIDEO_URL', config.videoUrl, 'URL del video principal');
     }
     if (config.videosCarrusel !== undefined) {
       var strVideos = typeof config.videosCarrusel === 'string' ? config.videosCarrusel : JSON.stringify(config.videosCarrusel);
@@ -496,9 +506,14 @@ function apiGuardarConfiguracionAdmin(token, config) {
     if (config.mostrarDiagnosticoTicket !== undefined) Utils.setConfigValue('MOSTRAR_DIAGNOSTICO_TICKET', config.mostrarDiagnosticoTicket ? 'SI' : 'NO', 'Mostrar diagnóstico en ticket');
     if (config.mostrarCostosTicket !== undefined) Utils.setConfigValue('MOSTRAR_COSTOS_TICKET', config.mostrarCostosTicket ? 'SI' : 'NO', 'Mostrar costos en ticket');
 
-    Utils.registrarLog('ACTUALIZAR_CONFIGURACION', 'Configuración del sistema actualizada por ' + admin.nombre, admin.nombre);
-    return Utils.responseSuccess(null, 'Configuración actualizada con éxito');
+    if (config.mostrarFolioEtiqueta !== undefined) Utils.setConfigValue('MOSTRAR_FOLIO_ETIQUETA', config.mostrarFolioEtiqueta ? 'SI' : 'NO', 'Mostrar folio en etiqueta');
+    if (config.mostrarDispositivoEtiqueta !== undefined) Utils.setConfigValue('MOSTRAR_DISPOSITIVO_ETIQUETA', config.mostrarDispositivoEtiqueta ? 'SI' : 'NO', 'Mostrar dispositivo en etiqueta');
+    if (config.mostrarDiagnosticoEtiqueta !== undefined) Utils.setConfigValue('MOSTRAR_DIAGNOSTICO_ETIQUETA', config.mostrarDiagnosticoEtiqueta ? 'SI' : 'NO', 'Mostrar diagnóstico en etiqueta');
+    if (config.mostrarSerieEtiqueta !== undefined) Utils.setConfigValue('MOSTRAR_SERIE_ETIQUETA', config.mostrarSerieEtiqueta ? 'SI' : 'NO', 'Mostrar número de serie en etiqueta');
+
+    Utils.logAction('ACTUALIZAR_CONFIGURACION', 'Configuración del sistema actualizada por ' + (admin.nombre || admin.email), admin.email);
+    return Utils.success(null, 'Configuración actualizada con éxito');
   } catch (err) {
-    return Utils.responseError(err.message);
+    return Utils.error(err.message);
   }
 }
