@@ -740,6 +740,7 @@
             html += '  </td>';
             html += '  <td style="white-space: nowrap;">';
             html += btnEntrega;
+            html += '    <button class="btn btn-secondary btn-sm" onclick="imprimirEtiquetaConsola(\'' + d.idDispositivo + '\')" style="margin-right: 4px;" title="Imprimir Etiqueta Individual">🏷️ Imprimir Etiqueta</button>';
             html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarDev(\'' + d.idDispositivo + '\')" style="margin-right: 4px;">✏️ Editar</button>';
             html += '    <button class="btn btn-secondary btn-sm" onclick="verHistorialDispositivo(\'' + d.idDispositivo + '\')">📜 Historial</button>';
             html += '  </td>';
@@ -1846,27 +1847,21 @@
       if (!ordenSeleccionadaActual) return;
       var ord = ordenSeleccionadaActual.orden;
       var dev = (ordenSeleccionadaActual.dispositivos || []).find(function(d) {
-        return d.idDispositivo === idDispositivo;
+        return String(d.idDispositivo) === String(idDispositivo);
       });
       if (!dev) return;
 
-      var conf = configuracionTallerActual;
       document.getElementById('modalEtiquetaTitulo').innerText = 'Etiqueta Individual - ' + ord.folio;
 
-      var logoHTML = conf.logoUrl ?
-        '<img src="' + conf.logoUrl + '" class="etiqueta-logo" alt="Logo">' : '';
+      var nombreDispositivo = [dev.tipoDispositivo, dev.marca, dev.modelo].filter(Boolean).join(' ') || 'Dispositivo';
+      var diagnosticoTexto = dev.diagnostico || dev.fallaReportada || 'Pendiente de diagnóstico';
+      var numSerieTexto = dev.numeroSerie || 'S/N';
 
       var html = '';
-      html += '<div class="etiqueta-header">';
-      html += logoHTML;
-      html += '  <div class="etiqueta-folio">' + ord.folio + '</div>';
-      html += '</div>';
-
-      html += '<div class="etiqueta-campo"><strong>CLIENTE:</strong> ' + ord.nombreCliente + '</div>';
-      html += '<div class="etiqueta-campo"><strong>FECHA/HORA:</strong> ' + (ord.fechaCreacion || '-') + '</div>';
-      html += '<div class="etiqueta-campo"><strong>EQUIPO:</strong> ' + (dev.tipoDispositivo || 'Consola') + ' ' + (dev.marca || '') + ' ' + (dev.modelo || '') + '</div>';
-      html += '<div class="etiqueta-campo"><strong>FALLA:</strong> ' + (dev.fallaReportada || 'Por diagnosticar') + '</div>';
-      html += '<div class="etiqueta-campo"><strong>NÚMERO DE SERIE:</strong> ' + (dev.numeroSerie || 'S/N') + '</div>';
+      html += '<div class="etiqueta-campo"><strong>Número de Orden de Servicio:</strong> ' + ord.folio + '</div>';
+      html += '<div class="etiqueta-campo"><strong>Dispositivo:</strong> ' + nombreDispositivo + '</div>';
+      html += '<div class="etiqueta-campo"><strong>Diagnóstico:</strong> ' + diagnosticoTexto + '</div>';
+      html += '<div class="etiqueta-campo"><strong>Número de Serie:</strong> ' + numSerieTexto + '</div>';
 
       document.getElementById('contenedorEtiquetaConsola').innerHTML = html;
       document.getElementById('modalEtiquetaConsola').style.display = 'flex';
@@ -1877,12 +1872,21 @@
     }
 
     function imprimirElemento(idElemento) {
-      var contenido = document.getElementById(idElemento).innerHTML;
+      var el = document.getElementById(idElemento);
+      if (!el) return;
       var areaPrint = document.getElementById('impresionAreaPrint');
-      areaPrint.innerHTML = contenido;
+      areaPrint.innerHTML = '';
+      var clon = el.cloneNode(true);
+      areaPrint.appendChild(clon);
       areaPrint.style.display = 'block';
-      window.print();
-      areaPrint.style.display = 'none';
+
+      setTimeout(function() {
+        window.print();
+        setTimeout(function() {
+          areaPrint.style.display = 'none';
+          areaPrint.innerHTML = '';
+        }, 300);
+      }, 50);
     }
 
   </script>
