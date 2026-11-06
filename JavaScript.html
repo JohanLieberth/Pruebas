@@ -1,0 +1,2044 @@
+<!-- JAVASCRIPT.HTML -->
+<script>
+  // ==========================================
+  // ESTADO GLOBAL DE LA APLICACIÓN
+  // ==========================================
+  let CURRENT_USER = null;
+  let GLOBAL_CATALOGOS = {
+    Dependencia: [],
+    Subdirección: [
+      'Dirección de Administración',
+      'Subdirección de Administración y de Proveeduría',
+      'Subdirección de Servicios Internos',
+      'Subdirección de Recursos Humanos',
+      'Subdirección de Mejora Regulatoria',
+      'Subdirección de Patrimonio Municipal',
+      'Subdirección de Ventanilla Única'
+    ],
+    Jefatura: [],
+    Etapa: [],
+    Prioridad: [],
+    Estatus: [],
+    Organigrama: []
+  };
+  let GLOBAL_PROYECTOS = [];
+  let GLOBAL_MINUTAS = [];
+  let GLOBAL_ACUERDOS = [];
+  let GLOBAL_USUARIOS = [];
+  let ACUERDO_ACTUAL_DETALLE_ID = null;
+
+  const ASISTENTES_PREDETERMINADOS_UI = [
+    { nombre: 'Lic. Mariana Gaber Fernández Montilla', cargo: 'Directora de Administración', correo: 'mariana.gaber@merida.gob.mx' },
+    { nombre: 'C.P. Edith Verónica Aguilar Rivero', cargo: 'Jefa Despacho Administración', correo: 'edith.aguilar@merida.gob.mx' },
+    { nombre: 'MTRO. Edgar Miguel Poot Delfino', cargo: 'Subdirector de Administración y Proveeduría', correo: 'edgar.poot@merida.gob.mx' },
+    { nombre: 'M.A.D. Eric Gerardo Millet Corona', cargo: 'Subdirector de Servicios Internos', correo: 'eric.millet@merida.gob.mx' },
+    { nombre: 'M.D.O. Wendy Leticia Rejón Barrancos', cargo: 'Subdirectora de Recursos Humanos', correo: 'wendy.rejon@merida.gob.mx' },
+    { nombre: 'Mtra. Ana Carolina Hidalgo Ortiz', cargo: 'Subdirectora de Mejora Regulatoria', correo: 'ana.hidalgo@merida.gob.mx' },
+    { nombre: 'Licda. María Cecilia Ruiz del Hoyo Cervera, Mtra.', cargo: 'Encargada de la Subdirección de Patrimonio Municipal', correo: 'maria.ruizdelhoyo@merida.gob.mx' },
+    { nombre: 'Lic. Joaquín Gustavo Chan Espinosa', cargo: 'Subdirector de Ventanillas Únicas', correo: 'joaquin.chane@merida.gob.mx' }
+  ];
+
+  // ==========================================
+  // INICIALIZACIÓN
+  // ==========================================
+  document.addEventListener('DOMContentLoaded', function() {
+    verificarSesionInicial();
+  });
+
+  function showSpinner(msg = 'Procesando...') {
+    document.getElementById('spinner-message').innerText = msg;
+    document.getElementById('spinner-overlay').classList.remove('d-none');
+  }
+
+  function hideSpinner() {
+    document.getElementById('spinner-overlay').classList.add('d-none');
+  }
+
+  function mostrarToast(mensaje, esError = false) {
+    const toastEl = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toast-message');
+    toastBody.innerText = mensaje;
+    toastEl.className = `toast align-items-center text-white border-0 ${esError ? 'bg-danger' : 'bg-success'}`;
+    const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+    toast.show();
+  }
+
+  // ==========================================
+  // AUTENTICACIÓN Y SESIÓN
+  // ==========================================
+  function verificarSesionInicial() {
+    showSpinner('Verificando sesión...');
+    google.script.run
+      .withSuccessHandler(function(sesion) {
+        hideSpinner();
+        if (sesion) {
+          CURRENT_USER = sesion;
+          iniciarAplicacionConSesion();
+        } else {
+          mostrarLogin();
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarLogin();
+      })
+      .obtenerSesion();
+  }
+
+  function ejecutarLogin() {
+    const email = document.getElementById('login-email').value;
+    const alertEl = document.getElementById('login-alert');
+    alertEl.classList.add('d-none');
+
+    showSpinner('Autenticando usuario...');
+    google.script.run
+      .withSuccessHandler(function(sesion) {
+        hideSpinner();
+        CURRENT_USER = sesion;
+        iniciarAplicacionConSesion();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        alertEl.innerText = err.message || 'Error al iniciar sesión.';
+        alertEl.classList.remove('d-none');
+      })
+      .login(email);
+  }
+
+  function ejecutarLogout() {
+    showSpinner('Cerrando sesión...');
+    google.script.run
+      .withSuccessHandler(function() {
+        hideSpinner();
+        CURRENT_USER = null;
+        mostrarLogin();
+      })
+      .withFailureHandler(function() {
+        hideSpinner();
+        mostrarLogin();
+      })
+      .logout();
+  }
+
+  function mostrarLogin() {
+    document.getElementById('app-layout').classList.add('d-none');
+    document.getElementById('app-layout').classList.remove('d-flex');
+    document.getElementById('login-view').classList.remove('d-none');
+  }
+
+  function iniciarAplicacionConSesion() {
+    document.getElementById('login-view').classList.add('d-none');
+    document.getElementById('app-layout').classList.remove('d-none');
+    document.getElementById('app-layout').classList.add('d-flex');
+
+    const descRol = CURRENT_USER.rol === 'Jefatura' ? `Jefatura (${CURRENT_USER.jefaturaDepartamento || CURRENT_USER.subdireccion})` : `${CURRENT_USER.rol} • ${CURRENT_USER.subdireccion}`;
+    document.getElementById('user-display-name').innerText = CURRENT_USER.nombre || CURRENT_USER.email;
+    document.getElementById('user-display-role-sub').innerText = descRol;
+
+    aplicarPermisosRolUI();
+    cargarCatalogosGlobales();
+    cargarProyectosGlobales();
+    navegarA('dashboard');
+  }
+
+  function cargarProyectosGlobales() {
+    google.script.run
+      .withSuccessHandler(function(proyectos) {
+        GLOBAL_PROYECTOS = proyectos;
+        poblarSelectProyectosMinuta(proyectos);
+        poblarSelectProyectosAcuerdo(proyectos);
+      })
+      .listarProyectos();
+  }
+
+  function aplicarPermisosRolUI() {
+    const rol = CURRENT_USER.rol;
+
+    const elementosAdmin = document.querySelectorAll('.sol-admin-only, #nav-item-usuarios, #nav-item-catalogos');
+    elementosAdmin.forEach(el => {
+      if (rol === 'Administrador') {
+        el.classList.remove('d-none');
+      } else {
+        el.classList.add('d-none');
+      }
+    });
+
+    const navProyectos = document.getElementById('nav-item-proyectos');
+    const navMinutas = document.getElementById('nav-item-minutas');
+
+    if (rol === 'Operador' || rol === 'Jefatura') {
+      if (navProyectos) navProyectos.classList.add('d-none');
+      if (navMinutas) navMinutas.classList.add('d-none');
+    } else {
+      if (navProyectos) navProyectos.classList.remove('d-none');
+      if (navMinutas) navMinutas.classList.remove('d-none');
+    }
+
+    const elementosOperadorAdmin = document.querySelectorAll('.sol-operador-admin');
+    elementosOperadorAdmin.forEach(el => {
+      if (rol === 'Lector') {
+        el.classList.add('d-none');
+      } else {
+        el.classList.remove('d-none');
+      }
+    });
+
+    const elementosCreadores = document.querySelectorAll('.sol-creador-admin');
+    elementosCreadores.forEach(el => {
+      if (rol === 'Lector' || rol === 'Jefatura') {
+        el.classList.add('d-none');
+      } else {
+        el.classList.remove('d-none');
+      }
+    });
+  }
+
+  // ==========================================
+  // NAVEGACIÓN Y VISTAS
+  // ==========================================
+  function navegarA(vistaId, parametro = null) {
+    if (CURRENT_USER && (CURRENT_USER.rol === 'Operador' || CURRENT_USER.rol === 'Jefatura')) {
+      if (vistaId === 'proyectos' || vistaId === 'minutas' || vistaId === 'usuarios' || vistaId === 'catalogos') {
+        mostrarToast('Su rol no tiene acceso a este módulo.', true);
+        vistaId = 'acuerdos';
+      }
+    }
+
+    const vistas = document.querySelectorAll('.app-view');
+    vistas.forEach(v => v.classList.add('d-none'));
+
+    const navBtns = document.querySelectorAll('.nav-btn');
+    navBtns.forEach(b => b.classList.remove('active'));
+
+    const targetView = document.getElementById(`view-${vistaId}`);
+    if (targetView) {
+      targetView.classList.remove('d-none');
+    }
+
+    const targetNav = document.getElementById(`nav-${vistaId}`);
+    if (targetNav) {
+      targetNav.classList.add('active');
+    }
+
+    if (vistaId === 'dashboard') {
+      cargarDashboard();
+    } else if (vistaId === 'proyectos') {
+      cargarProyectos();
+    } else if (vistaId === 'minutas') {
+      cargarMinutas();
+    } else if (vistaId === 'acuerdos') {
+      cargarAcuerdos();
+    } else if (vistaId === 'detalle-acuerdo' && parametro) {
+      cargarDetalleAcuerdo(parametro);
+    } else if (vistaId === 'usuarios') {
+      cargarUsuarios();
+    } else if (vistaId === 'catalogos') {
+      cargarCatalogosVista();
+    }
+
+    const navCollapse = document.getElementById('navbarMain');
+    if (navCollapse && navCollapse.classList.contains('show')) {
+      const bsCollapse = new bootstrap.Collapse(navCollapse, { toggle: true });
+      bsCollapse.hide();
+    }
+  }
+
+  // ==========================================
+  // CATÁLOGOS GLOBALES Y ORGANIGRAMA
+  // ==========================================
+  function cargarCatalogosGlobales(callback) {
+    google.script.run
+      .withSuccessHandler(function(cats) {
+        GLOBAL_CATALOGOS = cats;
+        poblarDropdowns();
+        poblarCheckboxesSubdireccionesJefaturas();
+        if (callback) callback();
+      })
+      .obtenerCatalogos();
+  }
+
+  function obtenerJefaturasDependientesDeSubdireccion(subdirecciones) {
+    if (!subdirecciones || !GLOBAL_CATALOGOS.Organigrama) return [];
+    const subsArray = (Array.isArray(subdirecciones) ? subdirecciones : String(subdirecciones).split(','))
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    const jefsEncontradas = [];
+    GLOBAL_CATALOGOS.Organigrama.forEach(item => {
+      if (item.subdireccion && subsArray.includes(item.subdireccion.trim().toLowerCase())) {
+        if (!jefsEncontradas.includes(item.jefatura)) {
+          jefsEncontradas.push(item.jefatura);
+        }
+      }
+    });
+    return jefsEncontradas;
+  }
+
+  function poblarDropdowns() {
+    poblarSelect('filtro-minuta-etapa', GLOBAL_CATALOGOS.Etapa, '-- Todas las etapas --');
+
+    poblarSelect('acuerdo-prioridad', GLOBAL_CATALOGOS.Prioridad);
+    poblarSelect('acuerdo-estatus', GLOBAL_CATALOGOS.Estatus);
+    poblarSelect('filtro-acuerdo-estatus', GLOBAL_CATALOGOS.Estatus, '-- Todos --');
+    poblarSelect('filtro-acuerdo-prioridad', GLOBAL_CATALOGOS.Prioridad, '-- Todas --');
+    poblarSelect('filtro-acuerdo-subdireccion', GLOBAL_CATALOGOS.Subdirección, '-- Todas --');
+    poblarSelect('filtro-acuerdo-jefatura', GLOBAL_CATALOGOS.Jefatura, '-- Todas --');
+
+    poblarSelect('usuario-subdireccion', GLOBAL_CATALOGOS.Subdirección);
+    poblarSelect('usuario-jefatura', GLOBAL_CATALOGOS.Jefatura, '-- Ninguna (N/A) --');
+    poblarSelect('modal-estatus-select', GLOBAL_CATALOGOS.Estatus);
+
+    poblarSelect('proyecto-etapa', GLOBAL_CATALOGOS.Etapa);
+    poblarSelect('cambiar-etapa-proyecto-select', GLOBAL_CATALOGOS.Etapa);
+
+    poblarSelect('catalogo-padre', GLOBAL_CATALOGOS.Subdirección, '-- Seleccionar Subdirección Padre --');
+  }
+
+  function toggleCatalogoPadreField() {
+    const tipo = document.getElementById('catalogo-tipo').value;
+    const contPadre = document.getElementById('contenedor-catalogo-padre');
+    if (tipo === 'Jefatura') {
+      contPadre.classList.remove('d-none');
+    } else {
+      contPadre.classList.add('d-none');
+    }
+  }
+
+  function poblarCheckboxesSubdireccionesJefaturas() {
+    const contSub = document.getElementById('contenedor-check-subdirecciones');
+    const seccionFormSub = document.getElementById('seccion-form-subdirecciones');
+    const contJef = document.getElementById('contenedor-check-jefaturas');
+    const seccionFormJef = document.getElementById('seccion-form-jefaturas');
+
+    // UI para Formulario de Nuevo Acuerdo Individual / Edición
+    if (CURRENT_USER) {
+      if (CURRENT_USER.rol === 'Administrador' || CURRENT_USER.rol === 'Operador') {
+        if (seccionFormSub) seccionFormSub.classList.remove('d-none');
+        if (seccionFormJef) seccionFormJef.classList.remove('d-none');
+
+        if (contSub) {
+          contSub.innerHTML = '';
+          (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
+            const div = document.createElement('div');
+            div.className = 'form-check form-check-inline me-3 mb-1';
+            div.innerHTML = `
+              <input class="form-check-input chk-subdireccion" type="checkbox" value="${sub}" id="sub-chk-${sub.replace(/\s+/g, '-')}" onchange="actualizarJefaturasFormAcuerdo();">
+              <label class="form-check-label small" for="sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
+            `;
+            contSub.appendChild(div);
+          });
+        }
+        actualizarJefaturasFormAcuerdo();
+      } else {
+        if (seccionFormSub) seccionFormSub.classList.add('d-none');
+        if (seccionFormJef) seccionFormJef.classList.add('d-none');
+      }
+    }
+
+    // Modal Operador: Checkboxes de Subdirecciones desde el catálogo
+    const contSubModalOp = document.getElementById('modal-operador-check-subdirecciones');
+    if (contSubModalOp && CURRENT_USER && CURRENT_USER.rol === 'Operador') {
+      contSubModalOp.innerHTML = '';
+      (GLOBAL_CATALOGOS.Subdirección || []).forEach(sub => {
+        const div = document.createElement('div');
+        div.className = 'form-check form-check-inline me-3 mb-1';
+        div.innerHTML = `
+          <input class="form-check-input chk-operador-subdireccion" type="checkbox" value="${sub}" id="op-sub-chk-${sub.replace(/\s+/g, '-')}" onchange="actualizarJefaturasModalOperador();">
+          <label class="form-check-label small" for="op-sub-chk-${sub.replace(/\s+/g, '-')}">${sub}</label>
+        `;
+        contSubModalOp.appendChild(div);
+      });
+      actualizarJefaturasModalOperador();
+    }
+  }
+
+  function actualizarJefaturasModalOperador(jefaturasSeleccionadas = []) {
+    const contJefModalOp = document.getElementById('modal-operador-check-jefaturas');
+    if (!contJefModalOp) return;
+
+    const subsSeleccionadas = [];
+    document.querySelectorAll('#modal-operador-check-subdirecciones .chk-operador-subdireccion:checked').forEach(chk => {
+      subsSeleccionadas.push(chk.value);
+    });
+
+    const subsBase = subsSeleccionadas.length > 0 ? subsSeleccionadas : [CURRENT_USER.subdireccion];
+    const jefsPermitidas = obtenerJefaturasDependientesDeSubdireccion(subsBase);
+
+    contJefModalOp.innerHTML = '';
+    if (jefsPermitidas.length === 0) {
+      contJefModalOp.innerHTML = '<span class="text-muted small">No hay jefaturas registradas bajo las subdirecciones seleccionadas.</span>';
+    } else {
+      jefsPermitidas.forEach(jef => {
+        const div = document.createElement('div');
+        div.className = 'form-check form-check-inline me-3 mb-1';
+        const isChecked = jefaturasSeleccionadas.includes(jef);
+        div.innerHTML = `
+          <input class="form-check-input chk-jefatura" type="checkbox" value="${jef}" id="jef-op-chk-${jef.replace(/\s+/g, '-')}" ${isChecked ? 'checked' : ''}>
+          <label class="form-check-label small" for="jef-op-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
+        `;
+        contJefModalOp.appendChild(div);
+      });
+    }
+  }
+
+  function actualizarJefaturasFormAcuerdo(jefaturasSeleccionadas = []) {
+    const contJef = document.getElementById('contenedor-check-jefaturas');
+    if (!contJef) return;
+
+    const subsSeleccionadas = [];
+    document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion:checked').forEach(chk => {
+      subsSeleccionadas.push(chk.value);
+    });
+
+    const subsBase = subsSeleccionadas.length > 0 ? subsSeleccionadas : (CURRENT_USER.rol === 'Operador' ? [CURRENT_USER.subdireccion] : (GLOBAL_CATALOGOS.Subdirección || []));
+    const jefsPermitidas = obtenerJefaturasDependientesDeSubdireccion(subsBase);
+
+    contJef.innerHTML = '';
+    if (jefsPermitidas.length === 0) {
+      contJef.innerHTML = '<span class="text-muted small">No hay jefaturas registradas para las subdirecciones seleccionadas.</span>';
+    } else {
+      jefsPermitidas.forEach(jef => {
+        const div = document.createElement('div');
+        div.className = 'form-check form-check-inline me-3 mb-1';
+        const isChecked = jefaturasSeleccionadas.includes(jef);
+        div.innerHTML = `
+          <input class="form-check-input chk-form-jefatura" type="checkbox" value="${jef}" id="form-jef-chk-${jef.replace(/\s+/g, '-')}" ${isChecked ? 'checked' : ''}>
+          <label class="form-check-label small" for="form-jef-chk-${jef.replace(/\s+/g, '-')}">${jef}</label>
+        `;
+        contJef.appendChild(div);
+      });
+    }
+  }
+
+  function poblarSelect(elemId, opcionesArray, defaultText = null) {
+    const sel = document.getElementById(elemId);
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    if (defaultText !== null) {
+      const optDefault = document.createElement('option');
+      optDefault.value = '';
+      optDefault.textContent = defaultText;
+      sel.appendChild(optDefault);
+    }
+
+    if (Array.isArray(opcionesArray)) {
+      opcionesArray.forEach(val => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        sel.appendChild(opt);
+      });
+    }
+  }
+
+  // ==========================================
+  // DASHBOARD
+  // ==========================================
+  function cargarDashboard() {
+    showSpinner('Cargando indicadores...');
+    google.script.run
+      .withSuccessHandler(function(kpis) {
+        hideSpinner();
+        document.getElementById('kpi-proyectos').innerText = kpis.totalProyectos;
+        document.getElementById('kpi-minutas').innerText = kpis.totalMinutas;
+        document.getElementById('kpi-acuerdos').innerText = kpis.totalAcuerdos;
+        document.getElementById('kpi-pendientes').innerText = kpis.pendientes;
+        document.getElementById('kpi-por-vencer').innerText = kpis.porVencer;
+        document.getElementById('kpi-cumplidos').innerText = kpis.cumplidos;
+
+        renderizarGraficoSubdirecciones(kpis.desglosePorSubdireccion || {});
+
+        cargarAlertasDashboard();
+
+        if (CURRENT_USER.rol === 'Administrador') {
+          document.getElementById('seccion-admin-dashboard').classList.remove('d-none');
+          cargarAdminDashboardMetricas();
+        } else {
+          document.getElementById('seccion-admin-dashboard').classList.add('d-none');
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar Dashboard', true);
+      })
+      .obtenerKPIsDashboard();
+  }
+
+  function renderizarGraficoSubdirecciones(desglose) {
+    const contGrafico = document.getElementById('contenedor-grafico-subdirecciones');
+    const sinDatosEl = document.getElementById('sin-datos-grafico-subdirecciones');
+    const canvas = document.getElementById('chart-subdirecciones');
+
+    if (!contGrafico || !canvas) return;
+
+    const subdirectorates = Object.keys(desglose);
+
+    if (subdirectorates.length === 0) {
+      contGrafico.classList.add('d-none');
+      if (sinDatosEl) sinDatosEl.classList.remove('d-none');
+      if (window.chartSubdireccionesInstance) {
+        window.chartSubdireccionesInstance.destroy();
+        window.chartSubdireccionesInstance = null;
+      }
+      return;
+    }
+
+    contGrafico.classList.remove('d-none');
+    if (sinDatosEl) sinDatosEl.classList.add('d-none');
+
+    const labels = [];
+    const totals = [];
+    const atendidos = [];
+    const enProceso = [];
+
+    subdirectorates.forEach(sub => {
+      labels.push(sub);
+      const d = desglose[sub] || {};
+      totals.push(d.total || 0);
+      atendidos.push(d.atendidos || 0);
+      enProceso.push(d.enProceso || 0);
+    });
+
+    if (window.chartSubdireccionesInstance) {
+      window.chartSubdireccionesInstance.destroy();
+      window.chartSubdireccionesInstance = null;
+    }
+
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js no está disponible en este momento.');
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    window.chartSubdireccionesInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Total de acuerdos',
+            data: totals,
+            backgroundColor: '#2b4c7e',
+            borderColor: '#1f375c',
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: 'Acuerdos atendidos',
+            data: atendidos,
+            backgroundColor: '#198754',
+            borderColor: '#146c43',
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: 'Acuerdos en proceso',
+            data: enProceso,
+            backgroundColor: '#0d6efd',
+            borderColor: '#0a58ca',
+            borderWidth: 1,
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              boxWidth: 12,
+              padding: 12,
+              font: {
+                family: 'Inter',
+                size: 11
+              }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            padding: 10
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: function(val, index) {
+                const label = this.getLabelForValue(val);
+                return label.length > 22 ? label.substring(0, 20) + '...' : label;
+              },
+              font: {
+                family: 'Inter',
+                size: 10
+              }
+            },
+            grid: {
+              display: false
+            }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+              precision: 0,
+              font: {
+                family: 'Inter',
+                size: 10
+              }
+            },
+            grid: {
+              color: '#e9ecef'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function cargarAlertasDashboard() {
+    google.script.run
+      .withSuccessHandler(function(acuerdos) {
+        const cont = document.getElementById('contenedor-alertas-vencimiento');
+        cont.innerHTML = '';
+
+        const urgentes = acuerdos.filter(a => {
+          const est = a.Estatus;
+          return (est === 'Pendiente' || est === 'En Proceso');
+        });
+
+        if (urgentes.length === 0) {
+          cont.innerHTML = '<div class="p-3 text-center text-muted">No hay acuerdos vencidos o por vencer.</div>';
+          return;
+        }
+
+        urgentes.slice(0, 5).forEach(a => {
+          const item = document.createElement('a');
+          item.href = '#';
+          item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3';
+          item.onclick = function(e) {
+            e.preventDefault();
+            navegarA('detalle-acuerdo', a.ID_Acuerdo);
+          };
+
+          item.innerHTML = `
+            <div>
+              <div class="fw-bold text-dark">${a.ID_Acuerdo} — <span class="fw-normal">${a.Descripción_Acuerdo.substring(0, 50)}...</span></div>
+              <small class="text-muted"><i class="bi bi-geo-alt me-1"></i>${a.Subdirección_Asignada} | Límite: ${a.Fecha_Límite}</small>
+            </div>
+            <span class="badge ${a.Prioridad === 'Alta' ? 'bg-danger' : 'bg-warning text-dark'} rounded-pill">${a.Prioridad}</span>
+          `;
+          cont.appendChild(item);
+        });
+      })
+      .listarAcuerdos({ estatus: 'Pendiente' });
+  }
+
+  function cargarAdminDashboardMetricas() {
+    google.script.run
+      .withSuccessHandler(function(admKpis) {
+        document.getElementById('admin-kpi-eficiencia').innerText = `${admKpis.eficienciaGeneral}%`;
+        document.getElementById('admin-kpi-cerrados').innerText = admKpis.totalCerradosGeneral;
+        document.getElementById('admin-kpi-totales').innerText = admKpis.totalAcuerdosGeneral;
+
+        const tbodyProd = document.querySelector('#tabla-admin-productividad tbody');
+        tbodyProd.innerHTML = '';
+        if (!admKpis.tablaProductividad || admKpis.tablaProductividad.length === 0) {
+          tbodyProd.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No hay datos de productividad</td></tr>';
+        } else {
+          admKpis.tablaProductividad.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="fw-semibold text-primary">${row.responsable}</td>
+              <td class="text-center fw-bold">${row.totalAsignados}</td>
+              <td class="text-center text-success fw-bold">${row.cerrados}</td>
+              <td class="text-center text-warning fw-bold">${row.cargaActual}</td>
+              <td class="text-center">${row.tiempoPromedioDias}</td>
+              <td class="text-end fw-bold">${row.eficiencia}%</td>
+            `;
+            tbodyProd.appendChild(tr);
+          });
+        }
+
+        const tbodyMes = document.querySelector('#tabla-admin-mes tbody');
+        tbodyMes.innerHTML = '';
+        const mesEntries = Object.entries(admKpis.atendidosPorMes || {});
+        if (mesEntries.length === 0) {
+          tbodyMes.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3">No hay registros atendidos por mes</td></tr>';
+        } else {
+          mesEntries.forEach(([mes, count]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="fw-medium">${mes}</td>
+              <td class="text-end fw-bold text-success">${count}</td>
+            `;
+            tbodyMes.appendChild(tr);
+          });
+        }
+      })
+      .obtenerKPIsAdminDashboard();
+  }
+
+  // ==========================================
+  // PROYECTOS
+  // ==========================================
+  function cargarProyectos() {
+    showSpinner('Cargando proyectos...');
+    google.script.run
+      .withSuccessHandler(function(proyectos) {
+        hideSpinner();
+        GLOBAL_PROYECTOS = proyectos;
+        renderizarTablaProyectos(proyectos);
+        poblarSelectProyectosMinuta(proyectos);
+        poblarSelectProyectosAcuerdo(proyectos);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar proyectos', true);
+      })
+      .listarProyectos();
+  }
+
+  function renderizarTablaProyectos(proyectos) {
+    const tbody = document.querySelector('#tabla-proyectos tbody');
+    tbody.innerHTML = '';
+
+    if (proyectos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay proyectos registrados</td></tr>';
+      return;
+    }
+
+    proyectos.forEach(p => {
+      const tr = document.createElement('tr');
+      const badgeClass = p.Estatus === 'Activo' ? 'bg-success' : (p.Estatus === 'Inactivo' ? 'bg-secondary' : 'bg-dark');
+      const etapaActual = p.Etapa || 'Planeación';
+
+      tr.innerHTML = `
+        <td class="fw-bold">${p.ID_Proyecto}</td>
+        <td class="fw-semibold">${p.Nombre_Proyecto}</td>
+        <td class="text-muted small">${p.Descripción || '-'}</td>
+        <td><span class="badge bg-light text-primary border">${etapaActual}</span></td>
+        <td><span class="badge ${badgeClass} badge-status">${p.Estatus}</span></td>
+        <td class="small">${p.Fecha_Creación}</td>
+        <td class="small">${p.Creado_Por}</td>
+        <td class="text-end">
+          ${CURRENT_USER.rol === 'Administrador' ? `
+            <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="abrirModalCambiarEtapaProyecto('${p.ID_Proyecto}', '${etapaActual}')" title="Modificar Etapa">
+              <i class="bi bi-diagram-2"></i>
+            </button>
+            <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarProyecto('${p.ID_Proyecto}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+          ` : '-'}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function poblarSelectProyectosMinuta(proyectos) {
+    const sel = document.getElementById('minuta-proyecto');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Sin Proyecto (Opcional) --</option>';
+    proyectos.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.ID_Proyecto;
+      opt.textContent = `${p.ID_Proyecto} - ${p.Nombre_Proyecto}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  function poblarSelectProyectosAcuerdo(proyectos) {
+    const sel = document.getElementById('acuerdo-proyecto');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Sin Proyecto --</option>';
+    proyectos.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.ID_Proyecto;
+      opt.textContent = `${p.ID_Proyecto} - ${p.Nombre_Proyecto}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  function abrirModalCambiarEtapaProyecto(idP, etapaActual) {
+    const p = GLOBAL_PROYECTOS.find(item => item.ID_Proyecto === idP);
+    document.getElementById('cambiar-etapa-proyecto-id').value = idP;
+    document.getElementById('cambiar-etapa-proyecto-nombre').innerText = p ? `${p.ID_Proyecto} — ${p.Nombre_Proyecto}` : idP;
+    poblarSelect('cambiar-etapa-proyecto-select', GLOBAL_CATALOGOS.Etapa);
+    document.getElementById('cambiar-etapa-proyecto-select').value = etapaActual || (GLOBAL_CATALOGOS.Etapa[0] || 'Planeación');
+    const modal = new bootstrap.Modal(document.getElementById('modalCambiarEtapaProyecto'));
+    modal.show();
+  }
+
+  function guardarCambioEtapaProyectoModal() {
+    const idP = document.getElementById('cambiar-etapa-proyecto-id').value;
+    const nuevaEtapa = document.getElementById('cambiar-etapa-proyecto-select').value;
+    if (!idP || !nuevaEtapa) return;
+
+    showSpinner('Actualizando etapa del proyecto...');
+    const modalEl = document.getElementById('modalCambiarEtapaProyecto');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (bsModal) bsModal.hide();
+        mostrarToast(res.message || 'Etapa actualizada');
+        cargarProyectos();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al actualizar etapa', true);
+      })
+      .cambiarEtapaProyecto(idP, nuevaEtapa);
+  }
+
+  function abrirModalNuevoProyecto() {
+    document.getElementById('form-proyecto').reset();
+    document.getElementById('proyecto-id').value = '';
+    poblarSelect('proyecto-etapa', GLOBAL_CATALOGOS.Etapa);
+    document.getElementById('proyecto-etapa').value = GLOBAL_CATALOGOS.Etapa[0] || 'Planeación';
+    document.getElementById('modalProyectoTitle').innerHTML = '<i class="bi bi-folder-plus me-2"></i>Nuevo Proyecto';
+    const modal = new bootstrap.Modal(document.getElementById('modalProyecto'));
+    modal.show();
+  }
+
+  function abrirModalEditarProyecto(idP) {
+    const p = GLOBAL_PROYECTOS.find(item => item.ID_Proyecto === idP);
+    if (!p) return;
+
+    document.getElementById('proyecto-id').value = p.ID_Proyecto;
+    document.getElementById('proyecto-nombre').value = p.Nombre_Proyecto;
+    document.getElementById('proyecto-descripcion').value = p.Descripción;
+    poblarSelect('proyecto-etapa', GLOBAL_CATALOGOS.Etapa);
+    document.getElementById('proyecto-etapa').value = p.Etapa || 'Planeación';
+    document.getElementById('proyecto-estatus').value = p.Estatus;
+
+    document.getElementById('modalProyectoTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Editar Proyecto';
+    const modal = new bootstrap.Modal(document.getElementById('modalProyecto'));
+    modal.show();
+  }
+
+  function guardarProyecto() {
+    const idP = document.getElementById('proyecto-id').value;
+    const data = {
+      nombreProyecto: document.getElementById('proyecto-nombre').value,
+      descripcion: document.getElementById('proyecto-descripcion').value,
+      etapa: document.getElementById('proyecto-etapa').value,
+      estatus: document.getElementById('proyecto-estatus').value
+    };
+
+    showSpinner(idP ? 'Actualizando proyecto...' : 'Guardando proyecto...');
+    const modalEl = document.getElementById('modalProyecto');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    if (idP) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarProyectos();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al actualizar proyecto', true);
+        })
+        .actualizarProyecto(idP, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarProyectos();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al crear proyecto', true);
+        })
+        .crearProyecto(data);
+    }
+  }
+
+  // ==========================================
+  // MINUTAS
+  // ==========================================
+  function cargarMinutas() {
+    showSpinner('Cargando minutas...');
+    google.script.run
+      .withSuccessHandler(function(minutas) {
+        hideSpinner();
+        GLOBAL_MINUTAS = minutas;
+        renderizarTablaMinutas(minutas);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar minutas', true);
+      })
+      .listarMinutas();
+  }
+
+  function renderizarTablaMinutas(minutas) {
+    const tbody = document.querySelector('#tabla-minutas tbody');
+    tbody.innerHTML = '';
+
+    if (minutas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay minutas registradas</td></tr>';
+      return;
+    }
+
+    minutas.forEach(m => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-bold text-primary">${m.Folio}</td>
+        <td class="fw-semibold">${m.Nombre_Reunión}</td>
+        <td><span class="badge bg-light text-dark border">${m.Etapa}</span></td>
+        <td class="small">${m.Fecha}</td>
+        <td class="small text-muted">${m.Lugar || '-'}</td>
+        <td class="small text-muted">${m.Creado_Por}</td>
+        <td class="text-end">
+          <button class="btn btn-outline-success btn-sm rounded-circle me-1" onclick="enviarMinutaPorCorreoUI('${m.Folio}')" title="Enviar por Correo">
+            <i class="bi bi-envelope-at"></i>
+          </button>
+          <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="verDetalleMinutaModal('${m.Folio}')" title="Ver Detalle">
+            <i class="bi bi-eye"></i>
+          </button>
+          ${CURRENT_USER.rol === 'Administrador' ? `
+            <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarMinuta('${m.Folio}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+          ` : ''}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function enviarMinutaPorCorreoUI(folio) {
+    if (!confirm(`¿Desea enviar la Minuta ${folio} en PDF a todos los asistentes registrados con correo?`)) return;
+
+    showSpinner(`Generando PDF y enviando minuta ${folio}...`);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al enviar minuta por correo', true);
+      })
+      .enviarMinutaPorCorreo(folio);
+  }
+
+  function filtrarMinutas() {
+    const q = document.getElementById('filtro-minuta-busqueda').value.toLowerCase();
+    const etapa = document.getElementById('filtro-minuta-etapa').value;
+
+    const filtradas = GLOBAL_MINUTAS.filter(m => {
+      const matchQ = !q || m.Folio.toLowerCase().includes(q) || m.Nombre_Reunión.toLowerCase().includes(q) || (m.Lugar && m.Lugar.toLowerCase().includes(q));
+      const matchEtapa = !etapa || m.Etapa === etapa;
+      return matchQ && matchEtapa;
+    });
+
+    renderizarTablaMinutas(filtradas);
+  }
+
+  function limpiarFiltrosMinuta() {
+    document.getElementById('filtro-minuta-busqueda').value = '';
+    document.getElementById('filtro-minuta-etapa').value = '';
+    renderizarTablaMinutas(GLOBAL_MINUTAS);
+  }
+
+  function abrirModalNuevaMinuta() {
+    document.getElementById('form-minuta').reset();
+    document.getElementById('minuta-folio').value = '';
+    document.getElementById('minuta-fecha').value = new Date().toISOString().split('T')[0];
+
+    document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
+    document.querySelector('#tabla-form-odd tbody').innerHTML = '';
+    document.querySelector('#tabla-form-acuerdos tbody').innerHTML = '';
+
+    ASISTENTES_PREDETERMINADOS_UI.forEach(ast => {
+      agregarFilaAsistenciaPredeterminada(ast.nombre, ast.cargo, ast.correo, true);
+    });
+
+    agregarFilaODD();
+
+    const firstTabEl = document.querySelector('#minutaTabs button:first-child');
+    const firstTab = new bootstrap.Tab(firstTabEl);
+    firstTab.show();
+
+    document.getElementById('modalMinutaTitle').innerHTML = '<i class="bi bi-journal-plus me-2"></i>Nueva Minuta de Reunión';
+    const modal = new bootstrap.Modal(document.getElementById('modalMinuta'));
+    modal.show();
+  }
+
+  function actualizarProyectosPorDefectoAcuerdosMinuta() {
+    const defaultProjId = document.getElementById('minuta-proyecto').value;
+    document.querySelectorAll('#tabla-form-acuerdos tbody tr .acu-proyecto').forEach(sel => {
+      if (!sel.value && defaultProjId) {
+        sel.value = defaultProjId;
+      }
+    });
+  }
+
+  function agregarFilaAsistenciaPredeterminada(nombre = '', cargo = '', correo = '', asistio = true) {
+    const tbody = document.querySelector('#tabla-form-asistencia tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="text-center">
+        <input type="checkbox" class="form-check-input ast-chk" ${asistio ? 'checked' : ''}>
+      </td>
+      <td><input type="text" class="form-control form-control-sm ast-nombre" value="${nombre}" placeholder="Nombre" required></td>
+      <td><input type="text" class="form-control form-control-sm ast-cargo" value="${cargo}" placeholder="Cargo"></td>
+      <td><input type="email" class="form-control form-control-sm ast-correo" value="${correo}" placeholder="correo@merida.gob.mx"></td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function agregarFilaAsistenciaManualmente() {
+    agregarFilaAsistenciaPredeterminada('', '', '', true);
+  }
+
+  function agregarFilaODD(num = '', desc = '') {
+    const tbody = document.querySelector('#tabla-form-odd tbody');
+    const count = tbody.querySelectorAll('tr').length + 1;
+    const numPunto = num || `${count}.0`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="form-control form-control-sm odd-num" value="${numPunto}" placeholder="1.0"></td>
+      <td><input type="text" class="form-control form-control-sm odd-desc" value="${desc}" placeholder="Descripción del punto" required></td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function obtenerAsistentesMinutaForm() {
+    const asistentes = [];
+    const registrados = new Set();
+    document.querySelectorAll('#tabla-form-asistencia tbody tr').forEach(row => {
+      const nombre = row.querySelector('.ast-nombre') ? row.querySelector('.ast-nombre').value.trim() : '';
+      const correo = row.querySelector('.ast-correo') ? row.querySelector('.ast-correo').value.trim() : '';
+      if (nombre || correo) {
+        const key = (correo || nombre).toLowerCase();
+        if (!registrados.has(key)) {
+          registrados.add(key);
+          asistentes.push({
+            nombre: nombre,
+            correo: correo,
+            identificador: correo || nombre,
+            textoDisplay: correo && nombre && correo !== nombre ? `${nombre} (${correo})` : (nombre || correo)
+          });
+        }
+      }
+    });
+    return asistentes;
+  }
+
+  function generarHTMLCheckboxesResponsables(respuestasSeleccionadas = []) {
+    const asistentes = obtenerAsistentesMinutaForm();
+    const respSelArray = (Array.isArray(respuestasSeleccionadas) ? respuestasSeleccionadas : String(respuestasSeleccionadas).split(','))
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    let html = '<div class="acu-resp-container p-1 border rounded bg-white" style="max-height: 105px; overflow-y: auto; font-size: 0.78rem;">';
+
+    if (asistentes.length === 0) {
+      html += '<span class="text-muted small px-1 d-block">Sin asistentes en lista</span>';
+    } else {
+      asistentes.forEach(ast => {
+        const isChecked = respSelArray.includes(ast.identificador.toLowerCase()) ||
+                          respSelArray.includes(ast.nombre.toLowerCase()) ||
+                          (ast.correo && respSelArray.includes(ast.correo.toLowerCase()));
+        html += `
+          <div class="form-check m-0 py-0 text-truncate" title="${ast.textoDisplay}">
+            <input class="form-check-input acu-resp-chk" type="checkbox" value="${ast.identificador}" ${isChecked ? 'checked' : ''}>
+            <label class="form-check-label small">${ast.textoDisplay}</label>
+          </div>
+        `;
+      });
+    }
+
+    // Conservar responsables históricos que no estén en la lista de asistencia actual
+    const idsAsistentes = new Set(asistentes.map(a => a.identificador.toLowerCase()).concat(asistentes.map(a => a.nombre.toLowerCase())).concat(asistentes.map(a => a.correo.toLowerCase())));
+    respSelArray.forEach(respItem => {
+      if (!idsAsistentes.has(respItem) && respItem) {
+        html += `
+          <div class="form-check m-0 py-0 text-truncate" title="${respItem}">
+            <input class="form-check-input acu-resp-chk" type="checkbox" value="${respItem}" checked>
+            <label class="form-check-label small text-muted">${respItem}</label>
+          </div>
+        `;
+      }
+    });
+
+    html += '</div>';
+    return html;
+  }
+
+  function actualizarResponsablesAcuerdosMinuta() {
+    document.querySelectorAll('#tabla-form-acuerdos tbody tr').forEach(row => {
+      const tdResp = row.querySelector('.col-acu-resp');
+      if (tdResp) {
+        const seleccionados = [];
+        row.querySelectorAll('.acu-resp-chk:checked').forEach(chk => {
+          seleccionados.push(chk.value);
+        });
+        tdResp.innerHTML = generarHTMLCheckboxesResponsables(seleccionados);
+      }
+    });
+  }
+
+  function agregarFilaAcuerdoMinuta(acuObj = null) {
+    const tbody = document.querySelector('#tabla-form-acuerdos tbody');
+    const tr = document.createElement('tr');
+
+    const mainProjId = document.getElementById('minuta-proyecto').value;
+    const projId = acuObj ? (acuObj.ID_Proyecto || mainProjId) : mainProjId;
+    const tipo = acuObj ? acuObj.Tipo : 'Acuerdo';
+    const desc = acuObj ? acuObj.Descripción_Acuerdo : '';
+    const prio = acuObj ? acuObj.Prioridad : 'Media';
+    const resp = acuObj ? (acuObj.Responsables || '') : '';
+    const fLim = acuObj ? acuObj.Fecha_Límite : new Date().toISOString().split('T')[0];
+
+    // Subdirecciones actuales en array
+    const subSelRaw = acuObj ? (acuObj.Subdirección_Asignada || '') : '';
+    const subSelArray = String(subSelRaw).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+
+    let projOptionsHTML = '<option value="">-- Sin Proyecto --</option>';
+    (GLOBAL_PROYECTOS || []).forEach(p => {
+      projOptionsHTML += `<option value="${p.ID_Proyecto}" ${p.ID_Proyecto === projId ? 'selected' : ''}>${p.ID_Proyecto}</option>`;
+    });
+
+    let prioOptionsHTML = '';
+    (GLOBAL_CATALOGOS.Prioridad || []).forEach(p => {
+      prioOptionsHTML += `<option value="${p}" ${p === prio ? 'selected' : ''}>${p}</option>`;
+    });
+
+    // Checkboxes para subdirecciones
+    let subChecksHTML = '<div class="acu-sub-container p-1 border rounded bg-white" style="max-height: 105px; overflow-y: auto; font-size: 0.78rem;">';
+    (GLOBAL_CATALOGOS.Subdirección || []).forEach((sub, sIdx) => {
+      const isChecked = subSelArray.includes(sub.toLowerCase().trim());
+      subChecksHTML += `
+        <div class="form-check m-0 py-0 text-truncate" title="${sub}">
+          <input class="form-check-input acu-sub-chk" type="checkbox" value="${sub}" ${isChecked ? 'checked' : ''}>
+          <label class="form-check-label small">${sub}</label>
+        </div>
+      `;
+    });
+    subChecksHTML += '</div>';
+
+    // Checkboxes para responsables desde lista de asistencia
+    const respChecksHTML = generarHTMLCheckboxesResponsables(resp);
+
+    const idAcuStr = acuObj ? (acuObj.ID_Acuerdo || '') : '';
+
+    tr.innerHTML = `
+      <td>
+        <input type="hidden" class="acu-id-hidden" value="${idAcuStr}">
+        <select class="form-select form-select-sm acu-proyecto">${projOptionsHTML}</select>
+      </td>
+      <td>
+        <select class="form-select form-select-sm acu-tipo">
+          <option value="Acuerdo" ${tipo === 'Acuerdo' ? 'selected' : ''}>Acuerdo</option>
+          <option value="Compromiso" ${tipo === 'Compromiso' ? 'selected' : ''}>Compromiso</option>
+          <option value="Tarea" ${tipo === 'Tarea' ? 'selected' : ''}>Tarea</option>
+          <option value="Informativo" ${tipo === 'Informativo' ? 'selected' : ''}>Informativo</option>
+        </select>
+      </td>
+      <td><textarea class="form-control form-control-sm acu-desc" rows="3" placeholder="Descripción" required>${desc}</textarea></td>
+      <td><select class="form-select form-select-sm acu-prio">${prioOptionsHTML}</select></td>
+      <td class="col-acu-resp">${respChecksHTML}</td>
+      <td><input type="date" class="form-control form-control-sm acu-flim" value="${fLim}" required></td>
+      <td>${subChecksHTML}</td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline-danger btn-sm border-0" onclick="this.closest('tr').remove();"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function guardarMinuta() {
+    const folio = document.getElementById('minuta-folio').value;
+
+    const asistencia = [];
+    document.querySelectorAll('#tabla-form-asistencia tbody tr').forEach(row => {
+      const nombre = row.querySelector('.ast-nombre').value.trim();
+      if (nombre) {
+        asistencia.push({
+          asistio: row.querySelector('.ast-chk').checked,
+          nombre: nombre,
+          cargo: row.querySelector('.ast-cargo').value.trim(),
+          correo: row.querySelector('.ast-correo').value.trim()
+        });
+      }
+    });
+
+    const ordenDelDia = [];
+    document.querySelectorAll('#tabla-form-odd tbody tr').forEach(row => {
+      const desc = row.querySelector('.odd-desc').value.trim();
+      if (desc) {
+        ordenDelDia.push({
+          numeroPunto: row.querySelector('.odd-num').value.trim(),
+          descripcionPunto: desc
+        });
+      }
+    });
+
+    const acuerdos = [];
+    document.querySelectorAll('#tabla-form-acuerdos tbody tr').forEach(row => {
+      const desc = row.querySelector('.acu-desc').value.trim();
+      if (desc) {
+        const selectedSubs = [];
+        row.querySelectorAll('.acu-sub-chk:checked').forEach(chk => {
+          selectedSubs.push(chk.value);
+        });
+
+        const selectedResps = [];
+        row.querySelectorAll('.acu-resp-chk:checked').forEach(chk => {
+          selectedResps.push(chk.value);
+        });
+
+        const idAcuVal = row.querySelector('.acu-id-hidden') ? row.querySelector('.acu-id-hidden').value.trim() : '';
+
+        acuerdos.push({
+          idAcuerdo: idAcuVal,
+          idProyecto: row.querySelector('.acu-proyecto').value,
+          tipo: row.querySelector('.acu-tipo').value,
+          descripcionAcuerdo: desc,
+          prioridad: row.querySelector('.acu-prio').value,
+          responsables: selectedResps.join(', '),
+          fechaLimite: row.querySelector('.acu-flim').value,
+          subdireccionAsignada: selectedSubs.join(', '),
+          jefaturasAsignadas: '',
+          estatus: 'Pendiente'
+        });
+      }
+    });
+
+    const data = {
+      idProyecto: document.getElementById('minuta-proyecto').value,
+      nombreReunion: document.getElementById('minuta-nombre').value,
+      fecha: document.getElementById('minuta-fecha').value,
+      lugar: document.getElementById('minuta-lugar').value,
+      objetivos: document.getElementById('minuta-objetivos').value,
+      asistencia: asistencia,
+      ordenDelDia: ordenDelDia,
+      acuerdos: acuerdos
+    };
+
+    showSpinner(folio ? 'Actualizando minuta...' : 'Guardando minuta...');
+    const modalEl = document.getElementById('modalMinuta');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    if (folio) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarMinutas();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al actualizar minuta', true);
+        })
+        .actualizarMinuta(folio, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarMinutas();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al guardar minuta', true);
+        })
+        .crearMinuta(data);
+    }
+  }
+
+  function abrirModalEditarMinuta(folio) {
+    showSpinner('Cargando minuta para edición...');
+    google.script.run
+      .withSuccessHandler(function(det) {
+        hideSpinner();
+        if (!det) return;
+
+        const m = det.minuta;
+        document.getElementById('minuta-folio').value = m.Folio;
+        document.getElementById('minuta-proyecto').value = m.ID_Proyecto;
+        document.getElementById('minuta-nombre').value = m.Nombre_Reunión;
+        document.getElementById('minuta-fecha').value = m.Fecha;
+        document.getElementById('minuta-lugar').value = m.Lugar;
+        document.getElementById('minuta-objetivos').value = m.Objetivos;
+
+        document.querySelector('#tabla-form-asistencia tbody').innerHTML = '';
+        det.asistencia.forEach(a => {
+          const asistioBool = (a.Asistencia === 'Sí' || a.Asistencia === 'SI' || a.Asistencia === true || a.Asistencia === '1');
+          agregarFilaAsistenciaPredeterminada(a.Nombre, a.Cargo, a.Correo, asistioBool);
+        });
+
+        document.querySelector('#tabla-form-odd tbody').innerHTML = '';
+        det.ordenDelDia.forEach(o => agregarFilaODD(o.Número_Punto, o.Descripción_Punto));
+
+        document.querySelector('#tabla-form-acuerdos tbody').innerHTML = '';
+        det.acuerdos.forEach(a => agregarFilaAcuerdoMinuta(a));
+
+        document.getElementById('modalMinutaTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Minuta ${m.Folio}`;
+        const modal = new bootstrap.Modal(document.getElementById('modalMinuta'));
+        modal.show();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al obtener minuta', true);
+      })
+      .obtenerMinuta(folio);
+  }
+
+  function verDetalleMinutaModal(folio) {
+    abrirModalEditarMinuta(folio);
+  }
+
+  // ==========================================
+  // ACUERDOS
+  // ==========================================
+  function cargarAcuerdos() {
+    showSpinner('Cargando acuerdos...');
+    google.script.run
+      .withSuccessHandler(function(acuerdos) {
+        hideSpinner();
+        GLOBAL_ACUERDOS = acuerdos;
+        renderizarTablaAcuerdos(acuerdos);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar acuerdos', true);
+      })
+      .listarAcuerdos();
+  }
+
+  function formatearSoloFecha(fechaStr) {
+    if (!fechaStr) return '';
+    const str = String(fechaStr).trim();
+    if (str.includes('T')) return str.split('T')[0];
+    if (str.includes(' ')) return str.split(' ')[0];
+    return str;
+  }
+
+  function obtenerBadgeClassEstatus(estatus) {
+    const est = String(estatus || '').trim();
+    if (est === 'Cumplido') return 'bg-success text-white';
+    if (est === 'En Proceso') return 'bg-primary text-white';
+    if (est === 'Pendiente') return 'bg-warning text-dark';
+    if (est === 'Cancelado') return 'bg-dark text-white';
+    return 'bg-secondary text-white';
+  }
+
+  function renderizarTablaAcuerdos(acuerdos) {
+    const tbody = document.querySelector('#tabla-acuerdos tbody');
+    tbody.innerHTML = '';
+
+    if (acuerdos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">No hay acuerdos registrados</td></tr>';
+      return;
+    }
+
+    const hoyStr = new Date().toISOString().split('T')[0];
+
+    acuerdos.forEach(a => {
+      const tr = document.createElement('tr');
+
+      const fechaCorta = formatearSoloFecha(a.Fecha_Límite);
+      let semaforoClass = '';
+      if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
+        if (fechaCorta < hoyStr) semaforoClass = 'semaforo-vencido';
+        else if (fechaCorta === hoyStr) semaforoClass = 'semaforo-por-vencer';
+        else semaforoClass = 'semaforo-en-tiempo';
+      }
+      tr.className = semaforoClass;
+
+      let prioBadge = 'bg-secondary';
+      if (a.Prioridad === 'Alta') prioBadge = 'bg-danger';
+      else if (a.Prioridad === 'Media') prioBadge = 'bg-warning text-dark';
+      else if (a.Prioridad === 'Baja') prioBadge = 'bg-info text-dark';
+
+      const estBadge = obtenerBadgeClassEstatus(a.Estatus);
+      const descSubJef = `Sub: ${a.Subdirección_Asignada || 'N/A'}${a.Jefaturas_Asignadas ? ' | Jef: ' + a.Jefaturas_Asignadas : ''}`;
+
+      tr.innerHTML = `
+        <td class="fw-bold"><a href="#" onclick="navegarA('detalle-acuerdo', '${a.ID_Acuerdo}'); return false;">${a.ID_Acuerdo}</a></td>
+        <td class="small text-muted">${a.ID_Proyecto || '-'}</td>
+        <td class="small">${a.Folio_Minuta ? '<span class="text-primary fw-semibold">'+a.Folio_Minuta+'</span>' : '<span class="text-muted">Individual</span>'}</td>
+        <td class="small">${a.Tipo}</td>
+        <td class="small fw-medium">${a.Descripción_Acuerdo.substring(0, 50)}${a.Descripción_Acuerdo.length > 50 ? '...' : ''}</td>
+        <td><span class="badge ${prioBadge}">${a.Prioridad}</span></td>
+        <td class="small text-truncate" style="max-width: 160px;" title="${descSubJef}">${descSubJef}</td>
+        <td class="small text-truncate" style="max-width: 140px;">${a.Responsables}</td>
+        <td class="small fw-bold">${fechaCorta}</td>
+        <td><span class="badge ${estBadge}">${a.Estatus}</span></td>
+        <td class="text-end">
+          <button class="btn btn-outline-info btn-sm rounded-circle me-1" onclick="navegarA('detalle-acuerdo', '${a.ID_Acuerdo}')" title="Ver Detalle">
+            <i class="bi bi-eye"></i>
+          </button>
+          ${(CURRENT_USER.rol === 'Operador' || CURRENT_USER.rol === 'Jefatura') ? `
+            <button class="btn btn-outline-warning btn-sm rounded-circle" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}', '${a.Jefaturas_Asignadas || ''}', '${a.Subdirección_Asignada || ''}')" title="Cambiar Estatus / Asignar">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+          ` : (CURRENT_USER.rol === 'Administrador' ? `
+            <button class="btn btn-outline-primary btn-sm rounded-circle" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+          ` : '')}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function abrirModalCambiarEstatusOperador(idAcuerdo, estatusActual, jefaturasActuales, subdireccionesActuales = '') {
+    document.getElementById('modal-estatus-id-acuerdo').value = idAcuerdo;
+    document.getElementById('modal-estatus-select').value = estatusActual;
+
+    if (!subdireccionesActuales) {
+      const ac = GLOBAL_ACUERDOS.find(item => item.ID_Acuerdo === idAcuerdo);
+      if (ac) {
+        subdireccionesActuales = ac.Subdirección_Asignada || '';
+        if (!jefaturasActuales) jefaturasActuales = ac.Jefaturas_Asignadas || '';
+      }
+    }
+
+    const secOpSub = document.getElementById('seccion-operador-subdirecciones');
+    const secOpJef = document.getElementById('seccion-operador-jefaturas');
+
+    if (CURRENT_USER.rol === 'Operador') {
+      if (secOpSub) secOpSub.classList.remove('d-none');
+      if (secOpJef) secOpJef.classList.remove('d-none');
+
+      poblarCheckboxesSubdireccionesJefaturas();
+
+      const subsArray = String(subdireccionesActuales || CURRENT_USER.subdireccion || '').split(',').map(s => s.trim().toLowerCase());
+      document.querySelectorAll('#modal-operador-check-subdirecciones .chk-operador-subdireccion').forEach(chk => {
+        chk.checked = subsArray.includes(chk.value.trim().toLowerCase());
+      });
+
+      const jefsArray = String(jefaturasActuales || '').split(',').map(s => s.trim());
+      actualizarJefaturasModalOperador(jefsArray);
+    } else {
+      if (secOpSub) secOpSub.classList.add('d-none');
+      if (secOpJef) secOpJef.classList.add('d-none');
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('modalEstatusAcuerdo'));
+    modal.show();
+  }
+
+  function guardarCambioEstatusModal() {
+    const idA = document.getElementById('modal-estatus-id-acuerdo').value;
+    const nuevoEstatus = document.getElementById('modal-estatus-select').value;
+
+    const data = { estatus: nuevoEstatus };
+
+    if (CURRENT_USER.rol === 'Operador') {
+      const selectedSubs = [];
+      document.querySelectorAll('#modal-operador-check-subdirecciones .chk-operador-subdireccion:checked').forEach(chk => {
+        selectedSubs.push(chk.value);
+      });
+      data.subdireccionAsignada = selectedSubs;
+
+      const selectedJefs = [];
+      document.querySelectorAll('#modal-operador-check-jefaturas .chk-jefatura:checked').forEach(chk => {
+        selectedJefs.push(chk.value);
+      });
+      data.jefaturasAsignadas = selectedJefs;
+    }
+
+    showSpinner('Actualizando acuerdo...');
+    const modalEl = document.getElementById('modalEstatusAcuerdo');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (bsModal) bsModal.hide();
+        mostrarToast(res.message);
+        cargarAcuerdos();
+        if (ACUERDO_ACTUAL_DETALLE_ID === idA) {
+          cargarDetalleAcuerdo(idA);
+        }
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al actualizar acuerdo', true);
+      })
+      .actualizarAcuerdo(idA, data);
+  }
+
+  function filtrarAcuerdos() {
+    const q = document.getElementById('filtro-acuerdo-busqueda').value.toLowerCase();
+    const est = document.getElementById('filtro-acuerdo-estatus').value;
+    const prio = document.getElementById('filtro-acuerdo-prioridad').value;
+    const sub = document.getElementById('filtro-acuerdo-subdireccion').value;
+    const jef = document.getElementById('filtro-acuerdo-jefatura').value;
+
+    const filtrados = GLOBAL_ACUERDOS.filter(a => {
+      const matchQ = !q || a.ID_Acuerdo.toLowerCase().includes(q) || a.Descripción_Acuerdo.toLowerCase().includes(q) || a.Responsables.toLowerCase().includes(q);
+      const matchEst = !est || a.Estatus === est;
+      const matchPrio = !prio || a.Prioridad === prio;
+      const matchSub = !sub || (a.Subdirección_Asignada && a.Subdirección_Asignada.toLowerCase().includes(sub.toLowerCase()));
+      const matchJef = !jef || (a.Jefaturas_Asignadas && a.Jefaturas_Asignadas.toLowerCase().includes(jef.toLowerCase()));
+      return matchQ && matchEst && matchPrio && matchSub && matchJef;
+    });
+
+    renderizarTablaAcuerdos(filtrados);
+  }
+
+  function limpiarFiltrosAcuerdo() {
+    document.getElementById('filtro-acuerdo-busqueda').value = '';
+    document.getElementById('filtro-acuerdo-estatus').value = '';
+    document.getElementById('filtro-acuerdo-prioridad').value = '';
+    document.getElementById('filtro-acuerdo-subdireccion').value = '';
+    document.getElementById('filtro-acuerdo-jefatura').value = '';
+    renderizarTablaAcuerdos(GLOBAL_ACUERDOS);
+  }
+
+  function abrirModalNuevoAcuerdoInd() {
+    document.getElementById('form-acuerdo').reset();
+    document.getElementById('acuerdo-id').value = '';
+    document.getElementById('acuerdo-origen').value = 'Individual';
+    document.getElementById('acuerdo-folio-minuta').value = '';
+    document.getElementById('acuerdo-fecha-limite').value = new Date().toISOString().split('T')[0];
+
+    poblarCheckboxesSubdireccionesJefaturas();
+
+    if (CURRENT_USER.rol === 'Administrador') {
+      document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
+        chk.checked = false;
+      });
+      actualizarJefaturasFormAcuerdo([]);
+    } else if (CURRENT_USER.rol === 'Operador') {
+      document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
+        chk.checked = (chk.value.trim().toLowerCase() === String(CURRENT_USER.subdireccion || '').trim().toLowerCase());
+      });
+      actualizarJefaturasFormAcuerdo([]);
+    }
+
+    desbloquearCamposFormAcuerdo();
+
+    document.getElementById('modalAcuerdoTitle').innerHTML = '<i class="bi bi-check2-square me-2"></i>Nuevo Acuerdo Individual';
+    const modal = new bootstrap.Modal(document.getElementById('modalAcuerdo'));
+    modal.show();
+  }
+
+  function desbloquearCamposFormAcuerdo() {
+    const fields = ['acuerdo-proyecto', 'acuerdo-tipo', 'acuerdo-prioridad', 'acuerdo-descripcion', 'acuerdo-solicitantes', 'acuerdo-responsables', 'acuerdo-fecha-limite'];
+    fields.forEach(fId => {
+      const el = document.getElementById(fId);
+      if (el) el.removeAttribute('disabled');
+    });
+  }
+
+  function abrirModalEditarAcuerdo(idAcuerdo) {
+    const a = GLOBAL_ACUERDOS.find(item => item.ID_Acuerdo === idAcuerdo);
+    if (!a) return;
+
+    document.getElementById('acuerdo-id').value = a.ID_Acuerdo;
+    document.getElementById('acuerdo-origen').value = a.Origen;
+    document.getElementById('acuerdo-folio-minuta').value = a.Folio_Minuta;
+    document.getElementById('acuerdo-proyecto').value = a.ID_Proyecto || '';
+    document.getElementById('acuerdo-tipo').value = a.Tipo;
+    document.getElementById('acuerdo-prioridad').value = a.Prioridad;
+    document.getElementById('acuerdo-descripcion').value = a.Descripción_Acuerdo;
+    document.getElementById('acuerdo-solicitantes').value = a.Solicitantes;
+    document.getElementById('acuerdo-responsables').value = a.Responsables;
+    document.getElementById('acuerdo-fecha-limite').value = a.Fecha_Límite;
+    document.getElementById('acuerdo-estatus').value = a.Estatus;
+
+    poblarCheckboxesSubdireccionesJefaturas();
+
+    const subsArray = String(a.Subdirección_Asignada || '').split(',').map(s => s.trim().toLowerCase());
+    document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
+      chk.checked = subsArray.includes(chk.value.trim().toLowerCase());
+    });
+
+    const jefsArray = String(a.Jefaturas_Asignadas || '').split(',').map(s => s.trim());
+    actualizarJefaturasFormAcuerdo(jefsArray);
+
+    desbloquearCamposFormAcuerdo();
+
+    document.getElementById('modalAcuerdoTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Acuerdo ${a.ID_Acuerdo}`;
+    const modal = new bootstrap.Modal(document.getElementById('modalAcuerdo'));
+    modal.show();
+  }
+
+  function guardarAcuerdoModal() {
+    const idA = document.getElementById('acuerdo-id').value;
+
+    const selectedSubs = [];
+    document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion:checked').forEach(chk => {
+      selectedSubs.push(chk.value);
+    });
+
+    const selectedJefs = [];
+    document.querySelectorAll('#contenedor-check-jefaturas .chk-form-jefatura:checked').forEach(chk => {
+      selectedJefs.push(chk.value);
+    });
+
+    const data = {
+      origen: document.getElementById('acuerdo-origen').value,
+      folioMinuta: document.getElementById('acuerdo-folio-minuta').value,
+      idProyecto: document.getElementById('acuerdo-proyecto').value,
+      tipo: document.getElementById('acuerdo-tipo').value,
+      prioridad: document.getElementById('acuerdo-prioridad').value,
+      descripcionAcuerdo: document.getElementById('acuerdo-descripcion').value,
+      solicitantes: document.getElementById('acuerdo-solicitantes').value,
+      responsables: document.getElementById('acuerdo-responsables').value,
+      fechaLimite: document.getElementById('acuerdo-fecha-limite').value,
+      subdireccionAsignada: selectedSubs,
+      jefaturasAsignadas: selectedJefs,
+      estatus: document.getElementById('acuerdo-estatus').value
+    };
+
+    showSpinner(idA ? 'Actualizando acuerdo...' : 'Guardando acuerdo...');
+    const modalEl = document.getElementById('modalAcuerdo');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    if (idA) {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarAcuerdos();
+          if (ACUERDO_ACTUAL_DETALLE_ID === idA) {
+            cargarDetalleAcuerdo(idA);
+          }
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al actualizar acuerdo', true);
+        })
+        .actualizarAcuerdo(idA, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideSpinner();
+          if (bsModal) bsModal.hide();
+          mostrarToast(res.message);
+          cargarAcuerdos();
+        })
+        .withFailureHandler(function(err) {
+          hideSpinner();
+          mostrarToast(err.message || 'Error al crear acuerdo', true);
+        })
+        .crearAcuerdo(data);
+    }
+  }
+
+  // ==========================================
+  // DETALLE DE ACUERDO Y COMENTARIOS
+  // ==========================================
+  function cargarDetalleAcuerdo(idAcuerdo) {
+    ACUERDO_ACTUAL_DETALLE_ID = idAcuerdo;
+    showSpinner('Cargando detalle del acuerdo...');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (!res || !res.acuerdo) {
+          mostrarToast('No se encontró el acuerdo especificado.', true);
+          navegarA('acuerdos');
+          return;
+        }
+
+        const a = res.acuerdo;
+        document.getElementById('det-acuerdo-id-title').innerText = a.ID_Acuerdo;
+        document.getElementById('det-acuerdo-descripcion').innerText = a.Descripción_Acuerdo;
+        document.getElementById('det-acuerdo-proyecto').innerText = a.ID_Proyecto || 'Sin Proyecto';
+        document.getElementById('det-acuerdo-origen').innerText = a.Origen;
+        document.getElementById('det-acuerdo-folio-minuta').innerText = a.Folio_Minuta || 'N/A';
+        document.getElementById('det-acuerdo-tipo').innerText = a.Tipo;
+        document.getElementById('det-acuerdo-prioridad').innerText = a.Prioridad;
+        const estatusBadgeClass = obtenerBadgeClassEstatus(a.Estatus);
+        document.getElementById('det-acuerdo-estatus').innerHTML = `<span class="badge ${estatusBadgeClass}">${a.Estatus || '-'}</span>`;
+        document.getElementById('det-acuerdo-fecha-limite').innerText = a.Fecha_Límite;
+        document.getElementById('det-acuerdo-subdireccion').innerText = a.Subdirección_Asignada || 'Sin Asignar';
+        document.getElementById('det-acuerdo-jefaturas').innerText = a.Jefaturas_Asignadas || 'Ninguna';
+        document.getElementById('det-acuerdo-creado-por').innerText = a.Creado_Por;
+        document.getElementById('det-acuerdo-solicitantes').innerText = a.Solicitantes || 'Ninguno';
+        document.getElementById('det-acuerdo-responsables').innerText = a.Responsables;
+
+        const hoyStr = new Date().toISOString().split('T')[0];
+        let semBadge = '<span class="badge bg-success">En Tiempo</span>';
+        if (a.Estatus === 'Pendiente' || a.Estatus === 'En Proceso') {
+          if (a.Fecha_Límite < hoyStr) semBadge = '<span class="badge bg-danger">Vencido</span>';
+          else if (a.Fecha_Límite === hoyStr) semBadge = '<span class="badge bg-warning text-dark">Vence Hoy</span>';
+        } else if (a.Estatus === 'Cumplido') {
+          semBadge = '<span class="badge bg-success">Cumplido</span>';
+        }
+        document.getElementById('det-acuerdo-semaforo').innerHTML = semBadge;
+
+        const headerActions = document.getElementById('det-acuerdo-acciones-header');
+        let htmlBtns = '';
+
+        // Ocultar botón "Enviar Recordatorio" para el rol Jefatura (y Lector)
+        if (CURRENT_USER.rol !== 'Jefatura' && CURRENT_USER.rol !== 'Lector') {
+          htmlBtns += `
+            <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="enviarRecordatorioManualUI('${a.ID_Acuerdo}')">
+              <i class="bi bi-bell me-1"></i> Enviar Recordatorio
+            </button>
+          `;
+        }
+
+        if (CURRENT_USER.rol === 'Operador' || CURRENT_USER.rol === 'Jefatura') {
+          htmlBtns += `
+            <button class="btn btn-outline-warning btn-sm rounded-pill px-3" onclick="abrirModalCambiarEstatusOperador('${a.ID_Acuerdo}', '${a.Estatus}', '${a.Jefaturas_Asignadas || ''}', '${a.Subdirección_Asignada || ''}')">
+              <i class="bi bi-arrow-repeat me-1"></i> Cambiar Estatus / Asignar
+            </button>
+          `;
+        } else if (CURRENT_USER.rol === 'Administrador') {
+          htmlBtns += `
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="abrirModalEditarAcuerdo('${a.ID_Acuerdo}')">
+              <i class="bi bi-pencil me-1"></i> Editar Acuerdo
+            </button>
+          `;
+        }
+        headerActions.innerHTML = htmlBtns;
+
+        renderizarNotificacionesDetalle(res.notificaciones);
+        renderizarTimelineComentarios(res.comentarios);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al obtener detalle del acuerdo', true);
+      })
+      .obtenerAcuerdo(idAcuerdo);
+  }
+
+  function enviarRecordatorioManualUI(idAcuerdo) {
+    if (!confirm(`¿Desea enviar un recordatorio por correo a las Subdirecciones/Jefaturas responsables de este acuerdo?`)) return;
+
+    showSpinner('Enviando recordatorio...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        cargarDetalleAcuerdo(idAcuerdo);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al enviar recordatorio', true);
+      })
+      .enviarRecordatorioManualAcuerdo(idAcuerdo);
+  }
+
+  function renderizarNotificacionesDetalle(notifs) {
+    const tbody = document.querySelector('#tabla-det-notificaciones tbody');
+    tbody.innerHTML = '';
+
+    if (!notifs || notifs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No hay registros de notificaciones</td></tr>';
+      return;
+    }
+
+    notifs.forEach(n => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="small">${n.Fecha_Envío}</td>
+        <td class="small text-truncate" style="max-width: 150px;">${n.Correo_Destino}</td>
+        <td class="small text-truncate" style="max-width: 180px;">${n.Asunto}</td>
+        <td><span class="badge ${n.Estatus_Envío.includes('Enviado') ? 'bg-success' : 'bg-warning text-dark'}">${n.Estatus_Envío}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderizarTimelineComentarios(comentarios) {
+    const cont = document.getElementById('contenedor-timeline-comentarios');
+    cont.innerHTML = '';
+    document.getElementById('det-comentarios-count').innerText = comentarios ? comentarios.length : 0;
+
+    if (!comentarios || comentarios.length === 0) {
+      cont.innerHTML = '<div class="text-muted text-center py-4 fs-7">No hay comentarios de seguimiento aún.</div>';
+      return;
+    }
+
+    // Renderizar orden cronológico inverso (los más recientes arriba)
+    const copia = [...comentarios].reverse();
+
+    copia.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'timeline-item';
+
+      const esEventoEstatus = String(c.Comentario || '').startsWith('[EVENTO_ESTATUS]');
+
+      if (esEventoEstatus) {
+        const textoLimpio = String(c.Comentario).replace('[EVENTO_ESTATUS]', '').trim();
+        item.innerHTML = `
+          <div class="timeline-body p-2 border-start border-4 border-warning bg-light rounded-end">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge bg-warning text-dark"><i class="bi bi-arrow-repeat me-1"></i>Cambio de Estatus</span>
+              <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+            </div>
+            <div class="fw-semibold text-dark fs-7 mt-1">${textoLimpio}</div>
+            <div class="text-muted fs-8 mt-1"><i class="bi bi-person me-1"></i>Modificado por: <strong>${c.Usuario}</strong></div>
+          </div>
+        `;
+      } else {
+        item.innerHTML = `
+          <div class="timeline-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold small text-primary">${c.Usuario}</span>
+              <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+            </div>
+            <div class="text-dark fs-7">${c.Comentario}</div>
+          </div>
+        `;
+      }
+      cont.appendChild(item);
+    });
+  }
+
+  function guardarComentarioSeguimiento() {
+    const texto = document.getElementById('nuevo-comentario-texto').value;
+    if (!texto.trim() || !ACUERDO_ACTUAL_DETALLE_ID) return;
+
+    showSpinner('Guardando comentario...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        document.getElementById('nuevo-comentario-texto').value = '';
+        mostrarToast(res.message);
+        cargarDetalleAcuerdo(ACUERDO_ACTUAL_DETALLE_ID);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al guardar comentario', true);
+      })
+      .agregarComentario(ACUERDO_ACTUAL_DETALLE_ID, texto);
+  }
+
+  // ==========================================
+  // USUARIOS
+  // ==========================================
+  function cargarUsuarios() {
+    showSpinner('Cargando usuarios...');
+    google.script.run
+      .withSuccessHandler(function(usuarios) {
+        hideSpinner();
+        GLOBAL_USUARIOS = usuarios;
+        renderizarTablaUsuarios(usuarios);
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al cargar usuarios', true);
+      })
+      .listarUsuarios();
+  }
+
+  function renderizarTablaUsuarios(usuarios) {
+    const tbody = document.querySelector('#tabla-usuarios tbody');
+    tbody.innerHTML = '';
+
+    if (usuarios.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay usuarios registrados</td></tr>';
+      return;
+    }
+
+    usuarios.forEach(u => {
+      const tr = document.createElement('tr');
+      const esActivo = String(u.Activo).toUpperCase() === 'SÍ' || String(u.Activo).toUpperCase() === 'SI';
+
+      tr.innerHTML = `
+        <td class="fw-semibold">${u.Correo}</td>
+        <td>${u.Nombre}</td>
+        <td><span class="badge ${u.Rol === 'Administrador' ? 'bg-danger' : (u.Rol === 'Operador' ? 'bg-primary' : (u.Rol === 'Jefatura' ? 'bg-info text-dark' : 'bg-secondary'))}">${u.Rol}</span></td>
+        <td class="small">${u.Subdirección}</td>
+        <td class="small">${u.Jefatura_Departamento || '-'}</td>
+        <td><span class="badge ${esActivo ? 'bg-success' : 'bg-danger'}">${u.Activo}</span></td>
+        <td class="text-end sol-admin-only">
+          <button class="btn btn-outline-primary btn-sm rounded-circle me-1" onclick="abrirModalEditarUsuario('${u.Correo}')" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-outline-danger btn-sm rounded-circle" onclick="eliminarUsuarioConfirm('${u.Correo}')" title="Eliminar">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function abrirModalNuevoUsuario() {
+    document.getElementById('form-usuario').reset();
+    document.getElementById('usuario-correo').removeAttribute('readonly');
+    document.getElementById('modalUsuarioTitle').innerHTML = '<i class="bi bi-person-plus me-2"></i>Registrar Usuario';
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function abrirModalEditarUsuario(correo) {
+    const u = GLOBAL_USUARIOS.find(item => item.Correo.toLowerCase() === correo.toLowerCase());
+    if (!u) return;
+
+    document.getElementById('usuario-correo').value = u.Correo;
+    document.getElementById('usuario-correo').setAttribute('readonly', 'readonly');
+    document.getElementById('usuario-nombre').value = u.Nombre;
+    document.getElementById('usuario-rol').value = u.Rol;
+    document.getElementById('usuario-subdireccion').value = u.Subdirección;
+    document.getElementById('usuario-jefatura').value = u.Jefatura_Departamento || '';
+    document.getElementById('usuario-activo').value = u.Activo;
+
+    document.getElementById('modalUsuarioTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Editar Usuario`;
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+    modal.show();
+  }
+
+  function guardarUsuarioModal() {
+    const data = {
+      correo: document.getElementById('usuario-correo').value,
+      nombre: document.getElementById('usuario-nombre').value,
+      rol: document.getElementById('usuario-rol').value,
+      subdireccion: document.getElementById('usuario-subdireccion').value,
+      jefaturaDepartamento: document.getElementById('usuario-jefatura').value,
+      activo: document.getElementById('usuario-activo').value
+    };
+
+    showSpinner('Guardando datos del usuario...');
+    const modalEl = document.getElementById('modalUsuario');
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        if (bsModal) bsModal.hide();
+        mostrarToast(res.message);
+        cargarUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al guardar usuario', true);
+      })
+      .guardarUsuario(data);
+  }
+
+  function eliminarUsuarioConfirm(correo) {
+    if (!confirm(`¿Está seguro de eliminar al usuario ${correo}?`)) return;
+
+    showSpinner('Eliminando usuario...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        cargarUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al eliminar usuario', true);
+      })
+      .eliminarUsuario(correo);
+  }
+
+  // ==========================================
+  // CATÁLOGOS
+  // ==========================================
+  function cargarCatalogosVista() {
+    showSpinner('Cargando catálogos...');
+    cargarCatalogosGlobales(function() {
+      hideSpinner();
+      renderizarTablaCatalogos();
+    });
+  }
+
+  function renderizarTablaCatalogos() {
+    const tbody = document.querySelector('#tabla-catalogos tbody');
+    tbody.innerHTML = '';
+
+    const filtroTipo = document.getElementById('filtro-catalogo-tipo').value;
+
+    let itemsTotal = [];
+    const catData = GLOBAL_CATALOGOS.Organigrama || [];
+
+    for (const [tipo, valores] of Object.entries(GLOBAL_CATALOGOS)) {
+      if (tipo !== 'Organigrama' && (!filtroTipo || filtroTipo === tipo)) {
+        valores.forEach(v => {
+          let padreStr = '-';
+          if (tipo === 'Jefatura') {
+            const org = catData.find(o => o.jefatura === v);
+            if (org && org.subdireccion) padreStr = org.subdireccion;
+          }
+          itemsTotal.push({ tipo, valor: v, padre: padreStr });
+        });
+      }
+    }
+
+    if (itemsTotal.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No hay items registrados</td></tr>';
+      return;
+    }
+
+    itemsTotal.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="badge bg-light text-dark border">${item.tipo}</span></td>
+        <td class="fw-medium">${item.valor}</td>
+        <td class="small text-muted">${item.padre}</td>
+        <td class="text-end">
+          <button class="btn btn-outline-danger btn-sm rounded-circle" onclick="eliminarCatalogoItemModal('${item.tipo}', '${item.valor}')" title="Eliminar">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function guardarCatalogoItemModal() {
+    const tipo = document.getElementById('catalogo-tipo').value;
+    const valor = document.getElementById('catalogo-valor').value;
+    const padre = document.getElementById('catalogo-padre').value;
+
+    showSpinner('Guardando ítem en el catálogo...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        document.getElementById('catalogo-valor').value = '';
+        document.getElementById('catalogo-padre').value = '';
+        mostrarToast(res.message);
+        cargarCatalogosVista();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al guardar catálogo', true);
+      })
+      .guardarCatalogoItem(tipo, valor, padre);
+  }
+
+  function eliminarCatalogoItemModal(tipo, valor) {
+    if (!confirm(`¿Eliminar "${valor}" del catálogo ${tipo}?`)) return;
+
+    showSpinner('Eliminando ítem...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        cargarCatalogosVista();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al eliminar catálogo', true);
+      })
+      .eliminarCatalogoItem(tipo, valor);
+  }
+</script>
