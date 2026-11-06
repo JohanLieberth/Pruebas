@@ -11,8 +11,9 @@
 
   <!-- Navbar de Administrador -->
   <nav class="navbar" style="background: #0f172a;">
-    <a href="<?= scriptUrl ?>?p=portal-admin" class="nav-brand">
-      🎮 <span>PixelFix</span>
+    <a href="<?= scriptUrl ?>?p=portal-admin" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandIcon">🎮</span>
+      <span id="navBrandText">PixelFix</span>
       <span class="tag" style="background: #dc2626;">Administrador</span>
     </a>
     <ul class="nav-menu">
@@ -401,29 +402,81 @@
 
         <form id="formConfiguracionTaller" onsubmit="guardarConfiguracionSistema(event)">
           <!-- Datos Generales -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
-            <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.75rem; font-weight: 600;">🏷️ Identidad del Taller</h3>
-            <div class="form-row">
-              <div class="form-col" style="flex: 2;">
-                <div class="form-group">
-                  <label for="configNombreTaller">Nombre Comercial del Taller:</label>
-                  <input type="text" id="configNombreTaller" class="input-control" placeholder="PixelFix - Taller de Consolas">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.05rem; color: #1e293b; margin-bottom: 0.75rem; font-weight: 700;">🏷️ Identidad del Taller e Imágenes</h3>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <label for="configNombreTaller" style="font-weight: 600;">Nombre Comercial del Taller:</label>
+              <input type="text" id="configNombreTaller" class="input-control" placeholder="PixelFix - Taller de Consolas">
+            </div>
+
+            <!-- Sección diferenciada: LOGO -->
+            <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label for="configLogoUrl" style="font-weight: 700; color: #1e293b; margin: 0;">
+                  🖼️ Logo del Taller (usado en tickets térmicos y encabezados):
+                </label>
+                <span class="tag" style="background: #3b82f6; color: #ffffff;">Tickets y Encabezados</span>
+              </div>
+              <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem;">
+                <strong>Recomendado:</strong> 300×150 px a 600×300 px (apaisado horizontal). <strong>Máximo permitido:</strong> 1200×600 px (máx. 1 MB).<br>
+                <strong>Formatos soportados:</strong> PNG, JPG, JPEG, WEBP, GIF, BMP.
+              </p>
+
+              <div class="form-row" style="align-items: flex-start;">
+                <div class="form-col" style="flex: 2;">
+                  <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="configLogoUrl" class="input-control" placeholder="Pega una URL o sube una imagen..." oninput="actualizarPreviaLogo()">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('inputUploadLogo').click()" style="white-space: nowrap;">
+                      📤 Subir Archivo
+                    </button>
+                    <input type="file" id="inputUploadLogo" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,image/png,image/jpeg,image/webp,image/gif,image/bmp" style="display: none;" onchange="procesarSubidaImagen(event, 'logo')">
+                  </div>
+                  <div id="statusUploadLogo" style="font-size: 0.8rem; color: #64748b;"></div>
                 </div>
-                <div class="form-group">
-                  <label for="configLogoUrl">Enlace / URL del Logo (usado en tickets y encabezados):</label>
-                  <input type="url" id="configLogoUrl" class="input-control" placeholder="https://ejemplo.com/logo.png" oninput="actualizarPreviaLogo()">
-                  <small style="color: #64748b; font-size: 0.8rem;">Puedes ingresar una URL directa de imagen (PNG, JPG) o DataURI.</small>
-                </div>
-                <div class="form-group">
-                  <label for="configVideoUrl">Enlace del Video Principal / Tutorial (YouTube o MP4):</label>
-                  <input type="url" id="configVideoUrl" class="input-control" placeholder="https://www.youtube.com/watch?v=...">
+                <div class="form-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 0.75rem; min-height: 90px;">
+                  <span style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.35rem; font-weight: 600;">Vista Previa del Logo:</span>
+                  <img id="imgPreviaLogo" src="" alt="Previa Logo" style="max-width: 140px; max-height: 65px; object-fit: contain; display: none;">
+                  <div id="txtSinLogo" style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Sin logo asignado</div>
                 </div>
               </div>
-              <div class="form-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 1rem;">
-                <span style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;">Vista Previa del Logo:</span>
-                <img id="imgPreviaLogo" src="" alt="Previa Logo" style="max-width: 140px; max-height: 80px; object-fit: contain; display: none;">
-                <div id="txtSinLogo" style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Sin logo asignado</div>
+            </div>
+
+            <!-- Sección diferenciada: ICONO -->
+            <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label for="configIconoUrl" style="font-weight: 700; color: #1e293b; margin: 0;">
+                  🔷 Ícono de la Plataforma (usado como favicon y logotipo de barra):
+                </label>
+                <span class="tag" style="background: #8b5cf6; color: #ffffff;">Favicon y Marca</span>
               </div>
+              <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem;">
+                <strong>Recomendado:</strong> 64×64 px o 128×128 px (cuadrado 1:1). <strong>Máximo permitido:</strong> 512×512 px (máx. 500 KB).<br>
+                <strong>Formatos soportados:</strong> PNG, JPG, JPEG, WEBP, GIF, BMP.
+              </p>
+
+              <div class="form-row" style="align-items: flex-start;">
+                <div class="form-col" style="flex: 2;">
+                  <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="configIconoUrl" class="input-control" placeholder="Pega una URL o sube un icono..." oninput="actualizarPreviaIcono()">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('inputUploadIcono').click()" style="white-space: nowrap;">
+                      📤 Subir Archivo
+                    </button>
+                    <input type="file" id="inputUploadIcono" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,image/png,image/jpeg,image/webp,image/gif,image/bmp" style="display: none;" onchange="procesarSubidaImagen(event, 'icono')">
+                  </div>
+                  <div id="statusUploadIcono" style="font-size: 0.8rem; color: #64748b;"></div>
+                </div>
+                <div class="form-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 0.75rem; min-height: 90px;">
+                  <span style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.35rem; font-weight: 600;">Vista Previa del Ícono:</span>
+                  <img id="imgPreviaIcono" src="" alt="Previa Ícono" style="max-width: 48px; max-height: 48px; object-fit: contain; display: none;">
+                  <div id="txtSinIcono" style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Sin ícono asignado</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="configVideoUrl" style="font-weight: 600;">Enlace del Video Principal / Tutorial (YouTube o MP4):</label>
+              <input type="url" id="configVideoUrl" class="input-control" placeholder="https://www.youtube.com/watch?v=...">
             </div>
           </div>
 
@@ -1713,6 +1766,7 @@
     var configuracionTallerActual = {
       nombreTaller: 'PixelFix - Taller de Consolas',
       logoUrl: '',
+      iconoUrl: '',
       videoUrl: '',
       videosCarrusel: [],
       leyendaTicket: 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
@@ -1750,6 +1804,7 @@
       var conf = configuracionTallerActual || {};
       if (document.getElementById('configNombreTaller')) document.getElementById('configNombreTaller').value = conf.nombreTaller || '';
       if (document.getElementById('configLogoUrl')) document.getElementById('configLogoUrl').value = conf.logoUrl || '';
+      if (document.getElementById('configIconoUrl')) document.getElementById('configIconoUrl').value = conf.iconoUrl || '';
       if (document.getElementById('configVideoUrl')) document.getElementById('configVideoUrl').value = conf.videoUrl || '';
       if (document.getElementById('configLeyendaTicket')) document.getElementById('configLeyendaTicket').value = conf.leyendaTicket || '';
 
@@ -1768,10 +1823,12 @@
       if (document.getElementById('chkEtiquetaSerie')) document.getElementById('chkEtiquetaSerie').checked = conf.mostrarSerieEtiqueta !== false;
 
       actualizarPreviaLogo();
+      actualizarPreviaIcono();
     }
 
     function actualizarPreviaLogo() {
-      var url = document.getElementById('configLogoUrl').value.trim();
+      var input = document.getElementById('configLogoUrl');
+      var url = input ? input.value.trim() : '';
       var img = document.getElementById('imgPreviaLogo');
       var txt = document.getElementById('txtSinLogo');
       if (url) {
@@ -1785,12 +1842,123 @@
       }
     }
 
+    function actualizarPreviaIcono() {
+      var input = document.getElementById('configIconoUrl');
+      var url = input ? input.value.trim() : '';
+      var img = document.getElementById('imgPreviaIcono');
+      var txt = document.getElementById('txtSinIcono');
+      if (url) {
+        img.src = url;
+        img.style.display = 'block';
+        txt.style.display = 'none';
+        aplicarIconoEnPagina(url);
+      } else {
+        img.src = '';
+        img.style.display = 'none';
+        txt.style.display = 'block';
+      }
+    }
+
+    function aplicarIconoEnPagina(url) {
+      if (!url) return;
+      var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+      link.type = 'image/x-icon';
+      link.rel = 'shortcut icon';
+      link.href = url;
+      document.getElementsByTagName('head')[0].appendChild(link);
+
+      var brandIcon = document.getElementById('navBrandIcon');
+      if (brandIcon) {
+        brandIcon.innerHTML = '<img src="' + url + '" alt="Icono" style="width: 24px; height: 24px; object-fit: contain; vertical-align: middle; border-radius: 4px;">';
+      }
+    }
+
+    function procesarSubidaImagen(event, tipo) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      var statusEl = document.getElementById(tipo === 'icono' ? 'statusUploadIcono' : 'statusUploadLogo');
+      var allowedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'];
+      var ext = file.name.substring(file.name.lastIndexOf('.') + 1).toLowerCase();
+
+      if (allowedExtensions.indexOf(ext) === -1) {
+        alert('Formato de archivo no válido (' + ext + '). Formatos admitidos: PNG, JPG, JPEG, WEBP, GIF, BMP.');
+        event.target.value = '';
+        return;
+      }
+
+      var maxBytes = (tipo === 'icono') ? (500 * 1024) : (1024 * 1024); // 500KB para icono, 1MB para logo
+      if (file.size > maxBytes) {
+        alert('El archivo excede el tamaño máximo permitido (' + Math.round(maxBytes / 1024) + ' KB). Por favor optimiza la imagen.');
+        event.target.value = '';
+        return;
+      }
+
+      if (statusEl) statusEl.innerHTML = '⏳ Subiendo y procesando imagen...';
+
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var base64 = e.target.result;
+        var token = App.getToken();
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (statusEl) statusEl.innerHTML = '';
+            event.target.value = '';
+            if (!res.success) {
+              alert('Error al subir: ' + res.error);
+              return;
+            }
+            if (tipo === 'icono') {
+              document.getElementById('configIconoUrl').value = res.data.url;
+              actualizarPreviaIcono();
+            } else {
+              document.getElementById('configLogoUrl').value = res.data.url;
+              actualizarPreviaLogo();
+            }
+            if (statusEl) statusEl.innerHTML = '✅ Archivo cargado correctamente.';
+            setTimeout(function() { if (statusEl) statusEl.innerHTML = ''; }, 3500);
+          })
+          .withFailureHandler(function(err) {
+            if (statusEl) statusEl.innerHTML = '';
+            event.target.value = '';
+            alert('Error de conexión al subir imagen: ' + err.message);
+          })
+          .apiSubirImagenConfig(token, {
+            nombre: file.name,
+            mimeType: file.type || ('image/' + ext),
+            base64: base64,
+            tipoDestino: tipo
+          });
+      };
+      reader.onerror = function() {
+        if (statusEl) statusEl.innerHTML = '';
+        alert('Error al leer el archivo en el navegador.');
+      };
+      reader.readAsDataURL(file);
+    }
+
     function guardarConfiguracionSistema(e) {
       if (e) e.preventDefault();
       var token = App.getToken();
+      var logoVal = (document.getElementById('configLogoUrl') ? document.getElementById('configLogoUrl').value : '').trim();
+      var iconoVal = (document.getElementById('configIconoUrl') ? document.getElementById('configIconoUrl').value : '').trim();
+
+      // Validación rápida en frontend de extensiones
+      var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
+      if (logoVal && !regexExt.test(logoVal) && logoVal.indexOf('data:image/') !== 0 && logoVal.indexOf('googleusercontent.com') === -1) {
+        alert('El Logo debe ser una URL de imagen válida (PNG, JPG, JPEG, WEBP, GIF, BMP) o DataURI.');
+        return;
+      }
+      if (iconoVal && !regexExt.test(iconoVal) && iconoVal.indexOf('data:image/') !== 0 && iconoVal.indexOf('googleusercontent.com') === -1) {
+        alert('El Ícono debe ser una URL de imagen válida (PNG, JPG, JPEG, WEBP, GIF, BMP) o DataURI.');
+        return;
+      }
+
       var conf = {
         nombreTaller: (document.getElementById('configNombreTaller') ? document.getElementById('configNombreTaller').value : '').trim(),
-        logoUrl: (document.getElementById('configLogoUrl') ? document.getElementById('configLogoUrl').value : '').trim(),
+        logoUrl: logoVal,
+        iconoUrl: iconoVal,
         videoUrl: (document.getElementById('configVideoUrl') ? document.getElementById('configVideoUrl').value : '').trim(),
         leyendaTicket: (document.getElementById('configLeyendaTicket') ? document.getElementById('configLeyendaTicket').value : '').trim(),
         mostrarLogoTicket: document.getElementById('chkTicketLogo') ? document.getElementById('chkTicketLogo').checked : true,

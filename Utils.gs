@@ -72,6 +72,68 @@ var Utils = {
     });
   },
 
+  /**
+   * Valida formato y extensión / MIME de una imagen (Logo o Icono)
+   * Formatos soportados: PNG, JPG, JPEG, WEBP, GIF, BMP
+   */
+  validarFormatoImagen: function(nombreOUrl, mimeType) {
+    var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
+    var validMimes = [
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/gif',
+      'image/bmp',
+      'image/x-ms-bmp'
+    ];
+
+    if (mimeType && validMimes.indexOf(mimeType.toLowerCase()) !== -1) {
+      return true;
+    }
+
+    if (nombreOUrl && (regexExt.test(nombreOUrl) || nombreOUrl.indexOf('data:image/') === 0)) {
+      return true;
+    }
+
+    return false;
+  },
+
+  /**
+   * Guarda una imagen en Google Drive (carpeta PixelFix_Assets) o fallback DataURI si no hay Drive disponible
+   */
+  guardarImagenEnDrive: function(nombreArchivo, base64Data, mimeType) {
+    try {
+      if (typeof DriveApp !== 'undefined') {
+        var folderName = 'PixelFix_Assets';
+        var folders = DriveApp.getFoldersByName(folderName);
+        var targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+
+        var cleanBase64 = base64Data;
+        if (cleanBase64.indexOf('base64,') !== -1) {
+          cleanBase64 = cleanBase64.split('base64,')[1];
+        }
+
+        var decodedBytes = Utilities.base64Decode(cleanBase64);
+        var blob = Utilities.newBlob(decodedBytes, mimeType || 'image/png', nombreArchivo);
+        var file = targetFolder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+        // URL directa para renderizado en <img>
+        var fileId = file.getId();
+        return 'https://lh3.googleusercontent.com/d/' + fileId;
+      }
+    } catch (e) {
+      Logger.log('DriveApp no disponible o error al guardar archivo, usando DataURI: ' + e.message);
+    }
+
+    // Fallback: Si base64Data ya es DataURI, o armarlo
+    if (base64Data.indexOf('data:') === 0) {
+      return base64Data;
+    }
+    return 'data:' + (mimeType || 'image/png') + ';base64,' + base64Data;
+  },
+
 
   /**
    * Respuesta estándar exitosa

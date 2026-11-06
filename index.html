@@ -209,6 +209,13 @@
         .withSuccessHandler(function(res) {
           if (res && res.success && res.data) {
             var conf = res.data;
+            if (conf.iconoUrl) {
+              var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+              link.type = 'image/x-icon';
+              link.rel = 'shortcut icon';
+              link.href = conf.iconoUrl;
+              document.getElementsByTagName('head')[0].appendChild(link);
+            }
             if (conf.videosCarrusel && conf.videosCarrusel.length > 0) {
               listaVideosCarrusel = conf.videosCarrusel.filter(function(v) {
                 return v.activo !== false && v.activo !== 'NO';

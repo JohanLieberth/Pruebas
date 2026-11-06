@@ -405,7 +405,7 @@ function setup() {
 
 
 /**
- * Obtiene la configuración pública (logo, video principal, videos del carrusel, textos)
+ * Obtiene la configuración pública (logo, icono, video principal, videos del carrusel, textos)
  */
 function apiObtenerConfiguracionPublica() {
   try {
@@ -421,6 +421,7 @@ function apiObtenerConfiguracionPublica() {
     return Utils.success({
       nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
       logoUrl: vals.LOGO_URL || '',
+      iconoUrl: vals.ICONO_URL || '',
       videoUrl: vals.VIDEO_URL || '',
       videosCarrusel: videos,
       leyendaTicket: vals.LEYENDA_TICKET || ''
@@ -448,6 +449,7 @@ function apiObtenerConfiguracionAdmin(token) {
     return Utils.success({
       nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
       logoUrl: vals.LOGO_URL || '',
+      iconoUrl: vals.ICONO_URL || '',
       videoUrl: vals.VIDEO_URL || '',
       videosCarrusel: videos,
       leyendaTicket: vals.LEYENDA_TICKET || 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
@@ -484,7 +486,18 @@ function apiGuardarConfiguracionAdmin(token, config) {
       Utils.setConfigValue('NOMBRE_TALLER', config.nombreTaller, 'Nombre comercial del taller');
     }
     if (config.logoUrl !== undefined) {
-      Utils.setConfigValue('LOGO_URL', config.logoUrl, 'URL o DataURI del logo del taller');
+      var logoTrim = String(config.logoUrl || '').trim();
+      if (logoTrim && !Utils.validarFormatoImagen(logoTrim)) {
+        return Utils.error('Formato de Logo no admitido. Formatos permitidos: PNG, JPG, JPEG, WEBP, GIF, BMP.');
+      }
+      Utils.setConfigValue('LOGO_URL', logoTrim, 'URL o DataURI del logo del taller');
+    }
+    if (config.iconoUrl !== undefined) {
+      var iconoTrim = String(config.iconoUrl || '').trim();
+      if (iconoTrim && !Utils.validarFormatoImagen(iconoTrim)) {
+        return Utils.error('Formato de Ícono no admitido. Formatos permitidos: PNG, JPG, JPEG, WEBP, GIF, BMP.');
+      }
+      Utils.setConfigValue('ICONO_URL', iconoTrim, 'URL o DataURI del ícono / favicon del taller');
     }
     if (config.videoUrl !== undefined) {
       Utils.setConfigValue('VIDEO_URL', config.videoUrl, 'URL del video principal');
@@ -513,6 +526,42 @@ function apiGuardarConfiguracionAdmin(token, config) {
 
     Utils.logAction('ACTUALIZAR_CONFIGURACION', 'Configuración del sistema actualizada por ' + (admin.nombre || admin.email), admin.email);
     return Utils.success(null, 'Configuración actualizada con éxito');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+/**
+ * Sube una imagen (Logo o Icono) desde el panel administrador
+ */
+function apiSubirImagenConfig(token, dataArchivo) {
+  try {
+    var admin = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    if (!dataArchivo || !dataArchivo.base64 || !dataArchivo.nombre) {
+      return Utils.error('Datos del archivo incompletos.');
+    }
+
+    var tipoDestino = dataArchivo.tipoDestino === 'icono' ? 'icono' : 'logo';
+    var nombreArchivo = String(dataArchivo.nombre).trim();
+    var mimeType = String(dataArchivo.mimeType || 'image/png').trim();
+
+    if (!Utils.validarFormatoImagen(nombreArchivo, mimeType)) {
+      return Utils.error('Formato no permitido (' + mimeType + '). Formatos admitidos: PNG, JPG, JPEG, WEBP, GIF, BMP.');
+    }
+
+    var prefijo = tipoDestino === 'icono' ? 'pixelfix_icono_' : 'pixelfix_logo_';
+    var ext = nombreArchivo.lastIndexOf('.') !== -1 ? nombreArchivo.substring(nombreArchivo.lastIndexOf('.')) : '.png';
+    var nombreFinal = prefijo + (new Date().getTime()) + ext;
+
+    var urlImagen = Utils.guardarImagenEnDrive(nombreFinal, dataArchivo.base64, mimeType);
+
+    Utils.logAction('SUBIR_IMAGEN_CONFIG', 'Subida de ' + tipoDestino + ': ' + nombreFinal + ' por ' + (admin.nombre || admin.email), admin.email);
+
+    return Utils.success({
+      url: urlImagen,
+      tipoDestino: tipoDestino,
+      nombre: nombreFinal
+    }, 'Imagen subida exitosamente.');
   } catch (err) {
     return Utils.error(err.message);
   }
