@@ -1645,8 +1645,8 @@
               '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
 
             var btnToggle = esActivo ?
-              '<button class="btn btn-secondary btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', false)" style="color: #991b1b;">Desactivar</button>' :
-              '<button class="btn btn-success btn-sm" onclick="toggleEstadoRecompensa(' + JSON.stringify(r.idRecompensa) + ', true)">Activar</button>';
+              '<button type="button" class="btn btn-secondary btn-sm btn-toggle-rec" data-id="' + r.idRecompensa + '" data-accion="desactivar" style="color: #991b1b;">Desactivar</button>' :
+              '<button type="button" class="btn btn-success btn-sm btn-toggle-rec" data-id="' + r.idRecompensa + '" data-accion="activar">Activar</button>';
 
             html += '<tr>';
             html += '  <td><code>' + r.idRecompensa + '</code></td>';
@@ -1656,7 +1656,7 @@
             html += '  <td><span style="font-weight: 600; color: #64748b;">#' + r.orden + '</span></td>';
             html += '  <td>' + badgeEstado + '</td>';
             html += '  <td style="white-space: nowrap;">';
-            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarRecompensa(' + JSON.stringify(r.idRecompensa) + ')" style="margin-right: 4px;">✏️ Editar</button>';
+            html += '    <button type="button" class="btn btn-primary btn-sm btn-edit-rec" data-id="' + r.idRecompensa + '" style="margin-right: 4px;">✏️ Editar</button>';
             html += btnToggle;
             html += '  </td>';
             html += '</tr>';
@@ -1759,6 +1759,33 @@
         })
         .apiCambiarEstadoRecompensa(token, idRec, nuevoEstado);
     }
+
+    // Delegación de eventos para la tabla de recompensas (Editar y Activar/Desactivar)
+    document.addEventListener('DOMContentLoaded', function() {
+      var tbodyRec = document.getElementById('tbodyRecompensasAdmin');
+      if (tbodyRec) {
+        tbodyRec.addEventListener('click', function(e) {
+          var btnEdit = e.target.closest('.btn-edit-rec');
+          if (btnEdit) {
+            var idEdit = btnEdit.getAttribute('data-id');
+            if (idEdit) {
+              abrirModalEditarRecompensa(idEdit);
+            }
+            return;
+          }
+
+          var btnToggle = e.target.closest('.btn-toggle-rec');
+          if (btnToggle) {
+            var idToggle = btnToggle.getAttribute('data-id');
+            var accion = btnToggle.getAttribute('data-accion');
+            if (idToggle) {
+              toggleEstadoRecompensa(idToggle, accion === 'activar');
+            }
+            return;
+          }
+        });
+      }
+    });
 
     /* ========================================================
        SISTEMA DE CONFIGURACIÓN E IMPRESIÓN DE TICKETS/ETIQUETAS
@@ -1938,19 +1965,27 @@
       reader.readAsDataURL(file);
     }
 
+    function validarFormatoFrontend(urlOTexto) {
+      if (!urlOTexto) return true;
+      var str = String(urlOTexto).trim();
+      if (!str) return true;
+      if (/^data:image\/(png|jpe?g|pjpeg|webp|gif|bmp|x-ms-bmp|x-bmp);base64,/i.test(str) || str.indexOf('data:image/') === 0) return true;
+      if (/googleusercontent\.com/i.test(str) || /drive\.google\.com/i.test(str)) return true;
+      var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
+      return regexExt.test(str);
+    }
+
     function guardarConfiguracionSistema(e) {
       if (e) e.preventDefault();
       var token = App.getToken();
       var logoVal = (document.getElementById('configLogoUrl') ? document.getElementById('configLogoUrl').value : '').trim();
       var iconoVal = (document.getElementById('configIconoUrl') ? document.getElementById('configIconoUrl').value : '').trim();
 
-      // Validación rápida en frontend de extensiones
-      var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
-      if (logoVal && !regexExt.test(logoVal) && logoVal.indexOf('data:image/') !== 0 && logoVal.indexOf('googleusercontent.com') === -1) {
+      if (logoVal && !validarFormatoFrontend(logoVal)) {
         alert('El Logo debe ser una URL de imagen válida (PNG, JPG, JPEG, WEBP, GIF, BMP) o DataURI.');
         return;
       }
-      if (iconoVal && !regexExt.test(iconoVal) && iconoVal.indexOf('data:image/') !== 0 && iconoVal.indexOf('googleusercontent.com') === -1) {
+      if (iconoVal && !validarFormatoFrontend(iconoVal)) {
         alert('El Ícono debe ser una URL de imagen válida (PNG, JPG, JPEG, WEBP, GIF, BMP) o DataURI.');
         return;
       }

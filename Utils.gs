@@ -77,22 +77,39 @@ var Utils = {
    * Formatos soportados: PNG, JPG, JPEG, WEBP, GIF, BMP
    */
   validarFormatoImagen: function(nombreOUrl, mimeType) {
-    var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
     var validMimes = [
       'image/png',
+      'image/x-png',
       'image/jpeg',
+      'image/pjpeg',
       'image/jpg',
       'image/webp',
       'image/gif',
       'image/bmp',
-      'image/x-ms-bmp'
+      'image/x-ms-bmp',
+      'image/x-bmp'
     ];
 
-    if (mimeType && validMimes.indexOf(mimeType.toLowerCase()) !== -1) {
+    if (mimeType && validMimes.indexOf(String(mimeType).toLowerCase().trim()) !== -1) {
       return true;
     }
 
-    if (nombreOUrl && (regexExt.test(nombreOUrl) || nombreOUrl.indexOf('data:image/') === 0)) {
+    var str = String(nombreOUrl || '').trim();
+    if (!str) return false;
+
+    // Aceptar Data URIs de imágenes
+    if (/^data:image\/(png|jpe?g|pjpeg|webp|gif|bmp|x-ms-bmp|x-bmp);base64,/i.test(str) || str.indexOf('data:image/') === 0) {
+      return true;
+    }
+
+    // Aceptar URLs directas de Google Drive / Google UserContent / Google Photos
+    if (/googleusercontent\.com/i.test(str) || /drive\.google\.com/i.test(str)) {
+      return true;
+    }
+
+    // Expresión regular para extensiones soportadas, admitiendo query strings y mayúsculas/minúsculas
+    var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
+    if (regexExt.test(str)) {
       return true;
     }
 
