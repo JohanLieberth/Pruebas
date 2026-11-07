@@ -89,10 +89,122 @@
   })();
 
   var App = {
-    // Almacenamiento local de sesión
+    // Almacenamiento local de sesión y configuración
     STORAGE_KEYS: {
       TOKEN: 'pixelfix_session_token',
-      USER_DATA: 'pixelfix_user_data'
+      USER_DATA: 'pixelfix_user_data',
+      PUBLIC_CONFIG: 'pixelfix_public_config'
+    },
+
+    /**
+     * Aplica la identidad visual (nombre del taller, logo, icono/favicon) en la vista actual
+     */
+    aplicarIdentidad: function(conf) {
+      if (!conf) return;
+      var nombre = conf.nombreTaller || 'PixelFix';
+      var logoUrl = conf.logoUrl || '';
+      var iconoUrl = conf.iconoUrl || '';
+
+      // 1. Actualizar títulos del documento
+      if (nombre) {
+        if (!document.title || document.title.indexOf('PixelFix') !== -1) {
+          document.title = document.title ? document.title.replace(/PixelFix/g, nombre) : nombre;
+        }
+      }
+
+      // 2. Actualizar textos de marca en Navbar y Footers
+      var brandTexts = document.querySelectorAll('#navBrandText, .nav-brand-text');
+      brandTexts.forEach(function(el) {
+        el.textContent = nombre;
+      });
+
+      var brandFooters = document.querySelectorAll('.footer-brand-name');
+      brandFooters.forEach(function(el) {
+        el.textContent = nombre;
+      });
+
+      // 3. Inyectar Logo o Icono en el contenedor de marca
+      var logoContainers = document.querySelectorAll('#navBrandLogoContainer, .nav-brand-logo-container');
+      var iconContainers = document.querySelectorAll('#navBrandIcon, .nav-brand-icon');
+
+      if (logoUrl) {
+        logoContainers.forEach(function(container) {
+          container.innerHTML = '';
+          var img = document.createElement('img');
+          img.src = logoUrl;
+          img.alt = nombre;
+          img.className = 'brand-logo-img';
+          img.style.maxHeight = '38px';
+          img.style.maxWidth = '140px';
+          img.style.objectFit = 'contain';
+          img.style.verticalAlign = 'middle';
+          img.style.display = 'inline-block';
+          container.appendChild(img);
+          container.style.display = 'inline-flex';
+        });
+        // Si hay logo, ocultamos el icono emoji para no duplicar visualmente
+        iconContainers.forEach(function(icon) {
+          icon.style.display = 'none';
+        });
+      } else {
+        logoContainers.forEach(function(container) {
+          container.innerHTML = '';
+          container.style.display = 'none';
+        });
+        iconContainers.forEach(function(icon) {
+          icon.style.display = 'inline-block';
+          if (iconoUrl) {
+            icon.innerHTML = '<img src="' + iconoUrl + '" alt="Icono" class="brand-icon-img" style="width: 26px; height: 26px; object-fit: contain; vertical-align: middle; border-radius: 4px;">';
+          } else {
+            icon.textContent = '🎮';
+          }
+        });
+      }
+
+      // 4. Actualizar favicon si hay iconoUrl o logoUrl
+      var faviconUrl = iconoUrl || logoUrl;
+      if (faviconUrl) {
+        var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        link.href = faviconUrl;
+        var heads = document.getElementsByTagName('head');
+        if (heads && heads.length > 0) heads[0].appendChild(link);
+      }
+    },
+
+    /**
+     * Carga la configuración pública desde la caché local y backend, y aplica la identidad visual
+     */
+    cargarConfiguracionPublica: function(callback) {
+      // 1. Intentar render rápido desde cache local
+      try {
+        var cached = localStorage.getItem(App.STORAGE_KEYS.PUBLIC_CONFIG) || sessionStorage.getItem(App.STORAGE_KEYS.PUBLIC_CONFIG);
+        if (cached) {
+          var parsed = JSON.parse(cached);
+          App.aplicarIdentidad(parsed);
+          if (callback) callback(parsed);
+        }
+      } catch (eCache) {}
+
+      // 2. Consultar al backend para tener la versión en tiempo real
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.success && res.data) {
+              try {
+                localStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(res.data));
+                sessionStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(res.data));
+              } catch (eSet) {}
+              App.aplicarIdentidad(res.data);
+              if (callback) callback(res.data);
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.warn('No se pudo sincronizar configuración pública:', err.message || err);
+          })
+          .apiObtenerConfiguracionPublica();
+      }
     },
 
     safePostMessage: safePostMessage,

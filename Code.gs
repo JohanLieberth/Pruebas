@@ -66,7 +66,21 @@ function doGet(e) {
 
     var template = HtmlService.createTemplateFromFile(templateName);
     template.pageParam = requestedPage;
-    template.appName = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix';
+
+    // Obtener el nombre del taller configurado dinámicamente desde el Sheet Config
+    var appNameDinamico = 'PixelFix - Taller de Consolas';
+    try {
+      var nombreConfig = Utils.getConfigValue('NOMBRE_TALLER');
+      if (nombreConfig && String(nombreConfig).trim() !== '') {
+        appNameDinamico = String(nombreConfig).trim();
+      } else if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) {
+        appNameDinamico = CONFIG.APP_NAME;
+      }
+    } catch (eConfig) {
+      appNameDinamico = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.APP_NAME) ? CONFIG.APP_NAME : 'PixelFix - Taller de Consolas';
+    }
+
+    template.appName = appNameDinamico;
     template.scriptUrl = scriptUrl;
 
     return template.evaluate()

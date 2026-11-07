@@ -12,8 +12,9 @@
   <!-- Navbar de Administrador -->
   <nav class="navbar" style="background: #0f172a;">
     <a href="<?= scriptUrl ?>?p=portal-admin" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
-      <span id="navBrandIcon">🎮</span>
-      <span id="navBrandText">PixelFix</span>
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
       <span class="tag" style="background: #dc2626;">Administrador</span>
     </a>
     <ul class="nav-menu">
@@ -757,7 +758,7 @@
   </div>
 
   <footer>
-    <p>PixelFix &copy; <?= new Date().getFullYear() ?> - Panel de Control Administrativo</p>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Panel de Control Administrativo</p>
   </footer>
 
   <?!= include('app-common'); ?>
@@ -770,6 +771,7 @@
     var contadorDispositivosNuevaOrden = 0;
 
     window.onload = function() {
+      App.cargarConfiguracionPublica();
       var token = App.getToken();
       sessionUser = App.getUserData();
 
@@ -1829,6 +1831,7 @@
 
     function poblarFormularioConfiguracion() {
       var conf = configuracionTallerActual || {};
+      App.aplicarIdentidad(conf);
       if (document.getElementById('configNombreTaller')) document.getElementById('configNombreTaller').value = conf.nombreTaller || '';
       if (document.getElementById('configLogoUrl')) document.getElementById('configLogoUrl').value = conf.logoUrl || '';
       if (document.getElementById('configIconoUrl')) document.getElementById('configIconoUrl').value = conf.iconoUrl || '';
@@ -2018,6 +2021,21 @@
             return;
           }
           configuracionTallerActual = Object.assign(configuracionTallerActual, conf);
+
+          // Actualizar inmediatamente cache local y propagar a la vista actual
+          try {
+            var publicConf = {
+              nombreTaller: conf.nombreTaller,
+              logoUrl: conf.logoUrl,
+              iconoUrl: conf.iconoUrl,
+              videoUrl: conf.videoUrl,
+              leyendaTicket: conf.leyendaTicket
+            };
+            localStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(publicConf));
+            sessionStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(publicConf));
+            App.aplicarIdentidad(publicConf);
+          } catch (eSync) {}
+
           alert('✅ Configuración guardada correctamente');
         })
         .withFailureHandler(function(err) {

@@ -10,8 +10,10 @@
 <body style="background-color: #0f172a;">
 
   <nav class="navbar" style="background: #1e293b; border-bottom: 1px solid #334155;">
-    <a href="<?= scriptUrl ?>?p=index" class="nav-brand">
-      🎮 <span>PixelFix</span>
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
       <span class="tag" style="background: #3b82f6;">Panel Interno</span>
     </a>
     <ul class="nav-menu">
@@ -50,12 +52,15 @@
   </main>
 
   <footer style="background: transparent; color: #64748b;">
-    <p>PixelFix Security • Verificación de Roles y Token Criptográfico</p>
+    <p><span class="footer-brand-name"><?= appName ?></span> Security • Verificación de Roles y Token Criptográfico</p>
   </footer>
 
   <?!= include('app-common'); ?>
 
   <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      App.cargarConfiguracionPublica();
+    });
     // Si ya tiene sesión activa de admin o técnico, redirigir
     (function() {
       var token = App.getToken();

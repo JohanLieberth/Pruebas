@@ -10,8 +10,10 @@
 <body>
 
   <nav class="navbar">
-    <a href="<?= scriptUrl ?>?p=portal-usuario" class="nav-brand">
-      🎮 <span>PixelFix</span>
+    <a href="<?= scriptUrl ?>?p=portal-usuario" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
       <span class="tag" id="tagTipoUsuario">Cliente</span>
     </a>
     <ul class="nav-menu">
@@ -183,7 +185,7 @@
   </div>
 
   <footer>
-    <p>PixelFix &copy; <?= new Date().getFullYear() ?> - Taller de Consolas</p>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Taller de Consolas</p>
   </footer>
 
   <?!= include('app-common'); ?>
@@ -193,6 +195,7 @@
     var cachedPuntosData = null;
 
     window.onload = function() {
+      App.cargarConfiguracionPublica();
       var token = App.getToken();
       sessionUser = App.getUserData();
 

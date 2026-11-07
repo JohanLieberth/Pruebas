@@ -11,8 +11,10 @@
 
   <!-- Navbar de Técnico -->
   <nav class="navbar" style="background: #1e293b;">
-    <a href="<?= scriptUrl ?>?p=portal-tecnico" class="nav-brand">
-      🎮 <span>PixelFix</span>
+    <a href="<?= scriptUrl ?>?p=portal-tecnico" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
       <span class="tag" style="background: #0ea5e9;">Mesa Técnica</span>
     </a>
     <ul class="nav-menu">
@@ -123,7 +125,7 @@
   </div>
 
   <footer>
-    <p>PixelFix &copy; <?= new Date().getFullYear() ?> - Taller de Consolas • Panel Técnico</p>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Taller de Consolas • Panel Técnico</p>
   </footer>
 
   <?!= include('app-common'); ?>
@@ -133,6 +135,7 @@
     var listaDispositivosTecnico = [];
 
     window.onload = function() {
+      App.cargarConfiguracionPublica();
       var token = App.getToken();
       sessionUser = App.getUserData();
 

@@ -11,8 +11,10 @@
 
   <!-- Navbar -->
   <nav class="navbar">
-    <a href="<?= scriptUrl ?>?p=index" class="nav-brand">
-      🎮 <span>PixelFix</span>
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
       <span class="tag">Consolas</span>
     </a>
     <ul class="nav-menu">
@@ -116,7 +118,7 @@
 
   <!-- Footer -->
   <footer>
-    <p>🎮 <strong>PixelFix</strong> &copy; <?= new Date().getFullYear() ?> - Taller Especializado en Consolas y Controles</p>
+    <p>🎮 <strong><span class="footer-brand-name"><?= appName ?></span></strong> &copy; <?= new Date().getFullYear() ?> - Taller Especializado en Consolas y Controles</p>
     <p style="font-size: 0.75rem; margin-top: 0.25rem;">Seguridad con SHA-256 + Salt • Plataforma en Google Apps Script & Google Sheets</p>
   </footer>
 
@@ -205,33 +207,19 @@
     var indiceVideoActual = 0;
 
     function cargarConfiguracionPublica() {
-      google.script.run
-        .withSuccessHandler(function(res) {
-          if (res && res.success && res.data) {
-            var conf = res.data;
-            if (conf.iconoUrl) {
-              var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
-              link.type = 'image/x-icon';
-              link.rel = 'shortcut icon';
-              link.href = conf.iconoUrl;
-              document.getElementsByTagName('head')[0].appendChild(link);
-            }
-            if (conf.videosCarrusel && conf.videosCarrusel.length > 0) {
-              listaVideosCarrusel = conf.videosCarrusel.filter(function(v) {
-                return v.activo !== false && v.activo !== 'NO';
-              });
-              if (listaVideosCarrusel.length > 0) {
-                var el = document.getElementById('seccionCarruselVideos');
-                if (el) el.style.display = 'block';
-                mostrarVideoCarrusel(0);
-              }
-            }
+      App.cargarConfiguracionPublica(function(conf) {
+        if (!conf) return;
+        if (conf.videosCarrusel && conf.videosCarrusel.length > 0) {
+          listaVideosCarrusel = conf.videosCarrusel.filter(function(v) {
+            return v.activo !== false && v.activo !== 'NO';
+          });
+          if (listaVideosCarrusel.length > 0) {
+            var el = document.getElementById('seccionCarruselVideos');
+            if (el) el.style.display = 'block';
+            mostrarVideoCarrusel(0);
           }
-        })
-        .withFailureHandler(function(err) {
-          console.warn('Error cargando configuración pública:', err);
-        })
-        .apiObtenerConfiguracionPublica();
+        }
+      });
     }
 
     function mostrarVideoCarrusel(indice) {
