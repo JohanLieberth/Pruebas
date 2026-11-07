@@ -78,6 +78,20 @@ var Dispositivos = {
       // Recalcular el estado general de la orden
       Dispositivos.recalcularEstadoOrden(dev.IDOrden);
 
+      // Si la transición es a "Listo" y el estatus anterior no era "Listo", notificar al cliente por correo
+      if (nuevoEstatus === CONFIG.ESTATUS_DISPOSITIVO.LISTO && estatusAnterior !== CONFIG.ESTATUS_DISPOSITIVO.LISTO) {
+        try {
+          var ordenAsociada = Utils.findRecordBy(CONFIG.SHEETS.ORDENES_SERVICIO, 'IDOrden', dev.IDOrden);
+          if (ordenAsociada) {
+            // Combinar dev con updates para pasar los datos más recientes
+            var devActualizado = Object.assign({}, dev, updates);
+            Correos.enviarCorreoDispositivoListo(devActualizado, ordenAsociada);
+          }
+        } catch (errNotifListo) {
+          Logger.log('Advertencia: No se pudo enviar notificación de equipo listo: ' + errNotifListo.message);
+        }
+      }
+
       Utils.logAction('CAMBIO_ESTATUS', 'Dispositivo ' + idDispositivo + ' pasó de ' + estatusAnterior + ' a ' + nuevoEstatus, session.email);
 
       return Utils.success({

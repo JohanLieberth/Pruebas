@@ -172,6 +172,15 @@ var Ordenes = {
 
       Utils.appendRecord(CONFIG.SHEETS.ORDENES_SERVICIO, ordenObj);
 
+      // Enviar correo de alta de orden de servicio al cliente (con datos tipo ticket)
+      try {
+        if (correo) {
+          Correos.enviarCorreoOrdenServicio(ordenObj, dispositivosCreados);
+        }
+      } catch (errCorreo) {
+        Logger.log('Advertencia: No se pudo enviar correo de confirmación de orden: ' + errCorreo.message);
+      }
+
       Utils.logAction('CREAR_ORDEN', 'Orden ' + folio + ' creada con ' + dispositivosCreados.length + ' dispositivos', solicitanteSession ? solicitanteSession.email : 'Admin');
 
       return Utils.success({
