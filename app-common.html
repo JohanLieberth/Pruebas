@@ -1,0 +1,370 @@
+<script>
+  /**
+   * app-common.html - Librería común de Frontend y protección de postMessage para PixelFix
+   */
+
+  /**
+   * Helper único y seguro para sanitizar targetOrigin en window.postMessage
+   * Previene errores 'SyntaxError: Invalid URI' en entornos sandboxed o cross-frame
+   */
+  function safeResolveTargetOrigin(targetOrigin) {
+    if (targetOrigin === '*') return '*';
+
+    // Si es cadena no vacía
+    if (typeof targetOrigin === 'string' && targetOrigin.trim() !== '') {
+      var trimmed = targetOrigin.trim();
+      // Validar si cumple con formato de origen absoluto (http:// o https://)
+      if (/^https?:\/\/[^\/\s]+(?::\d+)?\/?$/i.test(trimmed)) {
+        try {
+          return new URL(trimmed).origin;
+        } catch (e) {
+          // Si falla parseo de URL, continuar al fallback
+        }
+      }
+    }
+
+    // Fallback prioritario: window.location.origin si es un origen HTTP/HTTPS válido
+    try {
+      if (window.location && window.location.origin && window.location.origin !== 'null' && window.location.origin.indexOf('http') === 0) {
+        return window.location.origin;
+      }
+    } catch (eLocation) {}
+
+    // En entornos sandboxed (origin = 'null' o iframe sandboxed de Google Apps Script), usar '*' documentado
+    return '*';
+  }
+
+  /**
+   * Helper global seguro safePostMessage
+   * @param {Window} targetWindow - La ventana o iframe destino (window, window.parent, window.top)
+   * @param {*} data - Los datos a transmitir
+   * @param {string} [targetOrigin] - Origen esperado opcional
+   */
+  function safePostMessage(targetWindow, data, targetOrigin) {
+    if (!targetWindow || typeof targetWindow.postMessage !== 'function') {
+      return false;
+    }
+    var resolvedOrigin = safeResolveTargetOrigin(targetOrigin);
+    try {
+      targetWindow.postMessage(data, resolvedOrigin);
+      return true;
+    } catch (errPost) {
+      // Fallback defensivo a '*' si falló por discrepancia de origen
+      try {
+        targetWindow.postMessage(data, '*');
+        return true;
+      } catch (errFallback) {
+        console.warn('safePostMessage: No se pudo enviar el mensaje:', errFallback.message || errFallback);
+        return false;
+      }
+    }
+  }
+
+  // Interceptar defensivamente llamadas directas a postMessage en window
+  (function installPostMessageInterceptor() {
+    try {
+      var originalWindowPostMessage = window.postMessage;
+      if (typeof originalWindowPostMessage === 'function') {
+        window.postMessage = function(message, targetOrigin, transfer) {
+          var safeOrigin = safeResolveTargetOrigin(targetOrigin);
+          try {
+            if (transfer !== undefined) {
+              return originalWindowPostMessage.call(window, message, safeOrigin, transfer);
+            } else {
+              return originalWindowPostMessage.call(window, message, safeOrigin);
+            }
+          } catch (errCall) {
+            // Reintento con '*' si arrojó Invalid URI
+            try {
+              return originalWindowPostMessage.call(window, message, '*');
+            } catch (errIgnore) {
+              console.warn('window.postMessage interceptor: error evitado:', errIgnore.message);
+            }
+          }
+        };
+      }
+    } catch (errInstall) {
+      console.warn('No se pudo envolver window.postMessage:', errInstall.message);
+    }
+  })();
+
+  var App = {
+    // Almacenamiento local de sesión y configuración
+    STORAGE_KEYS: {
+      TOKEN: 'pixelfix_session_token',
+      USER_DATA: 'pixelfix_user_data',
+      PUBLIC_CONFIG: 'pixelfix_public_config'
+    },
+
+    /**
+     * Aplica la identidad visual (nombre del taller, logo, icono/favicon) en la vista actual
+     */
+    aplicarIdentidad: function(conf) {
+      if (!conf) return;
+      var nombre = conf.nombreTaller || 'PixelFix';
+      var logoUrl = conf.logoUrl || '';
+      var iconoUrl = conf.iconoUrl || '';
+
+      // 1. Actualizar títulos del documento
+      if (nombre) {
+        if (!document.title || document.title.indexOf('PixelFix') !== -1) {
+          document.title = document.title ? document.title.replace(/PixelFix/g, nombre) : nombre;
+        }
+      }
+
+      // 2. Actualizar textos de marca en Navbar y Footers
+      var brandTexts = document.querySelectorAll('#navBrandText, .nav-brand-text');
+      brandTexts.forEach(function(el) {
+        el.textContent = nombre;
+      });
+
+      var brandFooters = document.querySelectorAll('.footer-brand-name');
+      brandFooters.forEach(function(el) {
+        el.textContent = nombre;
+      });
+
+      // 3. Inyectar Logo o Icono en el contenedor de marca
+      var logoContainers = document.querySelectorAll('#navBrandLogoContainer, .nav-brand-logo-container');
+      var iconContainers = document.querySelectorAll('#navBrandIcon, .nav-brand-icon');
+
+      if (logoUrl) {
+        logoContainers.forEach(function(container) {
+          container.innerHTML = '';
+          var img = document.createElement('img');
+          img.src = logoUrl;
+          img.alt = nombre;
+          img.className = 'brand-logo-img';
+          img.style.maxHeight = '38px';
+          img.style.maxWidth = '140px';
+          img.style.objectFit = 'contain';
+          img.style.verticalAlign = 'middle';
+          img.style.display = 'inline-block';
+          container.appendChild(img);
+          container.style.display = 'inline-flex';
+        });
+        // Si hay logo, ocultamos el icono emoji para no duplicar visualmente
+        iconContainers.forEach(function(icon) {
+          icon.style.display = 'none';
+        });
+      } else {
+        logoContainers.forEach(function(container) {
+          container.innerHTML = '';
+          container.style.display = 'none';
+        });
+        iconContainers.forEach(function(icon) {
+          icon.style.display = 'inline-block';
+          if (iconoUrl) {
+            icon.innerHTML = '<img src="' + iconoUrl + '" alt="Icono" class="brand-icon-img" style="width: 26px; height: 26px; object-fit: contain; vertical-align: middle; border-radius: 4px;">';
+          } else {
+            icon.textContent = '🎮';
+          }
+        });
+      }
+
+      // 4. Actualizar favicon si hay iconoUrl o logoUrl
+      var faviconUrl = iconoUrl || logoUrl;
+      if (faviconUrl) {
+        var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        link.href = faviconUrl;
+        var heads = document.getElementsByTagName('head');
+        if (heads && heads.length > 0) heads[0].appendChild(link);
+      }
+    },
+
+    /**
+     * Carga la configuración pública desde la caché local y backend, y aplica la identidad visual
+     */
+    cargarConfiguracionPublica: function(callback) {
+      // 1. Intentar render rápido desde cache local
+      try {
+        var cached = localStorage.getItem(App.STORAGE_KEYS.PUBLIC_CONFIG) || sessionStorage.getItem(App.STORAGE_KEYS.PUBLIC_CONFIG);
+        if (cached) {
+          var parsed = JSON.parse(cached);
+          App.aplicarIdentidad(parsed);
+          if (callback) callback(parsed);
+        }
+      } catch (eCache) {}
+
+      // 2. Consultar al backend para tener la versión en tiempo real
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.success && res.data) {
+              try {
+                localStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(res.data));
+                sessionStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(res.data));
+              } catch (eSet) {}
+              App.aplicarIdentidad(res.data);
+              if (callback) callback(res.data);
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.warn('No se pudo sincronizar configuración pública:', err.message || err);
+          })
+          .apiObtenerConfiguracionPublica();
+      }
+    },
+
+    safePostMessage: safePostMessage,
+
+    /**
+     * Construye una URL de navegación absoluta hacia la Web App o relativa si no está disponible
+     */
+    getUrl: function(page) {
+      var base = (typeof window !== 'undefined' && window.SCRIPT_URL) ? window.SCRIPT_URL : '';
+      if (!base) {
+        return '?p=' + encodeURIComponent(page);
+      }
+      return base + (base.indexOf('?') === -1 ? '?' : '&') + 'p=' + encodeURIComponent(page);
+    },
+
+    /**
+     * Navega a la página solicitada de forma segura en la ventana superior (_top)
+     */
+    navigate: function(page) {
+      var targetUrl = App.getUrl(page);
+      try {
+        if (window.top && window.top.location) {
+          window.top.location.href = targetUrl;
+          return;
+        }
+      } catch (eTop) {}
+      window.location.href = targetUrl;
+    },
+
+    saveSession: function(data) {
+      if (!data || !data.token) return;
+      sessionStorage.setItem(App.STORAGE_KEYS.TOKEN, data.token);
+      localStorage.setItem(App.STORAGE_KEYS.TOKEN, data.token);
+      var userPayload = JSON.stringify(data);
+      sessionStorage.setItem(App.STORAGE_KEYS.USER_DATA, userPayload);
+      localStorage.setItem(App.STORAGE_KEYS.USER_DATA, userPayload);
+    },
+
+    getToken: function() {
+      return sessionStorage.getItem(App.STORAGE_KEYS.TOKEN) || localStorage.getItem(App.STORAGE_KEYS.TOKEN) || null;
+    },
+
+    getUserData: function() {
+      var raw = sessionStorage.getItem(App.STORAGE_KEYS.USER_DATA) || localStorage.getItem(App.STORAGE_KEYS.USER_DATA);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    },
+
+    clearSession: function() {
+      sessionStorage.removeItem(App.STORAGE_KEYS.TOKEN);
+      sessionStorage.removeItem(App.STORAGE_KEYS.USER_DATA);
+      localStorage.removeItem(App.STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(App.STORAGE_KEYS.USER_DATA);
+    },
+
+    logout: function(redirectToPage) {
+      var token = App.getToken();
+      if (token && typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.apiLogout(token);
+      }
+      App.clearSession();
+      App.navigate(redirectToPage || 'index');
+    },
+
+    // Notificaciones y alertas dinámicas en contenedores
+    showAlert: function(containerId, message, type) {
+      var el = document.getElementById(containerId);
+      if (!el) return;
+      type = type || 'info'; // 'info', 'success', 'warning', 'danger'
+      el.className = 'alert alert-' + type;
+      el.innerHTML = message;
+      el.style.display = 'flex';
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+
+    hideAlert: function(containerId) {
+      var el = document.getElementById(containerId);
+      if (el) el.style.display = 'none';
+    },
+
+    // Formateador de moneda MXN
+    formatCurrency: function(val) {
+      var n = Number(val) || 0;
+      return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    // Mapeador de etiquetas de estatus con clases CSS
+    getStatusBadge: function(estatus) {
+      var s = String(estatus || 'Pendiente').trim();
+      var cls = 'badge-pendiente';
+      var lower = s.toLowerCase();
+
+      if (lower.indexOf('reparaci') !== -1) cls = 'badge-en-reparacion';
+      else if (lower.indexOf('prueba') !== -1) cls = 'badge-pruebas';
+      else if (lower.indexOf('listo') !== -1) cls = 'badge-listo';
+      else if (lower.indexOf('entregado') !== -1) cls = 'badge-entregado';
+      else if (lower.indexOf('cancelado') !== -1) cls = 'badge-cancelado';
+
+      return '<span class="badge ' + cls + '">' + s + '</span>';
+    },
+
+    getOrderStatusBadge: function(estado) {
+      var s = String(estado || 'Abierta').trim();
+      var cls = 'badge-abierta';
+      var lower = s.toLowerCase();
+
+      if (lower === 'parcial') cls = 'badge-parcial';
+      else if (lower === 'completada') cls = 'badge-completada';
+      else if (lower === 'cancelada') cls = 'badge-cancelado';
+
+      return '<span class="badge ' + cls + '">' + s + '</span>';
+    },
+
+    // Soporte para Web NFC con detección de compatibilidad y fallback
+    isWebNfcSupported: function() {
+      return ('NDEFReader' in window);
+    },
+
+    readNfcTag: function(onSuccess, onError) {
+      if (!App.isWebNfcSupported()) {
+        if (onError) onError('Web NFC no está soportado en este dispositivo o navegador. Utiliza la entrada manual de UID/código.');
+        return;
+      }
+
+      try {
+        var ndef = new NDEFReader();
+        ndef.scan().then(function() {
+          ndef.onreadingerror = function() {
+            if (onError) onError('Error de lectura NFC. No se pudo leer la tarjeta.');
+          };
+          ndef.onreading = function(event) {
+            var serial = event.serialNumber || '';
+            if (serial) {
+              if (onSuccess) onSuccess(serial);
+            } else {
+              // Intentar leer registros
+              var message = event.message;
+              var text = '';
+              for (var i = 0; i < message.records.length; i++) {
+                var record = message.records[i];
+                if (record.recordType === 'text') {
+                  var textDecoder = new TextDecoder(record.encoding || 'utf-8');
+                  text = textDecoder.decode(record.data);
+                  break;
+                }
+              }
+              if (text && onSuccess) onSuccess(text);
+              else if (onError) onError('No se detectó número de serie UID en la tarjeta NFC.');
+            }
+          };
+        }).catch(function(err) {
+          if (onError) onError('Error al iniciar escáner NFC: ' + (err.message || err));
+        });
+      } catch (ex) {
+        if (onError) onError('Error iniciando Web NFC: ' + ex.message);
+      }
+    }
+  };
+</script>

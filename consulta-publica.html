@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Consulta Pública de Estatus - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
+      <span class="tag">Consulta Pública</span>
+    </a>
+    <ul class="nav-menu">
+      <li><a href="<?= scriptUrl ?>?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login" class="nav-link">Portal Clientes</a></li>
+      <li><a href="<?= scriptUrl ?>?p=registro" class="nav-link">Registro</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <div class="card">
+      <div class="card-header">
+        <h1 class="card-title">🔍 Consulta de Estatus de Consolas en Reparación</h1>
+      </div>
+      <p style="color: #64748b; margin-bottom: 1.25rem;">
+        No requieres iniciar sesión para saber cómo va tu reparación. Busca directamente con tu <strong>Folio de orden</strong> (ej. <code>OS-20250101-0001</code>), <strong>Correo de contacto</strong>, <strong>Teléfono</strong> o <strong>Número de serie</strong> de la consola o mando.
+      </p>
+
+      <form id="formConsulta" onsubmit="ejecutarConsulta(event)">
+        <div class="form-group">
+          <label for="criterioBusqueda">Término de búsqueda:</label>
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <input type="text" id="criterioBusqueda" class="input-control" placeholder="Ingresa folio, correo, teléfono o número de serie..." required style="flex: 1; min-width: 280px;">
+            <button type="submit" id="btnConsultar" class="btn btn-primary">
+              <span>Buscar Estatus</span>
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <div id="alertConsulta" style="display: none; margin-top: 1rem;"></div>
+
+      <div id="resultadosConsulta" style="margin-top: 1.5rem; display: none;">
+        <h2 style="font-size: 1.15rem; font-weight: 700; color: #1e293b; margin-bottom: 1rem;">Detalle de Dispositivos Encontrados:</h2>
+        <div id="listaDispositivos"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Taller Especializado de Consolas</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      App.cargarConfiguracionPublica();
+    });
+    function ejecutarConsulta(e) {
+      e.preventDefault();
+      var criterio = document.getElementById('criterioBusqueda').value.trim();
+      var btn = document.getElementById('btnConsultar');
+      var alertDiv = 'alertConsulta';
+      var resBox = document.getElementById('resultadosConsulta');
+      var list = document.getElementById('listaDispositivos');
+
+      if (!criterio) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Consultando...';
+      App.hideAlert(alertDiv);
+      resBox.style.display = 'none';
+      list.innerHTML = '';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Buscar Estatus</span>';
+
+          if (!res.success) {
+            App.showAlert(alertDiv, '❌ ' + res.error, 'danger');
+            return;
+          }
+
+          var datos = res.data;
+          if (!datos || datos.length === 0) {
+            App.showAlert(alertDiv, '🔍 No encontramos ninguna orden o dispositivo con el dato: <strong>' + criterio + '</strong>. Por favor verifica tus datos.', 'warning');
+            return;
+          }
+
+          resBox.style.display = 'block';
+          var html = '';
+
+          datos.forEach(function(o) {
+            html += '<div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; background: #ffffff;">';
+            html += '  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; margin-bottom: 0.75rem;">';
+            html += '    <div><strong style="color: #4338ca; font-size: 1.1rem;">Orden ' + o.folio + '</strong> <span style="font-size: 0.85rem; color: #64748b;">(Ingreso: ' + o.fechaCreacion + ')</span></div>';
+            html += '    <div>' + App.getOrderStatusBadge(o.estadoOrden) + '</div>';
+            html += '  </div>';
+
+            html += '  <div style="display: grid; gap: 0.75rem;">';
+            o.dispositivos.forEach(function(d) {
+              var bg = d.estaListo ? '#f0fdf4' : '#ffffff';
+              var border = d.estaListo ? '#86efac' : '#e2e8f0';
+
+              html += '    <div style="border: 1px solid ' + border + '; background: ' + bg + '; border-radius: 6px; padding: 0.85rem;">';
+              html += '      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">';
+              html += '        <div>';
+              html += '          <div style="font-weight: 700; color: #1e293b; font-size: 1rem;">🎮 ' + d.tipoDispositivo + ' - ' + d.marca + ' ' + d.modelo + '</div>';
+              html += '          <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">No. de Serie: <code>' + d.numeroSerie + '</code></div>';
+              html += '          <div style="font-size: 0.86rem; color: #475569; margin-top: 4px;">Falla Reportada: ' + d.fallaReportada + '</div>';
+              html += '        </div>';
+              html += '        <div>' + App.getStatusBadge(d.estatus) + '</div>';
+              html += '      </div>';
+              html += '      <div style="margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed ' + border + '; font-size: 0.85rem; color: #334155;">';
+              html += '        <strong>Estatus actual:</strong> ' + d.mensajePublico + ' <span style="color: #94a3b8; font-size: 0.8rem;">(' + d.fechaHoraEstatus + ')</span>';
+              html += '      </div>';
+              html += '    </div>';
+            });
+            html += '  </div>';
+            html += '</div>';
+          });
+
+          list.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Buscar Estatus</span>';
+          App.showAlert(alertDiv, '❌ Error al consultar: ' + err.message, 'danger');
+        })
+        .apiConsultarPublica(criterio);
+    }
+  </script>
+</body>
+</html>

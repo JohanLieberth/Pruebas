@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Portal de Administración - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <!-- Navbar de Administrador -->
+  <nav class="navbar" style="background: #0f172a;">
+    <a href="<?= scriptUrl ?>?p=portal-admin" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
+      <span class="tag" style="background: #dc2626;">Administrador</span>
+    </a>
+    <ul class="nav-menu">
+      <li><span id="adminSessionName" style="color: #cbd5e1; font-size: 0.85rem;">Cargando...</span></li>
+      <li><button onclick="App.logout('?p=login-admin')" class="btn btn-secondary btn-sm" style="color: #ffffff; background: #334155;">Cerrar Sesión</button></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- Alertas Principales -->
+    <div id="alertAdmin" style="display: none;"></div>
+
+    <!-- Pestañas de Navegación del Panel de Administración -->
+    <div style="display: flex; gap: 0.5rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1.5rem; overflow-x: auto;">
+      <button class="btn btn-secondary btn-sm" id="tabBtnOrd" onclick="switchAdminTab('ordenes')" style="font-weight: bold; background: #ffffff;">
+        📋 Órdenes de Servicio
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnNuevaOrd" onclick="switchAdminTab('nueva-orden')">
+        ➕ Nueva Orden Multi-Consola
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnNfc" onclick="switchAdminTab('puntos-nfc')">
+        💳 Puntos y Tarjetas NFC
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnStaff" onclick="switchAdminTab('staff')">
+        👥 Usuarios y Técnicos
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnRecompensas" onclick="switchAdminTab('recompensas')">
+        🎁 Catálogo de Recompensas
+      </button>
+      <button class="btn btn-secondary btn-sm" id="tabBtnConfig" onclick="switchAdminTab('config')">
+        ⚙️ Configuración
+      </button>
+    </div>
+
+    <!-- SECCIÓN 1: Listado de Órdenes y Dispositivos Asociados -->
+    <div id="adminSectionOrdenes">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📋 Órdenes de Servicio Registradas</h2>
+          <button class="btn btn-secondary btn-sm" onclick="cargarOrdenesAdmin()">🔄 Recargar</button>
+        </div>
+
+        <!-- Buscador con filtros -->
+        <div class="form-row" style="margin-bottom: 1.25rem;">
+          <div class="form-col" style="flex: 2;">
+            <input type="text" id="filtroTextoAdmin" class="input-control" placeholder="Buscar por folio, cliente, teléfono o número de serie..." onkeyup="if(event.key==='Enter') cargarOrdenesAdmin()">
+          </div>
+          <div class="form-col" style="flex: 1;">
+            <select id="filtroEstadoAdmin" class="input-control" onchange="cargarOrdenesAdmin()">
+              <option value="todos">Todos los Estados</option>
+              <option value="Abierta">Abierta</option>
+              <option value="Parcial">Parcial (Entregas pendientes)</option>
+              <option value="Completada">Completada</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
+          </div>
+          <div style="display: flex; align-items: flex-end;">
+            <button class="btn btn-primary" onclick="cargarOrdenesAdmin()">Filtrar</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Orden de Servicio</th>
+                <th>Cliente / Razón Social</th>
+                <th>Teléfono</th>
+                <th>Estado</th>
+                <th>Total a Cobrar</th>
+                <th>Cobrado</th>
+                <th>Saldo</th>
+                <th>Fecha Ingreso</th>
+                <th>Dispositivos</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyOrdenesAdmin">
+              <tr><td colspan="10" style="text-align: center;">Cargando órdenes de servicio...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detalle de la Orden Seleccionada con sus Dispositivos -->
+      <div id="cardDetalleOrden" class="card" style="display: none; border: 2px solid #6366f1;">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title" id="tituloDetalleOrden">Detalle de Dispositivos - Orden</h2>
+            <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;" id="subtituloDetalleOrden"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="imprimirTicketOrden(ordenSeleccionadaActual.orden.idOrden)" style="margin-right: 0.5rem;">🖨️ Imprimir Ticket de Servicio</button>
+          <button class="btn btn-secondary btn-sm" onclick="cerrarDetalleOrden()">✕ Cerrar Detalle</button>
+        </div>
+
+        <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.75rem;">
+          🎮 Dispositivos asociados a esta orden (Gestión individual de estatus, costos y entregas parciales):
+        </h3>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Orden de servicio</th>
+                <th>Dispositivo</th>
+                <th>Diagnóstico</th>
+                <th>Estatus</th>
+                <th>Fecha/hora</th>
+                <th>Técnico asignado</th>
+                <th>Total a cobrar</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyDispositivosOrden">
+              <!-- Renderizado por JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 2: Formulario de Nueva Orden Multi-Dispositivo -->
+    <div id="adminSectionNuevaOrden" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">➕ Alta de Orden de Servicio Multi-Dispositivo</h2>
+        </div>
+
+        <form id="formNuevaOrden" onsubmit="guardarNuevaOrden(event)">
+
+          <!-- Datos del Cliente -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1rem; font-weight: 700; color: #334155; margin-bottom: 1rem;">1. Datos del Cliente</h3>
+
+            <div class="form-row">
+              <div class="form-col">
+                <label for="buscarClienteInput">Buscar cliente registrado (opcional):</label>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" id="buscarClienteInput" class="input-control" placeholder="Escribe nombre, correo o teléfono...">
+                  <button type="button" class="btn btn-secondary" onclick="buscarClientesParaOrden()">Buscar</button>
+                </div>
+                <div id="sugerenciasClientes" style="display: none; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; max-height: 150px; overflow-y: auto; margin-top: 4px; box-shadow: var(--shadow);"></div>
+              </div>
+              <div class="form-col">
+                <label for="tipoUsuarioOrden">Tipo de Cliente *</label>
+                <select id="tipoUsuarioOrden" class="input-control" required>
+                  <option value="Normal">Normal (Particular)</option>
+                  <option value="Taller">Taller Aliado</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <input type="hidden" id="ordenIdUsuario" value="">
+              <div class="form-col">
+                <label for="ordenNombreCliente">Nombre o Razón Social *</label>
+                <input type="text" id="ordenNombreCliente" class="input-control" required placeholder="Nombre del cliente o negocio">
+              </div>
+              <div class="form-col">
+                <label for="ordenCorreo">Correo electrónico:</label>
+                <input type="email" id="ordenCorreo" class="input-control" placeholder="cliente@correo.com">
+              </div>
+              <div class="form-col">
+                <label for="ordenTelefono">Teléfono de contacto *</label>
+                <input type="tel" id="ordenTelefono" class="input-control" required placeholder="Ej. 5512345678">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 0.5rem;">
+              <label for="ordenObservaciones">Observaciones generales de recepción:</label>
+              <textarea id="ordenObservaciones" class="input-control" placeholder="Condiciones generales, embalaje, notas del cliente..."></textarea>
+            </div>
+          </div>
+
+          <!-- Dispositivos Asociados (Múltiples) -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="font-size: 1rem; font-weight: 700; color: #334155;">2. Dispositivos a Ingresar (Una o más consolas/mandos)</h3>
+              <button type="button" class="btn btn-primary btn-sm" onclick="agregarFilaDispositivo()">+ Agregar Otro Dispositivo</button>
+            </div>
+
+            <div id="contenedorFilasDispositivos">
+              <!-- Las tarjetas de dispositivo se agregan dinámicamente -->
+            </div>
+          </div>
+
+          <div style="text-align: right;">
+            <button type="submit" id="btnGuardarOrden" class="btn btn-success" style="padding: 0.75rem 2rem; font-size: 1rem;">
+              💾 Registrar Orden de Servicio
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 3: Panel de Puntos y Tarjetas NFC -->
+    <div id="adminSectionNfc" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">💳 Gestión de Puntos de Cliente Frecuente y Tarjetas NFC</h2>
+        </div>
+
+        <div class="alert alert-info">
+          🏷️ <strong>Lector NFC:</strong> Si tu navegador y dispositivo soportan <em>Web NFC</em>, puedes usar el botón "Escanear Tarjeta NFC". También puedes ingresar manualmente el UID o buscar al cliente por nombre, correo o teléfono.
+        </div>
+
+        <!-- Barra de búsqueda / lectura NFC -->
+        <div class="card" style="background: #f8fafc; border-color: #cbd5e1; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 0.75rem;">1. Identificar Cliente</h3>
+
+          <div class="form-row">
+            <div class="form-col" style="flex: 2;">
+              <label for="inputBuscarNfcCliente">Buscar por Nombre, Correo, Teléfono o Código NFC:</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="text" id="inputBuscarNfcCliente" class="input-control" placeholder="Escribe o escanea UID NFC...">
+                <button type="button" class="btn btn-primary" onclick="buscarClienteNfcManual()">Buscar</button>
+                <button type="button" class="btn btn-secondary" onclick="escanearTagNfc()">📲 Escanear Tarjeta NFC</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="statusLecturaNfc" style="margin-top: 0.5rem; font-size: 0.85rem; color: #64748b;"></div>
+        </div>
+
+        <!-- Panel de Operaciones del Cliente Seleccionado -->
+        <div id="panelClienteNfcActivo" style="display: none; border: 2px solid #10b981; border-radius: 8px; padding: 1.25rem; background: #ffffff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 1rem;">
+            <div>
+              <h3 style="font-size: 1.2rem; font-weight: 700; color: #1e293b;" id="nfcClienteNombre">Cliente</h3>
+              <p style="font-size: 0.85rem; color: #64748b;" id="nfcClienteInfo">correo@ejemplo.com</p>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.8rem; color: #64748b;">Saldo Actual:</div>
+              <div style="font-size: 1.8rem; font-weight: 800; color: #10b981;" id="nfcClienteSaldo">0 pts</div>
+            </div>
+          </div>
+
+          <!-- Pestañas internas de acción -->
+          <div class="form-row">
+
+            <!-- Vincular Tarjeta NFC -->
+            <div class="form-col" style="border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px;">
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: #334155; margin-bottom: 0.75rem;">🏷️ Vincular Nueva Tarjeta NFC</h4>
+              <div class="form-group">
+                <label for="inputNuevoUidNfc">Código UID de Tarjeta:</label>
+                <input type="text" id="inputNuevoUidNfc" class="input-control" placeholder="Ej. 04:A2:3B:5F:80">
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="asociarNfcACliente()">Vincular Esta Tarjeta</button>
+            </div>
+
+            <!-- Asignar Puntos Manualmente -->
+            <div class="form-col" style="border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px;">
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: #334155; margin-bottom: 0.75rem;">➕ Asignar Puntos</h4>
+              <div class="form-group">
+                <label for="inputPuntosAsignar">Puntos a Sumar:</label>
+                <input type="number" id="inputPuntosAsignar" class="input-control" placeholder="Ej. 250" min="1">
+              </div>
+              <div class="form-group">
+                <label for="inputMotivoAsignar">Motivo de Asignación:</label>
+                <input type="text" id="inputMotivoAsignar" class="input-control" placeholder="Ej. Reparación pagada / Promoción">
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" onclick="ejecutarAsignacionPuntos()">Sumar Puntos al Cliente</button>
+            </div>
+
+            <!-- Canjear Recompensa -->
+            <div class="form-col" style="border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px;">
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: #334155; margin-bottom: 0.75rem;">🎁 Canjear por Catálogo</h4>
+              <div class="form-group">
+                <label for="selectRecompensaCanje">Recompensa a Canjear:</label>
+                <select id="selectRecompensaCanje" class="input-control">
+                  <option value="">Cargando catálogo...</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-warning btn-sm" onclick="ejecutarCanjePuntos()">Canjear Recompensa</button>
+            </div>
+          </div>
+
+          <!-- Historial de Movimientos del Cliente -->
+          <div style="margin-top: 1.5rem;">
+            <h4 style="font-size: 0.95rem; font-weight: 700; color: #334155; margin-bottom: 0.5rem;">📜 Historial Auditado de Movimientos</h4>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha/Hora</th>
+                    <th>Tipo</th>
+                    <th>Puntos</th>
+                    <th>Saldo Anterior</th>
+                    <th>Saldo Nuevo</th>
+                    <th>Motivo</th>
+                    <th>Registrado Por</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyNfcMovimientos">
+                  <tr><td colspan="7" style="text-align: center;">Sin movimientos</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 4: Gestión de Usuarios Admin y Técnicos -->
+    <div id="adminSectionStaff" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">👥 Usuarios Administrativos y Técnicos</h2>
+          <button class="btn btn-primary btn-sm" onclick="abrirModalNuevoStaff()">+ Dar de Alta Usuario</button>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Teléfono</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Fecha Creación</th>
+                <th>Creado Por</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyStaffAdmin">
+              <tr><td colspan="8" style="text-align: center;">Cargando usuarios...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- SECCIÓN 5: Gestión de Recompensas y Canjes -->
+    <div id="adminSectionRecompensas" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">🎁 Catálogo de Recompensas y Canjes</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">
+              Administra los servicios, mantenimientos y productos disponibles para canje con puntos de cliente frecuente.
+            </p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="cargarRecompensasAdmin()">🔄 Recargar</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaRecompensa()">+ Nueva Recompensa</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Recompensa / Servicio</th>
+                <th>Costo en Puntos</th>
+                <th>Descripción</th>
+                <th>Orden</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRecompensasAdmin">
+              <tr><td colspan="7" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando recompensas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 6: Configuración del Taller (Logo, Videos, Impresión de Tickets y Etiquetas) -->
+    <div id="adminSectionConfig" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">⚙️ Configuración del Taller y Personalización</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">
+              Configura el logo, video principal, estructura de impresión de tickets térmicos y etiquetas individuales, y administra los videos del carrusel de inicio.
+            </p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="cargarConfiguracionTaller()">🔄 Recargar</button>
+        </div>
+
+        <form id="formConfiguracionTaller" onsubmit="guardarConfiguracionSistema(event)">
+          <!-- Datos Generales -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.05rem; color: #1e293b; margin-bottom: 0.75rem; font-weight: 700;">🏷️ Identidad del Taller e Imágenes</h3>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <label for="configNombreTaller" style="font-weight: 600;">Nombre Comercial del Taller:</label>
+              <input type="text" id="configNombreTaller" class="input-control" placeholder="PixelFix - Taller de Consolas">
+            </div>
+
+            <!-- Sección diferenciada: LOGO -->
+            <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label for="configLogoUrl" style="font-weight: 700; color: #1e293b; margin: 0;">
+                  🖼️ Logo del Taller (usado en tickets térmicos y encabezados):
+                </label>
+                <span class="tag" style="background: #3b82f6; color: #ffffff;">Tickets y Encabezados</span>
+              </div>
+              <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem;">
+                <strong>Recomendado:</strong> 300×150 px a 600×300 px (apaisado horizontal). <strong>Máximo permitido:</strong> 1200×600 px (máx. 1 MB).<br>
+                <strong>Formatos soportados:</strong> PNG, JPG, JPEG, WEBP, GIF, BMP.
+              </p>
+
+              <div class="form-row" style="align-items: flex-start;">
+                <div class="form-col" style="flex: 2;">
+                  <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="configLogoUrl" class="input-control" placeholder="Pega una URL o sube una imagen..." oninput="actualizarPreviaLogo()">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('inputUploadLogo').click()" style="white-space: nowrap;">
+                      📤 Subir Archivo
+                    </button>
+                    <input type="file" id="inputUploadLogo" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,image/png,image/jpeg,image/webp,image/gif,image/bmp" style="display: none;" onchange="procesarSubidaImagen(event, 'logo')">
+                  </div>
+                  <div id="statusUploadLogo" style="font-size: 0.8rem; color: #64748b;"></div>
+                </div>
+                <div class="form-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 0.75rem; min-height: 90px;">
+                  <span style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.35rem; font-weight: 600;">Vista Previa del Logo:</span>
+                  <img id="imgPreviaLogo" src="" alt="Previa Logo" style="max-width: 140px; max-height: 65px; object-fit: contain; display: none;">
+                  <div id="txtSinLogo" style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Sin logo asignado</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sección diferenciada: ICONO -->
+            <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label for="configIconoUrl" style="font-weight: 700; color: #1e293b; margin: 0;">
+                  🔷 Ícono de la Plataforma (usado como favicon y logotipo de barra):
+                </label>
+                <span class="tag" style="background: #8b5cf6; color: #ffffff;">Favicon y Marca</span>
+              </div>
+              <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem;">
+                <strong>Recomendado:</strong> 64×64 px o 128×128 px (cuadrado 1:1). <strong>Máximo permitido:</strong> 512×512 px (máx. 500 KB).<br>
+                <strong>Formatos soportados:</strong> PNG, JPG, JPEG, WEBP, GIF, BMP.
+              </p>
+
+              <div class="form-row" style="align-items: flex-start;">
+                <div class="form-col" style="flex: 2;">
+                  <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="configIconoUrl" class="input-control" placeholder="Pega una URL o sube un icono..." oninput="actualizarPreviaIcono()">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('inputUploadIcono').click()" style="white-space: nowrap;">
+                      📤 Subir Archivo
+                    </button>
+                    <input type="file" id="inputUploadIcono" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,image/png,image/jpeg,image/webp,image/gif,image/bmp" style="display: none;" onchange="procesarSubidaImagen(event, 'icono')">
+                  </div>
+                  <div id="statusUploadIcono" style="font-size: 0.8rem; color: #64748b;"></div>
+                </div>
+                <div class="form-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 0.75rem; min-height: 90px;">
+                  <span style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.35rem; font-weight: 600;">Vista Previa del Ícono:</span>
+                  <img id="imgPreviaIcono" src="" alt="Previa Ícono" style="max-width: 48px; max-height: 48px; object-fit: contain; display: none;">
+                  <div id="txtSinIcono" style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Sin ícono asignado</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="configVideoUrl" style="font-weight: 600;">Enlace del Video Principal / Tutorial (YouTube o MP4):</label>
+              <input type="url" id="configVideoUrl" class="input-control" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+          </div>
+
+          <!-- Estructura de Impresión del Ticket Térmico -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.5rem; font-weight: 600;">🖨️ Estructura de Impresión del Ticket Térmico de Servicio</h3>
+            <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
+              Selecciona qué secciones se incluirán al momento de imprimir el ticket térmico para el cliente:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketLogo" checked> Incluir Logo en Cabecera
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketCliente" checked> Datos del Cliente
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketTelefono" checked> Teléfono de Contacto
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketResponsable" checked> Responsable Solidario
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketDispositivos" checked> Listado de Dispositivos
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketFallas" checked> Fallas Reportadas
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketDiagnostico" checked> Diagnósticos Técnicos
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkTicketCostos" checked> Costos y Totales
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="configLeyendaTicket">Leyenda Legal / Políticas de Garantía al pie del ticket:</label>
+              <textarea id="configLeyendaTicket" class="input-control" rows="3"></textarea>
+            </div>
+          </div>
+
+          <!-- Estructura de Impresión de Etiqueta Individual -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1rem; color: #1e293b; margin-bottom: 0.5rem; font-weight: 600;">🏷️ Estructura de Impresión de Etiqueta Individual por Consola</h3>
+            <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
+              Personaliza los campos visibles en la etiqueta adherible que se coloca a cada consola en taller:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaFolio" checked> Número de Orden de Servicio
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaDispositivo" checked> Dispositivo (Tipo/Marca/Modelo)
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaDiagnostico" checked> Diagnóstico Técnico
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chkEtiquetaSerie" checked> Número de Serie
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 2rem;">
+            <button type="submit" class="btn btn-primary">💾 Guardar Configuración General y de Impresión</button>
+          </div>
+        </form>
+
+        <!-- Gestión de Videos del Carrusel de Inicio -->
+        <div style="border-top: 2px solid #e2e8f0; padding-top: 1.5rem;">
+          <div class="card-header" style="padding: 0; margin-bottom: 1rem;">
+            <div>
+              <h3 style="font-size: 1.05rem; color: #1e293b; margin: 0; font-weight: 600;">🎬 Videos del Carrusel en la Página de Inicio</h3>
+              <p style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+                Agrega, edita o elimina videos promocionales o explicativos mostrados en el carrusel público.
+              </p>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalVideoCarrusel()">+ Agregar Video</button>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Título</th>
+                  <th>URL del Video</th>
+                  <th>Descripción</th>
+                  <th>Estatus</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyConfigVideos">
+                <tr><td colspan="6" style="text-align: center; color: #64748b;">No hay videos configurados en el carrusel.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: Modificar Costos de Dispositivo (con Auditoría en HistorialCostos) -->
+  <div id="modalModificarCosto" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Modificar Costo de Dispositivo</h3>
+        <button class="modal-close" onclick="cerrarModalCosto()">&times;</button>
+      </div>
+      <form id="formModCosto" onsubmit="guardarModificacionCosto(event)">
+        <input type="hidden" id="costoDevId" value="">
+        <div class="form-group">
+          <label>Dispositivo:</label>
+          <div id="costoDevNombre" style="font-weight: 600; color: #1e293b; padding: 0.5rem; background: #f8fafc; border-radius: 6px;"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label for="modCostoEstimado">Costo Estimado ($):</label>
+            <input type="number" id="modCostoEstimado" class="input-control" step="0.5" min="0">
+          </div>
+          <div class="form-col">
+            <label for="modCostoFinal">Costo Final Definitivo ($):</label>
+            <input type="number" id="modCostoFinal" class="input-control" step="0.5" min="0" placeholder="Dejar vacío si sigue en revisión">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="modMotivoCosto">Motivo del Cambio de Costo (Auditoría obligatoria) *:</label>
+          <input type="text" id="modMotivoCosto" class="input-control" required placeholder="Ej. Requiere chip HDMI nuevo / Ajuste de mano de obra" minlength="3">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalCosto()">Cancelar</button>
+          <button type="submit" id="btnGuardarCosto" class="btn btn-primary">Guardar Costo y Auditar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Modificar Diagnóstico / Técnico / Estatus -->
+  <div id="modalEditarDispositivo" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Editar Datos y Estatus de Dispositivo</h3>
+        <button class="modal-close" onclick="cerrarModalEditarDev()">&times;</button>
+      </div>
+      <form id="formEditDev" onsubmit="guardarEdicionDispositivo(event)">
+        <input type="hidden" id="editDevId" value="">
+        <div class="form-group">
+          <label for="editDevEstatus">Estatus Actual:</label>
+          <select id="editDevEstatus" class="input-control">
+            <option value="Pendiente">Pendiente</option>
+            <option value="En reparación">En reparación</option>
+            <option value="Pruebas">Pruebas</option>
+            <option value="Listo">Listo</option>
+            <option value="Entregado">Entregado</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="editDevComentario">Comentario del cambio de estatus:</label>
+          <input type="text" id="editDevComentario" class="input-control" placeholder="Ej. Se cambiaron capacitores y pasó pruebas de estrés">
+        </div>
+        <div class="form-group">
+          <label for="editDevTecnico">Técnico Asignado:</label>
+          <select id="editDevTecnico" class="input-control">
+            <option value="">Sin técnico asignado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="editDevDiagnostico">Diagnóstico Técnico:</label>
+          <textarea id="editDevDiagnostico" class="input-control"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="editDevObs">Observaciones Internas:</label>
+          <textarea id="editDevObs" class="input-control"></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalEditarDev()">Cancelar</button>
+          <button type="submit" id="btnGuardarEditDev" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Historial de Dispositivo -->
+  <div id="modalHistorial" class="modal-overlay">
+    <div class="modal-box" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Auditoría e Historial del Dispositivo</h3>
+        <button class="modal-close" onclick="cerrarModalHistorial()">&times;</button>
+      </div>
+      <div id="contenidoHistorialDev">
+        <!-- Renderizado por JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Crear Usuario Staff / Técnico -->
+  <div id="modalNuevoStaff" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Alta de Usuario Staff / Técnico</h3>
+        <button class="modal-close" onclick="cerrarModalNuevoStaff()">&times;</button>
+      </div>
+      <form id="formNuevoStaff" onsubmit="guardarNuevoStaff(event)">
+        <div class="form-group">
+          <label for="staffRol">Rol *</label>
+          <select id="staffRol" class="input-control" required>
+            <option value="Tecnico">Técnico de Taller</option>
+            <option value="Administrador">Administrador</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="staffNombre">Nombre completo *</label>
+          <input type="text" id="staffNombre" class="input-control" required placeholder="Ej. Roberto Sánchez">
+        </div>
+        <div class="form-group">
+          <label for="staffCorreo">Correo institucional *</label>
+          <input type="email" id="staffCorreo" class="input-control" required placeholder="staff@pixelfix.com">
+        </div>
+        <div class="form-group">
+          <label for="staffTelefono">Teléfono:</label>
+          <input type="tel" id="staffTelefono" class="input-control" placeholder="Ej. 5512345678">
+        </div>
+        <div class="form-group">
+          <label for="staffPass">Contraseña de acceso *</label>
+          <input type="password" id="staffPass" class="input-control" required minlength="6" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoStaff()">Cancelar</button>
+          <button type="submit" id="btnGuardarStaff" class="btn btn-primary">Crear Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- MODAL: Crear / Editar Recompensa de Canje -->
+  <div id="modalRecompensa" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;" id="modalRecompensaTitulo">Nueva Recompensa</h3>
+        <button class="modal-close" onclick="cerrarModalRecompensa()">&times;</button>
+      </div>
+      <form id="formRecompensa" onsubmit="guardarRecompensaAdmin(event)">
+        <input type="hidden" id="recId" value="">
+        <div class="form-group">
+          <label for="recNombre">Nombre del Servicio o Recompensa *</label>
+          <input type="text" id="recNombre" class="input-control" required placeholder="Ej. Limpieza profunda y cambio de pasta térmica" minlength="3">
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label for="recPuntos">Costo en Puntos Requeridos *</label>
+            <input type="number" id="recPuntos" class="input-control" required min="1" step="1" placeholder="Ej. 1000">
+          </div>
+          <div class="form-col">
+            <label for="recOrden">Orden de Visualización:</label>
+            <input type="number" id="recOrden" class="input-control" min="1" step="1" value="1">
+          </div>
+          <div class="form-col">
+            <label for="recActivo">Estado *</label>
+            <select id="recActivo" class="input-control" required>
+              <option value="SI">Activo (Disponible para canje)</option>
+              <option value="NO">Inactivo (Oculto)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="recDescripcion">Descripción detallada del beneficio:</label>
+          <textarea id="recDescripcion" class="input-control" placeholder="Especifica qué incluye este canje, restricciones o modelos participantes..."></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalRecompensa()">Cancelar</button>
+          <button type="submit" id="btnGuardarRecompensa" class="btn btn-primary">Guardar Recompensa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Panel de Control Administrativo</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    var sessionUser = null;
+    var listaTecnicosGlobal = [];
+    var ordenSeleccionadaActual = null;
+    var nfcClienteActual = null;
+    var contadorDispositivosNuevaOrden = 0;
+
+    window.onload = function() {
+      App.cargarConfiguracionPublica();
+      var token = App.getToken();
+      sessionUser = App.getUserData();
+
+      if (!token || !sessionUser || sessionUser.role !== 'Administrador') {
+        var alertEl = document.getElementById('alertAdmin');
+        if (alertEl) {
+          App.showAlert('alertAdmin', '⚠️ Acceso restringido. Por favor inicia sesión como Administrador. Redirigiendo...', 'warning');
+        }
+        setTimeout(function() {
+          App.navigate('login-admin');
+        }, 300);
+        return;
+      }
+
+      document.getElementById('adminSessionName').innerText = sessionUser.name + ' (' + sessionUser.email + ')';
+
+      cargarOrdenesAdmin();
+      cargarConfiguracionTaller();
+      cargarTecnicosCombo();
+      cargarCatalogoRecompensasAdmin();
+      agregarFilaDispositivo(); // Inicializar 1 fila en nueva orden
+    };
+
+    function switchAdminTab(tab) {
+      ['ordenes', 'nueva-orden', 'puntos-nfc', 'staff', 'recompensas', 'config'].forEach(function(t) {
+        var secName = (t === 'nueva-orden') ? 'adminSectionNuevaOrden' :
+                      (t === 'puntos-nfc') ? 'adminSectionNfc' :
+                      (t === 'staff') ? 'adminSectionStaff' :
+                      (t === 'recompensas') ? 'adminSectionRecompensas' :
+                      (t === 'config') ? 'adminSectionConfig' : 'adminSectionOrdenes';
+
+        var secEl = document.getElementById(secName);
+        if (secEl) secEl.style.display = (t === tab) ? 'block' : 'none';
+
+        var btnId = (t === 'nueva-orden') ? 'tabBtnNuevaOrd' :
+                    (t === 'puntos-nfc') ? 'tabBtnNfc' :
+                    (t === 'staff') ? 'tabBtnStaff' :
+                    (t === 'recompensas') ? 'tabBtnRecompensas' :
+                    (t === 'config') ? 'tabBtnConfig' : 'tabBtnOrd';
+        var btnEl = document.getElementById(btnId);
+        if (btnEl) {
+          btnEl.style.background = (t === tab) ? '#ffffff' : '#f1f5f9';
+          btnEl.style.fontWeight = (t === tab) ? 'bold' : 'normal';
+        }
+      });
+
+      if (tab === 'staff') cargarStaffAdmin();
+      if (tab === 'recompensas') cargarRecompensasAdmin();
+      if (tab === 'config') cargarConfiguracionTaller();
+    }
+
+    function cargarTecnicosCombo() {
+      var token = App.getToken();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success) {
+            listaTecnicosGlobal = res.data || [];
+            actualizarSelectsTecnicos();
+          }
+        })
+        .apiListarTecnicosActivos(token);
+    }
+
+    function actualizarSelectsTecnicos() {
+      var selectModal = document.getElementById('editDevTecnico');
+      if (selectModal) {
+        selectModal.innerHTML = '<option value="">Sin técnico asignado</option>';
+        listaTecnicosGlobal.forEach(function(t) {
+          selectModal.innerHTML += '<option value="' + t.idAdmin + '">' + t.nombre + ' (' + t.rol + ')</option>';
+        });
+      }
+    }
+
+    function cargarOrdenesAdmin() {
+      var token = App.getToken();
+      var filtroTexto = document.getElementById('filtroTextoAdmin').value.trim();
+      var filtroEstado = document.getElementById('filtroEstadoAdmin').value;
+      var tbody = document.getElementById('tbodyOrdenesAdmin');
+
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando órdenes...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            tbody.innerHTML = '<tr><td colspan="10" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            return;
+          }
+
+          var ordenes = res.data || [];
+          if (ordenes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #64748b;">No se encontraron órdenes registradas.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          ordenes.forEach(function(o) {
+            html += '<tr>';
+            html += '  <td><strong style="color: #4338ca;">' + o.folio + '</strong></td>';
+            html += '  <td>' + o.nombreCliente + ' <span style="font-size: 0.75rem; color: #64748b;">(' + o.tipoUsuario + ')</span></td>';
+            html += '  <td>' + o.telefonoContacto + '</td>';
+            html += '  <td>' + App.getOrderStatusBadge(o.estadoOrden) + '</td>';
+            html += '  <td><strong>' + App.formatCurrency(o.totalEstimado) + '</strong></td>';
+            html += '  <td style="color: #059669;">' + App.formatCurrency(o.totalCobrado) + '</td>';
+            html += '  <td style="color: #dc2626;"><strong>' + App.formatCurrency(o.saldo) + '</strong></td>';
+            html += '  <td style="font-size: 0.8rem;">' + o.fechaCreacion + '</td>';
+            html += '  <td><span class="badge" style="background: #e0e7ff; color: #3730a3;">' + o.totalDispositivos + ' equipo(s)</span></td>';
+            html += '  <td><button class="btn btn-primary btn-sm" onclick="verDetalleOrdenAdmin(\'' + o.idOrden + '\')">Ver Equipos</button> <button class="btn btn-secondary btn-sm" onclick="imprimirTicketOrden(\'' + o.idOrden + '\')" title="Imprimir Ticket Térmico">🖨️ Ticket</button></td>';
+            html += '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          tbody.innerHTML = '<tr><td colspan="10" style="color: red; text-align: center;">Error: ' + err.message + '</td></tr>';
+        })
+        .apiListarOrdenesAdmin(token, filtroTexto, filtroEstado);
+    }
+
+    function verDetalleOrdenAdmin(idOrden) {
+      var token = App.getToken();
+      var cardDetalle = document.getElementById('cardDetalleOrden');
+      var tbodyDev = document.getElementById('tbodyDispositivosOrden');
+
+      cardDetalle.style.display = 'block';
+      tbodyDev.innerHTML = '<tr><td colspan="8" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando dispositivos de la orden...</td></tr>';
+      cardDetalle.scrollIntoView({ behavior: 'smooth' });
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            tbodyDev.innerHTML = '<tr><td colspan="8" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            return;
+          }
+
+          var data = res.data;
+          ordenSeleccionadaActual = data;
+          document.getElementById('tituloDetalleOrden').innerText = 'Orden ' + data.orden.folio + ' (' + data.orden.estadoOrden + ')';
+          document.getElementById('subtituloDetalleOrden').innerText = 'Cliente: ' + data.orden.nombreCliente + ' | Tel: ' + data.orden.telefonoContacto + ' | Total: ' + App.formatCurrency(data.orden.totalEstimado) + ' | Cobrado: ' + App.formatCurrency(data.orden.totalCobrado) + ' | Saldo: ' + App.formatCurrency(data.orden.saldo);
+
+          var devs = data.dispositivos || [];
+          if (devs.length === 0) {
+            tbodyDev.innerHTML = '<tr><td colspan="8" style="text-align: center;">No hay dispositivos asociados a esta orden.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          devs.forEach(function(d) {
+            var esEntregado = (d.estatus === 'Entregado');
+            var btnEntrega = '';
+
+            if (!esEntregado && d.estatus !== 'Cancelado') {
+              btnEntrega = '<button class="btn btn-success btn-sm" onclick="ejecutarEntregaParcial(\'' + d.idDispositivo + '\')" style="margin-right: 4px;" title="Realizar Entrega Parcial">📦 Entregar</button>';
+            }
+
+            html += '<tr>';
+            html += '  <td><strong>' + d.folioOrden + '</strong></td>';
+            html += '  <td>';
+            html += '    <strong>' + d.tipoDispositivo + '</strong><br>';
+            html += '    <span style="font-size: 0.8rem; color: #475569;">' + d.marca + ' ' + d.modelo + '</span><br>';
+            html += '    <span style="font-size: 0.75rem; color: #64748b;">Serie: <code>' + (d.numeroSerie || 'S/N') + '</code></span>';
+            html += '  </td>';
+            html += '  <td style="max-width: 200px; font-size: 0.85rem;">' + (d.diagnostico || 'Sin diagnóstico') + '</td>';
+            html += '  <td>' + App.getStatusBadge(d.estatus) + (d.entregadoParcial === 'SI' ? '<br><span style="font-size: 0.7rem; color: #059669; font-weight: bold;">[Entrega Parcial]</span>' : '') + '</td>';
+            html += '  <td style="font-size: 0.78rem;">' + d.fechaHoraEstatus + '</td>';
+            html += '  <td>' + (d.tecnicoAsignado || '<em style="color:#94a3b8;">Sin asignar</em>') + '</td>';
+            html += '  <td>';
+            html += '    <strong style="color: #0f172a;">' + App.formatCurrency(d.totalACobrar) + '</strong><br>';
+            html += '    <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 2px 6px; margin-top: 2px;" onclick="abrirModalCosto(\'' + d.idDispositivo + '\', \'' + d.tipoDispositivo + ' ' + d.modelo + '\', ' + d.costoEstimado + ', \'' + (d.costoFinal !== '' ? d.costoFinal : '') + '\')">Modificar Costo</button>';
+            html += '  </td>';
+            html += '  <td style="white-space: nowrap;">';
+            html += btnEntrega;
+            html += '    <button class="btn btn-secondary btn-sm" onclick="imprimirEtiquetaConsola(\'' + d.idDispositivo + '\')" style="margin-right: 4px;" title="Imprimir Etiqueta Individual">🏷️ Imprimir Etiqueta</button>';
+            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalEditarDev(\'' + d.idDispositivo + '\')" style="margin-right: 4px;">✏️ Editar</button>';
+            html += '    <button class="btn btn-secondary btn-sm" onclick="verHistorialDispositivo(\'' + d.idDispositivo + '\')">📜 Historial</button>';
+            html += '  </td>';
+            html += '</tr>';
+          });
+
+          tbodyDev.innerHTML = html;
+        })
+        .apiObtenerDetalleOrden(token, idOrden);
+    }
+
+    function cerrarDetalleOrden() {
+      document.getElementById('cardDetalleOrden').style.display = 'none';
+      ordenSeleccionadaActual = null;
+    }
+
+    function ejecutarEntregaParcial(idDispositivo) {
+      if (!confirm('¿Confirmas la entrega parcial de este dispositivo al cliente? Se registrará la fecha de entrega y se actualizará el total cobrado de la orden.')) {
+        return;
+      }
+
+      var token = App.getToken();
+      var comentario = prompt('Comentario u observaciones de entrega (opcional):', 'Entrega parcial en mostrador');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          alert('✅ ' + res.message);
+          if (ordenSeleccionadaActual) {
+            verDetalleOrdenAdmin(ordenSeleccionadaActual.orden.idOrden);
+          }
+          cargarOrdenesAdmin();
+        })
+        .withFailureHandler(function(err) {
+          alert('Error: ' + err.message);
+        })
+        .apiEntregarDispositivoParcial(token, idDispositivo, comentario);
+    }
+
+    /* Modal Modificar Costo */
+    function abrirModalCosto(idDev, nombre, costoEst, costoFin) {
+      document.getElementById('costoDevId').value = idDev;
+      document.getElementById('costoDevNombre').innerText = nombre;
+      document.getElementById('modCostoEstimado').value = costoEst || 0;
+      document.getElementById('modCostoFinal').value = (costoFin !== undefined && costoFin !== '') ? costoFin : '';
+      document.getElementById('modMotivoCosto').value = '';
+      document.getElementById('modalModificarCosto').style.display = 'flex';
+    }
+
+    function cerrarModalCosto() {
+      document.getElementById('modalModificarCosto').style.display = 'none';
+    }
+
+    function guardarModificacionCosto(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var idDev = document.getElementById('costoDevId').value;
+      var cEst = document.getElementById('modCostoEstimado').value;
+      var cFin = document.getElementById('modCostoFinal').value;
+      var motivo = document.getElementById('modMotivoCosto').value.trim();
+      var btn = document.getElementById('btnGuardarCosto');
+
+      btn.disabled = true;
+      btn.innerHTML = 'Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Costo y Auditar';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          alert('✅ ' + res.message);
+          cerrarModalCosto();
+          if (ordenSeleccionadaActual) {
+            verDetalleOrdenAdmin(ordenSeleccionadaActual.orden.idOrden);
+          }
+          cargarOrdenesAdmin();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Costo y Auditar';
+          alert('Error: ' + err.message);
+        })
+        .apiModificarCostoDispositivo(token, idDev, cEst, cFin, motivo);
+    }
+
+    /* Modal Editar Dispositivo */
+    function abrirModalEditarDev(idDev) {
+      if (!ordenSeleccionadaActual) return;
+      var dev = ordenSeleccionadaActual.dispositivos.find(function(x) { return x.idDispositivo === idDev; });
+      if (!dev) return;
+
+      document.getElementById('editDevId').value = idDev;
+      document.getElementById('editDevEstatus').value = dev.estatus;
+      document.getElementById('editDevComentario').value = '';
+      document.getElementById('editDevDiagnostico').value = dev.diagnostico || '';
+      document.getElementById('editDevObs').value = dev.observaciones || '';
+      document.getElementById('editDevTecnico').value = dev.idTecnicoAsignado || '';
+
+      document.getElementById('modalEditarDispositivo').style.display = 'flex';
+    }
+
+    function cerrarModalEditarDev() {
+      document.getElementById('modalEditarDispositivo').style.display = 'none';
+    }
+
+    function guardarEdicionDispositivo(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var idDev = document.getElementById('editDevId').value;
+      var nuevoEstatus = document.getElementById('editDevEstatus').value;
+      var comentario = document.getElementById('editDevComentario').value.trim();
+      var tecSelect = document.getElementById('editDevTecnico');
+      var idTec = tecSelect.value;
+      var nomTec = (tecSelect.selectedIndex >= 0 && idTec) ? tecSelect.options[tecSelect.selectedIndex].text.split(' (')[0] : '';
+
+      var datosDetalle = {
+        diagnostico: document.getElementById('editDevDiagnostico').value.trim(),
+        observaciones: document.getElementById('editDevObs').value.trim(),
+        idTecnicoAsignado: idTec,
+        tecnicoAsignado: nomTec
+      };
+
+      var btn = document.getElementById('btnGuardarEditDev');
+      btn.disabled = true;
+      btn.innerHTML = 'Guardando...';
+
+      // 1. Guardar detalles
+      google.script.run
+        .withSuccessHandler(function() {
+          // 2. Cambiar estatus
+          google.script.run
+            .withSuccessHandler(function(resEstatus) {
+              btn.disabled = false;
+              btn.innerHTML = 'Guardar Cambios';
+
+              if (!resEstatus.success) {
+                alert('Aviso: Detalles guardados pero falló estatus: ' + resEstatus.error);
+              } else {
+                alert('✅ Dispositivo actualizado correctamente.');
+              }
+              cerrarModalEditarDev();
+              if (ordenSeleccionadaActual) verDetalleOrdenAdmin(ordenSeleccionadaActual.orden.idOrden);
+              cargarOrdenesAdmin();
+            })
+            .withFailureHandler(function(err) {
+              btn.disabled = false;
+              btn.innerHTML = 'Guardar Cambios';
+              alert('Error: ' + err.message);
+            })
+            .apiCambiarEstatusDispositivo(token, idDev, nuevoEstatus, comentario);
+        })
+        .apiActualizarDetallesDispositivo(token, idDev, datosDetalle);
+    }
+
+    /* Modal Historial */
+    function verHistorialDispositivo(idDev) {
+      var token = App.getToken();
+      var box = document.getElementById('contenidoHistorialDev');
+      document.getElementById('modalHistorial').style.display = 'flex';
+      box.innerHTML = '<div style="text-align: center; padding: 2rem;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando historial...</div>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            box.innerHTML = '<div class="alert alert-danger">Error: ' + res.error + '</div>';
+            return;
+          }
+
+          var histEstatus = res.data.historialEstatus || [];
+          var histCostos = res.data.historialCostos || [];
+
+          var html = '<h4 style="font-weight: 700; color: #1e293b; margin-bottom: 0.5rem;">📜 Historial de Cambios de Estatus:</h4>';
+          if (histEstatus.length === 0) {
+            html += '<p style="color: #64748b; font-size: 0.85rem;">Sin cambios registrados.</p>';
+          } else {
+            html += '<div class="table-responsive" style="margin-bottom: 1.5rem;"><table><thead><tr><th>Fecha/Hora</th><th>Estatus Anterior</th><th>Estatus Nuevo</th><th>Comentario</th><th>Usuario</th></tr></thead><tbody>';
+            histEstatus.forEach(function(h) {
+              html += '<tr><td>' + h.FechaHora + '</td><td>' + h.EstatusAnterior + '</td><td>' + App.getStatusBadge(h.EstatusNuevo) + '</td><td>' + h.Comentario + '</td><td>' + h.UsuarioCambio + ' (' + h.RolUsuario + ')</td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+
+          html += '<h4 style="font-weight: 700; color: #1e293b; margin-bottom: 0.5rem;">💰 Historial Auditado de Costos:</h4>';
+          if (histCostos.length === 0) {
+            html += '<p style="color: #64748b; font-size: 0.85rem;">Sin cambios de costo registrados.</p>';
+          } else {
+            html += '<div class="table-responsive"><table><thead><tr><th>Fecha/Hora</th><th>Costo Anterior</th><th>Costo Nuevo</th><th>Motivo</th><th>Usuario</th></tr></thead><tbody>';
+            histCostos.forEach(function(c) {
+              html += '<tr><td>' + c.FechaHora + '</td><td>' + App.formatCurrency(c.CostoAnterior) + '</td><td><strong style="color: #059669;">' + App.formatCurrency(c.CostoNuevo) + '</strong></td><td>' + c.Motivo + '</td><td>' + c.UsuarioCambio + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+
+          box.innerHTML = html;
+        })
+        .apiObtenerHistorialesDispositivo(token, idDev);
+    }
+
+    function cerrarModalHistorial() {
+      document.getElementById('modalHistorial').style.display = 'none';
+    }
+
+    /* Dinámica de Nueva Orden Multi-Dispositivo */
+    function agregarFilaDispositivo() {
+      contadorDispositivosNuevaOrden++;
+      var idx = contadorDispositivosNuevaOrden;
+      var cont = document.getElementById('contenedorFilasDispositivos');
+
+      var tecOptions = '<option value="">Sin técnico asignado</option>';
+      listaTecnicosGlobal.forEach(function(t) {
+        tecOptions += '<option value="' + t.idAdmin + '">' + t.nombre + '</option>';
+      });
+
+      var div = document.createElement('div');
+      div.id = 'dispFila_' + idx;
+      div.style.cssText = 'background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; position: relative;';
+
+      div.innerHTML = '' +
+        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">' +
+        '  <strong style="color: #4338ca; font-size: 0.95rem;">Equipo #' + idx + '</strong>' +
+        '  <button type="button" class="btn btn-danger btn-sm" onclick="eliminarFilaDispositivo(' + idx + ')">✕ Eliminar</button>' +
+        '</div>' +
+        '<div class="form-row">' +
+        '  <div class="form-col">' +
+        '    <label>Tipo de Dispositivo *</label>' +
+        '    <input type="text" class="input-control dev-tipo" placeholder="PlayStation 5, Xbox Series X, Switch OLED..." required>' +
+        '  </div>' +
+        '  <div class="form-col">' +
+        '    <label>Marca *</label>' +
+        '    <input type="text" class="input-control dev-marca" placeholder="Sony, Microsoft, Nintendo, Valve..." required>' +
+        '  </div>' +
+        '  <div class="form-col">' +
+        '    <label>Modelo:</label>' +
+        '    <input type="text" class="input-control dev-modelo" placeholder="CFI-1215A, Xbox One X...">'+
+        '  </div>' +
+        '</div>' +
+        '<div class="form-row">' +
+        '  <div class="form-col">' +
+        '    <label>Número de Serie *:</label>' +
+        '    <input type="text" class="input-control dev-serie" placeholder="Obligatorio para seguimiento único" required>' +
+        '  </div>' +
+        '  <div class="form-col">' +
+        '    <label>Color:</label>' +
+        '    <input type="text" class="input-control dev-color" placeholder="Blanco, Negro...">'+
+        '  </div>' +
+        '  <div class="form-col">' +
+        '    <label>Accesorios recibidos:</label>' +
+        '    <input type="text" class="input-control dev-accesorios" placeholder="Cables, control, caja...">'+
+        '  </div>' +
+        '</div>' +
+        '<div class="form-row">' +
+        '  <div class="form-col" style="flex: 2;">' +
+        '    <label>Falla reportada por el cliente *:</label>' +
+        '    <input type="text" class="input-control dev-falla" placeholder="No da video por HDMI, drift de mando..." required>' +
+        '  </div>' +
+        '  <div class="form-col">' +
+        '    <label>Costo Estimado Inicial ($):</label>' +
+        '    <input type="number" class="input-control dev-costo" step="0.5" min="0" placeholder="0">'+
+        '  </div>' +
+        '  <div class="form-col">' +
+        '    <label>Asignar Técnico:</label>' +
+        '    <select class="input-control dev-tecnico">' + tecOptions + '</select>' +
+        '  </div>' +
+        '</div>';
+
+      cont.appendChild(div);
+    }
+
+    function eliminarFilaDispositivo(idx) {
+      var cont = document.getElementById('contenedorFilasDispositivos');
+      if (cont.children.length <= 1) {
+        alert('La orden debe contener al menos un dispositivo.');
+        return;
+      }
+      var el = document.getElementById('dispFila_' + idx);
+      if (el) cont.removeChild(el);
+    }
+
+    function buscarClientesParaOrden() {
+      var q = document.getElementById('buscarClienteInput').value.trim();
+      var sug = document.getElementById('sugerenciasClientes');
+      if (!q) return;
+
+      var token = App.getToken();
+      sug.style.display = 'block';
+      sug.innerHTML = '<div style="padding: 0.5rem; font-size: 0.85rem; color: #64748b;">Buscando clientes...</div>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success || !res.data || res.data.length === 0) {
+            sug.innerHTML = '<div style="padding: 0.5rem; font-size: 0.85rem; color: #64748b;">No se encontraron clientes coincidentes.</div>';
+            return;
+          }
+
+          var html = '';
+          res.data.forEach(function(c) {
+            html += '<div onclick="seleccionarClienteOrden(\'' + c.idUsuario + '\', \'' + c.nombre.replace(/'/g, "\\'") + '\', \'' + c.correo + '\', \'' + c.telefono + '\', \'' + c.tipoUsuario + '\')" style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem;">';
+            html += '  <strong>' + c.nombre + '</strong> (' + c.tipoUsuario + ') - Tel: ' + c.telefono + ' - ' + c.correo;
+            html += '</div>';
+          });
+          sug.innerHTML = html;
+        })
+        .apiBuscarClientes(token, q);
+    }
+
+    function seleccionarClienteOrden(id, nombre, correo, tel, tipo) {
+      document.getElementById('ordenIdUsuario').value = id;
+      document.getElementById('ordenNombreCliente').value = nombre;
+      document.getElementById('ordenCorreo').value = correo;
+      document.getElementById('ordenTelefono').value = tel;
+      document.getElementById('tipoUsuarioOrden').value = tipo;
+      document.getElementById('sugerenciasClientes').style.display = 'none';
+      document.getElementById('buscarClienteInput').value = nombre;
+    }
+
+    function guardarNuevaOrden(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var btn = document.getElementById('btnGuardarOrden');
+      var contFilas = document.getElementById('contenedorFilasDispositivos').children;
+
+      if (contFilas.length === 0) {
+        alert('Debes agregar al menos un dispositivo.');
+        return;
+      }
+
+      var dispositivosList = [];
+      for (var i = 0; i < contFilas.length; i++) {
+        var f = contFilas[i];
+        var tecSel = f.querySelector('.dev-tecnico');
+        var tecId = tecSel.value;
+        var tecNom = (tecSel.selectedIndex >= 0 && tecId) ? tecSel.options[tecSel.selectedIndex].text : '';
+
+        dispositivosList.push({
+          tipoDispositivo: f.querySelector('.dev-tipo').value.trim(),
+          marca: f.querySelector('.dev-marca').value.trim(),
+          modelo: f.querySelector('.dev-modelo').value.trim(),
+          numeroSerie: f.querySelector('.dev-serie').value.trim(),
+          color: f.querySelector('.dev-color').value.trim(),
+          accesorios: f.querySelector('.dev-accesorios').value.trim(),
+          fallaReportada: f.querySelector('.dev-falla').value.trim(),
+          costoEstimado: f.querySelector('.dev-costo').value,
+          idTecnicoAsignado: tecId,
+          tecnicoAsignado: tecNom
+        });
+      }
+
+      var payload = {
+        idUsuario: document.getElementById('ordenIdUsuario').value,
+        tipoUsuario: document.getElementById('tipoUsuarioOrden').value,
+        nombreCliente: document.getElementById('ordenNombreCliente').value.trim(),
+        correoContacto: document.getElementById('ordenCorreo').value.trim(),
+        telefonoContacto: document.getElementById('ordenTelefono').value.trim(),
+        observaciones: document.getElementById('ordenObservaciones').value.trim(),
+        dispositivos: dispositivosList
+      };
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Registrando orden...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '💾 Registrar Orden de Servicio';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          alert('✅ ' + res.message);
+          var nuevaIdOrden = res.data && res.data.idOrden;
+          document.getElementById('formNuevaOrden').reset();
+          document.getElementById('contenedorFilasDispositivos').innerHTML = '';
+          contadorDispositivosNuevaOrden = 0;
+          agregarFilaDispositivo();
+          switchAdminTab('ordenes');
+          cargarOrdenesAdmin();
+          if (nuevaIdOrden && confirm('¿Deseas imprimir el Ticket Térmico de esta orden de servicio ahora?')) {
+            imprimirTicketOrden(nuevaIdOrden);
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '💾 Registrar Orden de Servicio';
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiCrearOrden(token, payload);
+    }
+
+    /* Puntos y Tarjetas NFC */
+    function cargarCatalogoRecompensasAdmin() {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) return;
+          var sel = document.getElementById('selectRecompensaCanje');
+          sel.innerHTML = '<option value="">Selecciona una recompensa...</option>';
+          (res.data || []).forEach(function(r) {
+            sel.innerHTML += '<option value="' + r.idRecompensa + '">' + r.nombre + ' (' + r.puntosRequeridos + ' pts)</option>';
+          });
+        })
+        .apiObtenerCatalogoRecompensas();
+    }
+
+    function escanearTagNfc() {
+      var statusEl = document.getElementById('statusLecturaNfc');
+      statusEl.innerHTML = '📲 Acérquese la tarjeta NFC al sensor del dispositivo...';
+
+      App.readNfcTag(function(uid) {
+        statusEl.innerHTML = '✅ Tarjeta detectada con UID: <strong>' + uid + '</strong>';
+        document.getElementById('inputBuscarNfcCliente').value = uid;
+        document.getElementById('inputNuevoUidNfc').value = uid;
+        buscarClientePorUidNfc(uid);
+      }, function(err) {
+        statusEl.innerHTML = '⚠️ ' + err;
+      });
+    }
+
+    function buscarClienteNfcManual() {
+      var criterio = document.getElementById('inputBuscarNfcCliente').value.trim();
+      if (!criterio) return;
+      buscarClientePorUidNfc(criterio);
+    }
+
+    function buscarClientePorUidNfc(criterio) {
+      var token = App.getToken();
+      var statusEl = document.getElementById('statusLecturaNfc');
+      statusEl.innerHTML = 'Buscando datos del cliente...';
+
+      // 1. Intentar por UID NFC
+      google.script.run
+        .withSuccessHandler(function(resNfc) {
+          if (resNfc.success && resNfc.data) {
+            statusEl.innerHTML = '✅ Cliente encontrado por tarjeta NFC.';
+            mostrarPanelClienteNfc(resNfc.data);
+          } else {
+            // 2. Fallback: Buscar por nombre/correo/teléfono
+            google.script.run
+              .withSuccessHandler(function(resCli) {
+                if (resCli.success && resCli.data && resCli.data.length > 0) {
+                  statusEl.innerHTML = '✅ Cliente encontrado.';
+                  // Cargar puntos del primer cliente coincidente
+                  cargarPuntosDetalleAdmin(resCli.data[0].idUsuario);
+                } else {
+                  statusEl.innerHTML = '🔍 No se encontró ningún cliente vinculado con: <strong>' + criterio + '</strong>. Si es una tarjeta nueva, búscala por nombre/correo y asígnala.';
+                }
+              })
+              .apiBuscarClientes(token, criterio);
+          }
+        })
+        .apiBuscarClientePorNFC(token, criterio);
+    }
+
+    function cargarPuntosDetalleAdmin(idUsuario) {
+      var token = App.getToken();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success && res.data) {
+            mostrarPanelClienteNfc(res.data);
+          }
+        })
+        .apiObtenerPuntosUsuarioAdmin(token, idUsuario);
+    }
+
+    function mostrarPanelClienteNfc(data) {
+      nfcClienteActual = data;
+      document.getElementById('panelClienteNfcActivo').style.display = 'block';
+      document.getElementById('nfcClienteNombre').innerText = data.nombre;
+      document.getElementById('nfcClienteInfo').innerText = data.correo + ' | Tel: ' + data.telefono;
+      document.getElementById('nfcClienteSaldo').innerText = data.puntosActuales + ' pts';
+
+      // Movimientos
+      var tbody = document.getElementById('tbodyNfcMovimientos');
+      var movs = data.movimientos || [];
+      if (movs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">Sin movimientos de puntos registrados.</td></tr>';
+      } else {
+        var html = '';
+        movs.forEach(function(m) {
+          var color = m.puntos > 0 ? '#10b981' : '#ef4444';
+          html += '<tr>';
+          html += '  <td>' + m.fechaHora + '</td>';
+          html += '  <td><span class="badge" style="background: #f1f5f9; color: #334155;">' + m.tipoMovimiento + '</span></td>';
+          html += '  <td style="font-weight: 700; color: ' + color + ';">' + (m.puntos > 0 ? '+' : '') + m.puntos + '</td>';
+          html += '  <td>' + m.saldoAnterior + '</td>';
+          html += '  <td><strong>' + m.saldoNuevo + '</strong></td>';
+          html += '  <td>' + m.motivo + '</td>';
+          html += '  <td style="font-size: 0.8rem; color: #64748b;">' + m.usuarioAdmin + '</td>';
+          html += '</tr>';
+        });
+        tbody.innerHTML = html;
+      }
+    }
+
+    function asociarNfcACliente() {
+      if (!nfcClienteActual) return;
+      var token = App.getToken();
+      var uid = document.getElementById('inputNuevoUidNfc').value.trim();
+      if (!uid) {
+        alert('Ingresa o escanea un UID de tarjeta NFC.');
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          alert('✅ ' + res.message);
+          cargarPuntosDetalleAdmin(nfcClienteActual.idUsuario);
+        })
+        .apiAsociarEtiquetaNFC(token, nfcClienteActual.idUsuario, uid);
+    }
+
+    function ejecutarAsignacionPuntos() {
+      if (!nfcClienteActual) return;
+      var token = App.getToken();
+      var pts = document.getElementById('inputPuntosAsignar').value;
+      var motivo = document.getElementById('inputMotivoAsignar').value.trim();
+
+      if (!pts || !motivo) {
+        alert('Ingresa la cantidad de puntos y el motivo.');
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          alert('✅ ' + res.message);
+          document.getElementById('inputPuntosAsignar').value = '';
+          document.getElementById('inputMotivoAsignar').value = '';
+          cargarPuntosDetalleAdmin(nfcClienteActual.idUsuario);
+        })
+        .apiAsignarPuntos(token, nfcClienteActual.idUsuario, pts, motivo, '', '');
+    }
+
+    function ejecutarCanjePuntos() {
+      if (!nfcClienteActual) return;
+      var token = App.getToken();
+      var idRec = document.getElementById('selectRecompensaCanje').value;
+
+      if (!idRec) {
+        alert('Selecciona una recompensa del catálogo.');
+        return;
+      }
+
+      if (!confirm('¿Confirmas el canje de esta recompensa para el cliente? Se descontarán los puntos de su saldo.')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          alert('✅ ' + res.message);
+          cargarPuntosDetalleAdmin(nfcClienteActual.idUsuario);
+        })
+        .apiCanjearPuntos(token, nfcClienteActual.idUsuario, idRec, 'Canje en mostrador');
+    }
+
+    /* Gestión de Staff (Usuarios Admin / Técnico) */
+    function cargarStaffAdmin() {
+      var token = App.getToken();
+      var tbody = document.getElementById('tbodyStaffAdmin');
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando staff...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            tbody.innerHTML = '<tr><td colspan="8" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            return;
+          }
+
+          var staff = res.data || [];
+          var html = '';
+          staff.forEach(function(u) {
+            var esActivo = (String(u.activo).toUpperCase() === 'SI');
+            var btnToggle = esActivo ?
+              '<button class="btn btn-danger btn-sm" onclick="cambiarEstadoStaff(\'' + u.idAdmin + '\', false)">Desactivar</button>' :
+              '<button class="btn btn-success btn-sm" onclick="cambiarEstadoStaff(\'' + u.idAdmin + '\', true)">Activar</button>';
+
+            html += '<tr>';
+            html += '  <td><strong>' + u.nombre + '</strong></td>';
+            html += '  <td>' + u.correo + '</td>';
+            html += '  <td>' + (u.telefono || 'N/A') + '</td>';
+            html += '  <td><span class="badge" style="background: ' + (u.rol === 'Administrador' ? '#fee2e2; color: #991b1b;' : '#e0e7ff; color: #3730a3;') + '">' + u.rol + '</span></td>';
+            html += '  <td>' + (esActivo ? '<span style="color:#059669; font-weight:bold;">ACTIVO</span>' : '<span style="color:#dc2626; font-weight:bold;">INACTIVO</span>') + '</td>';
+            html += '  <td style="font-size: 0.8rem;">' + u.fechaCreacion + '</td>';
+            html += '  <td style="font-size: 0.8rem; color: #64748b;">' + u.creadoPor + '</td>';
+            html += '  <td>' + btnToggle + '</td>';
+            html += '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .apiListarUsuariosAdmin(token);
+    }
+
+    function abrirModalNuevoStaff() {
+      document.getElementById('modalNuevoStaff').style.display = 'flex';
+    }
+
+    function cerrarModalNuevoStaff() {
+      document.getElementById('modalNuevoStaff').style.display = 'none';
+      document.getElementById('formNuevoStaff').reset();
+    }
+
+    function guardarNuevoStaff(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var btn = document.getElementById('btnGuardarStaff');
+
+      var payload = {
+        rol: document.getElementById('staffRol').value,
+        nombre: document.getElementById('staffNombre').value.trim(),
+        correo: document.getElementById('staffCorreo').value.trim(),
+        telefono: document.getElementById('staffTelefono').value.trim(),
+        password: document.getElementById('staffPass').value
+      };
+
+      btn.disabled = true;
+      btn.innerHTML = 'Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Crear Usuario';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          alert('✅ ' + res.message);
+          cerrarModalNuevoStaff();
+          cargarStaffAdmin();
+          cargarTecnicosCombo();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Crear Usuario';
+          alert('Error: ' + err.message);
+        })
+        .apiCrearUsuarioAdmin(token, payload);
+    }
+
+    function cambiarEstadoStaff(idAdmin, nuevoEstado) {
+      var token = App.getToken();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          cargarStaffAdmin();
+          cargarTecnicosCombo();
+        })
+        .apiCambiarEstadoAdmin(token, idAdmin, nuevoEstado);
+    }
+
+    /* ========================================================
+     * GESTIÓN DE RECOMPENSAS Y CANJES (CRUD COMPLETO)
+     * ======================================================== */
+    var listaRecompensasGlobal = [];
+
+    function cargarRecompensasAdmin() {
+      var token = App.getToken();
+      var tbody = document.getElementById('tbodyRecompensasAdmin');
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><span class="spinner" style="border-top-color: #6366f1;"></span> Cargando recompensas...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            tbody.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            return;
+          }
+
+          listaRecompensasGlobal = res.data || [];
+          if (listaRecompensasGlobal.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No hay recompensas registradas en el catálogo. Haz clic en "+ Nueva Recompensa" para agregar una.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          listaRecompensasGlobal.forEach(function(r) {
+            var esActivo = (String(r.activo).toUpperCase() === 'SI');
+            var badgeEstado = esActivo ?
+              '<span class="badge" style="background: #d1fae5; color: #065f46;">ACTIVO</span>' :
+              '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
+
+            var btnToggle = esActivo ?
+              '<button type="button" class="btn btn-secondary btn-sm btn-toggle-rec" data-id="' + r.idRecompensa + '" data-accion="desactivar" style="color: #991b1b;">Desactivar</button>' :
+              '<button type="button" class="btn btn-success btn-sm btn-toggle-rec" data-id="' + r.idRecompensa + '" data-accion="activar">Activar</button>';
+
+            html += '<tr>';
+            html += '  <td><code>' + r.idRecompensa + '</code></td>';
+            html += '  <td><strong>' + r.nombre + '</strong></td>';
+            html += '  <td><strong style="color: #4f46e5; font-size: 1rem;">' + Number(r.puntosRequeridos).toLocaleString() + ' pts</strong></td>';
+            html += '  <td style="max-width: 250px; font-size: 0.85rem; color: #475569;">' + (r.descripcion || '<em style="color:#94a3b8;">Sin descripción</em>') + '</td>';
+            html += '  <td><span style="font-weight: 600; color: #64748b;">#' + r.orden + '</span></td>';
+            html += '  <td>' + badgeEstado + '</td>';
+            html += '  <td style="white-space: nowrap;">';
+            html += '    <button type="button" class="btn btn-primary btn-sm btn-edit-rec" data-id="' + r.idRecompensa + '" style="margin-right: 4px;">✏️ Editar</button>';
+            html += btnToggle;
+            html += '  </td>';
+            html += '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          tbody.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center;">Error al conectar: ' + err.message + '</td></tr>';
+        })
+        .apiListarRecompensasAdmin(token);
+    }
+
+    function abrirModalNuevaRecompensa() {
+      document.getElementById('modalRecompensaTitulo').innerText = 'Nueva Recompensa para Canje';
+      document.getElementById('formRecompensa').reset();
+      document.getElementById('recId').value = '';
+      document.getElementById('recActivo').value = 'SI';
+      document.getElementById('recOrden').value = (listaRecompensasGlobal.length + 1);
+      document.getElementById('modalRecompensa').style.display = 'flex';
+    }
+
+    function abrirModalEditarRecompensa(idRec) {
+      var r = listaRecompensasGlobal.find(function(x) { return x.idRecompensa === idRec; });
+      if (!r) return;
+
+      document.getElementById('modalRecompensaTitulo').innerText = 'Editar Recompensa (' + r.idRecompensa + ')';
+      document.getElementById('recId').value = r.idRecompensa;
+      document.getElementById('recNombre').value = r.nombre;
+      document.getElementById('recPuntos').value = r.puntosRequeridos;
+      document.getElementById('recOrden').value = r.orden || 1;
+      document.getElementById('recActivo').value = r.activo || 'SI';
+      document.getElementById('recDescripcion').value = r.descripcion || '';
+
+      document.getElementById('modalRecompensa').style.display = 'flex';
+    }
+
+    function cerrarModalRecompensa() {
+      document.getElementById('modalRecompensa').style.display = 'none';
+      document.getElementById('formRecompensa').reset();
+    }
+
+    function guardarRecompensaAdmin(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var btn = document.getElementById('btnGuardarRecompensa');
+
+      var payload = {
+        idRecompensa: document.getElementById('recId').value.trim(),
+        nombre: document.getElementById('recNombre').value.trim(),
+        puntosRequeridos: document.getElementById('recPuntos').value,
+        orden: document.getElementById('recOrden').value,
+        activo: document.getElementById('recActivo').value,
+        descripcion: document.getElementById('recDescripcion').value.trim()
+      };
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Recompensa';
+
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+
+          alert('✅ ' + res.message);
+          cerrarModalRecompensa();
+          cargarRecompensasAdmin();
+          cargarCatalogoRecompensasAdmin();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Guardar Recompensa';
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiGuardarRecompensa(token, payload);
+    }
+
+    function toggleEstadoRecompensa(idRec, nuevoEstado) {
+      var token = App.getToken();
+      var accionStr = nuevoEstado ? 'activar' : 'desactivar';
+      if (!confirm('¿Deseas ' + accionStr + ' esta recompensa del catálogo?')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          cargarRecompensasAdmin();
+          cargarCatalogoRecompensasAdmin();
+        })
+        .withFailureHandler(function(err) {
+          alert('Error al actualizar estado: ' + err.message);
+        })
+        .apiCambiarEstadoRecompensa(token, idRec, nuevoEstado);
+    }
+
+    // Delegación de eventos para la tabla de recompensas (Editar y Activar/Desactivar)
+    document.addEventListener('DOMContentLoaded', function() {
+      var tbodyRec = document.getElementById('tbodyRecompensasAdmin');
+      if (tbodyRec) {
+        tbodyRec.addEventListener('click', function(e) {
+          var btnEdit = e.target.closest('.btn-edit-rec');
+          if (btnEdit) {
+            var idEdit = btnEdit.getAttribute('data-id');
+            if (idEdit) {
+              abrirModalEditarRecompensa(idEdit);
+            }
+            return;
+          }
+
+          var btnToggle = e.target.closest('.btn-toggle-rec');
+          if (btnToggle) {
+            var idToggle = btnToggle.getAttribute('data-id');
+            var accion = btnToggle.getAttribute('data-accion');
+            if (idToggle) {
+              toggleEstadoRecompensa(idToggle, accion === 'activar');
+            }
+            return;
+          }
+        });
+      }
+    });
+
+    /* ========================================================
+       SISTEMA DE CONFIGURACIÓN E IMPRESIÓN DE TICKETS/ETIQUETAS
+       ======================================================== */
+    var configuracionTallerActual = {
+      nombreTaller: 'PixelFix - Taller de Consolas',
+      logoUrl: '',
+      iconoUrl: '',
+      videoUrl: '',
+      videosCarrusel: [],
+      leyendaTicket: 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
+      mostrarLogoTicket: true,
+      mostrarClienteTicket: true,
+      mostrarTelefonoTicket: true,
+      mostrarResponsableTicket: true,
+      mostrarDispositivosTicket: true,
+      mostrarFallasTicket: true,
+      mostrarDiagnosticoTicket: true,
+      mostrarCostosTicket: true,
+      mostrarFolioEtiqueta: true,
+      mostrarDispositivoEtiqueta: true,
+      mostrarDiagnosticoEtiqueta: true,
+      mostrarSerieEtiqueta: true
+    };
+
+    function cargarConfiguracionTaller() {
+      var token = App.getToken();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success && res.data) {
+            configuracionTallerActual = Object.assign(configuracionTallerActual, res.data);
+            poblarFormularioConfiguracion();
+            renderizarTablaVideosConfig();
+          }
+        })
+        .withFailureHandler(function(err) {
+          console.warn('Error cargando configuración:', err);
+        })
+        .apiObtenerConfiguracionAdmin(token);
+    }
+
+    function poblarFormularioConfiguracion() {
+      var conf = configuracionTallerActual || {};
+      App.aplicarIdentidad(conf);
+      if (document.getElementById('configNombreTaller')) document.getElementById('configNombreTaller').value = conf.nombreTaller || '';
+      if (document.getElementById('configLogoUrl')) document.getElementById('configLogoUrl').value = conf.logoUrl || '';
+      if (document.getElementById('configIconoUrl')) document.getElementById('configIconoUrl').value = conf.iconoUrl || '';
+      if (document.getElementById('configVideoUrl')) document.getElementById('configVideoUrl').value = conf.videoUrl || '';
+      if (document.getElementById('configLeyendaTicket')) document.getElementById('configLeyendaTicket').value = conf.leyendaTicket || '';
+
+      if (document.getElementById('chkTicketLogo')) document.getElementById('chkTicketLogo').checked = conf.mostrarLogoTicket !== false;
+      if (document.getElementById('chkTicketCliente')) document.getElementById('chkTicketCliente').checked = conf.mostrarClienteTicket !== false;
+      if (document.getElementById('chkTicketTelefono')) document.getElementById('chkTicketTelefono').checked = conf.mostrarTelefonoTicket !== false;
+      if (document.getElementById('chkTicketResponsable')) document.getElementById('chkTicketResponsable').checked = conf.mostrarResponsableTicket !== false;
+      if (document.getElementById('chkTicketDispositivos')) document.getElementById('chkTicketDispositivos').checked = conf.mostrarDispositivosTicket !== false;
+      if (document.getElementById('chkTicketFallas')) document.getElementById('chkTicketFallas').checked = conf.mostrarFallasTicket !== false;
+      if (document.getElementById('chkTicketDiagnostico')) document.getElementById('chkTicketDiagnostico').checked = conf.mostrarDiagnosticoTicket !== false;
+      if (document.getElementById('chkTicketCostos')) document.getElementById('chkTicketCostos').checked = conf.mostrarCostosTicket !== false;
+
+      if (document.getElementById('chkEtiquetaFolio')) document.getElementById('chkEtiquetaFolio').checked = conf.mostrarFolioEtiqueta !== false;
+      if (document.getElementById('chkEtiquetaDispositivo')) document.getElementById('chkEtiquetaDispositivo').checked = conf.mostrarDispositivoEtiqueta !== false;
+      if (document.getElementById('chkEtiquetaDiagnostico')) document.getElementById('chkEtiquetaDiagnostico').checked = conf.mostrarDiagnosticoEtiqueta !== false;
+      if (document.getElementById('chkEtiquetaSerie')) document.getElementById('chkEtiquetaSerie').checked = conf.mostrarSerieEtiqueta !== false;
+
+      actualizarPreviaLogo();
+      actualizarPreviaIcono();
+    }
+
+    function actualizarPreviaLogo() {
+      var input = document.getElementById('configLogoUrl');
+      var url = input ? input.value.trim() : '';
+      var img = document.getElementById('imgPreviaLogo');
+      var txt = document.getElementById('txtSinLogo');
+      if (url) {
+        img.src = url;
+        img.style.display = 'block';
+        txt.style.display = 'none';
+      } else {
+        img.src = '';
+        img.style.display = 'none';
+        txt.style.display = 'block';
+      }
+    }
+
+    function actualizarPreviaIcono() {
+      var input = document.getElementById('configIconoUrl');
+      var url = input ? input.value.trim() : '';
+      var img = document.getElementById('imgPreviaIcono');
+      var txt = document.getElementById('txtSinIcono');
+      if (url) {
+        img.src = url;
+        img.style.display = 'block';
+        txt.style.display = 'none';
+        aplicarIconoEnPagina(url);
+      } else {
+        img.src = '';
+        img.style.display = 'none';
+        txt.style.display = 'block';
+      }
+    }
+
+    function aplicarIconoEnPagina(url) {
+      if (!url) return;
+      var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+      link.type = 'image/x-icon';
+      link.rel = 'shortcut icon';
+      link.href = url;
+      document.getElementsByTagName('head')[0].appendChild(link);
+
+      var brandIcon = document.getElementById('navBrandIcon');
+      if (brandIcon) {
+        brandIcon.innerHTML = '<img src="' + url + '" alt="Icono" style="width: 24px; height: 24px; object-fit: contain; vertical-align: middle; border-radius: 4px;">';
+      }
+    }
+
+    function procesarSubidaImagen(event, tipo) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      var statusEl = document.getElementById(tipo === 'icono' ? 'statusUploadIcono' : 'statusUploadLogo');
+      var allowedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'];
+      var ext = file.name.substring(file.name.lastIndexOf('.') + 1).toLowerCase();
+
+      if (allowedExtensions.indexOf(ext) === -1) {
+        alert('Formato de archivo no válido (' + ext + '). Formatos admitidos: PNG, JPG, JPEG, WEBP, GIF, BMP.');
+        event.target.value = '';
+        return;
+      }
+
+      var maxBytes = (tipo === 'icono') ? (500 * 1024) : (1024 * 1024); // 500KB para icono, 1MB para logo
+      if (file.size > maxBytes) {
+        alert('El archivo excede el tamaño máximo permitido (' + Math.round(maxBytes / 1024) + ' KB). Por favor optimiza la imagen.');
+        event.target.value = '';
+        return;
+      }
+
+      if (statusEl) statusEl.innerHTML = '⏳ Subiendo y procesando imagen...';
+
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var base64 = e.target.result;
+        var token = App.getToken();
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (statusEl) statusEl.innerHTML = '';
+            event.target.value = '';
+            if (!res.success) {
+              alert('Error al subir: ' + res.error);
+              return;
+            }
+            if (tipo === 'icono') {
+              document.getElementById('configIconoUrl').value = res.data.url;
+              actualizarPreviaIcono();
+            } else {
+              document.getElementById('configLogoUrl').value = res.data.url;
+              actualizarPreviaLogo();
+            }
+            if (statusEl) statusEl.innerHTML = '✅ Archivo cargado correctamente.';
+            setTimeout(function() { if (statusEl) statusEl.innerHTML = ''; }, 3500);
+          })
+          .withFailureHandler(function(err) {
+            if (statusEl) statusEl.innerHTML = '';
+            event.target.value = '';
+            alert('Error de conexión al subir imagen: ' + err.message);
+          })
+          .apiSubirImagenConfig(token, {
+            nombre: file.name,
+            mimeType: file.type || ('image/' + ext),
+            base64: base64,
+            tipoDestino: tipo
+          });
+      };
+      reader.onerror = function() {
+        if (statusEl) statusEl.innerHTML = '';
+        alert('Error al leer el archivo en el navegador.');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function validarFormatoFrontend(urlOTexto) {
+      if (!urlOTexto) return true;
+      var str = String(urlOTexto).trim();
+      if (!str) return true;
+      if (/^data:image\/(png|jpe?g|pjpeg|webp|gif|bmp|x-ms-bmp|x-bmp);base64,/i.test(str) || str.indexOf('data:image/') === 0) return true;
+      if (/googleusercontent\.com/i.test(str) || /drive\.google\.com/i.test(str)) return true;
+      var regexExt = /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i;
+      return regexExt.test(str);
+    }
+
+    function guardarConfiguracionSistema(e) {
+      if (e) e.preventDefault();
+      var token = App.getToken();
+      var logoVal = (document.getElementById('configLogoUrl') ? document.getElementById('configLogoUrl').value : '').trim();
+      var iconoVal = (document.getElementById('configIconoUrl') ? document.getElementById('configIconoUrl').value : '').trim();
+
+      if (logoVal && !validarFormatoFrontend(logoVal)) {
+        alert('El Logo debe ser una URL de imagen válida (PNG, JPG, JPEG, WEBP, GIF, BMP) o DataURI.');
+        return;
+      }
+      if (iconoVal && !validarFormatoFrontend(iconoVal)) {
+        alert('El Ícono debe ser una URL de imagen válida (PNG, JPG, JPEG, WEBP, GIF, BMP) o DataURI.');
+        return;
+      }
+
+      var conf = {
+        nombreTaller: (document.getElementById('configNombreTaller') ? document.getElementById('configNombreTaller').value : '').trim(),
+        logoUrl: logoVal,
+        iconoUrl: iconoVal,
+        videoUrl: (document.getElementById('configVideoUrl') ? document.getElementById('configVideoUrl').value : '').trim(),
+        leyendaTicket: (document.getElementById('configLeyendaTicket') ? document.getElementById('configLeyendaTicket').value : '').trim(),
+        mostrarLogoTicket: document.getElementById('chkTicketLogo') ? document.getElementById('chkTicketLogo').checked : true,
+        mostrarClienteTicket: document.getElementById('chkTicketCliente') ? document.getElementById('chkTicketCliente').checked : true,
+        mostrarTelefonoTicket: document.getElementById('chkTicketTelefono') ? document.getElementById('chkTicketTelefono').checked : true,
+        mostrarResponsableTicket: document.getElementById('chkTicketResponsable') ? document.getElementById('chkTicketResponsable').checked : true,
+        mostrarDispositivosTicket: document.getElementById('chkTicketDispositivos') ? document.getElementById('chkTicketDispositivos').checked : true,
+        mostrarFallasTicket: document.getElementById('chkTicketFallas') ? document.getElementById('chkTicketFallas').checked : true,
+        mostrarDiagnosticoTicket: document.getElementById('chkTicketDiagnostico') ? document.getElementById('chkTicketDiagnostico').checked : true,
+        mostrarCostosTicket: document.getElementById('chkTicketCostos') ? document.getElementById('chkTicketCostos').checked : true,
+        mostrarFolioEtiqueta: document.getElementById('chkEtiquetaFolio') ? document.getElementById('chkEtiquetaFolio').checked : true,
+        mostrarDispositivoEtiqueta: document.getElementById('chkEtiquetaDispositivo') ? document.getElementById('chkEtiquetaDispositivo').checked : true,
+        mostrarDiagnosticoEtiqueta: document.getElementById('chkEtiquetaDiagnostico') ? document.getElementById('chkEtiquetaDiagnostico').checked : true,
+        mostrarSerieEtiqueta: document.getElementById('chkEtiquetaSerie') ? document.getElementById('chkEtiquetaSerie').checked : true,
+        videosCarrusel: configuracionTallerActual.videosCarrusel || []
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            alert('Error: ' + res.error);
+            return;
+          }
+          configuracionTallerActual = Object.assign(configuracionTallerActual, conf);
+
+          // Actualizar inmediatamente cache local y propagar a la vista actual
+          try {
+            var publicConf = {
+              nombreTaller: conf.nombreTaller,
+              logoUrl: conf.logoUrl,
+              iconoUrl: conf.iconoUrl,
+              videoUrl: conf.videoUrl,
+              leyendaTicket: conf.leyendaTicket
+            };
+            localStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(publicConf));
+            sessionStorage.setItem(App.STORAGE_KEYS.PUBLIC_CONFIG, JSON.stringify(publicConf));
+            App.aplicarIdentidad(publicConf);
+          } catch (eSync) {}
+
+          alert('✅ Configuración guardada correctamente');
+        })
+        .withFailureHandler(function(err) {
+          alert('Error de conexión: ' + err.message);
+        })
+        .apiGuardarConfiguracionAdmin(token, conf);
+    }
+
+    /* Gestión de Videos del Carrusel */
+    function renderizarTablaVideosConfig() {
+      var tbody = document.getElementById('tbodyConfigVideos');
+      var videos = configuracionTallerActual.videosCarrusel || [];
+      if (videos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No hay videos configurados en el carrusel. Haz clic en "+ Agregar Video" para añadir uno.</td></tr>';
+        return;
+      }
+
+      var html = '';
+      videos.forEach(function(v, idx) {
+        var esYT = (v.url || '').indexOf('youtube') !== -1 || (v.url || '').indexOf('youtu.be') !== -1;
+        var badgeTipo = esYT ? '<span class="badge" style="background: #fee2e2; color: #991b1b;">YouTube</span>' : '<span class="badge" style="background: #dbeafe; color: #1e40af;">Video MP4</span>';
+        var badgeActivo = (v.activo !== false && v.activo !== 'NO') ? '<span class="badge" style="background: #d1fae5; color: #065f46;">ACTIVO</span>' : '<span class="badge" style="background: #fee2e2; color: #991b1b;">INACTIVO</span>';
+
+        html += '<tr>';
+        html += '  <td>' + badgeTipo + '</td>';
+        html += '  <td><strong>' + (v.titulo || 'Sin título') + '</strong></td>';
+        html += '  <td><a href="' + v.url + '" target="_blank" style="font-size: 0.8rem; color: #4338ca; max-width: 180px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + v.url + '</a></td>';
+        html += '  <td>' + (v.descripcion || '-') + '</td>';
+        html += '  <td>' + badgeActivo + '</td>';
+        html += '  <td style="white-space: nowrap;">';
+        html += '    <button class="btn btn-secondary btn-sm" onclick="editarVideoCarrusel(' + idx + ')">✏️</button> ';
+        html += '    <button class="btn btn-danger btn-sm" onclick="eliminarVideoCarrusel(' + idx + ')">🗑️</button>';
+        html += '  </td>';
+        html += '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function abrirModalVideoCarrusel() {
+      document.getElementById('videoCarruselIndice').value = '-1';
+      document.getElementById('videoCarruselTitulo').value = '';
+      document.getElementById('videoCarruselUrl').value = '';
+      document.getElementById('videoCarruselDesc').value = '';
+      document.getElementById('videoCarruselActivo').checked = true;
+      document.getElementById('modalVideoTitulo').innerText = 'Nuevo Video del Carrusel';
+      document.getElementById('modalVideoCarrusel').style.display = 'flex';
+    }
+
+    function cerrarModalVideoCarrusel() {
+      document.getElementById('modalVideoCarrusel').style.display = 'none';
+    }
+
+    function editarVideoCarrusel(idx) {
+      var v = configuracionTallerActual.videosCarrusel[idx];
+      if (!v) return;
+      document.getElementById('videoCarruselIndice').value = idx;
+      document.getElementById('videoCarruselTitulo').value = v.titulo || '';
+      document.getElementById('videoCarruselUrl').value = v.url || '';
+      document.getElementById('videoCarruselDesc').value = v.descripcion || '';
+      document.getElementById('videoCarruselActivo').checked = (v.activo !== false && v.activo !== 'NO');
+      document.getElementById('modalVideoTitulo').innerText = 'Editar Video del Carrusel';
+      document.getElementById('modalVideoCarrusel').style.display = 'flex';
+    }
+
+    function guardarVideoCarrusel(e) {
+      e.preventDefault();
+      var idx = parseInt(document.getElementById('videoCarruselIndice').value, 10);
+      var videoObj = {
+        titulo: document.getElementById('videoCarruselTitulo').value.trim(),
+        url: document.getElementById('videoCarruselUrl').value.trim(),
+        descripcion: document.getElementById('videoCarruselDesc').value.trim(),
+        activo: document.getElementById('videoCarruselActivo').checked
+      };
+
+      if (!configuracionTallerActual.videosCarrusel) {
+        configuracionTallerActual.videosCarrusel = [];
+      }
+
+      if (idx >= 0 && idx < configuracionTallerActual.videosCarrusel.length) {
+        configuracionTallerActual.videosCarrusel[idx] = videoObj;
+      } else {
+        configuracionTallerActual.videosCarrusel.push(videoObj);
+      }
+
+      cerrarModalVideoCarrusel();
+      renderizarTablaVideosConfig();
+      guardarConfiguracionSistema();
+    }
+
+    function eliminarVideoCarrusel(idx) {
+      if (!confirm('¿Seguro que deseas eliminar este video del carrusel?')) return;
+      configuracionTallerActual.videosCarrusel.splice(idx, 1);
+      renderizarTablaVideosConfig();
+      guardarConfiguracionSistema();
+    }
+
+    /* Impresión de Tickets y Etiquetas */
+    function imprimirTicketOrden(idOrden) {
+      var ord = null;
+      if (ordenSeleccionadaActual && ordenSeleccionadaActual.orden.idOrden === idOrden) {
+        ord = ordenSeleccionadaActual;
+        construirTicketHTML(ord);
+      } else {
+        var token = App.getToken();
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (!res.success) {
+              alert('Error obteniendo orden: ' + res.error);
+              return;
+            }
+            construirTicketHTML(res.data);
+          })
+          .withFailureHandler(function(err) {
+            alert('Error al consultar datos de la orden: ' + err.message);
+          })
+          .apiObtenerDetalleOrden(token, idOrden);
+      }
+    }
+
+    function construirTicketHTML(data) {
+      var o = data.orden;
+      var devs = data.dispositivos || [];
+      var conf = configuracionTallerActual;
+
+      document.getElementById('modalTicketTitulo').innerText = 'Ticket Térmico - ' + o.folio;
+
+      var logoHTML = (conf.mostrarLogoTicket && conf.logoUrl) ?
+        '<img src="' + conf.logoUrl + '" class="ticket-logo" alt="Logo">' : '';
+
+      var html = '';
+      html += logoHTML;
+      html += '<div class="ticket-header">';
+      html += '  <div class="ticket-title">' + (conf.nombreTaller || 'PixelFix - Taller de Consolas') + '</div>';
+      html += '  <div style="font-size: 10px;">ORDEN DE SERVICIO TÉCNICO</div>';
+      html += '  <div class="ticket-folio">' + o.folio + '</div>';
+      html += '  <div style="font-size: 9.5px;">Fecha: ' + (o.fechaCreacion || '-') + '</div>';
+      html += '</div>';
+
+      html += '<div class="ticket-divider"></div>';
+
+      if (conf.mostrarClienteTicket) {
+        html += '<div class="ticket-row"><span class="ticket-row-title">CLIENTE:</span><span>' + o.nombreCliente + '</span></div>';
+      }
+      if (conf.mostrarTelefonoTicket && o.telefonoContacto) {
+        html += '<div class="ticket-row"><span class="ticket-row-title">TELÉFONO:</span><span>' + o.telefonoContacto + '</span></div>';
+      }
+      if (conf.mostrarResponsableTicket && o.nombreResponsable) {
+        html += '<div class="ticket-row"><span class="ticket-row-title">RESP. SOLIDARIO:</span><span>' + o.nombreResponsable + '</span></div>';
+      }
+
+      html += '<div class="ticket-divider"></div>';
+      html += '<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">EQUIPOS REGISTRADOS (' + devs.length + ')</div>';
+
+      devs.forEach(function(d, i) {
+        html += '<div class="ticket-item">';
+        html += '  <div style="font-weight: bold;">#' + (i + 1) + ' ' + (d.tipoDispositivo || 'Consola') + ' ' + (d.marca || '') + ' ' + (d.modelo || '') + '</div>';
+        if (d.numeroSerie) {
+          html += '  <div style="font-size: 9px; color: #333;">S/N: ' + d.numeroSerie + '</div>';
+        }
+        if (conf.mostrarFallasTicket && d.fallaReportada) {
+          html += '  <div style="font-size: 9.5px;"><strong>FALLA:</strong> ' + d.fallaReportada + '</div>';
+        }
+        if (conf.mostrarDiagnosticoTicket && d.diagnostico) {
+          html += '  <div style="font-size: 9.5px;"><strong>DIAG:</strong> ' + d.diagnostico + '</div>';
+        }
+        if (conf.mostrarCostosTicket) {
+          var costoDev = (d.costoFinal != null && d.costoFinal !== '') ? d.costoFinal : d.costoEstimado;
+          html += '  <div style="text-align: right; font-weight: bold;">Costo: ' + App.formatCurrency(costoDev) + '</div>';
+        }
+        html += '</div>';
+      });
+
+      if (conf.mostrarCostosTicket) {
+        html += '<div class="ticket-divider"></div>';
+        html += '<div class="ticket-row"><span class="ticket-row-title">TOTAL ESTIMADO:</span><span style="font-weight: bold;">' + App.formatCurrency(o.totalEstimado) + '</span></div>';
+        html += '<div class="ticket-row"><span class="ticket-row-title">TOTAL COBRADO:</span><span>' + App.formatCurrency(o.totalCobrado) + '</span></div>';
+        html += '<div class="ticket-row" style="font-size: 12px; font-weight: 900;"><span class="ticket-row-title">SALDO PENDIENTE:</span><span>' + App.formatCurrency(o.saldo) + '</span></div>';
+      }
+
+      html += '<div class="ticket-divider"></div>';
+      html += '<div class="ticket-legal">' + (conf.leyendaTicket || '') + '</div>';
+      html += '<div style="text-align: center; font-size: 9px; margin-top: 6px;">¡Gracias por su preferencia!</div>';
+
+      document.getElementById('contenedorTicketTermico').innerHTML = html;
+      document.getElementById('modalTicketTermico').style.display = 'flex';
+    }
+
+    function cerrarModalTicket() {
+      document.getElementById('modalTicketTermico').style.display = 'none';
+    }
+
+    /* Etiqueta Reducida Individual para Consola */
+    function imprimirEtiquetaConsola(idDispositivo) {
+      if (!ordenSeleccionadaActual) return;
+      var ord = ordenSeleccionadaActual.orden;
+      var dev = (ordenSeleccionadaActual.dispositivos || []).find(function(d) {
+        return String(d.idDispositivo) === String(idDispositivo);
+      });
+      if (!dev) return;
+
+      document.getElementById('modalEtiquetaTitulo').innerText = 'Etiqueta Individual - ' + ord.folio;
+
+      var nombreDispositivo = [dev.tipoDispositivo, dev.marca, dev.modelo].filter(Boolean).join(' ') || 'Dispositivo';
+      var diagnosticoTexto = dev.diagnostico || dev.fallaReportada || 'Pendiente de diagnóstico';
+      var numSerieTexto = dev.numeroSerie || 'S/N';
+
+      var conf = configuracionTallerActual || {};
+      var html = '';
+      if (conf.mostrarFolioEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Número de Orden de Servicio:</strong> ' + ord.folio + '</div>';
+      }
+      if (conf.mostrarDispositivoEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Dispositivo:</strong> ' + nombreDispositivo + '</div>';
+      }
+      if (conf.mostrarDiagnosticoEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Diagnóstico:</strong> ' + diagnosticoTexto + '</div>';
+      }
+      if (conf.mostrarSerieEtiqueta !== false) {
+        html += '<div class="etiqueta-campo"><strong>Número de Serie:</strong> ' + numSerieTexto + '</div>';
+      }
+
+      document.getElementById('contenedorEtiquetaConsola').innerHTML = html;
+      document.getElementById('modalEtiquetaConsola').style.display = 'flex';
+    }
+
+    function cerrarModalEtiqueta() {
+      document.getElementById('modalEtiquetaConsola').style.display = 'none';
+    }
+
+    function imprimirElemento(idElemento) {
+      var el = document.getElementById(idElemento);
+      if (!el) return;
+      var areaPrint = document.getElementById('impresionAreaPrint');
+      areaPrint.innerHTML = '';
+      var clon = el.cloneNode(true);
+      areaPrint.appendChild(clon);
+      areaPrint.style.display = 'block';
+
+      setTimeout(function() {
+        window.print();
+        setTimeout(function() {
+          areaPrint.style.display = 'none';
+          areaPrint.innerHTML = '';
+        }, 300);
+      }, 50);
+    }
+
+  </script>
+
+    <!-- MODAL TICKET TÉRMICO CONTINUO -->
+    <div id="modalTicketTermico" class="modal-overlay">
+      <div class="modal-box" style="max-width: 480px;">
+        <div class="modal-header">
+          <h3 id="modalTicketTitulo" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Ticket Térmico</h3>
+          <button type="button" class="modal-close" onclick="cerrarModalTicket()">&times;</button>
+        </div>
+        <div style="background: #f1f5f9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; max-height: 60vh; overflow-y: auto;">
+          <div id="contenedorTicketTermico" class="ticket-termico">
+            <!-- Contenido dinámico del ticket -->
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalTicket()">Cerrar</button>
+          <button type="button" class="btn btn-primary" onclick="imprimirElemento('contenedorTicketTermico')">🖨️ Mandar a Imprimir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL ETIQUETA REDUCIDA INDIVIDUAL -->
+    <div id="modalEtiquetaConsola" class="modal-overlay">
+      <div class="modal-box" style="max-width: 420px;">
+        <div class="modal-header">
+          <h3 id="modalEtiquetaTitulo" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Etiqueta Individual</h3>
+          <button type="button" class="modal-close" onclick="cerrarModalEtiqueta()">&times;</button>
+        </div>
+        <div style="background: #f1f5f9; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; display: flex; justify-content: center;">
+          <div id="contenedorEtiquetaConsola" class="etiqueta-reducida">
+            <!-- Contenido dinámico de la etiqueta -->
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalEtiqueta()">Cerrar</button>
+          <button type="button" class="btn btn-primary" onclick="imprimirElemento('contenedorEtiquetaConsola')">🖨️ Mandar a Imprimir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EDITAR / AGREGAR VIDEO CARRUSEL -->
+    <div id="modalVideoCarrusel" class="modal-overlay">
+      <div class="modal-box" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3 id="modalVideoTitulo" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Video del Carrusel</h3>
+          <button type="button" class="modal-close" onclick="cerrarModalVideoCarrusel()">&times;</button>
+        </div>
+        <form onsubmit="guardarVideoCarrusel(event)">
+          <input type="hidden" id="videoCarruselIndice" value="-1">
+          <div class="form-group">
+            <label>Título del Video *:</label>
+            <input type="text" id="videoCarruselTitulo" class="input-control" placeholder="Ej. Proceso de Limpieza y Pasta Térmica" required>
+          </div>
+          <div class="form-group">
+            <label>Enlace / URL del Video (YouTube o MP4/WebM) *:</label>
+            <input type="url" id="videoCarruselUrl" class="input-control" placeholder="https://www.youtube.com/watch?v=..." required>
+          </div>
+          <div class="form-group">
+            <label>Descripción Breve:</label>
+            <textarea id="videoCarruselDesc" class="input-control" rows="2" placeholder="Explicación breve para clientes..."></textarea>
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="videoCarruselActivo" checked> Video Activo en Carrusel
+            </label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModalVideoCarrusel()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Video</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Elemento oculto para impresión nativa -->
+    <div id="impresionAreaPrint" style="display: none;"></div>
+
+</body>
+</html>
