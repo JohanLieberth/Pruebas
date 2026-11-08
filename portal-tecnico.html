@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Portal de Técnico - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <!-- Navbar de Técnico -->
+  <nav class="navbar" style="background: #1e293b;">
+    <a href="<?= scriptUrl ?>?p=portal-tecnico" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
+      <span class="tag" style="background: #0ea5e9;">Mesa Técnica</span>
+    </a>
+    <ul class="nav-menu">
+      <li><span id="tecSessionName" style="color: #cbd5e1; font-size: 0.85rem;">Cargando...</span></li>
+      <li><button onclick="App.logout('?p=login-admin')" class="btn btn-secondary btn-sm" style="color: #ffffff; background: #334155;">Cerrar Sesión</button></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h1 class="card-title">🔧 Mis Dispositivos Asignados para Reparación</h1>
+          <p style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">
+            Visualiza y diagnostica exclusivamente los equipos asignados a tu usuario técnico.
+          </p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="cargarDispositivosTecnico()">🔄 Actualizar</button>
+      </div>
+
+      <!-- Buscador para Técnico (Busca por folio, nombre, teléfono y serie dentro de sus asignados) -->
+      <div class="form-row" style="margin-bottom: 1.25rem;">
+        <div class="form-col" style="flex: 3;">
+          <input type="text" id="filtroTecnico" class="input-control" placeholder="Buscar por folio, cliente, teléfono o número de serie..." onkeyup="if(event.key==='Enter') cargarDispositivosTecnico()">
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="cargarDispositivosTecnico()">Buscar</button>
+        </div>
+      </div>
+
+      <div class="alert alert-info" style="font-size: 0.85rem;">
+        ⚡ <strong>Permisos de Técnico:</strong> Puedes actualizar el estatus técnico entre: <code>Pendiente</code>, <code>En reparación</code>, <code>Pruebas</code> y <code>Listo</code>. Las entregas y cancelaciones definitivas son procesadas exclusivamente por recepción / administración.
+      </div>
+
+      <!-- Tabla de Dispositivos del Técnico -->
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Orden de Servicio</th>
+              <th>Dispositivo / Modelo</th>
+              <th>No. Serie</th>
+              <th>Cliente / Teléfono</th>
+              <th>Falla Reportada</th>
+              <th>Diagnóstico</th>
+              <th>Estatus</th>
+              <th>Fecha/Hora Estatus</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyDispositivosTecnico">
+            <tr><td colspan="9" style="text-align: center;">Cargando equipos asignados...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: Cambiar Estatus y Diagnóstico (Técnico) -->
+  <div id="modalTecnicoAccion" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Actualizar Estado de Reparación</h3>
+        <button class="modal-close" onclick="cerrarModalTecnico()">&times;</button>
+      </div>
+      <form id="formTecnicoAccion" onsubmit="guardarActualizacionTecnico(event)">
+        <input type="hidden" id="tecDevId" value="">
+
+        <div class="form-group">
+          <label>Equipo en Banco de Trabajo:</label>
+          <div id="tecDevInfo" style="font-weight: 600; padding: 0.5rem; background: #f8fafc; border-radius: 6px; color: #1e293b;"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="tecNuevoEstatus">Nuevo Estatus *:</label>
+          <select id="tecNuevoEstatus" class="input-control" required>
+            <option value="Pendiente">Pendiente</option>
+            <option value="En reparación">En reparación</option>
+            <option value="Pruebas">Pruebas</option>
+            <option value="Listo">Listo</option>
+          </select>
+          <small style="color: #64748b; font-size: 0.78rem;">Marca "Listo" cuando el equipo esté completamente reparado y probado para entrega.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="tecComentario">Comentario del cambio de estatus *:</label>
+          <input type="text" id="tecComentario" class="input-control" required placeholder="Ej. Se reemplazó puerto HDMI y dio video 4K sin fallas" minlength="3">
+        </div>
+
+        <div class="form-group">
+          <label for="tecDiagnostico">Diagnóstico Técnico Detallado:</label>
+          <textarea id="tecDiagnostico" class="input-control" placeholder="Detalles de inspección de placa, componentes cambiados, mediciones de voltaje..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="tecObservaciones">Observaciones adicionales:</label>
+          <textarea id="tecObservaciones" class="input-control" placeholder="Notas sobre tornillos faltantes, carcasas rotas previas..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalTecnico()">Cancelar</button>
+          <button type="submit" id="btnGuardarTecnico" class="btn btn-primary">Guardar Estatus y Diagnóstico</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Taller de Consolas • Panel Técnico</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    var sessionUser = null;
+    var listaDispositivosTecnico = [];
+
+    window.onload = function() {
+      App.cargarConfiguracionPublica();
+      var token = App.getToken();
+      sessionUser = App.getUserData();
+
+      if (!token || !sessionUser || (sessionUser.role !== 'Tecnico' && sessionUser.role !== 'Administrador')) {
+        setTimeout(function() {
+          App.navigate('login-admin');
+        }, 300);
+        return;
+      }
+
+      document.getElementById('tecSessionName').innerText = sessionUser.name + ' (' + sessionUser.email + ')';
+      cargarDispositivosTecnico();
+    };
+
+    function cargarDispositivosTecnico() {
+      var token = App.getToken();
+      var filtro = document.getElementById('filtroTecnico').value.trim();
+      var tbody = document.getElementById('tbodyDispositivosTecnico');
+
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;"><span class="spinner" style="border-top-color: #0ea5e9;"></span> Cargando tus dispositivos asignados...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) {
+            tbody.innerHTML = '<tr><td colspan="9" style="color: red; text-align: center;">Error: ' + res.error + '</td></tr>';
+            return;
+          }
+
+          listaDispositivosTecnico = res.data || [];
+          if (listaDispositivosTecnico.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #64748b;">No tienes dispositivos asignados actualmente con ese criterio.</td></tr>';
+            return;
+          }
+
+          var html = '';
+          listaDispositivosTecnico.forEach(function(d) {
+            html += '<tr>';
+            html += '  <td><strong style="color: #4338ca;">' + d.folioOrden + '</strong></td>';
+            html += '  <td><strong>' + d.tipoDispositivo + '</strong><br><span style="font-size: 0.8rem; color: #64748b;">' + d.marca + ' ' + d.modelo + '</span></td>';
+            html += '  <td><code>' + (d.numeroSerie || 'S/N') + '</code></td>';
+            html += '  <td style="font-size: 0.85rem;">' + d.clienteNombre + '<br><span style="color: #64748b;">' + d.clienteTelefono + '</span></td>';
+            html += '  <td style="font-size: 0.85rem; max-width: 180px;">' + d.fallaReportada + '</td>';
+            html += '  <td style="font-size: 0.85rem; max-width: 200px;">' + (d.diagnostico || '<em style="color:#94a3b8;">Pendiente</em>') + '</td>';
+            html += '  <td>' + App.getStatusBadge(d.estatus) + '</td>';
+            html += '  <td style="font-size: 0.78rem;">' + d.fechaHoraEstatus + '</td>';
+            html += '  <td>';
+            html += '    <button class="btn btn-primary btn-sm" onclick="abrirModalTecnico(\'' + d.idDispositivo + '\')">Actualizar Estatus</button>';
+            html += '  </td>';
+            html += '</tr>';
+          });
+          tbody.innerHTML = html;
+        })
+        .withFailureHandler(function(err) {
+          tbody.innerHTML = '<tr><td colspan="9" style="color: red; text-align: center;">Error: ' + err.message + '</td></tr>';
+        })
+        .apiListarDispositivosTecnico(token, filtro);
+    }
+
+    function abrirModalTecnico(idDev) {
+      var d = listaDispositivosTecnico.find(function(x) { return x.idDispositivo === idDev; });
+      if (!d) return;
+
+      document.getElementById('tecDevId').value = idDev;
+      document.getElementById('tecDevInfo').innerText = d.tipoDispositivo + ' ' + d.marca + ' ' + d.modelo + ' (Serie: ' + d.numeroSerie + ') - Orden: ' + d.folioOrden;
+      document.getElementById('tecNuevoEstatus').value = (['Pendiente', 'En reparación', 'Pruebas', 'Listo'].indexOf(d.estatus) !== -1) ? d.estatus : 'Pendiente';
+      document.getElementById('tecComentario').value = '';
+      document.getElementById('tecDiagnostico').value = d.diagnostico || '';
+      document.getElementById('tecObservaciones').value = d.observaciones || '';
+
+      document.getElementById('modalTecnicoAccion').style.display = 'flex';
+    }
+
+    function cerrarModalTecnico() {
+      document.getElementById('modalTecnicoAccion').style.display = 'none';
+      document.getElementById('formTecnicoAccion').reset();
+    }
+
+    function guardarActualizacionTecnico(e) {
+      e.preventDefault();
+      var token = App.getToken();
+      var idDev = document.getElementById('tecDevId').value;
+      var nuevoEstatus = document.getElementById('tecNuevoEstatus').value;
+      var comentario = document.getElementById('tecComentario').value.trim();
+      var diagnostico = document.getElementById('tecDiagnostico').value.trim();
+      var observaciones = document.getElementById('tecObservaciones').value.trim();
+      var btn = document.getElementById('btnGuardarTecnico');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+      // 1. Actualizar diagnósticos y observaciones
+      google.script.run
+        .withSuccessHandler(function() {
+          // 2. Cambiar estatus permitido
+          google.script.run
+            .withSuccessHandler(function(res) {
+              btn.disabled = false;
+              btn.innerHTML = 'Guardar Estatus y Diagnóstico';
+
+              if (!res.success) {
+                alert('Error al actualizar estatus: ' + res.error);
+                return;
+              }
+
+              alert('✅ Estatus actualizado a: ' + nuevoEstatus);
+              cerrarModalTecnico();
+              cargarDispositivosTecnico();
+            })
+            .withFailureHandler(function(err) {
+              btn.disabled = false;
+              btn.innerHTML = 'Guardar Estatus y Diagnóstico';
+              alert('Error: ' + err.message);
+            })
+            .apiCambiarEstatusDispositivo(token, idDev, nuevoEstatus, comentario);
+        })
+        .apiActualizarDetallesDispositivo(token, idDev, {
+          diagnostico: diagnostico,
+          observaciones: observaciones
+        });
+    }
+  </script>
+</body>
+</html>

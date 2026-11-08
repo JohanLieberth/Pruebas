@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <script>window.SCRIPT_URL = "<?= scriptUrl ?>";</script>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Acceso Clientes - <?= appName ?></title>
+  <?!= include('styles'); ?>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="<?= scriptUrl ?>?p=index" class="nav-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
+      <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
+      <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
+      <span class="tag">Portal Clientes</span>
+    </a>
+    <ul class="nav-menu">
+      <li><a href="<?= scriptUrl ?>?p=index" class="nav-link">Inicio</a></li>
+      <li><a href="<?= scriptUrl ?>?p=consulta" class="nav-link">Consulta Pública</a></li>
+      <li><a href="<?= scriptUrl ?>?p=registro" class="nav-link">Registrarse</a></li>
+      <li><a href="<?= scriptUrl ?>?p=login-admin" class="nav-link" style="color: #93c5fd;">Staff</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content" style="max-width: 480px;">
+    <div class="card" style="margin-top: 1.5rem;">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">👤</div>
+        <h1 style="font-size: 1.4rem; font-weight: 700; color: #1e293b;">Iniciar Sesión - Clientes</h1>
+        <p style="font-size: 0.88rem; color: #64748b;">Acceso para clientes Normales y Talleres aliados</p>
+      </div>
+
+      <div id="alertLogin" style="display: none;"></div>
+
+      <form id="formLoginCliente" onsubmit="iniciarSesion(event)">
+        <div class="form-group">
+          <label for="inputEmail">Correo electrónico:</label>
+          <input type="email" id="inputEmail" class="input-control" placeholder="tu@correo.com" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label for="inputPassword">Contraseña:</label>
+          <input type="password" id="inputPassword" class="input-control" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="btnLogin" class="btn btn-primary btn-block" style="padding: 0.75rem; margin-top: 1.25rem;">
+          <span>Entrar a mi Portal</span>
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.9rem;">
+        <p style="color: #64748b;">¿Aún no tienes cuenta registrada?</p>
+        <a href="<?= scriptUrl ?>?p=registro" style="color: var(--primary); font-weight: 600; text-decoration: none;">Crear cuenta nueva con puntos de bienvenida &rarr;</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p><span class="footer-brand-name"><?= appName ?></span> &copy; <?= new Date().getFullYear() ?> - Taller de Consolas</p>
+  </footer>
+
+  <?!= include('app-common'); ?>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      App.cargarConfiguracionPublica();
+    });
+    // Si ya tiene sesión activa de cliente, redirigir directo al portal
+    (function() {
+      var token = App.getToken();
+      var user = App.getUserData();
+      if (token && user && (user.role === 'ClienteNormal' || user.role === 'ClienteTaller')) {
+        App.navigate('portal-usuario');
+      }
+    })();
+
+    function iniciarSesion(e) {
+      e.preventDefault();
+      var email = document.getElementById('inputEmail').value.trim();
+      var password = document.getElementById('inputPassword').value;
+      var btn = document.getElementById('btnLogin');
+      var alertId = 'alertLogin';
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Verificando...';
+      App.hideAlert(alertId);
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Entrar a mi Portal</span>';
+
+          if (!res.success) {
+            App.showAlert(alertId, '❌ ' + res.error, 'danger');
+            return;
+          }
+
+          // Guardar sesión y redirigir
+          App.saveSession(res.data);
+          App.showAlert(alertId, '✅ ' + res.message + '. Redirigiendo...', 'success');
+          setTimeout(function() {
+            App.navigate('portal-usuario');
+          }, 600);
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Entrar a mi Portal</span>';
+          App.showAlert(alertId, '❌ Error de comunicación: ' + err.message, 'danger');
+        })
+        .apiLoginUsuario(email, password);
+    }
+  </script>
+</body>
+</html>
