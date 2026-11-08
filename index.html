@@ -240,6 +240,19 @@
       var url = v.url || '';
       var esYouTube = url.indexOf('youtube.com') !== -1 || url.indexOf('youtu.be') !== -1;
 
+      // Pausar y limpiar video previo para evitar reproducciones simultáneas en segundo plano
+      if (container) {
+        var videoPrevio = container.querySelector('video');
+        if (videoPrevio) {
+          try {
+            videoPrevio.pause();
+            videoPrevio.src = '';
+            videoPrevio.load();
+          } catch (eStop) {}
+        }
+        container.innerHTML = '';
+      }
+
       if (esYouTube) {
         var videoId = '';
         if (url.indexOf('youtu.be/') !== -1) {
@@ -249,9 +262,40 @@
         } else if (url.indexOf('embed/') !== -1) {
           videoId = url.split('embed/')[1].split(/[?#]/)[0];
         }
-        if (container) container.innerHTML = '<iframe src="https://www.youtube.com/embed/' + videoId + '?rel=0" style="width: 100%; height: 100%; border: none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+        // Parámetros autoplay=1&mute=1&playsinline=1&enablejsapi=1 para asegurar reproducción automática silenciada
+        var ytSrc = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0';
+        if (container) {
+          container.innerHTML = '<iframe src="' + ytSrc + '" style="width: 100%; height: 100%; border: none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+        }
       } else {
-        if (container) container.innerHTML = '<video src="' + url + '" controls style="width: 100%; height: 100%; background: #000; outline: none;"></video>';
+        if (container) {
+          var videoEl = document.createElement('video');
+          videoEl.src = url;
+          videoEl.autoplay = true;
+          videoEl.muted = true;
+          videoEl.defaultMuted = true;
+          videoEl.playsInline = true;
+          videoEl.setAttribute('playsinline', '');
+          videoEl.setAttribute('muted', '');
+          videoEl.setAttribute('autoplay', '');
+          videoEl.controls = true;
+          videoEl.style.width = '100%';
+          videoEl.style.height = '100%';
+          videoEl.style.background = '#000';
+          videoEl.style.outline = 'none';
+
+          container.appendChild(videoEl);
+
+          // Intentar reproducir automáticamente protegiendo contra políticas de autoplay
+          try {
+            var playPromise = videoEl.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(function(errPlay) {
+                console.warn('Autoplay silenciado interceptado por política del navegador:', errPlay.message);
+              });
+            }
+          } catch (ePlay) {}
+        }
       }
     }
 
