@@ -15,7 +15,7 @@
       <span id="navBrandLogoContainer" class="nav-brand-logo-container" style="display: none;"></span>
       <span id="navBrandIcon" class="nav-brand-icon">🎮</span>
       <span id="navBrandText" class="nav-brand-text"><?= appName ?></span>
-      <span class="tag" style="background: #dc2626;">Administrador</span>
+      <span class="tag" id="tagRolUsuarioAdmin" style="background: #dc2626;">Administrador</span>
     </a>
     <ul class="nav-menu">
       <li><span id="adminSessionName" style="color: #cbd5e1; font-size: 0.85rem;">Cargando...</span></li>
@@ -411,6 +411,26 @@
               <input type="text" id="configNombreTaller" class="input-control" placeholder="PixelFix - Taller de Consolas">
             </div>
 
+            <!-- Selector de Tema de Colores -->
+            <div class="form-group" style="margin-bottom: 1.25rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label for="configTemaColor" style="font-weight: 700; color: #1e293b; margin: 0;">
+                  🎨 Tema de Colores de la Plataforma:
+                </label>
+                <span class="tag" style="background: #8b5cf6; color: #ffffff;">5 Temas Disponibles</span>
+              </div>
+              <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem;">
+                Selecciona la paleta visual que se aplicará en todas las vistas públicas, clientes, técnicos y administración.
+              </p>
+              <select id="configTemaColor" class="input-control" onchange="aplicarTemaPrevia(this.value)">
+                <option value="indigo">🟣 Índigo Clásico (Por Defecto - Violeta / Azul Moderno)</option>
+                <option value="emerald">🟢 Emerald Tech (Verde Gamer / Xbox Style)</option>
+                <option value="cyberpunk">🌸 Cyberpunk Neon (Magenta / Púrpura Futurista)</option>
+                <option value="amber">🟠 Retro Arcade (Ámbar / Naranja Cálido Vintage)</option>
+                <option value="slate">🌑 Slate Steel (Gris Grafito / Azul Acero Minimalista)</option>
+              </select>
+            </div>
+
             <!-- Sección diferenciada: LOGO -->
             <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
@@ -687,6 +707,7 @@
           <label for="staffRol">Rol *</label>
           <select id="staffRol" class="input-control" required>
             <option value="Tecnico">Técnico de Taller</option>
+            <option value="Recepcion">Recepción (Órdenes y Puntos)</option>
             <option value="Administrador">Administrador</option>
           </select>
         </div>
@@ -775,27 +796,64 @@
       var token = App.getToken();
       sessionUser = App.getUserData();
 
-      if (!token || !sessionUser || sessionUser.role !== 'Administrador') {
-        var alertEl = document.getElementById('alertAdmin');
+      var esAdmin = (sessionUser && sessionUser.role === 'Administrador');
+      var esRecepcion = (sessionUser && sessionUser.role === 'Recepcion');
+
+      var alertEl = document.getElementById('alertAdmin');
+      if (!token || !sessionUser || (!esAdmin && !esRecepcion)) {
         if (alertEl) {
-          App.showAlert('alertAdmin', '⚠️ Acceso restringido. Por favor inicia sesión como Administrador. Redirigiendo...', 'warning');
+          App.showAlert('alertAdmin', '⚠️ Acceso restringido. Inicia sesión con credenciales de Administrador o Recepción. Redirigiendo...', 'warning');
         }
         setTimeout(function() {
           App.navigate('login-admin');
         }, 300);
         return;
+      } else {
+        if (alertEl) alertEl.style.display = 'none';
+      }
+
+      // Actualizar tag de rol en navbar
+      var tagRol = document.getElementById('tagRolUsuarioAdmin');
+      if (tagRol) {
+        if (esRecepcion) {
+          tagRol.innerText = 'Recepción';
+          tagRol.style.background = '#0284c7';
+        } else {
+          tagRol.innerText = 'Administrador';
+          tagRol.style.background = '#dc2626';
+        }
+      }
+
+      // Si el rol es Recepción, ocultar y bloquear las pestañas de Staff, Recompensas y Configuración
+      if (esRecepcion) {
+        var btnStaff = document.getElementById('tabBtnStaff');
+        var btnRec = document.getElementById('tabBtnRecompensas');
+        var btnConf = document.getElementById('tabBtnConfig');
+        if (btnStaff) btnStaff.style.display = 'none';
+        if (btnRec) btnRec.style.display = 'none';
+        if (btnConf) btnConf.style.display = 'none';
       }
 
       document.getElementById('adminSessionName').innerText = sessionUser.name + ' (' + sessionUser.email + ')';
 
       cargarOrdenesAdmin();
-      cargarConfiguracionTaller();
+      if (esAdmin) {
+        cargarConfiguracionTaller();
+        cargarCatalogoRecompensasAdmin();
+      }
       cargarTecnicosCombo();
-      cargarCatalogoRecompensasAdmin();
       agregarFilaDispositivo(); // Inicializar 1 fila en nueva orden
     };
 
     function switchAdminTab(tab) {
+      // Si el rol es Recepción, denegar el cambio a pestañas no autorizadas
+      if (sessionUser && sessionUser.role === 'Recepcion') {
+        if (['staff', 'recompensas', 'config'].indexOf(tab) !== -1) {
+          alert('Acceso no autorizado para el rol Recepción.');
+          tab = 'ordenes';
+        }
+      }
+
       ['ordenes', 'nueva-orden', 'puntos-nfc', 'staff', 'recompensas', 'config'].forEach(function(t) {
         var secName = (t === 'nueva-orden') ? 'adminSectionNuevaOrden' :
                       (t === 'puntos-nfc') ? 'adminSectionNfc' :
@@ -1833,6 +1891,7 @@
       var conf = configuracionTallerActual || {};
       App.aplicarIdentidad(conf);
       if (document.getElementById('configNombreTaller')) document.getElementById('configNombreTaller').value = conf.nombreTaller || '';
+      if (document.getElementById('configTemaColor')) document.getElementById('configTemaColor').value = conf.temaColor || 'indigo';
       if (document.getElementById('configLogoUrl')) document.getElementById('configLogoUrl').value = conf.logoUrl || '';
       if (document.getElementById('configIconoUrl')) document.getElementById('configIconoUrl').value = conf.iconoUrl || '';
       if (document.getElementById('configVideoUrl')) document.getElementById('configVideoUrl').value = conf.videoUrl || '';
@@ -1854,6 +1913,17 @@
 
       actualizarPreviaLogo();
       actualizarPreviaIcono();
+    }
+
+    function aplicarTemaPrevia(tema) {
+      if (!tema) return;
+      document.documentElement.setAttribute('data-theme', tema);
+      if (document.body) {
+        ['indigo', 'emerald', 'cyberpunk', 'amber', 'slate'].forEach(function(t) {
+          document.body.classList.remove('theme-' + t);
+        });
+        document.body.classList.add('theme-' + tema);
+      }
     }
 
     function actualizarPreviaLogo() {
@@ -1995,6 +2065,7 @@
 
       var conf = {
         nombreTaller: (document.getElementById('configNombreTaller') ? document.getElementById('configNombreTaller').value : '').trim(),
+        temaColor: (document.getElementById('configTemaColor') ? document.getElementById('configTemaColor').value : 'indigo').trim(),
         logoUrl: logoVal,
         iconoUrl: iconoVal,
         videoUrl: (document.getElementById('configVideoUrl') ? document.getElementById('configVideoUrl').value : '').trim(),
@@ -2028,6 +2099,7 @@
               nombreTaller: conf.nombreTaller,
               logoUrl: conf.logoUrl,
               iconoUrl: conf.iconoUrl,
+              temaColor: conf.temaColor,
               videoUrl: conf.videoUrl,
               leyendaTicket: conf.leyendaTicket
             };

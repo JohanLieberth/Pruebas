@@ -484,7 +484,7 @@ var Ordenes = {
 
 function apiCrearOrden(token, payload) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     return Ordenes.crearOrden(payload, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -493,7 +493,7 @@ function apiCrearOrden(token, payload) {
 
 function apiListarOrdenesAdmin(token, filtroTexto, estadoFiltro) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     var list = Ordenes.listarOrdenesAdmin(filtroTexto, estadoFiltro);
     return Utils.success(list);
   } catch (e) {
@@ -503,7 +503,7 @@ function apiListarOrdenesAdmin(token, filtroTexto, estadoFiltro) {
 
 function apiObtenerDetalleOrden(token, idOrden) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.TECNICO, 'ClienteNormal', 'ClienteTaller']);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION, CONFIG.ROLES.TECNICO, 'ClienteNormal', 'ClienteTaller']);
     var detalle = Ordenes.obtenerDetalleOrden(idOrden);
     return Utils.success(detalle);
   } catch (e) {

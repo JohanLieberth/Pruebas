@@ -13,7 +13,7 @@ var Dispositivos = {
     if (!idDispositivo) throw new Error('ID de dispositivo requerido');
     if (!nuevoEstatus) throw new Error('Nuevo estatus requerido');
 
-    var esAdmin = (session.role === CONFIG.ROLES.ADMINISTRADOR);
+    var esAdmin = (session.role === CONFIG.ROLES.ADMINISTRADOR || session.role === CONFIG.ROLES.RECEPCION);
     var esTecnico = (session.role === CONFIG.ROLES.TECNICO);
 
     if (!esAdmin && !esTecnico) {
@@ -393,7 +393,7 @@ var Dispositivos = {
 
 function apiCambiarEstatusDispositivo(token, idDispositivo, nuevoEstatus, comentario) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.TECNICO]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION, CONFIG.ROLES.TECNICO]);
     return Dispositivos.cambiarEstatus(idDispositivo, nuevoEstatus, comentario, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -411,7 +411,7 @@ function apiModificarCostoDispositivo(token, idDispositivo, nuevoCostoEstimado, 
 
 function apiEntregarDispositivoParcial(token, idDispositivo, comentario) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     return Dispositivos.entregarDispositivoParcial(idDispositivo, comentario, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -420,7 +420,7 @@ function apiEntregarDispositivoParcial(token, idDispositivo, comentario) {
 
 function apiActualizarDetallesDispositivo(token, idDispositivo, datos) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.TECNICO]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION, CONFIG.ROLES.TECNICO]);
     return Dispositivos.actualizarDetallesDispositivo(idDispositivo, datos, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -439,7 +439,7 @@ function apiListarDispositivosTecnico(token, filtroTexto) {
 
 function apiObtenerHistorialesDispositivo(token, idDispositivo) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.TECNICO, 'ClienteNormal', 'ClienteTaller']);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION, CONFIG.ROLES.TECNICO, 'ClienteNormal', 'ClienteTaller']);
     var res = Dispositivos.obtenerHistorialesDispositivo(idDispositivo);
     return Utils.success(res);
   } catch (e) {

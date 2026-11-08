@@ -104,6 +104,18 @@
       var nombre = conf.nombreTaller || 'PixelFix';
       var logoUrl = conf.logoUrl || '';
       var iconoUrl = conf.iconoUrl || '';
+      var tema = conf.temaColor || 'indigo';
+
+      // 0. Aplicar tema de colores a documentElement y body
+      try {
+        document.documentElement.setAttribute('data-theme', tema);
+        if (document.body) {
+          ['indigo', 'emerald', 'cyberpunk', 'amber', 'slate'].forEach(function(t) {
+            document.body.classList.remove('theme-' + t);
+          });
+          document.body.classList.add('theme-' + tema);
+        }
+      } catch (eTheme) {}
 
       // 1. Actualizar títulos del documento
       if (nombre) {

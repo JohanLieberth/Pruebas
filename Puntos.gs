@@ -436,7 +436,7 @@ function apiObtenerMisPuntos(token) {
 
 function apiObtenerPuntosUsuarioAdmin(token, idUsuario) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     var res = Puntos.obtenerPuntosYMovimientos(idUsuario);
     return Utils.success(res);
   } catch (e) {
@@ -446,7 +446,7 @@ function apiObtenerPuntosUsuarioAdmin(token, idUsuario) {
 
 function apiAsignarPuntos(token, idUsuario, puntos, motivo, idOrden, idDispositivo) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     return Puntos.asignarPuntos(idUsuario, puntos, motivo, idOrden, idDispositivo, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -455,7 +455,7 @@ function apiAsignarPuntos(token, idUsuario, puntos, motivo, idOrden, idDispositi
 
 function apiCanjearPuntos(token, idUsuario, idRecompensa, motivo) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     return Puntos.canjearPuntos(idUsuario, idRecompensa, motivo, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -464,7 +464,7 @@ function apiCanjearPuntos(token, idUsuario, idRecompensa, motivo) {
 
 function apiAsociarEtiquetaNFC(token, idUsuario, codigoNFC) {
   try {
-    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    var session = Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     return Puntos.asociarEtiquetaNFC(idUsuario, codigoNFC, session);
   } catch (e) {
     return Utils.error(e.message);
@@ -473,7 +473,7 @@ function apiAsociarEtiquetaNFC(token, idUsuario, codigoNFC) {
 
 function apiBuscarClientePorNFC(token, codigoNFC) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR]);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION]);
     var res = Puntos.buscarClientePorNFC(codigoNFC);
     return Utils.success(res);
   } catch (e) {

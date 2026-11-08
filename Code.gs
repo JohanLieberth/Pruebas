@@ -436,6 +436,7 @@ function apiObtenerConfiguracionPublica() {
       nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
       logoUrl: vals.LOGO_URL || '',
       iconoUrl: vals.ICONO_URL || '',
+      temaColor: vals.TEMA_COLOR || 'indigo',
       videoUrl: vals.VIDEO_URL || '',
       videosCarrusel: videos,
       leyendaTicket: vals.LEYENDA_TICKET || ''
@@ -464,6 +465,7 @@ function apiObtenerConfiguracionAdmin(token) {
       nombreTaller: vals.NOMBRE_TALLER || 'PixelFix - Taller de Consolas',
       logoUrl: vals.LOGO_URL || '',
       iconoUrl: vals.ICONO_URL || '',
+      temaColor: vals.TEMA_COLOR || 'indigo',
       videoUrl: vals.VIDEO_URL || '',
       videosCarrusel: videos,
       leyendaTicket: vals.LEYENDA_TICKET || 'DISPOSITIVO CON AVISO DE RECOLECCIÓN, DESPUES DE 30 DIAS, NO NOS HACEMOS RESPONSABLES DEL EQUIPO. EQUIPO MOJADO O CON DAÑOS DE HUMEDAD NO TIENE GARANTIA. EN REPARACIONES LA GARANTIA ES DE 15 DIAS SOBRE LA PIEZA CAMBIADA, APLICA RESTRICCIONES. TRABAJO DE MANTENIMIENTO NO APLICA GARANTIA. PUEDE COMUNICARSE AL 9999693251 PARA INFORMACION DE LUNES A SABADO DE 10 AM A 7 PM.',
@@ -498,6 +500,12 @@ function apiGuardarConfiguracionAdmin(token, config) {
 
     if (config.nombreTaller !== undefined) {
       Utils.setConfigValue('NOMBRE_TALLER', config.nombreTaller, 'Nombre comercial del taller');
+    }
+    if (config.temaColor !== undefined) {
+      var temaTrim = String(config.temaColor || 'indigo').trim().toLowerCase();
+      var temasValidos = ['indigo', 'emerald', 'cyberpunk', 'amber', 'slate'];
+      if (temasValidos.indexOf(temaTrim) === -1) temaTrim = 'indigo';
+      Utils.setConfigValue('TEMA_COLOR', temaTrim, 'Tema de colores de la interfaz (indigo, emerald, cyberpunk, amber, slate)');
     }
     if (config.logoUrl !== undefined) {
       var logoTrim = String(config.logoUrl || '').trim();

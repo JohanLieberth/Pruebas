@@ -148,8 +148,8 @@ var Usuarios = {
     if (!datos) throw new Error('Datos requeridos');
 
     var rol = (datos.rol || '').trim();
-    if (rol !== CONFIG.ROLES.ADMINISTRADOR && rol !== CONFIG.ROLES.TECNICO) {
-      throw new Error('Rol inválido. Debe ser Administrador o Tecnico.');
+    if (rol !== CONFIG.ROLES.ADMINISTRADOR && rol !== CONFIG.ROLES.RECEPCION && rol !== CONFIG.ROLES.TECNICO) {
+      throw new Error('Rol inválido. Debe ser Administrador, Recepcion o Tecnico.');
     }
 
     var nombre = (datos.nombre || '').trim();
@@ -169,7 +169,8 @@ var Usuarios = {
 
       var salt = Utils.generateSalt(16);
       var hash = Utils.hashPassword(password, salt);
-      var adminId = Utils.generateId(rol === CONFIG.ROLES.ADMINISTRADOR ? 'ADM' : 'TEC');
+      var prefijoId = (rol === CONFIG.ROLES.ADMINISTRADOR) ? 'ADM' : ((rol === CONFIG.ROLES.RECEPCION) ? 'REC' : 'TEC');
+      var adminId = Utils.generateId(prefijoId);
 
       var nuevoAdmin = {
         IDAdmin: adminId,
@@ -316,7 +317,7 @@ function apiCambiarEstadoAdmin(token, idAdmin, nuevoEstado) {
 
 function apiBuscarClientes(token, query) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.TECNICO]);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION, CONFIG.ROLES.TECNICO]);
     return Utils.success(Usuarios.buscarClientes(query));
   } catch (e) {
     return Utils.error(e.message);
@@ -325,7 +326,7 @@ function apiBuscarClientes(token, query) {
 
 function apiListarTecnicosActivos(token) {
   try {
-    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.TECNICO]);
+    Auth.requireRole(token, [CONFIG.ROLES.ADMINISTRADOR, CONFIG.ROLES.RECEPCION, CONFIG.ROLES.TECNICO]);
     return Utils.success(Usuarios.listarTecnicosActivos());
   } catch (e) {
     return Utils.error(e.message);

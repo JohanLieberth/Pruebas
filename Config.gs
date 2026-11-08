@@ -88,6 +88,7 @@ var CONFIG = {
   // Roles en el portal administrativo
   ROLES: {
     ADMINISTRADOR: 'Administrador',
+    RECEPCION: 'Recepcion',
     TECNICO: 'Tecnico'
   },
 
