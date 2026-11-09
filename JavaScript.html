@@ -738,28 +738,83 @@
     });
   }
 
-  function poblarSelectProyectosMinuta(proyectos) {
-    const sel = document.getElementById('minuta-proyecto');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">-- Sin Proyecto (Opcional) --</option>';
-    proyectos.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.ID_Proyecto;
-      opt.textContent = `${p.ID_Proyecto} - ${p.Nombre_Proyecto}`;
-      sel.appendChild(opt);
+  // ==========================================
+  // BUSCADOR CENTRALIZADO DE PROYECTOS
+  // ==========================================
+  function buscarProyectosPorCriterio(query) {
+    if (!query || !query.trim()) return GLOBAL_PROYECTOS || [];
+    const q = query.toLowerCase().trim();
+    return (GLOBAL_PROYECTOS || []).filter(p => {
+      const id = String(p.ID_Proyecto || '').toLowerCase();
+      const nombre = String(p.Nombre_Proyecto || '').toLowerCase();
+      const desc = String(p.Descripción || '').toLowerCase();
+      return id.includes(q) || nombre.includes(q) || desc.includes(q);
     });
   }
 
-  function poblarSelectProyectosAcuerdo(proyectos) {
-    const sel = document.getElementById('acuerdo-proyecto');
+  function filtrarSelectProyectos(inputEl, selectId) {
+    const sel = document.getElementById(selectId);
     if (!sel) return;
-    sel.innerHTML = '<option value="">-- Sin Proyecto --</option>';
-    proyectos.forEach(p => {
+    const valActual = sel.value;
+    const q = inputEl ? inputEl.value : '';
+    const filtrados = buscarProyectosPorCriterio(q);
+
+    sel.innerHTML = '<option value="">-- Sin Proyecto (Opcional) --</option>';
+    filtrados.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.ID_Proyecto;
       opt.textContent = `${p.ID_Proyecto} - ${p.Nombre_Proyecto}`;
+      if (p.ID_Proyecto === valActual) opt.selected = true;
       sel.appendChild(opt);
     });
+
+    if (valActual && !filtrados.some(p => p.ID_Proyecto === valActual)) {
+      const pOrig = (GLOBAL_PROYECTOS || []).find(p => p.ID_Proyecto === valActual);
+      const optPersist = document.createElement('option');
+      optPersist.value = valActual;
+      optPersist.textContent = pOrig ? `${pOrig.ID_Proyecto} - ${pOrig.Nombre_Proyecto}` : valActual;
+      optPersist.selected = true;
+      sel.appendChild(optPersist);
+    }
+  }
+
+  function filtrarSelectProyectoFila(inputEl) {
+    const td = inputEl.closest('td');
+    if (!td) return;
+    const sel = td.querySelector('.acu-proyecto');
+    if (!sel) return;
+    const valActual = sel.value;
+    const filtrados = buscarProyectosPorCriterio(inputEl.value);
+
+    sel.innerHTML = '<option value="">-- Sin Proyecto --</option>';
+    filtrados.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.ID_Proyecto;
+      opt.textContent = `${p.ID_Proyecto} - ${p.Nombre_Proyecto}`;
+      if (p.ID_Proyecto === valActual) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    if (valActual && !filtrados.some(p => p.ID_Proyecto === valActual)) {
+      const pOrig = (GLOBAL_PROYECTOS || []).find(p => p.ID_Proyecto === valActual);
+      const optPersist = document.createElement('option');
+      optPersist.value = valActual;
+      optPersist.textContent = pOrig ? `${pOrig.ID_Proyecto} - ${pOrig.Nombre_Proyecto}` : valActual;
+      optPersist.selected = true;
+      sel.appendChild(optPersist);
+    }
+  }
+
+  function poblarSelectProyectosMinuta(proyectos) {
+    const inputSearch = document.getElementById('buscar-minuta-proyecto');
+    if (inputSearch) inputSearch.value = '';
+    filtrarSelectProyectos(null, 'minuta-proyecto');
+  }
+
+  function poblarSelectProyectosAcuerdo(proyectos) {
+    const inputSearch = document.getElementById('buscar-acuerdo-proyecto');
+    if (inputSearch) inputSearch.value = '';
+    filtrarSelectProyectos(null, 'acuerdo-proyecto');
   }
 
   function abrirModalCambiarEtapaProyecto(idP, etapaActual) {
@@ -1025,6 +1080,21 @@
   function obtenerAsistentesMinutaForm() {
     const asistentes = [];
     const registrados = new Set();
+
+    // 1. Asegurar que la Directora siempre esté presente en la lista sin duplicados
+    const DIRECTORA = (typeof ASISTENTES_PREDETERMINADOS_UI !== 'undefined') ? ASISTENTES_PREDETERMINADOS_UI.find(a => (a.cargo && a.cargo.toLowerCase().includes('directora')) || (a.correo && a.correo.toLowerCase().includes('mariana.gaber'))) : null;
+    if (DIRECTORA) {
+      const dirKey = (DIRECTORA.correo || DIRECTORA.nombre).toLowerCase();
+      registrados.add(dirKey);
+      asistentes.push({
+        nombre: DIRECTORA.nombre,
+        correo: DIRECTORA.correo,
+        identificador: DIRECTORA.correo || DIRECTORA.nombre,
+        textoDisplay: DIRECTORA.nombre
+      });
+    }
+
+    // 2. Extraer los asistentes registrados en la tabla de asistencia de la minuta
     document.querySelectorAll('#tabla-form-asistencia tbody tr').forEach(row => {
       const nombre = row.querySelector('.ast-nombre') ? row.querySelector('.ast-nombre').value.trim() : '';
       const correo = row.querySelector('.ast-correo') ? row.querySelector('.ast-correo').value.trim() : '';
@@ -1036,7 +1106,7 @@
             nombre: nombre,
             correo: correo,
             identificador: correo || nombre,
-            textoDisplay: correo && nombre && correo !== nombre ? `${nombre} (${correo})` : (nombre || correo)
+            textoDisplay: nombre || correo
           });
         }
       }
@@ -1059,10 +1129,11 @@
         const isChecked = respSelArray.includes(ast.identificador.toLowerCase()) ||
                           respSelArray.includes(ast.nombre.toLowerCase()) ||
                           (ast.correo && respSelArray.includes(ast.correo.toLowerCase()));
+        const soloNombre = ast.nombre || ast.identificador;
         html += `
-          <div class="form-check m-0 py-0 text-truncate" title="${ast.textoDisplay}">
+          <div class="form-check m-0 py-0 text-truncate" title="${soloNombre}">
             <input class="form-check-input acu-resp-chk" type="checkbox" value="${ast.identificador}" ${isChecked ? 'checked' : ''}>
-            <label class="form-check-label small">${ast.textoDisplay}</label>
+            <label class="form-check-label small">${soloNombre}</label>
           </div>
         `;
       });
@@ -1145,6 +1216,7 @@
     tr.innerHTML = `
       <td>
         <input type="hidden" class="acu-id-hidden" value="${idAcuStr}">
+        <input type="text" class="form-control form-control-xs mb-1 acu-proj-search" style="font-size: 0.72rem; padding: 2px 5px;" placeholder="🔍 Buscar proyecto..." oninput="filtrarSelectProyectoFila(this);">
         <select class="form-select form-select-sm acu-proyecto">${projOptionsHTML}</select>
       </td>
       <td>
@@ -1513,6 +1585,51 @@
     renderizarTablaAcuerdos(GLOBAL_ACUERDOS);
   }
 
+  function poblarResponsablesAcuerdoIndividual(responsablesSeleccionados = []) {
+    const cont = document.getElementById('contenedor-check-responsables-individual');
+    if (!cont) return;
+
+    const respSelArray = (Array.isArray(responsablesSeleccionados) ? responsablesSeleccionados : String(responsablesSeleccionados).split(','))
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    cont.innerHTML = '';
+    const agregados = new Set();
+
+    (ASISTENTES_PREDETERMINADOS_UI || []).forEach(ast => {
+      const isChecked = respSelArray.includes(ast.correo.toLowerCase()) || respSelArray.includes(ast.nombre.toLowerCase());
+      agregados.add(ast.correo.toLowerCase());
+      agregados.add(ast.nombre.toLowerCase());
+
+      const div = document.createElement('div');
+      div.className = 'form-check m-0 py-1 text-truncate';
+      div.title = `${ast.nombre} (${ast.cargo})`;
+      div.innerHTML = `
+        <input class="form-check-input chk-acuerdo-responsable" type="checkbox" value="${ast.correo || ast.nombre}" id="resp-ind-chk-${ast.correo.replace(/[@.]/g, '-')}" ${isChecked ? 'checked' : ''}>
+        <label class="form-check-label small" for="resp-ind-chk-${ast.correo.replace(/[@.]/g, '-')}">
+          <strong>${ast.nombre}</strong> <span class="text-muted fs-8">(${ast.cargo})</span>
+        </label>
+      `;
+      cont.appendChild(div);
+    });
+
+    // Conservar responsables históricos o manuales que no estén en la lista predeterminada
+    respSelArray.forEach(respItem => {
+      if (!agregados.has(respItem) && respItem) {
+        const div = document.createElement('div');
+        div.className = 'form-check m-0 py-1 text-truncate';
+        div.title = respItem;
+        div.innerHTML = `
+          <input class="form-check-input chk-acuerdo-responsable" type="checkbox" value="${respItem}" checked id="resp-ind-chk-extra-${respItem.replace(/[^a-zA-Z0-9]/g, '-')}">
+          <label class="form-check-label small text-muted" for="resp-ind-chk-extra-${respItem.replace(/[^a-zA-Z0-9]/g, '-')}">
+            ${respItem}
+          </label>
+        `;
+        cont.appendChild(div);
+      }
+    });
+  }
+
   function abrirModalNuevoAcuerdoInd() {
     document.getElementById('form-acuerdo').reset();
     document.getElementById('acuerdo-id').value = '';
@@ -1521,6 +1638,7 @@
     document.getElementById('acuerdo-fecha-limite').value = new Date().toISOString().split('T')[0];
 
     poblarCheckboxesSubdireccionesJefaturas();
+    poblarResponsablesAcuerdoIndividual([]);
 
     if (CURRENT_USER.rol === 'Administrador') {
       document.querySelectorAll('#contenedor-check-subdirecciones .chk-subdireccion').forEach(chk => {
@@ -1542,7 +1660,7 @@
   }
 
   function desbloquearCamposFormAcuerdo() {
-    const fields = ['acuerdo-proyecto', 'acuerdo-tipo', 'acuerdo-prioridad', 'acuerdo-descripcion', 'acuerdo-solicitantes', 'acuerdo-responsables', 'acuerdo-fecha-limite'];
+    const fields = ['acuerdo-proyecto', 'acuerdo-tipo', 'acuerdo-prioridad', 'acuerdo-descripcion', 'acuerdo-solicitantes', 'acuerdo-fecha-limite'];
     fields.forEach(fId => {
       const el = document.getElementById(fId);
       if (el) el.removeAttribute('disabled');
@@ -1561,10 +1679,10 @@
     document.getElementById('acuerdo-prioridad').value = a.Prioridad;
     document.getElementById('acuerdo-descripcion').value = a.Descripción_Acuerdo;
     document.getElementById('acuerdo-solicitantes').value = a.Solicitantes;
-    document.getElementById('acuerdo-responsables').value = a.Responsables;
     document.getElementById('acuerdo-fecha-limite').value = a.Fecha_Límite;
     document.getElementById('acuerdo-estatus').value = a.Estatus;
 
+    poblarResponsablesAcuerdoIndividual(a.Responsables || '');
     poblarCheckboxesSubdireccionesJefaturas();
 
     const subsArray = String(a.Subdirección_Asignada || '').split(',').map(s => s.trim().toLowerCase());
@@ -1595,6 +1713,16 @@
       selectedJefs.push(chk.value);
     });
 
+    const selectedResps = [];
+    document.querySelectorAll('#contenedor-check-responsables-individual .chk-acuerdo-responsable:checked').forEach(chk => {
+      selectedResps.push(chk.value);
+    });
+
+    if (selectedResps.length === 0) {
+      mostrarToast('Debe seleccionar al menos un responsable.', true);
+      return;
+    }
+
     const data = {
       origen: document.getElementById('acuerdo-origen').value,
       folioMinuta: document.getElementById('acuerdo-folio-minuta').value,
@@ -1603,7 +1731,7 @@
       prioridad: document.getElementById('acuerdo-prioridad').value,
       descripcionAcuerdo: document.getElementById('acuerdo-descripcion').value,
       solicitantes: document.getElementById('acuerdo-solicitantes').value,
-      responsables: document.getElementById('acuerdo-responsables').value,
+      responsables: selectedResps.join(', '),
       fechaLimite: document.getElementById('acuerdo-fecha-limite').value,
       subdireccionAsignada: selectedSubs,
       jefaturasAsignadas: selectedJefs,
@@ -1782,6 +1910,7 @@
       item.className = 'timeline-item';
 
       const esEventoEstatus = String(c.Comentario || '').startsWith('[EVENTO_ESTATUS]');
+      const esEventoRecordatorio = String(c.Comentario || '').startsWith('[EVENTO_RECORDATORIO]');
 
       if (esEventoEstatus) {
         const textoLimpio = String(c.Comentario).replace('[EVENTO_ESTATUS]', '').trim();
@@ -1793,6 +1922,18 @@
             </div>
             <div class="fw-semibold text-dark fs-7 mt-1">${textoLimpio}</div>
             <div class="text-muted fs-8 mt-1"><i class="bi bi-person me-1"></i>Modificado por: <strong>${c.Usuario}</strong></div>
+          </div>
+        `;
+      } else if (esEventoRecordatorio) {
+        const textoLimpio = String(c.Comentario).replace('[EVENTO_RECORDATORIO]', '').trim();
+        item.innerHTML = `
+          <div class="timeline-body p-2 border-start border-4 border-info bg-light rounded-end">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge bg-info text-dark"><i class="bi bi-bell-fill me-1"></i>Recordatorio Enviado</span>
+              <span class="text-muted fs-8">${c.Fecha_Hora}</span>
+            </div>
+            <div class="fw-semibold text-dark fs-7 mt-1">${textoLimpio}</div>
+            <div class="text-muted fs-8 mt-1"><i class="bi bi-person me-1"></i>Enviado por: <strong>${c.Usuario}</strong></div>
           </div>
         `;
       } else {

@@ -97,6 +97,7 @@
           <div class="row g-3">
             <div class="col-12 col-md-6">
               <label for="acuerdo-proyecto" class="form-label fw-semibold">Proyecto Vinculado</label>
+              <input type="text" class="form-control form-control-sm mb-1" id="buscar-acuerdo-proyecto" placeholder="🔍 Buscar proyecto por nombre, ID o número..." oninput="filtrarSelectProyectos(this, 'acuerdo-proyecto');">
               <select class="form-select" id="acuerdo-proyecto">
                 <option value="">-- Sin Proyecto --</option>
               </select>
@@ -122,9 +123,11 @@
               <label for="acuerdo-solicitantes" class="form-label fw-semibold">Solicitantes (Separados por coma)</label>
               <input type="text" class="form-control" id="acuerdo-solicitantes" placeholder="ej. correo1@merida.gob.mx, Juan Perez">
             </div>
-            <div class="col-12 col-md-6">
-              <label for="acuerdo-responsables" class="form-label fw-semibold">Responsables (Separados por coma) *</label>
-              <input type="text" class="form-control" id="acuerdo-responsables" required placeholder="ej. correo2@merida.gob.mx, Maria Lopez">
+            <div class="col-12 col-md-6" id="seccion-form-responsables-individual">
+              <label class="form-label fw-semibold d-block">Responsables (Directora y Subdirectores) *</label>
+              <div class="border rounded p-2 bg-light overflow-auto" style="max-height: 140px;" id="contenedor-check-responsables-individual">
+                <!-- Checkboxes inyectados por JS -->
+              </div>
             </div>
             <div class="col-12 col-md-6">
               <label for="acuerdo-fecha-limite" class="form-label fw-semibold">Fecha Límite *</label>

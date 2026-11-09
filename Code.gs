@@ -1518,7 +1518,27 @@ Sistema de Acuerdos de Dirección
     throw new Error(res.error || 'Error al enviar recordatorio');
   }
 
+  const now = formatDate(new Date());
+  registrarEventoRecordatorio(idAcuerdo, sesion.email, now, ss, destinatariosStr);
+
   return { success: true, message: `Recordatorio enviado a los responsables (${destinatariosStr}).` };
+}
+
+function registrarEventoRecordatorio(idAcuerdo, usuario, fechaHora, ss, destinatarios) {
+  try {
+    const sheetCom = ss.getSheetByName(HOJAS.COMENTARIOS_SEGUIMIENTO);
+    const idCom = generarIDUnico(HOJAS.COMENTARIOS_SEGUIMIENTO, 'COM');
+    const textoEvento = `[EVENTO_RECORDATORIO] Recordatorio enviado a responsables: ${destinatarios}`;
+    sheetCom.appendRow([
+      idCom,
+      idAcuerdo,
+      usuario,
+      fechaHora,
+      textoEvento
+    ]);
+  } catch (err) {
+    console.error('Error al registrar evento de recordatorio:', err);
+  }
 }
 
 // ==========================================

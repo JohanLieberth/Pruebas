@@ -60,7 +60,7 @@
 
 <!-- Modal Formulario Minuta (Pestañas) -->
 <div class="modal fade" id="modalMinuta" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 96vw; width: 96vw;">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-primary-custom text-white">
         <h5 class="modal-title fw-bold" id="modalMinutaTitle"><i class="bi bi-journal-plus me-2"></i>Nueva Minuta de Reunión</h5>
@@ -101,6 +101,7 @@
               <div class="row g-3">
                 <div class="col-12 col-md-6">
                   <label for="minuta-proyecto" class="form-label fw-semibold">Proyecto Principal de la Reunión</label>
+                  <input type="text" class="form-control form-control-sm mb-1" id="buscar-minuta-proyecto" placeholder="🔍 Buscar proyecto por nombre, ID o número..." oninput="filtrarSelectProyectos(this, 'minuta-proyecto');">
                   <select class="form-select" id="minuta-proyecto" onchange="actualizarProyectosPorDefectoAcuerdosMinuta();">
                     <option value="">-- Sin Proyecto (Opcional) --</option>
                   </select>
@@ -186,13 +187,13 @@
                 <table class="table table-bordered table-sm align-middle" id="tabla-form-acuerdos">
                   <thead class="table-light">
                     <tr>
-                      <th style="width: 120px;">Proyecto</th>
-                      <th style="width: 110px;">Tipo</th>
-                      <th>Descripción del Acuerdo</th>
-                      <th style="width: 95px;">Prioridad</th>
-                      <th style="width: 210px;">Responsables (de Asistencia)</th>
-                      <th style="width: 120px;">Fecha Límite</th>
-                      <th style="width: 210px;">Subdirecciones Asignadas</th>
+                      <th style="width: 200px; min-width: 180px;">Proyecto</th>
+                      <th style="width: 135px; min-width: 125px;">Tipo</th>
+                      <th style="min-width: 320px;">Descripción del Acuerdo</th>
+                      <th style="width: 90px; min-width: 85px;">Prioridad</th>
+                      <th style="width: 190px; min-width: 175px;">Responsables (de Asistencia)</th>
+                      <th style="width: 120px; min-width: 115px;">Fecha Límite</th>
+                      <th style="width: 190px; min-width: 175px;">Subdirecciones Asignadas</th>
                       <th style="width: 45px;"></th>
                     </tr>
                   </thead>
