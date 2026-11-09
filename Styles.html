@@ -1,0 +1,150 @@
+<!-- STYLES.HTML -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --primary-color: #2b4c7e;
+    --primary-hover: #1f375c;
+    --secondary-color: #4a6fa5;
+    --accent-color: #00a896;
+    --bg-light: #f4f7fb;
+    --card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --border-radius: 0.5rem;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-light);
+    color: #333333;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .navbar-brand {
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #ffffff !important;
+  }
+
+  .bg-primary-custom {
+    background-color: var(--primary-color) !important;
+  }
+
+  .btn-primary-custom {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+  }
+
+  .btn-primary-custom:hover {
+    background-color: var(--primary-hover);
+    color: white;
+  }
+
+  .card-kpi {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+  }
+
+  .kpi-icon {
+    font-size: 2.2rem;
+    opacity: 0.85;
+  }
+
+  .badge-status {
+    font-weight: 500;
+    padding: 0.4em 0.8em;
+    border-radius: 20px;
+  }
+
+  .table-responsive {
+    border-radius: var(--border-radius);
+    background: white;
+    box-shadow: var(--card-shadow);
+  }
+
+  .table thead th {
+    background-color: #f8f9fa;
+    color: #495057;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+  }
+
+  /* Timeline de Comentarios */
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin-top: 1rem;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e9ecef;
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -1.65rem;
+    top: 0.25rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  .timeline-body {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
+  }
+
+  /* Semáforo de Vencimiento */
+  .semaforo-vencido {
+    border-left: 5px solid #dc3545 !important;
+  }
+  .semaforo-por-vencer {
+    border-left: 5px solid #ffc107 !important;
+  }
+  .semaforo-en-tiempo {
+    border-left: 5px solid #198754 !important;
+  }
+
+  /* Loader Modal */
+  #spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(255, 255, 255, 0.75);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+</style>
