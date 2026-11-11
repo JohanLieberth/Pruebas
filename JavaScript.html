@@ -59,6 +59,17 @@
       .calcularClasificacion();
   }
 
+  // Medallas para el Top 3 del ranking (asignación dinámica por posición)
+  const MEDALLAS_POR_POSICION = {
+    1: { emoji: '🥇', clase: 'gold' },
+    2: { emoji: '🥈', clase: 'silver' },
+    3: { emoji: '🥉', clase: 'bronze' }
+  };
+
+  function getMedallaPorPosicion(posicion) {
+    return MEDALLAS_POR_POSICION[posicion] || null;
+  }
+
   function getOsorioIconsHtml(numIcons) {
     if (!numIcons || numIcons <= 0) return '';
     let html = '<span class="osorio-icons-container" title="Cada vez más Osorio">';
@@ -107,10 +118,11 @@
       else if (item.posicion === 2) tr.className = 'pos-2';
       else if (item.posicion === 3) tr.className = 'pos-3';
 
-      let medalla = `<span class="badge-pos other">${item.posicion}</span>`;
-      if (item.posicion === 1) medalla = `<span class="badge-pos gold">🥇</span>`;
-      else if (item.posicion === 2) medalla = `<span class="badge-pos silver">🥈</span>`;
-      else if (item.posicion === 3) medalla = `<span class="badge-pos bronze">🥉</span>`;
+      const medalla = getMedallaPorPosicion(item.posicion);
+      const medallaBadgeHtml = medalla
+        ? `<span class="badge-pos ${medalla.clase}">${medalla.emoji}</span>`
+        : `<span class="badge-pos other">${item.posicion}</span>`;
+      const medallaNombreHtml = medalla ? `${medalla.emoji} ` : '';
 
       const catBadge = item.categoria === 'Sedentario/Sobrepeso'
         ? `<span class="badge-cat sedentario">Sedentario</span>`
@@ -120,8 +132,8 @@
       const osorioIconsHtml = getOsorioIconsHtml(numOsorio);
 
       tr.innerHTML = `
-        <td style="text-align:center;">${medalla}</td>
-        <td><strong>${escapeHtml(item.nombre)}</strong> ${catBadge} ${osorioIconsHtml}</td>
+        <td style="text-align:center;">${medallaBadgeHtml}</td>
+        <td><strong>${medallaNombreHtml}${escapeHtml(item.nombre)}</strong> ${catBadge} ${osorioIconsHtml}</td>
         <td>${item.pctPesoPerdido.toFixed(2)}%</td>
         <td>${item.cmCinturaReducidos.toFixed(1)} cm</td>
         <td><strong>${item.puntajeFinal.toFixed(2)} pts</strong></td>

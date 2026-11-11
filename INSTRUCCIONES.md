@@ -21,6 +21,23 @@ La puntuación busca ser equitativa tanto para personas sedentarias/con sobrepes
 
 ---
 
+## 🏅 Visualización de Medallas en el Ranking
+
+La tabla de clasificación muestra una medalla junto al nombre de los tres primeros lugares:
+
+| Posición | Medalla |
+| :---: | :---: |
+| 1.º | 🥇 |
+| 2.º | 🥈 |
+| 3.º | 🥉 |
+
+- **Asignación dinámica**: la medalla se determina con la posición actual (`item.posicion`) que calcula el backend en `calcularClasificacion()` (`Code.gs`); si el orden cambia, las medallas se actualizan automáticamente al recargar la clasificación.
+- **Sin medalla**: a partir del 4.º lugar solo se muestra el número de posición en la columna `Pos`.
+- **Implementación**: el mapeo está centralizado en `MEDALLAS_POR_POSICION` y el helper `getMedallaPorPosicion(posicion)` en `JavaScript.html`. La función `renderizarLeaderboard(leaderboard)` usa ese helper tanto para la columna `Pos` como para insertar la medalla inmediatamente antes del nombre del participante.
+- **Compatibilidad**: se conservan las clases existentes (`badge-pos gold/silver/bronze`) y el escape de HTML del nombre (`escapeHtml`), por lo que no se altera el diseño ni la seguridad del renderizado.
+
+---
+
 ## 🗄️ Estructura de la Base de Datos (Google Sheets)
 
 La aplicación inicializa automáticamente tres (3) hojas si no existen:
