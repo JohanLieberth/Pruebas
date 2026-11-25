@@ -185,7 +185,7 @@ function setup() {
   // 5. Recordatorios automáticos en background deshabilitados según instrucción
   eliminarTriggersRecordatorios();
 
-  return 'Setup completado exitosamente. Para el arranque inicial, copie AUTH_BOOTSTRAP_SECRET desde Configuración del proyecto > Propiedades del script y ejecute generarCredencialesUsuariosExistentes("SECRETO") desde el editor.';
+  return 'Setup completado exitosamente. Ejecute ingresoInicialAdministrador_() desde el editor para obtener las credenciales de acceso inicial.';
 }
 
 function eliminarTriggersRecordatorios() {
@@ -2164,12 +2164,6 @@ function generarCredencialesUsuariosExistentes(claveBootstrap) {
       return { success: true, message: 'Todos los usuarios ya tienen una contraseña configurada.', credenciales: [] };
     }
 
-    // Registro visible únicamente para el propietario del script.
-    console.log('=== CREDENCIALES TEMPORALES GENERADAS ===');
-    credenciales.forEach(function (c) {
-      console.log(c.correo + ' | ' + c.contrasena);
-    });
-
     return {
       success: true,
       message: 'Se generaron ' + credenciales.length + ' credenciales temporales. Compártalas por un canal seguro.',
@@ -2199,6 +2193,92 @@ function esClaveBootstrapValida(claveBootstrap) {
   const esperada = PropertiesService.getScriptProperties().getProperty(BOOTSTRAP_SECRET_PROPERTY);
   if (!esperada) return false;
   return compararTiempoConstante(String(claveBootstrap).trim(), String(esperada).trim());
+}
+
+/**
+ * Acceso inicial desde el editor del script.
+ *
+ * El nombre termina en guion bajo para que sea una función privada: el editor
+ * puede ejecutarla, pero `google.script.run` no puede invocarla desde la Web
+ * App. Genera las contraseñas pendientes y, si ningún Administrador quedó con
+ * una credencial nueva, restablece la del primer Administrador activo para
+ * permitir el primer ingreso.
+ */
+function ingresoInicialAdministrador_() {
+  const props = PropertiesService.getScriptProperties();
+  let secreto = props.getProperty(BOOTSTRAP_SECRET_PROPERTY);
+  if (!secreto) {
+    secreto = generarCadenaHex(32);
+    props.setProperty(BOOTSTRAP_SECRET_PROPERTY, secreto);
+  }
+
+  const resultado = generarCredencialesUsuariosExistentes(secreto);
+  const credenciales = (resultado.credenciales || []).slice();
+
+  const administradores = getSheetData(HOJAS.USUARIOS).filter(function (usuario) {
+    return String(usuario.Rol || '').trim() === ROLES.ADMINISTRADOR && esUsuarioActivo(usuario);
+  });
+
+  const administradorConCredencial = credenciales.some(function (credencial) {
+    return administradores.some(function (admin) {
+      return normalizarCorreo(admin.Correo) === normalizarCorreo(credencial.correo);
+    });
+  });
+
+  if (!administradorConCredencial) {
+    if (administradores.length === 0) {
+      throw new Error('No hay un usuario Administrador activo en la hoja Usuarios.');
+    }
+    const admin = administradores[0];
+    const temporal = restablecerContrasenaDesdeEditor_(admin.Correo);
+    credenciales.push({
+      correo: String(admin.Correo).trim(),
+      nombre: String(admin.Nombre || '').trim(),
+      contrasena: temporal
+    });
+  }
+
+  console.log('=== ACCESO INICIAL AL SISTEMA ===');
+  console.log('Estas credenciales se muestran una sola vez. Guárdelas y distribúyalas por un canal seguro.');
+  credenciales.forEach(function (credencial) {
+    console.log(credencial.correo + ' | ' + credencial.contrasena);
+  });
+
+  return {
+    success: true,
+    message: 'Acceso inicial generado. Revise el registro de ejecución.',
+    credenciales: credenciales
+  };
+}
+
+/**
+ * Restablece la contraseña de un usuario desde el editor. Uso exclusivo del
+ * arranque; no forma parte de la API del cliente.
+ */
+function restablecerContrasenaDesdeEditor_(correo) {
+  const correoNorm = normalizarCorreo(correo);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = obtenerHojaUsuarios();
+    const headers = obtenerEncabezados(sheet);
+    const idx = indiceEncabezados(headers);
+    const rows = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < rows.length; i++) {
+      if (normalizarCorreo(rows[i][idx.Correo]) === correoNorm) {
+        const temporal = generarContrasenaTemporal();
+        sheet.getRange(i + 1, idx.Contrasena_Hash + 1).setValue(generarHashContrasena(temporal));
+        sheet.getRange(i + 1, idx.Contrasena_Actualizada + 1).setValue(ahoraTexto());
+        invalidarCacheUsuario(correoNorm);
+        eliminarSesionesDeUsuario(correoNorm);
+        return temporal;
+      }
+    }
+    throw new Error('Usuario no encontrado: ' + correo);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // --- CATÁLOGOS ---
