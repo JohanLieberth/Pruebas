@@ -1,0 +1,207 @@
+<!-- DASHBOARD.HTML -->
+<div id="view-dashboard" class="app-view d-none">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-1"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard de Acuerdos</h3>
+      <p class="text-muted small mb-0">Resumen operativo e indicadores clave de seguimiento</p>
+    </div>
+    <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="cargarDashboard();">
+      <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+    </button>
+  </div>
+
+  <!-- KPIs Numéricos -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-primary">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Proyectos</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-proyectos">0</div>
+          </div>
+          <i class="bi bi-folder2-open kpi-icon text-primary"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-info">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Minutas</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-minutas">0</div>
+          </div>
+          <i class="bi bi-journal-text kpi-icon text-info"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-secondary">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Acuerdos</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-acuerdos">0</div>
+          </div>
+          <i class="bi bi-list-check kpi-icon text-secondary"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-warning">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Pendientes</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-pendientes">0</div>
+          </div>
+          <i class="bi bi-clock-history kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-danger">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Por Vencer</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-por-vencer">0</div>
+          </div>
+          <i class="bi bi-exclamation-triangle kpi-icon text-danger"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+      <div class="card card-kpi bg-white p-3 border-start border-4 border-success">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small fw-semibold text-uppercase">Cumplidos</div>
+            <div class="fs-3 fw-bold text-dark" id="kpi-cumplidos">0</div>
+          </div>
+          <i class="bi bi-check-circle kpi-icon text-success"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desglose por Subdirección y Estado -->
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-white fw-bold border-bottom d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bar-chart-fill me-2 text-primary"></i>Acuerdos por Subdirección</span>
+          <span class="badge bg-light text-muted border fs-8">Gráfico de Barras</span>
+        </div>
+        <div class="card-body">
+          <div id="contenedor-grafico-subdirecciones" style="position: relative; height: 320px; width: 100%;">
+            <canvas id="chart-subdirecciones"></canvas>
+          </div>
+          <div id="sin-datos-grafico-subdirecciones" class="text-center text-muted py-5 d-none">
+            <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+            No hay acuerdos registrados para mostrar en el gráfico
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-white fw-bold border-bottom">
+          <i class="bi bi-bell me-2 text-primary"></i>Próximos Vencimientos (Atención Prioritaria)
+        </div>
+        <div class="card-body">
+          <div id="contenedor-alertas-vencimiento" class="list-group list-group-flush">
+            <!-- Inyectado por JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN EXCLUSIVA PARA ADMINISTRADOR -->
+  <div id="seccion-admin-dashboard" class="d-none">
+    <hr class="my-4">
+    <div class="d-flex align-items-center mb-3">
+      <span class="badge bg-danger fs-6 me-2">Administrador</span>
+      <h4 class="fw-bold m-0 text-dark"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Métricas Ejecutivas de Rendimiento</h4>
+    </div>
+
+    <!-- KPIs de Eficiencia General -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-primary">
+          <div class="text-muted small fw-semibold text-uppercase">Eficiencia General (% Cerrados)</div>
+          <div class="fs-2 fw-bold text-primary" id="admin-kpi-eficiencia">0%</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-success">
+          <div class="text-muted small fw-semibold text-uppercase">Acuerdos Cerrados Totales</div>
+          <div class="fs-2 fw-bold text-success" id="admin-kpi-cerrados">0</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-info">
+          <div class="text-muted small fw-semibold text-uppercase">Total de Acuerdos Registrados</div>
+          <div class="fs-2 fw-bold text-info" id="admin-kpi-totales">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <!-- Productividad, Carga Actual y Tiempo Promedio por Responsable -->
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+          <div class="card-header bg-white fw-bold py-3 border-bottom">
+            <i class="bi bi-person-workspace me-2 text-primary"></i>Productividad, Carga Actual y Tiempo Promedio por Responsable
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0" id="tabla-admin-productividad">
+                <thead class="table-light">
+                  <tr>
+                    <th>Responsable</th>
+                    <th class="text-center">Asignados</th>
+                    <th class="text-center">Cerrados</th>
+                    <th class="text-center">Carga Actual</th>
+                    <th class="text-center">Tiempo Prom. (Días)</th>
+                    <th class="text-end">Eficiencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Inyectado por JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acuerdos Atendidos por Mes -->
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm rounded-3">
+          <div class="card-header bg-white fw-bold py-3 border-bottom">
+            <i class="bi bi-calendar-check me-2 text-primary"></i>Acuerdos Atendidos por Mes
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0" id="tabla-admin-mes">
+                <thead class="table-light">
+                  <tr>
+                    <th>Mes (AAAA-MM)</th>
+                    <th class="text-end">Atendidos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Inyectado por JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
