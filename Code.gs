@@ -8,6 +8,18 @@
 // ==========================================
 const SPREADSHEET_ID_PROPERTY = 'ACUERDOS_SPREADSHEET_ID';
 
+// Configuración de autenticación y sesiones.
+const SESSION_PREFIX = 'AUTH_SESSION_';
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 horas
+const SESSION_CLEANUP_CACHE_KEY = 'AUTH_SESSION_CLEANUP';
+const BOOTSTRAP_SECRET_PROPERTY = 'AUTH_BOOTSTRAP_SECRET';
+const PASSWORD_HASH_PREFIX = 'sha256';
+const PASSWORD_HASH_ITERATIONS = 10000;
+const PASSWORD_GENERATED_LENGTH = 16;
+const LOGIN_MAX_INTENTOS = 5;
+const LOGIN_BLOQUEO_SEGUNDOS = 300;
+const USER_STATE_CACHE_TTL = 60;
+
 const HOJAS = {
   HOJA1: 'Hoja 1',
   PROYECTOS: 'Proyectos',
@@ -31,7 +43,7 @@ const ENCABEZADOS = {
   [HOJAS.CATALOGOS]: ['Tipo', 'Valor', 'Padre'],
   [HOJAS.LOG_NOTIFICACIONES]: ['ID_Log', 'ID_Acuerdo', 'Correo_Destino', 'Asunto', 'Fecha_Envío', 'Estatus_Envío'],
   [HOJAS.COMENTARIOS_SEGUIMIENTO]: ['ID_Comentario', 'ID_Acuerdo', 'Usuario', 'Fecha_Hora', 'Comentario'],
-  [HOJAS.USUARIOS]: ['Correo', 'Nombre', 'Rol', 'Subdirección', 'Activo', 'Jefatura_Departamento']
+  [HOJAS.USUARIOS]: ['Correo', 'Nombre', 'Rol', 'Subdirección', 'Activo', 'Jefatura_Departamento', 'Contrasena_Hash', 'Contrasena_Actualizada']
 };
 
 const ROLES = {
@@ -137,7 +149,7 @@ function setup() {
   // 2. Cargar catálogos iniciales
   poblarCatalogosOrganigrama(ss);
 
-  // 3. Cargar usuarios iniciales
+  // 3. Cargar usuarios iniciales con contraseñas temporales seguras
   const usrSheet = ss.getSheetByName(HOJAS.USUARIOS);
   if (usrSheet.getLastRow() <= 1) {
     const usuariosIniciales = [
@@ -146,13 +158,34 @@ function setup() {
       ['ana.hidalgo@merida.gob.mx', 'Ana Carolina Hidalgo Ortiz', 'Operador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
       ['jefe.compras@merida.gob.mx', 'Carlos Jefe Compras', 'Jefatura', 'Subdirección de Administración y de Proveeduría', 'Sí', 'Jefa de Licitaciones']
     ];
-    usrSheet.getRange(2, 1, usuariosIniciales.length, 6).setValues(usuariosIniciales);
+    const credencialesIniciales = [];
+    const filasUsuarios = usuariosIniciales.map(function (usuario) {
+      const contrasenaTemporal = generarContrasenaTemporal();
+      credencialesIniciales.push({ correo: usuario[0], contrasena: contrasenaTemporal });
+      return usuario.concat([generarHashContrasena(contrasenaTemporal), ahoraTexto()]);
+    });
+    usrSheet.getRange(2, 1, filasUsuarios.length, ENCABEZADOS[HOJAS.USUARIOS].length).setValues(filasUsuarios);
+
+    // Las contraseñas temporales sólo se muestran en el registro de ejecución
+    // del editor (visible únicamente para el propietario del script).
+    console.log('=== CREDENCIALES INICIALES GENERADAS ===');
+    console.log('Guárdelas y distribúyalas por un canal seguro. No se volverán a mostrar.');
+    credencialesIniciales.forEach(function (c) {
+      console.log(c.correo + ' | ' + c.contrasena);
+    });
   }
 
-  // 4. Recordatorios automáticos en background deshabilitados según instrucción
+  // 4. Garantizar un secreto de arranque para la generación inicial de credenciales.
+  // El secreto sólo es visible en Configuración del proyecto > Propiedades del script.
+  const scriptProps = PropertiesService.getScriptProperties();
+  if (!scriptProps.getProperty(BOOTSTRAP_SECRET_PROPERTY)) {
+    scriptProps.setProperty(BOOTSTRAP_SECRET_PROPERTY, generarCadenaHex(32));
+  }
+
+  // 5. Recordatorios automáticos en background deshabilitados según instrucción
   eliminarTriggersRecordatorios();
 
-  return 'Setup completado exitosamente con organigrama jerárquico, catálogos y usuarios.';
+  return 'Setup completado exitosamente. Para el arranque inicial, copie AUTH_BOOTSTRAP_SECRET desde Configuración del proyecto > Propiedades del script y ejecute generarCredencialesUsuariosExistentes("SECRETO") desde el editor.';
 }
 
 function eliminarTriggersRecordatorios() {
@@ -262,6 +295,11 @@ function formatDate(dateObj) {
   return Utilities.formatDate(dateObj, timeZone, 'yyyy-MM-dd HH:mm:ss');
 }
 
+function ahoraTexto() {
+  const timeZone = Session.getScriptTimeZone() || 'America/Merida';
+  return Utilities.formatDate(new Date(), timeZone, 'yyyy-MM-dd HH:mm:ss');
+}
+
 function formatDateShort(dateObj) {
   if (!dateObj) return '';
   if (typeof dateObj === 'string') {
@@ -334,81 +372,436 @@ function generarFolioMinutaAnual() {
 // ==========================================
 // AUTENTICACIÓN Y SESIÓN
 // ==========================================
-function login(email) {
-  if (!email || typeof email !== 'string') {
+// Contexto de la ejecución actual. google.script.run ejecuta una sola acción
+// por petición, por lo que este valor nunca se comparte entre usuarios ni
+// entre peticiones concurrentes.
+let TOKEN_SESION_ACTUAL = null;
+let ACCIONES_CLIENTE_MAP = null;
+
+/**
+ * Punto de entrada único para las llamadas del cliente. Inyecta el token de
+ * sesión en el contexto de la ejecución y sólo permite acciones explícitas.
+ */
+function ejecutarAccion(nombreAccion, args, token) {
+  const acciones = obtenerAccionesCliente();
+  if (!Object.prototype.hasOwnProperty.call(acciones, nombreAccion)) {
+    throw new Error('Acción no permitida.');
+  }
+  TOKEN_SESION_ACTUAL = (typeof token === 'string' && token.trim()) ? token.trim() : null;
+  try {
+    return acciones[nombreAccion].apply(null, Array.isArray(args) ? args : []);
+  } finally {
+    TOKEN_SESION_ACTUAL = null;
+  }
+}
+
+function obtenerAccionesCliente() {
+  if (!ACCIONES_CLIENTE_MAP) {
+    ACCIONES_CLIENTE_MAP = {
+      login: login,
+      logout: logout,
+      obtenerSesion: obtenerSesion,
+      listarProyectos: listarProyectos,
+      crearProyecto: crearProyecto,
+      actualizarProyecto: actualizarProyecto,
+      cambiarEtapaProyecto: cambiarEtapaProyecto,
+      obtenerCatalogos: obtenerCatalogos,
+      obtenerKPIsDashboard: obtenerKPIsDashboard,
+      obtenerKPIsAdminDashboard: obtenerKPIsAdminDashboard,
+      listarAcuerdos: listarAcuerdos,
+      obtenerAcuerdo: obtenerAcuerdo,
+      crearAcuerdo: crearAcuerdo,
+      actualizarAcuerdo: actualizarAcuerdo,
+      agregarComentario: agregarComentario,
+      enviarRecordatorioManualAcuerdo: enviarRecordatorioManualAcuerdo,
+      listarMinutas: listarMinutas,
+      obtenerMinuta: obtenerMinuta,
+      crearMinuta: crearMinuta,
+      actualizarMinuta: actualizarMinuta,
+      enviarMinutaPorCorreo: enviarMinutaPorCorreo,
+      listarUsuarios: listarUsuarios,
+      guardarUsuario: guardarUsuario,
+      eliminarUsuario: eliminarUsuario,
+      restablecerContrasena: restablecerContrasena,
+      generarCredencialesUsuariosExistentes: generarCredencialesUsuariosExistentes,
+      guardarCatalogoItem: guardarCatalogoItem,
+      eliminarCatalogoItem: eliminarCatalogoItem
+    };
+  }
+  return ACCIONES_CLIENTE_MAP;
+}
+
+// --- Utilidades de sesión ---
+function generarTokenSesion() {
+  return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+}
+
+function guardarSesion(token, sesion) {
+  PropertiesService.getScriptProperties().setProperty(SESSION_PREFIX + token, JSON.stringify(sesion));
+}
+
+function leerSesionPorToken(token) {
+  if (!token) return null;
+  const raw = PropertiesService.getScriptProperties().getProperty(SESSION_PREFIX + token);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function eliminarSesionPorToken(token) {
+  if (!token) return;
+  PropertiesService.getScriptProperties().deleteProperty(SESSION_PREFIX + token);
+}
+
+function eliminarSesionesDeUsuario(email) {
+  const emailNorm = normalizarCorreo(email);
+  if (!emailNorm) return;
+  const props = PropertiesService.getScriptProperties();
+  const todas = props.getProperties();
+  Object.keys(todas).forEach(function (clave) {
+    if (clave.indexOf(SESSION_PREFIX) !== 0) return;
+    try {
+      const sesion = JSON.parse(todas[clave]);
+      if (sesion && normalizarCorreo(sesion.email) === emailNorm) {
+        props.deleteProperty(clave);
+      }
+    } catch (e) {
+      props.deleteProperty(clave);
+    }
+  });
+}
+
+function limpiarSesionesExpiradas() {
+  const cache = CacheService.getScriptCache();
+  if (cache.get(SESSION_CLEANUP_CACHE_KEY)) return;
+  cache.put(SESSION_CLEANUP_CACHE_KEY, '1', 3600);
+
+  const props = PropertiesService.getScriptProperties();
+  const todas = props.getProperties();
+  const ahora = Date.now();
+  Object.keys(todas).forEach(function (clave) {
+    if (clave.indexOf(SESSION_PREFIX) !== 0) return;
+    let eliminar = false;
+    try {
+      const sesion = JSON.parse(todas[clave]);
+      if (!sesion || !sesion.loginTime || (ahora - Number(sesion.loginTime)) > SESSION_TTL_MS) {
+        eliminar = true;
+      }
+    } catch (e) {
+      eliminar = true;
+    }
+    if (eliminar) props.deleteProperty(clave);
+  });
+}
+
+// --- Utilidades de usuarios ---
+function normalizarCorreo(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function esUsuarioActivo(usuario) {
+  if (!usuario) return false;
+  const estado = String(usuario.Activo || '').trim().toUpperCase();
+  return estado === 'SÍ' || estado === 'SI';
+}
+
+function obtenerEncabezados(sheet) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return [];
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h).trim();
+  });
+}
+
+function indiceEncabezados(headers) {
+  const indice = {};
+  headers.forEach(function (h, i) {
+    if (h) indice[h] = i;
+  });
+  return indice;
+}
+
+function asegurarEncabezadosUsuarios(sheet) {
+  const headers = ENCABEZADOS[HOJAS.USUARIOS];
+  const lastCol = sheet.getLastColumn();
+  const actuales = lastCol > 0
+    ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); })
+    : [];
+  let siguienteCol = lastCol + 1;
+
+  headers.forEach(function (header) {
+    if (actuales.indexOf(header) === -1) {
+      sheet.getRange(1, siguienteCol).setValue(header).setFontWeight('bold').setBackground('#E0E0E0');
+      actuales.push(header);
+      siguienteCol++;
+    }
+  });
+}
+
+function obtenerHojaUsuarios() {
+  const sheet = getSpreadsheet().getSheetByName(HOJAS.USUARIOS);
+  if (!sheet) {
+    throw new Error('La hoja de Usuarios no existe. Ejecute setup() para inicializar el sistema.');
+  }
+  asegurarEncabezadosUsuarios(sheet);
+  return sheet;
+}
+
+function obtenerUsuarioVigente(email) {
+  const emailNorm = normalizarCorreo(email);
+  if (!emailNorm) return null;
+
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'USER_STATE_' + emailNorm;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (e) {}
+  }
+
+  const usuarios = getSheetData(HOJAS.USUARIOS);
+  const usuario = usuarios.find(function (u) {
+    return normalizarCorreo(u.Correo) === emailNorm;
+  }) || null;
+
+  if (usuario) {
+    cache.put(cacheKey, JSON.stringify(usuario), USER_STATE_CACHE_TTL);
+  }
+  return usuario;
+}
+
+function invalidarCacheUsuario(email) {
+  CacheService.getScriptCache().remove('USER_STATE_' + normalizarCorreo(email));
+}
+
+// --- Utilidades de contraseñas ---
+function generarCadenaHex(longitud) {
+  let salida = '';
+  while (salida.length < longitud) {
+    salida += Utilities.getUuid().replace(/-/g, '');
+  }
+  return salida.substring(0, longitud);
+}
+
+function bytesAHex(bytes) {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = (bytes[i] + 256) % 256;
+    hex += ('0' + b.toString(16)).slice(-2);
+  }
+  return hex;
+}
+
+function derivarHashContrasena(contrasena, salt, iteraciones) {
+  let bytes = Utilities.newBlob(salt + ':' + contrasena).getBytes();
+  for (let i = 0; i < iteraciones; i++) {
+    bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes);
+  }
+  return bytesAHex(bytes);
+}
+
+function generarHashContrasena(contrasena) {
+  const salt = generarCadenaHex(32);
+  const hash = derivarHashContrasena(contrasena, salt, PASSWORD_HASH_ITERATIONS);
+  return PASSWORD_HASH_PREFIX + '$' + PASSWORD_HASH_ITERATIONS + '$' + salt + '$' + hash;
+}
+
+function verificarContrasena(contrasena, hashAlmacenado) {
+  if (!contrasena || !hashAlmacenado) return false;
+  const partes = String(hashAlmacenado).split('$');
+  if (partes.length !== 4 || partes[0] !== PASSWORD_HASH_PREFIX) return false;
+  const iteraciones = parseInt(partes[1], 10);
+  if (!iteraciones || iteraciones < 1000 || iteraciones > 100000) return false;
+  const calculado = derivarHashContrasena(contrasena, partes[2], iteraciones);
+  return compararTiempoConstante(calculado, partes[3]);
+}
+
+function compararTiempoConstante(a, b) {
+  const sa = String(a || '');
+  const sb = String(b || '');
+  if (sa.length !== sb.length) return false;
+  let diferencia = 0;
+  for (let i = 0; i < sa.length; i++) {
+    diferencia |= sa.charCodeAt(i) ^ sb.charCodeAt(i);
+  }
+  return diferencia === 0;
+}
+
+function aleatorioEntero(max) {
+  if (max <= 0) return 0;
+  const hex = Utilities.getUuid().replace(/-/g, '').substring(0, 8);
+  return parseInt(hex, 16) % max;
+}
+
+function elegirAleatorio(cadena) {
+  return cadena.charAt(aleatorioEntero(cadena.length));
+}
+
+function generarContrasenaTemporal(longitud) {
+  const len = longitud || PASSWORD_GENERATED_LENGTH;
+  const mayusculas = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const minusculas = 'abcdefghijkmnopqrstuvwxyz';
+  const numeros = '23456789';
+  const especiales = '!@#$%&*?-_';
+  const todos = mayusculas + minusculas + numeros + especiales;
+
+  const caracteres = [
+    elegirAleatorio(mayusculas),
+    elegirAleatorio(minusculas),
+    elegirAleatorio(numeros),
+    elegirAleatorio(especiales)
+  ];
+  while (caracteres.length < len) {
+    caracteres.push(elegirAleatorio(todos));
+  }
+  for (let i = caracteres.length - 1; i > 0; i--) {
+    const j = aleatorioEntero(i + 1);
+    const tmp = caracteres[i];
+    caracteres[i] = caracteres[j];
+    caracteres[j] = tmp;
+  }
+  return caracteres.join('');
+}
+
+// --- Control de intentos de acceso ---
+function verificarBloqueoLogin(emailNorm) {
+  const cache = CacheService.getScriptCache();
+  const intentos = parseInt(cache.get('LOGIN_FAIL_' + emailNorm) || '0', 10);
+  if (intentos >= LOGIN_MAX_INTENTOS) {
+    throw new Error('Demasiados intentos fallidos. Intente de nuevo en unos minutos.');
+  }
+}
+
+function registrarIntentoFallido(emailNorm) {
+  const cache = CacheService.getScriptCache();
+  const clave = 'LOGIN_FAIL_' + emailNorm;
+  const intentos = parseInt(cache.get(clave) || '0', 10) + 1;
+  cache.put(clave, String(intentos), LOGIN_BLOQUEO_SEGUNDOS);
+}
+
+function limpiarIntentosFallidos(emailNorm) {
+  CacheService.getScriptCache().remove('LOGIN_FAIL_' + emailNorm);
+}
+
+// --- API de autenticación ---
+function login(email, password) {
+  if (!email || typeof email !== 'string' || !email.trim()) {
     throw new Error('Ingrese un correo electrónico válido.');
   }
-  const emailNorm = email.trim().toLowerCase();
-  const usuarios = getSheetData(HOJAS.USUARIOS);
-
-  const user = usuarios.find(u => String(u.Correo).trim().toLowerCase() === emailNorm);
-
-  if (!user) {
-    throw new Error('Usuario no registrado. Contacte al administrador.');
+  if (!password || typeof password !== 'string') {
+    throw new Error('Ingrese su contraseña.');
   }
 
-  if (String(user.Activo).trim().toUpperCase() !== 'SÍ' && String(user.Activo).trim().toUpperCase() !== 'SI') {
+  const emailNorm = normalizarCorreo(email);
+  verificarBloqueoLogin(emailNorm);
+
+  obtenerHojaUsuarios();
+  const usuarios = getSheetData(HOJAS.USUARIOS);
+  const user = usuarios.find(function (u) {
+    return normalizarCorreo(u.Correo) === emailNorm;
+  });
+
+  if (!user) {
+    registrarIntentoFallido(emailNorm);
+    throw new Error('Usuario o contraseña incorrectos.');
+  }
+
+  const hashAlmacenado = String(user.Contrasena_Hash || '').trim();
+  if (!hashAlmacenado) {
+    throw new Error('Su cuenta aún no tiene una contraseña configurada. Contacte al administrador.');
+  }
+
+  if (!verificarContrasena(password, hashAlmacenado)) {
+    registrarIntentoFallido(emailNorm);
+    throw new Error('Usuario o contraseña incorrectos.');
+  }
+
+  if (!esUsuarioActivo(user)) {
     throw new Error('Usuario inactivo. Contacte al administrador.');
   }
 
+  limpiarIntentosFallidos(emailNorm);
+
+  // Si el navegador tenía una sesión anterior, se invalida antes de emitir la nueva.
+  eliminarSesionPorToken(TOKEN_SESION_ACTUAL);
+
+  const token = generarTokenSesion();
   const sesionObj = {
     email: String(user.Correo).trim(),
     nombre: String(user.Nombre).trim(),
     rol: String(user.Rol).trim(),
     subdireccion: String(user.Subdirección).trim(),
     jefaturaDepartamento: String(user.Jefatura_Departamento || '').trim(),
-    loginTime: new Date().getTime()
+    loginTime: Date.now()
   };
 
-  const userProps = PropertiesService.getUserProperties();
-  userProps.setProperty('CURRENT_USER', JSON.stringify(sesionObj));
+  guardarSesion(token, sesionObj);
+  limpiarSesionesExpiradas();
 
-  const cache = CacheService.getUserCache();
-  if (cache) {
-    cache.put('CURRENT_USER', JSON.stringify(sesionObj), 21600);
-  }
-
-  return sesionObj;
+  return Object.assign({}, sesionObj, { token: token });
 }
 
 function logout() {
-  const userProps = PropertiesService.getUserProperties();
-  userProps.deleteProperty('CURRENT_USER');
-  const cache = CacheService.getUserCache();
-  if (cache) {
-    cache.remove('CURRENT_USER');
-  }
+  eliminarSesionPorToken(TOKEN_SESION_ACTUAL);
+  TOKEN_SESION_ACTUAL = null;
   return true;
 }
 
+/**
+ * Restaura la sesión del navegador actual. Requiere el token que el cliente
+ * conserva en sessionStorage; sin token no se adopta ninguna sesión.
+ */
 function obtenerSesion() {
-  const userProps = PropertiesService.getUserProperties();
-  const rawProp = userProps.getProperty('CURRENT_USER');
-  if (rawProp) {
-    try {
-      return JSON.parse(rawProp);
-    } catch (e) {}
+  const token = TOKEN_SESION_ACTUAL;
+  if (!token) return null;
+  try {
+    const sesion = validarSesion();
+    return Object.assign({}, sesion, { token: token });
+  } catch (e) {
+    return null;
   }
-
-  const cache = CacheService.getUserCache();
-  if (cache) {
-    const rawCache = cache.get('CURRENT_USER');
-    if (rawCache) {
-      try {
-        return JSON.parse(rawCache);
-      } catch (e) {}
-    }
-  }
-
-  return null;
 }
 
+/**
+ * Única fuente de verdad para autorizar una petición. Valida el token contra
+ * el registro de sesiones y refresca rol/estado desde la hoja de Usuarios.
+ */
 function validarSesion() {
-  const sesion = obtenerSesion();
-  if (!sesion || !sesion.email) {
+  const token = TOKEN_SESION_ACTUAL;
+  if (!token) {
     throw new Error('Sesión no válida o expirada. Por favor inicie sesión.');
   }
-  return sesion;
+
+  const sesion = leerSesionPorToken(token);
+  if (!sesion || !sesion.email) {
+    eliminarSesionPorToken(token);
+    throw new Error('Sesión no válida o expirada. Por favor inicie sesión.');
+  }
+
+  const loginTime = Number(sesion.loginTime || 0);
+  if (!loginTime || (Date.now() - loginTime) > SESSION_TTL_MS) {
+    eliminarSesionPorToken(token);
+    throw new Error('Sesión expirada. Por favor inicie sesión nuevamente.');
+  }
+
+  const usuario = obtenerUsuarioVigente(sesion.email);
+  if (!usuario || !esUsuarioActivo(usuario)) {
+    eliminarSesionPorToken(token);
+    throw new Error('Su cuenta ya no está activa. Contacte al administrador.');
+  }
+
+  return {
+    email: String(usuario.Correo).trim(),
+    nombre: String(usuario.Nombre).trim(),
+    rol: String(usuario.Rol).trim(),
+    subdireccion: String(usuario.Subdirección).trim(),
+    jefaturaDepartamento: String(usuario.Jefatura_Departamento || '').trim(),
+    loginTime: loginTime
+  };
 }
 
 // ==========================================
@@ -1545,13 +1938,27 @@ function registrarEventoRecordatorio(idAcuerdo, usuario, fechaHora, ss, destinat
 // GESTIÓN DE USUARIOS Y CATÁLOGOS (ADMIN)
 // ==========================================
 
+function publicoDeUsuario(usuario) {
+  return {
+    Correo: String(usuario.Correo || '').trim(),
+    Nombre: String(usuario.Nombre || '').trim(),
+    Rol: String(usuario.Rol || '').trim(),
+    Subdirección: String(usuario.Subdirección || '').trim(),
+    Activo: String(usuario.Activo || '').trim(),
+    Jefatura_Departamento: String(usuario.Jefatura_Departamento || '').trim(),
+    TieneContrasena: !!String(usuario.Contrasena_Hash || '').trim()
+  };
+}
+
 function listarUsuarios() {
   const sesion = validarSesion();
-  const usuarios = getSheetData(HOJAS.USUARIOS);
+  const usuarios = getSheetData(HOJAS.USUARIOS).map(publicoDeUsuario);
   if (sesion.rol === ROLES.ADMINISTRADOR) {
     return usuarios;
   }
-  return usuarios.filter(u => String(u.Correo).trim().toLowerCase() === sesion.email.toLowerCase());
+  return usuarios.filter(function (u) {
+    return normalizarCorreo(u.Correo) === normalizarCorreo(sesion.email);
+  });
 }
 
 function guardarUsuario(data) {
@@ -1559,47 +1966,70 @@ function guardarUsuario(data) {
   if (sesion.rol !== ROLES.ADMINISTRADOR) {
     throw new Error('Solo los Administradores pueden gestionar usuarios.');
   }
-
-  if (!data.correo || !data.correo.trim()) {
+  if (!data || !data.correo || !String(data.correo).trim()) {
     throw new Error('El correo electrónico es obligatorio.');
+  }
+
+  const correoNorm = normalizarCorreo(data.correo);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoNorm)) {
+    throw new Error('Ingrese un correo electrónico válido.');
+  }
+
+  const rol = String(data.rol || ROLES.OPERADOR).trim();
+  if (Object.values(ROLES).indexOf(rol) === -1) {
+    throw new Error('Rol no válido.');
   }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const ss = getSpreadsheet();
-    const sheet = ss.getSheetByName(HOJAS.USUARIOS);
+    const sheet = obtenerHojaUsuarios();
+    const headers = obtenerEncabezados(sheet);
+    const idx = indiceEncabezados(headers);
     const rows = sheet.getDataRange().getValues();
-    const correoNorm = data.correo.trim().toLowerCase();
 
     let rowIndex = -1;
     for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][0]).trim().toLowerCase() === correoNorm) {
+      if (normalizarCorreo(rows[i][idx.Correo]) === correoNorm) {
         rowIndex = i + 1;
         break;
       }
     }
 
     if (rowIndex !== -1) {
-      sheet.getRange(rowIndex, 2).setValue(data.nombre || '');
-      sheet.getRange(rowIndex, 3).setValue(data.rol || ROLES.OPERADOR);
-      sheet.getRange(rowIndex, 4).setValue(data.subdireccion || '');
-      sheet.getRange(rowIndex, 5).setValue(data.activo || 'Sí');
-      if (sheet.getLastColumn() >= 6) {
-        sheet.getRange(rowIndex, 6).setValue(data.jefaturaDepartamento || '');
+      // Al editar nunca se tocan las columnas de contraseña.
+      sheet.getRange(rowIndex, idx.Nombre + 1).setValue(data.nombre || '');
+      sheet.getRange(rowIndex, idx.Rol + 1).setValue(rol);
+      sheet.getRange(rowIndex, idx.Subdirección + 1).setValue(data.subdireccion || '');
+      sheet.getRange(rowIndex, idx.Activo + 1).setValue(data.activo || 'Sí');
+      sheet.getRange(rowIndex, idx.Jefatura_Departamento + 1).setValue(data.jefaturaDepartamento || '');
+      invalidarCacheUsuario(correoNorm);
+
+      if (String(data.activo || 'Sí').trim().toUpperCase() === 'NO') {
+        eliminarSesionesDeUsuario(correoNorm);
       }
       return { success: true, message: 'Usuario actualizado correctamente.' };
-    } else {
-      sheet.appendRow([
-        data.correo.trim(),
-        data.nombre || '',
-        data.rol || ROLES.OPERADOR,
-        data.subdireccion || '',
-        data.activo || 'Sí',
-        data.jefaturaDepartamento || ''
-      ]);
-      return { success: true, message: 'Usuario registrado correctamente.' };
     }
+
+    const contrasenaTemporal = generarContrasenaTemporal();
+    const fila = new Array(headers.length).fill('');
+    fila[idx.Correo] = String(data.correo).trim();
+    fila[idx.Nombre] = data.nombre || '';
+    fila[idx.Rol] = rol;
+    fila[idx.Subdirección] = data.subdireccion || '';
+    fila[idx.Activo] = data.activo || 'Sí';
+    fila[idx.Jefatura_Departamento] = data.jefaturaDepartamento || '';
+    fila[idx.Contrasena_Hash] = generarHashContrasena(contrasenaTemporal);
+    fila[idx.Contrasena_Actualizada] = ahoraTexto();
+    sheet.appendRow(fila);
+    invalidarCacheUsuario(correoNorm);
+
+    return {
+      success: true,
+      message: 'Usuario registrado correctamente. Comparta la contraseña temporal por un canal seguro.',
+      correo: String(data.correo).trim(),
+      contrasenaTemporal: contrasenaTemporal
+    };
   } finally {
     lock.releaseLock();
   }
@@ -1611,20 +2041,24 @@ function eliminarUsuario(email) {
     throw new Error('Solo los Administradores pueden eliminar usuarios.');
   }
 
-  if (String(email).trim().toLowerCase() === sesion.email.toLowerCase()) {
+  const correoNorm = normalizarCorreo(email);
+  if (correoNorm === normalizarCorreo(sesion.email)) {
     throw new Error('No puede eliminar su propia cuenta activa.');
   }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const ss = getSpreadsheet();
-    const sheet = ss.getSheetByName(HOJAS.USUARIOS);
+    const sheet = obtenerHojaUsuarios();
+    const headers = obtenerEncabezados(sheet);
+    const idx = indiceEncabezados(headers);
     const rows = sheet.getDataRange().getValues();
 
     for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][0]).trim().toLowerCase() === String(email).trim().toLowerCase()) {
+      if (normalizarCorreo(rows[i][idx.Correo]) === correoNorm) {
         sheet.deleteRow(i + 1);
+        invalidarCacheUsuario(correoNorm);
+        eliminarSesionesDeUsuario(correoNorm);
         return { success: true, message: 'Usuario eliminado.' };
       }
     }
@@ -1632,6 +2066,139 @@ function eliminarUsuario(email) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function restablecerContrasena(email) {
+  const sesion = validarSesion();
+  if (sesion.rol !== ROLES.ADMINISTRADOR) {
+    throw new Error('Solo los Administradores pueden restablecer contraseñas.');
+  }
+
+  const correoNorm = normalizarCorreo(email);
+  if (!correoNorm) {
+    throw new Error('Correo electrónico no válido.');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = obtenerHojaUsuarios();
+    const headers = obtenerEncabezados(sheet);
+    const idx = indiceEncabezados(headers);
+    const rows = sheet.getDataRange().getValues();
+
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (normalizarCorreo(rows[i][idx.Correo]) === correoNorm) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    if (rowIndex === -1) {
+      throw new Error('Usuario no encontrado.');
+    }
+
+    const contrasenaTemporal = generarContrasenaTemporal();
+    sheet.getRange(rowIndex, idx.Contrasena_Hash + 1).setValue(generarHashContrasena(contrasenaTemporal));
+    sheet.getRange(rowIndex, idx.Contrasena_Actualizada + 1).setValue(ahoraTexto());
+
+    invalidarCacheUsuario(correoNorm);
+    // Un restablecimiento invalida cualquier sesión abierta de ese usuario.
+    eliminarSesionesDeUsuario(correoNorm);
+
+    return {
+      success: true,
+      message: 'Contraseña restablecida. Comparta la contraseña temporal por un canal seguro.',
+      correo: String(rows[rowIndex - 1][idx.Correo]).trim(),
+      contrasenaTemporal: contrasenaTemporal
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Genera contraseñas para los usuarios que aún no tienen una (migración de
+ * usuarios existentes). Puede ejecutarse desde la interfaz por un
+ * Administrador o desde el editor del script para el arranque inicial.
+ */
+function generarCredencialesUsuariosExistentes(claveBootstrap) {
+  const sesionAdmin = obtenerSesionAdministradorParaCredenciales();
+  if (!sesionAdmin && !esClaveBootstrapValida(claveBootstrap)) {
+    throw new Error('Solo los Administradores pueden generar credenciales.');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = obtenerHojaUsuarios();
+    const headers = obtenerEncabezados(sheet);
+    const idx = indiceEncabezados(headers);
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      return { success: true, message: 'No hay usuarios registrados.', credenciales: [] };
+    }
+
+    const rows = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+    const credenciales = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const correo = String(rows[i][idx.Correo] || '').trim();
+      if (!correo) continue;
+      if (String(rows[i][idx.Contrasena_Hash] || '').trim()) continue;
+
+      const contrasenaTemporal = generarContrasenaTemporal();
+      const fila = i + 2;
+      sheet.getRange(fila, idx.Contrasena_Hash + 1).setValue(generarHashContrasena(contrasenaTemporal));
+      sheet.getRange(fila, idx.Contrasena_Actualizada + 1).setValue(ahoraTexto());
+
+      credenciales.push({
+        correo: correo,
+        nombre: String(rows[i][idx.Nombre] || '').trim(),
+        contrasena: contrasenaTemporal
+      });
+      invalidarCacheUsuario(correo);
+    }
+
+    if (credenciales.length === 0) {
+      return { success: true, message: 'Todos los usuarios ya tienen una contraseña configurada.', credenciales: [] };
+    }
+
+    // Registro visible únicamente para el propietario del script.
+    console.log('=== CREDENCIALES TEMPORALES GENERADAS ===');
+    credenciales.forEach(function (c) {
+      console.log(c.correo + ' | ' + c.contrasena);
+    });
+
+    return {
+      success: true,
+      message: 'Se generaron ' + credenciales.length + ' credenciales temporales. Compártalas por un canal seguro.',
+      credenciales: credenciales
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function obtenerSesionAdministradorParaCredenciales() {
+  try {
+    const sesion = validarSesion();
+    return sesion.rol === ROLES.ADMINISTRADOR ? sesion : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Valida el secreto de arranque almacenado en las propiedades del script.
+ * Permite generar las credenciales iniciales desde el editor sin depender de
+ * la identidad que Google Apps Script reporta en la Web App.
+ */
+function esClaveBootstrapValida(claveBootstrap) {
+  if (!claveBootstrap || typeof claveBootstrap !== 'string') return false;
+  const esperada = PropertiesService.getScriptProperties().getProperty(BOOTSTRAP_SECRET_PROPERTY);
+  if (!esperada) return false;
+  return compararTiempoConstante(String(claveBootstrap).trim(), String(esperada).trim());
 }
 
 // --- CATÁLOGOS ---

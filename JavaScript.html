@@ -64,58 +64,143 @@
   }
 
   // ==========================================
+  // SESIÓN SEGURA Y LLAMADAS AL BACKEND
+  // ==========================================
+  // El token se guarda en sessionStorage: es único por pestaña, sobrevive a
+  // recargas y nunca se comparte entre usuarios ni entre pestañas distintas.
+  const SESSION_TOKEN_KEY = 'acuerdos.auth.token';
+  let TOKEN_SESION_MEMORIA = null;
+
+  function obtenerTokenSesion() {
+    try {
+      return window.sessionStorage.getItem(SESSION_TOKEN_KEY) || TOKEN_SESION_MEMORIA;
+    } catch (e) {
+      return TOKEN_SESION_MEMORIA;
+    }
+  }
+
+  function guardarTokenSesion(token) {
+    TOKEN_SESION_MEMORIA = token || null;
+    try {
+      if (token) window.sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    } catch (e) {}
+  }
+
+  function limpiarTokenSesion() {
+    TOKEN_SESION_MEMORIA = null;
+    try {
+      window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    } catch (e) {}
+  }
+
+  /**
+   * Envuelve google.script.run para que TODA llamada al backend pase por
+   * ejecutarAccion y transporte el token de la sesión actual.
+   */
+  function crearApiSegura(runner) {
+    return new Proxy(runner, {
+      get: function(target, prop) {
+        if (typeof prop !== 'string') return target[prop];
+        if (prop === 'withSuccessHandler' || prop === 'withFailureHandler' || prop === 'withUserObject') {
+          return function() {
+            return crearApiSegura(target[prop].apply(target, arguments));
+          };
+        }
+        return function() {
+          const args = Array.prototype.slice.call(arguments);
+          return target.ejecutarAccion(prop, args, obtenerTokenSesion());
+        };
+      }
+    });
+  }
+
+  const API = crearApiSegura(google.script.run);
+
+  // ==========================================
   // AUTENTICACIÓN Y SESIÓN
   // ==========================================
   function verificarSesionInicial() {
+    if (!obtenerTokenSesion()) {
+      mostrarLogin();
+      return;
+    }
+
     showSpinner('Verificando sesión...');
-    google.script.run
+    API
       .withSuccessHandler(function(sesion) {
         hideSpinner();
-        if (sesion) {
+        if (sesion && sesion.token) {
           CURRENT_USER = sesion;
+          guardarTokenSesion(sesion.token);
           iniciarAplicacionConSesion();
         } else {
+          limpiarTokenSesion();
           mostrarLogin();
         }
       })
-      .withFailureHandler(function(err) {
+      .withFailureHandler(function() {
         hideSpinner();
+        limpiarTokenSesion();
         mostrarLogin();
       })
       .obtenerSesion();
   }
 
   function ejecutarLogin() {
-    const email = document.getElementById('login-email').value;
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
     const alertEl = document.getElementById('login-alert');
     alertEl.classList.add('d-none');
 
+    if (!email || !password) {
+      alertEl.innerText = 'Ingrese su correo electrónico y su contraseña.';
+      alertEl.classList.remove('d-none');
+      return;
+    }
+
     showSpinner('Autenticando usuario...');
-    google.script.run
+    API
       .withSuccessHandler(function(sesion) {
         hideSpinner();
+        if (!sesion || !sesion.token) {
+          alertEl.innerText = 'No fue posible iniciar sesión. Intente nuevamente.';
+          alertEl.classList.remove('d-none');
+          return;
+        }
         CURRENT_USER = sesion;
+        guardarTokenSesion(sesion.token);
+        document.getElementById('login-password').value = '';
         iniciarAplicacionConSesion();
       })
       .withFailureHandler(function(err) {
         hideSpinner();
         alertEl.innerText = err.message || 'Error al iniciar sesión.';
         alertEl.classList.remove('d-none');
+        document.getElementById('login-password').value = '';
       })
-      .login(email);
+      .login(email, password);
+  }
+
+  function finalizarLogout() {
+    hideSpinner();
+    limpiarTokenSesion();
+    CURRENT_USER = null;
+    GLOBAL_PROYECTOS = [];
+    GLOBAL_MINUTAS = [];
+    GLOBAL_ACUERDOS = [];
+    GLOBAL_USUARIOS = [];
+    ACUERDO_ACTUAL_DETALLE_ID = null;
+    mostrarLogin();
   }
 
   function ejecutarLogout() {
     showSpinner('Cerrando sesión...');
-    google.script.run
+    API
       .withSuccessHandler(function() {
-        hideSpinner();
-        CURRENT_USER = null;
-        mostrarLogin();
+        finalizarLogout();
       })
       .withFailureHandler(function() {
-        hideSpinner();
-        mostrarLogin();
+        finalizarLogout();
       })
       .logout();
   }
@@ -124,9 +209,20 @@
     document.getElementById('app-layout').classList.add('d-none');
     document.getElementById('app-layout').classList.remove('d-flex');
     document.getElementById('login-view').classList.remove('d-none');
+    document.getElementById('login-alert').classList.add('d-none');
+    document.getElementById('login-password').value = '';
+    const emailInput = document.getElementById('login-email');
+    if (emailInput) emailInput.focus();
   }
 
   function iniciarAplicacionConSesion() {
+    // Limpia cualquier dato de una sesión anterior antes de cargar la nueva.
+    GLOBAL_PROYECTOS = [];
+    GLOBAL_MINUTAS = [];
+    GLOBAL_ACUERDOS = [];
+    GLOBAL_USUARIOS = [];
+    ACUERDO_ACTUAL_DETALLE_ID = null;
+
     document.getElementById('login-view').classList.add('d-none');
     document.getElementById('app-layout').classList.remove('d-none');
     document.getElementById('app-layout').classList.add('d-flex');
@@ -142,7 +238,7 @@
   }
 
   function cargarProyectosGlobales() {
-    google.script.run
+    API
       .withSuccessHandler(function(proyectos) {
         GLOBAL_PROYECTOS = proyectos;
         poblarSelectProyectosMinuta(proyectos);
@@ -247,7 +343,7 @@
   // CATÁLOGOS GLOBALES Y ORGANIGRAMA
   // ==========================================
   function cargarCatalogosGlobales(callback) {
-    google.script.run
+    API
       .withSuccessHandler(function(cats) {
         GLOBAL_CATALOGOS = cats;
         poblarDropdowns();
@@ -437,7 +533,7 @@
   // ==========================================
   function cargarDashboard() {
     showSpinner('Cargando indicadores...');
-    google.script.run
+    API
       .withSuccessHandler(function(kpis) {
         hideSpinner();
         document.getElementById('kpi-proyectos').innerText = kpis.totalProyectos;
@@ -599,7 +695,7 @@
   }
 
   function cargarAlertasDashboard() {
-    google.script.run
+    API
       .withSuccessHandler(function(acuerdos) {
         const cont = document.getElementById('contenedor-alertas-vencimiento');
         cont.innerHTML = '';
@@ -637,7 +733,7 @@
   }
 
   function cargarAdminDashboardMetricas() {
-    google.script.run
+    API
       .withSuccessHandler(function(admKpis) {
         document.getElementById('admin-kpi-eficiencia').innerText = `${admKpis.eficienciaGeneral}%`;
         document.getElementById('admin-kpi-cerrados').innerText = admKpis.totalCerradosGeneral;
@@ -686,7 +782,7 @@
   // ==========================================
   function cargarProyectos() {
     showSpinner('Cargando proyectos...');
-    google.script.run
+    API
       .withSuccessHandler(function(proyectos) {
         hideSpinner();
         GLOBAL_PROYECTOS = proyectos;
@@ -836,7 +932,7 @@
     const modalEl = document.getElementById('modalCambiarEtapaProyecto');
     const bsModal = bootstrap.Modal.getInstance(modalEl);
 
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         if (bsModal) bsModal.hide();
@@ -890,7 +986,7 @@
     const bsModal = bootstrap.Modal.getInstance(modalEl);
 
     if (idP) {
-      google.script.run
+      API
         .withSuccessHandler(function(res) {
           hideSpinner();
           if (bsModal) bsModal.hide();
@@ -903,7 +999,7 @@
         })
         .actualizarProyecto(idP, data);
     } else {
-      google.script.run
+      API
         .withSuccessHandler(function(res) {
           hideSpinner();
           if (bsModal) bsModal.hide();
@@ -923,7 +1019,7 @@
   // ==========================================
   function cargarMinutas() {
     showSpinner('Cargando minutas...');
-    google.script.run
+    API
       .withSuccessHandler(function(minutas) {
         hideSpinner();
         GLOBAL_MINUTAS = minutas;
@@ -976,7 +1072,7 @@
     if (!confirm(`¿Desea enviar la Minuta ${folio} en PDF a todos los asistentes registrados con correo?`)) return;
 
     showSpinner(`Generando PDF y enviando minuta ${folio}...`);
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         mostrarToast(res.message);
@@ -1313,7 +1409,7 @@
     const bsModal = bootstrap.Modal.getInstance(modalEl);
 
     if (folio) {
-      google.script.run
+      API
         .withSuccessHandler(function(res) {
           hideSpinner();
           if (bsModal) bsModal.hide();
@@ -1326,7 +1422,7 @@
         })
         .actualizarMinuta(folio, data);
     } else {
-      google.script.run
+      API
         .withSuccessHandler(function(res) {
           hideSpinner();
           if (bsModal) bsModal.hide();
@@ -1343,7 +1439,7 @@
 
   function abrirModalEditarMinuta(folio) {
     showSpinner('Cargando minuta para edición...');
-    google.script.run
+    API
       .withSuccessHandler(function(det) {
         hideSpinner();
         if (!det) return;
@@ -1388,7 +1484,7 @@
   // ==========================================
   function cargarAcuerdos() {
     showSpinner('Cargando acuerdos...');
-    google.script.run
+    API
       .withSuccessHandler(function(acuerdos) {
         hideSpinner();
         GLOBAL_ACUERDOS = acuerdos;
@@ -1540,7 +1636,7 @@
     const modalEl = document.getElementById('modalEstatusAcuerdo');
     const bsModal = bootstrap.Modal.getInstance(modalEl);
 
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         if (bsModal) bsModal.hide();
@@ -1743,7 +1839,7 @@
     const bsModal = bootstrap.Modal.getInstance(modalEl);
 
     if (idA) {
-      google.script.run
+      API
         .withSuccessHandler(function(res) {
           hideSpinner();
           if (bsModal) bsModal.hide();
@@ -1759,7 +1855,7 @@
         })
         .actualizarAcuerdo(idA, data);
     } else {
-      google.script.run
+      API
         .withSuccessHandler(function(res) {
           hideSpinner();
           if (bsModal) bsModal.hide();
@@ -1781,7 +1877,7 @@
     ACUERDO_ACTUAL_DETALLE_ID = idAcuerdo;
     showSpinner('Cargando detalle del acuerdo...');
 
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         if (!res || !res.acuerdo) {
@@ -1858,7 +1954,7 @@
     if (!confirm(`¿Desea enviar un recordatorio por correo a las Subdirecciones/Jefaturas responsables de este acuerdo?`)) return;
 
     showSpinner('Enviando recordatorio...');
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         mostrarToast(res.message);
@@ -1956,7 +2052,7 @@
     if (!texto.trim() || !ACUERDO_ACTUAL_DETALLE_ID) return;
 
     showSpinner('Guardando comentario...');
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         document.getElementById('nuevo-comentario-texto').value = '';
@@ -1975,7 +2071,7 @@
   // ==========================================
   function cargarUsuarios() {
     showSpinner('Cargando usuarios...');
-    google.script.run
+    API
       .withSuccessHandler(function(usuarios) {
         hideSpinner();
         GLOBAL_USUARIOS = usuarios;
@@ -1993,13 +2089,16 @@
     tbody.innerHTML = '';
 
     if (usuarios.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay usuarios registrados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No hay usuarios registrados</td></tr>';
       return;
     }
 
     usuarios.forEach(u => {
       const tr = document.createElement('tr');
       const esActivo = String(u.Activo).toUpperCase() === 'SÍ' || String(u.Activo).toUpperCase() === 'SI';
+      const credencial = u.TieneContrasena
+        ? '<span class="badge bg-success">Configurada</span>'
+        : '<span class="badge bg-warning text-dark">Pendiente</span>';
 
       tr.innerHTML = `
         <td class="fw-semibold">${u.Correo}</td>
@@ -2007,10 +2106,14 @@
         <td><span class="badge ${u.Rol === 'Administrador' ? 'bg-danger' : (u.Rol === 'Operador' ? 'bg-primary' : (u.Rol === 'Jefatura' ? 'bg-info text-dark' : 'bg-secondary'))}">${u.Rol}</span></td>
         <td class="small">${u.Subdirección}</td>
         <td class="small">${u.Jefatura_Departamento || '-'}</td>
+        <td>${credencial}</td>
         <td><span class="badge ${esActivo ? 'bg-success' : 'bg-danger'}">${u.Activo}</span></td>
         <td class="text-end sol-admin-only">
           <button class="btn btn-outline-primary btn-sm rounded-circle me-1" onclick="abrirModalEditarUsuario('${u.Correo}')" title="Editar">
             <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-outline-secondary btn-sm rounded-circle me-1" onclick="restablecerContrasenaConfirm('${u.Correo}')" title="Restablecer contraseña">
+            <i class="bi bi-key"></i>
           </button>
           <button class="btn btn-outline-danger btn-sm rounded-circle" onclick="eliminarUsuarioConfirm('${u.Correo}')" title="Eliminar">
             <i class="bi bi-trash"></i>
@@ -2019,6 +2122,71 @@
       `;
       tbody.appendChild(tr);
     });
+  }
+
+  function mostrarCredencialesGeneradas(res) {
+    const credenciales = (res && res.credenciales) ? res.credenciales.slice() : [];
+    if (res && res.correo && res.contrasenaTemporal) {
+      credenciales.unshift({ correo: res.correo, nombre: '', contrasena: res.contrasenaTemporal });
+    }
+    if (credenciales.length === 0) return;
+
+    const tbody = document.getElementById('tabla-credenciales-body');
+    tbody.innerHTML = '';
+    credenciales.forEach(c => {
+      const tr = document.createElement('tr');
+      const tdCorreo = document.createElement('td');
+      tdCorreo.textContent = c.correo || '';
+      const tdNombre = document.createElement('td');
+      tdNombre.textContent = c.nombre || '-';
+      const tdContrasena = document.createElement('td');
+      const code = document.createElement('code');
+      code.textContent = c.contrasena || '';
+      tdContrasena.appendChild(code);
+      tr.appendChild(tdCorreo);
+      tr.appendChild(tdNombre);
+      tr.appendChild(tdContrasena);
+      tbody.appendChild(tr);
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('modalCredenciales'));
+    modal.show();
+  }
+
+  function restablecerContrasenaConfirm(correo) {
+    if (!confirm(`¿Restablecer la contraseña de ${correo}? Se cerrarán sus sesiones activas.`)) return;
+
+    showSpinner('Restableciendo contraseña...');
+    API
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        mostrarCredencialesGeneradas(res);
+        cargarUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al restablecer la contraseña', true);
+      })
+      .restablecerContrasena(correo);
+  }
+
+  function generarCredencialesPendientes() {
+    if (!confirm('¿Generar contraseñas temporales para todos los usuarios que aún no tienen una?')) return;
+
+    showSpinner('Generando credenciales...');
+    API
+      .withSuccessHandler(function(res) {
+        hideSpinner();
+        mostrarToast(res.message);
+        mostrarCredencialesGeneradas(res);
+        cargarUsuarios();
+      })
+      .withFailureHandler(function(err) {
+        hideSpinner();
+        mostrarToast(err.message || 'Error al generar credenciales', true);
+      })
+      .generarCredencialesUsuariosExistentes();
   }
 
   function abrirModalNuevoUsuario() {
@@ -2060,12 +2228,15 @@
     const modalEl = document.getElementById('modalUsuario');
     const bsModal = bootstrap.Modal.getInstance(modalEl);
 
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         if (bsModal) bsModal.hide();
         mostrarToast(res.message);
         cargarUsuarios();
+        if (res && res.contrasenaTemporal) {
+          mostrarCredencialesGeneradas(res);
+        }
       })
       .withFailureHandler(function(err) {
         hideSpinner();
@@ -2078,7 +2249,7 @@
     if (!confirm(`¿Está seguro de eliminar al usuario ${correo}?`)) return;
 
     showSpinner('Eliminando usuario...');
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         mostrarToast(res.message);
@@ -2151,7 +2322,7 @@
     const padre = document.getElementById('catalogo-padre').value;
 
     showSpinner('Guardando ítem en el catálogo...');
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         document.getElementById('catalogo-valor').value = '';
@@ -2170,7 +2341,7 @@
     if (!confirm(`¿Eliminar "${valor}" del catálogo ${tipo}?`)) return;
 
     showSpinner('Eliminando ítem...');
-    google.script.run
+    API
       .withSuccessHandler(function(res) {
         hideSpinner();
         mostrarToast(res.message);

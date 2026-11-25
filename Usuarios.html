@@ -5,9 +5,14 @@
       <h3 class="fw-bold mb-1"><i class="bi bi-people text-primary me-2"></i>Gestión de Usuarios</h3>
       <p class="text-muted small mb-0">Administración de acceso, roles y asignación de subdirecciones/jefaturas</p>
     </div>
-    <button class="btn btn-primary-custom rounded-pill px-3 sol-admin-only" onclick="abrirModalNuevoUsuario();">
-      <i class="bi bi-person-plus me-1"></i> Registrar Usuario
-    </button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-primary rounded-pill px-3 sol-admin-only" onclick="generarCredencialesPendientes();" title="Genera contraseñas temporales para usuarios que aún no tienen una">
+        <i class="bi bi-key me-1"></i> Generar Credenciales Pendientes
+      </button>
+      <button class="btn btn-primary-custom rounded-pill px-3 sol-admin-only" onclick="abrirModalNuevoUsuario();">
+        <i class="bi bi-person-plus me-1"></i> Registrar Usuario
+      </button>
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm rounded-3">
@@ -21,6 +26,7 @@
               <th>Rol</th>
               <th>Subdirección</th>
               <th>Jefatura / Depto</th>
+              <th>Credencial</th>
               <th>Activo</th>
               <th class="text-end sol-admin-only">Acciones</th>
             </tr>
@@ -87,6 +93,39 @@
           <button type="submit" class="btn btn-primary-custom rounded-pill px-4">Guardar Usuario</button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Credenciales Generadas -->
+<div class="modal fade" id="modalCredenciales" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-custom text-white">
+        <h5 class="modal-title fw-bold"><i class="bi bi-key me-2"></i>Credenciales Temporales</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning small mb-3">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Estas contraseñas se muestran una sola vez. Compártalas por un canal seguro y no las almacene en texto plano.
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Nombre</th>
+                <th>Contraseña temporal</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-credenciales-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-primary-custom rounded-pill px-4" data-bs-dismiss="modal">Entendido</button>
+      </div>
     </div>
   </div>
 </div>

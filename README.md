@@ -3,7 +3,7 @@
 Aplicación Web desarrollada en Google Apps Script (V8 runtime + HTMLService) con base de datos en Google Sheets para la digitalización y seguimiento de Proyectos, Minutas, Asistencia, Orden del Día, Acuerdos, Comentarios de Seguimiento y Usuarios.
 
 ## 🚀 Características principales
-- **Autenticación y Roles:** Control de acceso por correo y roles (`Administrador`, `Operador`, `Lector`).
+- **Autenticación y Roles:** Inicio de sesión con correo y contraseña, contraseñas almacenadas con hash salado, sesiones aisladas por token y control de acceso por roles (`Administrador`, `Operador`, `Jefatura`, `Lector`).
 - **Control de Visibilidad:** Filtrado automático de información en el backend según el rol y subdirección del usuario.
 - **Gestión de Proyectos y Minutas:** Creación y seguimiento con folios secuenciales anuales (`MIN-YYYY-NNN`).
 - **Gestión de Acuerdos:** Seguimiento de acuerdos derivados de minutas e individuales (`ACU-` / `ACU-IND-`), con semáforo de vencimiento y prioridades.
@@ -47,4 +47,23 @@ Aplicación Web desarrollada en Google Apps Script (V8 runtime + HTMLService) co
 7. **Catálogos:** `Tipo`, `Valor`.
 8. **Log_Notificaciones:** `ID_Log`, `ID_Acuerdo`, `Correo_Destino`, `Asunto`, `Fecha_Envío`, `Estatus_Envío`.
 9. **Comentarios_Seguimiento:** `ID_Comentario`, `ID_Acuerdo`, `Usuario`, `Fecha_Hora`, `Comentario`.
-10. **Usuarios:** `Correo`, `Nombre`, `Rol`, `Subdirección`, `Activo`.
+10. **Usuarios:** `Correo`, `Nombre`, `Rol`, `Subdirección`, `Activo`, `Jefatura_Departamento`, `Contrasena_Hash`, `Contrasena_Actualizada`.
+
+---
+
+## 🔐 Seguridad y autenticación
+
+- Las contraseñas **nunca** se almacenan en texto plano. Se guardan como `sha256$<iteraciones>$<salt>$<hash>` con salt aleatorio y derivación iterada (10 000 rondas).
+- Cada inicio de sesión genera un token aleatorio de 256 bits. El servidor guarda la sesión en `PropertiesService.getScriptProperties()` bajo `AUTH_SESSION_<token>` y el navegador conserva únicamente el token en `sessionStorage`.
+- Todas las llamadas del cliente pasan por `ejecutarAccion()`, que inyecta el token en un contexto de ejecución aislado. `validarSesion()` es la única fuente de verdad y revalida el usuario contra la hoja `Usuarios`.
+- El cierre de sesión elimina el registro del servidor y el token del navegador. Un restablecimiento de contraseña, desactivación o eliminación de usuario invalida todas sus sesiones.
+- Sólo los usuarios con rol **Administrador** pueden crear usuarios, restablecer contraseñas y generar credenciales. Las contraseñas temporales se generan con 16 caracteres (mayúsculas, minúsculas, números y caracteres especiales) y se muestran una sola vez.
+
+### Arranque inicial y migración de usuarios existentes
+
+1. Ejecute `setup()` desde el editor de Apps Script. Si la hoja `Usuarios` está vacía, las contraseñas temporales de los usuarios iniciales aparecerán en el **registro de ejecución** (sólo visible para el propietario del script). El setup también crea el secreto `AUTH_BOOTSTRAP_SECRET`.
+2. Para generar contraseñas de usuarios existentes que aún no tengan una, copie el valor de `AUTH_BOOTSTRAP_SECRET` desde **Configuración del proyecto → Propiedades del script** y ejecute desde el editor: `generarCredencialesUsuariosExistentes("EL_SECRETO_COPIADO")`. Las credenciales se mostrarán únicamente en el registro de ejecución.
+3. Distribuya cada contraseña temporal por un canal seguro. Después, el Administrador puede restablecer contraseñas individuales desde **Usuarios → Restablecer contraseña**.
+4. Si un usuario aparece con la credencial **Pendiente**, el Administrador puede usar **Generar Credenciales Pendientes** en la vista de Usuarios.
+
+> El secreto de arranque es necesario sólo la primera vez. Una vez que un Administrador puede iniciar sesión, toda la gestión se realiza desde la interfaz web y el secreto puede eliminarse de las Propiedades del script.
