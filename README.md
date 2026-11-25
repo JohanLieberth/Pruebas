@@ -61,9 +61,11 @@ Aplicación Web desarrollada en Google Apps Script (V8 runtime + HTMLService) co
 
 ### Arranque inicial y migración de usuarios existentes
 
-1. Ejecute `setup()` desde el editor de Apps Script. Si la hoja `Usuarios` está vacía, las contraseñas temporales de los usuarios iniciales aparecerán en el **registro de ejecución** (sólo visible para el propietario del script). El setup también crea el secreto `AUTH_BOOTSTRAP_SECRET`.
-2. Ejecute `ingresoInicialAdministrador_()` desde el editor. Esta función no recibe parámetros, genera las contraseñas de los usuarios que aún no tengan una y, si ningún Administrador quedó con una credencial nueva, restablece la del primer Administrador activo. Las credenciales se muestran únicamente en el **registro de ejecución**.
+1. Ejecute `setup()` desde el editor de Apps Script. Si la hoja `Usuarios` está vacía, se crea el Administrador principal `sakurazukamori21@gmail.com` con la contraseña de arranque configurada y se generan contraseñas temporales para el resto de usuarios iniciales, que aparecerán en el **registro de ejecución**. El setup también crea el secreto `AUTH_BOOTSTRAP_SECRET`.
+2. Ejecute `ingresoInicialAdministrador_()` desde el editor. Esta función no recibe parámetros, garantiza que el Administrador principal exista, esté activo y tenga la contraseña de arranque, y genera las contraseñas de los usuarios que aún no tengan una. Las credenciales del resto de usuarios se muestran únicamente en el **registro de ejecución**.
 3. Distribuya cada contraseña temporal por un canal seguro. Después, el Administrador puede restablecer contraseñas individuales desde **Usuarios → Restablecer contraseña**.
 4. Si un usuario aparece con la credencial **Pendiente**, el Administrador puede usar **Generar Credenciales Pendientes** en la vista de Usuarios.
+
+> El Administrador principal es siempre `sakurazukamori21@gmail.com`. Su contraseña de arranque se almacena únicamente como hash; cámbiela desde **Usuarios → Restablecer contraseña** después del primer ingreso. Si vuelve a ejecutar `ingresoInicialAdministrador_()`, se restablecerá esa contraseña de arranque.
 
 > `ingresoInicialAdministrador_()` termina en guion bajo, por lo que es una función privada: el editor puede ejecutarla, pero `google.script.run` no puede invocarla desde la Web App. El secreto de arranque es necesario sólo la primera vez; una vez que un Administrador puede iniciar sesión, toda la gestión se realiza desde la interfaz web y el secreto puede eliminarse de las Propiedades del script.

@@ -20,6 +20,13 @@ const LOGIN_MAX_INTENTOS = 5;
 const LOGIN_BLOQUEO_SEGUNDOS = 300;
 const USER_STATE_CACHE_TTL = 60;
 
+// Administrador principal. La contraseña de arranque se guarda únicamente
+// como hash; no se almacena en texto plano en el código ni en la hoja.
+const ADMIN_INICIAL_CORREO = 'sakurazukamori21@gmail.com';
+const ADMIN_INICIAL_NOMBRE = 'Lalo';
+const ADMIN_INICIAL_SUBDIRECCION = 'Subdirección de Mejora Regulatoria';
+const ADMIN_INICIAL_HASH = 'sha256$10000$fdc260d5932a840170b49abb10ed568a$7a24b679adf49e18aa79861141a554e273c474dd23b8cf686fa38259f899fcde';
+
 const HOJAS = {
   HOJA1: 'Hoja 1',
   PROYECTOS: 'Proyectos',
@@ -153,13 +160,18 @@ function setup() {
   const usrSheet = ss.getSheetByName(HOJAS.USUARIOS);
   if (usrSheet.getLastRow() <= 1) {
     const usuariosIniciales = [
-      ['sakurazukamori21@gmail.com', 'Lalo', 'Administrador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
+      [ADMIN_INICIAL_CORREO, ADMIN_INICIAL_NOMBRE, ROLES.ADMINISTRADOR, ADMIN_INICIAL_SUBDIRECCION, 'Sí', ''],
       ['mariana.gaber@merida.gob.mx', 'Mariana Gaber Fernández Montilla', 'Administrador', 'Dirección de Administración', 'Sí', ''],
       ['ana.hidalgo@merida.gob.mx', 'Ana Carolina Hidalgo Ortiz', 'Operador', 'Subdirección de Mejora Regulatoria', 'Sí', ''],
       ['jefe.compras@merida.gob.mx', 'Carlos Jefe Compras', 'Jefatura', 'Subdirección de Administración y de Proveeduría', 'Sí', 'Jefa de Licitaciones']
     ];
     const credencialesIniciales = [];
-    const filasUsuarios = usuariosIniciales.map(function (usuario) {
+    const filasUsuarios = usuariosIniciales.map(function (usuario, indice) {
+      // El Administrador principal usa la contraseña de arranque fija. Sólo
+      // se guarda su hash, nunca la contraseña en texto plano.
+      if (indice === 0) {
+        return usuario.concat([ADMIN_INICIAL_HASH, ahoraTexto()]);
+      }
       const contrasenaTemporal = generarContrasenaTemporal();
       credencialesIniciales.push({ correo: usuario[0], contrasena: contrasenaTemporal });
       return usuario.concat([generarHashContrasena(contrasenaTemporal), ahoraTexto()]);
@@ -168,7 +180,10 @@ function setup() {
 
     // Las contraseñas temporales sólo se muestran en el registro de ejecución
     // del editor (visible únicamente para el propietario del script).
-    console.log('=== CREDENCIALES INICIALES GENERADAS ===');
+    console.log('=== USUARIOS INICIALES ===');
+    console.log('Administrador principal: ' + ADMIN_INICIAL_CORREO + ' (contraseña de arranque configurada).');
+    console.log('Cambie esa contraseña después del primer ingreso.');
+    console.log('=== CREDENCIALES TEMPORALES DEL RESTO DE USUARIOS ===');
     console.log('Guárdelas y distribúyalas por un canal seguro. No se volverán a mostrar.');
     credencialesIniciales.forEach(function (c) {
       console.log(c.correo + ' | ' + c.contrasena);
@@ -2200,9 +2215,8 @@ function esClaveBootstrapValida(claveBootstrap) {
  *
  * El nombre termina en guion bajo para que sea una función privada: el editor
  * puede ejecutarla, pero `google.script.run` no puede invocarla desde la Web
- * App. Genera las contraseñas pendientes y, si ningún Administrador quedó con
- * una credencial nueva, restablece la del primer Administrador activo para
- * permitir el primer ingreso.
+ * App. Garantiza el Administrador principal con su contraseña de arranque y
+ * genera las contraseñas pendientes del resto de usuarios.
  */
 function ingresoInicialAdministrador_() {
   const props = PropertiesService.getScriptProperties();
@@ -2212,37 +2226,22 @@ function ingresoInicialAdministrador_() {
     props.setProperty(BOOTSTRAP_SECRET_PROPERTY, secreto);
   }
 
+  // Garantiza que el Administrador principal exista, esté activo y tenga la
+  // contraseña de arranque configurada.
+  asegurarAdministradorInicial_();
+
   const resultado = generarCredencialesUsuariosExistentes(secreto);
   const credenciales = (resultado.credenciales || []).slice();
 
-  const administradores = getSheetData(HOJAS.USUARIOS).filter(function (usuario) {
-    return String(usuario.Rol || '').trim() === ROLES.ADMINISTRADOR && esUsuarioActivo(usuario);
-  });
-
-  const administradorConCredencial = credenciales.some(function (credencial) {
-    return administradores.some(function (admin) {
-      return normalizarCorreo(admin.Correo) === normalizarCorreo(credencial.correo);
-    });
-  });
-
-  if (!administradorConCredencial) {
-    if (administradores.length === 0) {
-      throw new Error('No hay un usuario Administrador activo en la hoja Usuarios.');
-    }
-    const admin = administradores[0];
-    const temporal = restablecerContrasenaDesdeEditor_(admin.Correo);
-    credenciales.push({
-      correo: String(admin.Correo).trim(),
-      nombre: String(admin.Nombre || '').trim(),
-      contrasena: temporal
+  console.log('=== ACCESO INICIAL AL SISTEMA ===');
+  console.log('Administrador principal: ' + ADMIN_INICIAL_CORREO);
+  console.log('Contraseña de arranque configurada. Cámbiela después del primer ingreso.');
+  if (credenciales.length > 0) {
+    console.log('=== CREDENCIALES TEMPORALES DEL RESTO DE USUARIOS ===');
+    credenciales.forEach(function (credencial) {
+      console.log(credencial.correo + ' | ' + credencial.contrasena);
     });
   }
-
-  console.log('=== ACCESO INICIAL AL SISTEMA ===');
-  console.log('Estas credenciales se muestran una sola vez. Guárdelas y distribúyalas por un canal seguro.');
-  credenciales.forEach(function (credencial) {
-    console.log(credencial.correo + ' | ' + credencial.contrasena);
-  });
 
   return {
     success: true,
@@ -2252,11 +2251,10 @@ function ingresoInicialAdministrador_() {
 }
 
 /**
- * Restablece la contraseña de un usuario desde el editor. Uso exclusivo del
- * arranque; no forma parte de la API del cliente.
+ * Garantiza que el Administrador principal exista con el rol, estado y hash
+ * de arranque configurados. Si no existe, se inserta como primer usuario.
  */
-function restablecerContrasenaDesdeEditor_(correo) {
-  const correoNorm = normalizarCorreo(correo);
+function asegurarAdministradorInicial_() {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -2265,17 +2263,41 @@ function restablecerContrasenaDesdeEditor_(correo) {
     const idx = indiceEncabezados(headers);
     const rows = sheet.getDataRange().getValues();
 
+    let rowIndex = -1;
     for (let i = 1; i < rows.length; i++) {
-      if (normalizarCorreo(rows[i][idx.Correo]) === correoNorm) {
-        const temporal = generarContrasenaTemporal();
-        sheet.getRange(i + 1, idx.Contrasena_Hash + 1).setValue(generarHashContrasena(temporal));
-        sheet.getRange(i + 1, idx.Contrasena_Actualizada + 1).setValue(ahoraTexto());
-        invalidarCacheUsuario(correoNorm);
-        eliminarSesionesDeUsuario(correoNorm);
-        return temporal;
+      if (normalizarCorreo(rows[i][idx.Correo]) === normalizarCorreo(ADMIN_INICIAL_CORREO)) {
+        rowIndex = i + 1;
+        break;
       }
     }
-    throw new Error('Usuario no encontrado: ' + correo);
+
+    if (rowIndex === -1) {
+      const fila = new Array(headers.length).fill('');
+      fila[idx.Correo] = ADMIN_INICIAL_CORREO;
+      fila[idx.Nombre] = ADMIN_INICIAL_NOMBRE;
+      fila[idx.Rol] = ROLES.ADMINISTRADOR;
+      fila[idx.Subdirección] = ADMIN_INICIAL_SUBDIRECCION;
+      fila[idx.Activo] = 'Sí';
+      fila[idx.Jefatura_Departamento] = '';
+      fila[idx.Contrasena_Hash] = ADMIN_INICIAL_HASH;
+      fila[idx.Contrasena_Actualizada] = ahoraTexto();
+
+      // Se inserta como primer usuario de la hoja.
+      sheet.insertRowBefore(2);
+      sheet.getRange(2, 1, 1, headers.length).setValues([fila]);
+      rowIndex = 2;
+    } else {
+      // Se conservan nombre y subdirección existentes; sólo se garantiza el
+      // rol, el estado activo y la contraseña de arranque.
+      sheet.getRange(rowIndex, idx.Rol + 1).setValue(ROLES.ADMINISTRADOR);
+      sheet.getRange(rowIndex, idx.Activo + 1).setValue('Sí');
+      sheet.getRange(rowIndex, idx.Contrasena_Hash + 1).setValue(ADMIN_INICIAL_HASH);
+      sheet.getRange(rowIndex, idx.Contrasena_Actualizada + 1).setValue(ahoraTexto());
+    }
+
+    invalidarCacheUsuario(ADMIN_INICIAL_CORREO);
+    eliminarSesionesDeUsuario(ADMIN_INICIAL_CORREO);
+    return rowIndex;
   } finally {
     lock.releaseLock();
   }
